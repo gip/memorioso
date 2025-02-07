@@ -3,6 +3,7 @@
 import { useState, useContext, useCallback } from 'react'
 import { MiniKit, Permission, RequestPermissionPayload, MiniAppRequestPermissionPayload } from '@worldcoin/minikit-js'
 import { MiniKitContext } from '@/components/providers/MinikitProvider'
+
 export default function Page() {
   const [walletAuth, setWalletAuth] = useState(null)
   const isInstalled = useContext(MiniKitContext)
@@ -11,8 +12,8 @@ export default function Page() {
     async () => {
         const requestPermissionPayload: RequestPermissionPayload = {
             permission: Permission.Notifications,
-        };
-        const payload: MiniAppRequestPermissionPayload = await MiniKit.commandsAsync.requestPermission(requestPermissionPayload)
+        }
+        const payload = await MiniKit.commandsAsync.requestPermission(requestPermissionPayload) as unknown as MiniAppRequestPermissionPayload
         if(payload.status === 'success') {
             console.log('Permission granted')
         } else {

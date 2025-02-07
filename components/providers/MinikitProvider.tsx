@@ -10,9 +10,13 @@ export const MiniKitProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
-      MiniKit.install(process.env.NEXT_PUBLIC_WLD_CLIENT_ID)
-      if (MiniKit.isInstalled()) {
-        setIsInstalled(true)
+      try {
+        MiniKit.install(process.env.NEXT_PUBLIC_WLD_CLIENT_ID)
+        if (MiniKit.isInstalled()) {
+          setIsInstalled(true)
+        }
+      } catch {
+        // Pass
       }
     }
     init()

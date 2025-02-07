@@ -1,10 +1,26 @@
 'use client'
 
-import { useState } from 'react'
-import { MiniKit } from '@worldcoin/minikit-js'
-
+import { useState, useContext, useCallback } from 'react'
+import { MiniKit, Permission, RequestPermissionPayload, MiniAppRequestPermissionPayload } from '@worldcoin/minikit-js'
+import { MiniKitContext } from '@/components/providers/MinikitProvider'
 export default function Page() {
   const [walletAuth, setWalletAuth] = useState(null)
+  const isInstalled = useContext(MiniKitContext)
+
+  const requestPermission = useCallback(
+    async () => {
+        const requestPermissionPayload: RequestPermissionPayload = {
+            permission: Permission.Notifications,
+        };
+        const payload: MiniAppRequestPermissionPayload = await MiniKit.commandsAsync.requestPermission(requestPermissionPayload)
+        if(payload.status === 'success') {
+            console.log('Permission granted')
+        } else {
+            console.log('Permission denied')
+        }
+    },
+    []
+  )
 
   const signInWithWallet = async () => {
     if (!MiniKit.isInstalled()) {
@@ -37,14 +53,17 @@ export default function Page() {
       })
       const json = await response.json()
       setWalletAuth(json)
+      await requestPermission()
     }
   }
 
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-          <button onClick={() => signInWithWallet()}>Sign with wallet</button>
-          <p>{JSON.stringify(walletAuth)}</p>
+        <h1>INSTALLED: {isInstalled ? 'YES' : 'NO'}</h1>
+        <h1>NAME: {MiniKit.user?.username}</h1>
+        <button onClick={() => signInWithWallet()}>Sign with wallet</button>
+        <p>{JSON.stringify(walletAuth)}</p>
       </main>
       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
         <h1>Memorioso</h1>

@@ -64,7 +64,7 @@ export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: Po
                 <Badge 
                   variant="secondary" 
                   className={`bg-transparent border px-1.5 py-0 text-xs rounded-md ${post.status === 'pending_reply' ? 'border-green-500 text-green-500' : 
-                    post.status === 'pending_payment' ? 'border-gray-500 text-gray-500' : 
+                    post.status === 'pending_payment' ? 'border-yellow-500 text-yellow-500' : 
                     post.status === 'paid' ? 'border-green-500 text-green-500' : 
                     post.status === 'rejected' ? 'border-red-500 text-red-500' : ''}`}
                 >

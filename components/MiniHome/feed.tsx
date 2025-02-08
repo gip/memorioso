@@ -1,22 +1,10 @@
-import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { MessageSquare, MoreHorizontal } from "lucide-react"
 import Image from "next/image"
 import { Post as PostType } from '@/types'
 
-export const Feed = ({ setPost }: { setPost: (post: PostType) => void }) => {
-  const [posts, setPosts] = useState<PostType[]>([])
-
-  const fetchPosts = async () => {
-    const res = await fetch('/api/feed')
-    const data = await res.json()
-    setPosts(data.feed as PostType[])
-  }
-
-  useEffect(() => {
-    fetchPosts()
-  }, [])
+export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: PostType) => void }) => {
 
   return (
     <div className="space-y-4">

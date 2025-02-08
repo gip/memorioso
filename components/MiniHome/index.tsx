@@ -13,6 +13,13 @@ export const MiniHome = () => {
   const [isTextVisible, setIsTextVisible] = useState(true)
   const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
+  const [posts, setPosts] = useState<PostType[]>([])
+
+  const fetchPosts = async () => {
+    const res = await fetch('/api/feed')
+    const data = await res.json()
+    setPosts(data.feed as PostType[])
+  }
 
   useEffect(() => {
     if (walletAuth) {
@@ -21,18 +28,32 @@ export const MiniHome = () => {
   }, [walletAuth])
 
   const getLocation = async () => {
-    if (navigator.geolocation) {
-      let position = null
-      navigator.geolocation.getCurrentPosition((pos) => { position = pos })
+    try {      
+      const position = await new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported'))
+          return
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      })
+      
       const response = await fetch('/api/geo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position }),
+        body: JSON.stringify({
+          // @ts-expect-error - position is a GeolocationPosition object
+          latitude: position.coords.latitude,
+          // @ts-expect-error - position is a GeolocationPosition object
+          longitude: position.coords.longitude
+        }),
       })
+      
       const { city, country } = await response.json()
       setLocation({ success: true, city, country })
-    } else {
-      setLocation({ success: false })
+      await fetchPosts()
+      
+    } catch {
+      setLocation({ success: false });
     }
   }
 
@@ -119,7 +140,7 @@ export const MiniHome = () => {
       })
       const json = await response.json()
       setWalletAuth(json)
-      // await requestPermission()
+      await fetchPosts()
     }
   }
 
@@ -127,7 +148,7 @@ export const MiniHome = () => {
     <div className="min-h-screen flex flex-col pt-2">
       <main className="flex-1 pb-16">
         {tab === 'post' && post&& <Post post={post} setPost={() => { setPost(null); setTab('messages') }} />}
-        {tab === 'messages' && <Feed setPost={(post) => { setPost(post); setTab('post') }} />}
+        {tab === 'messages' && <Feed posts={posts} setPost={(post) => { setPost(post); setTab('post') }} />}
         {tab === 'home' && (
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl italic py-6">Memorioso</p>
@@ -164,19 +185,22 @@ export const MiniHome = () => {
               {walletAuth && (
                 <div className="flex flex-col items-center w-full">
                   <Button
-                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white'}`}
+                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
                     onClick={getLocation}
                     disabled={!!location}
                   >
-                    <span className={walletAuth ? 'text-green-500' : ''}>
-                      {location ? '✅ ' : ''}Share location
+                    <span className={walletAuth ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
+                      {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Share location
                     </span>
                   </Button>
                   {!location && (
                     <p className="text-md italic text-center mt-2">Share your location to act as a local expert</p>
                   )}
-                  {location && (
+                  {location && location.success && (
                     <p className="text-md italic text-center mt-2">Location: {location.city}, {location.country}</p>
+                  )}
+                  {location && !location.success && (
+                    <p className="text-md italic text-center mt-2">Could not get location</p>
                   )}
                 </div>
               )}
@@ -191,5 +215,4 @@ export const MiniHome = () => {
       </div>
     </div>
   )
-
 }

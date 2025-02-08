@@ -210,7 +210,7 @@ export const MiniHome = () => {
                 )}
               </div>
 
-              {walletAuth && (
+              {walletAuth && (<>
                 <div className="flex flex-col items-center w-full">
                   <Button
                     className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
@@ -225,13 +225,22 @@ export const MiniHome = () => {
                     <p className="text-md italic text-center mt-2">Share your location to act as a local expert</p>
                   )}
                   {location && location.success && (
-                    <p className="text-md italic text-center mt-2">Location: {location.city}, {location.country}</p>
+                    <p className="text-md italic text-center mt-6">Location: {location.city}, {location.country}</p>
                   )}
                   {location && !location.success && (
-                    <p className="text-md italic text-center mt-2">Could not get location</p>
+                    <p className="text-md italic text-center mt-6">Could not get location</p>
                   )}
                 </div>
-              )}
+                {walletAuth && location && (<>
+                  <Button
+                    className="text-6xl font-bold rounded-full mt-6 w-32 h-32 bg-green-500 hover:bg-green-600 transition-colors"
+                    onClick={() => setTab('messages')}
+                  >
+                    GO
+                  </Button>
+                  <p className="text-md text-center mt-2">You are all set!<br />Press GO to start sharing your knowledge</p>
+                </>)}
+              </>)}
 
             </div>
           </div>

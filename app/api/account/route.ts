@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { pool } from '@/lib/db'
-
+import { client } from '@/lib/db'
 import { insecureGetSession } from '@/lib/insecure-api';
 
 type ActionStatus = 'pending_reply' | 'pending_decision' | 'pending_payment' | 'completed'
@@ -25,7 +24,6 @@ async function getPostsByState(
   walletAddress: string, 
   state: ActionStatus
 ): Promise<PostWithState[]> {
-  const client = await pool.connect();
   
   try {
     const query = `

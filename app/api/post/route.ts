@@ -123,6 +123,5 @@ export const POST = async (req: Request) => {
   await client.query(`UPDATE actions SET decision = $1, decision_reason = $2, reply = $3, status = $4
                       WHERE uuid = $5`, [decision.decision, JSON.stringify(decision.reason), JSON.stringify({ text: answer }), success ? 'pending_payment' : 'rejected', actionId])
 
-  console.log('DON', actionId)
-  return NextResponse.json({ success: true, postId, answer })
+  return NextResponse.json({ success: true, accepted: success, decision: decision.decision, reason: decision.reason })
 }

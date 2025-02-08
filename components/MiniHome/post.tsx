@@ -4,20 +4,49 @@ import { Badge } from "@/components/ui/badge"
 import { MessageSquare, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import Image from "next/image"
 import { Post as PostType } from '@/types'
 
 export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostType | null) => void }) => {
   const [answer, setAnswer] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [modalContent, setModalContent] = useState({
+    accepted: false,
+    reason: ''
+  })
   
   const handleSubmit = async () => {
-    // Handle submit logic here
-    const res = await fetch('/api/post', {
-      method: 'POST',
-      body: JSON.stringify({ postId: post.id, answer })
-    })
-    const data = await res.json()
-    console.log(data)
+    try {
+      const res = await fetch('/api/post', {
+        method: 'POST',
+        body: JSON.stringify({ postId: post.id, answer })
+      })
+      const data = await res.json()
+      setModalContent({
+        accepted: data.accepted,
+        reason: data.reason
+      })
+      setShowModal(true)
+    } catch {
+      setModalContent({
+        accepted: false,
+        reason: 'An error occurred while submitting your answer.'
+      })
+      setShowModal(true)
+    }
+  }
+
+  const handleModalClose = () => {
+    setShowModal(false)
     setPost(null)
   }
 
@@ -93,6 +122,7 @@ export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostTy
           <Button
             onClick={handleSubmit}
             className="text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-green-500"
+            disabled={!answer.trim()} // Disable button if answer is empty
           >
             Submit Answer
           </Button>
@@ -100,12 +130,37 @@ export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostTy
         <div className="flex justify-center pt-4">
           <Button
             onClick={handleCancel}
-            className="text-3xl rounded-full px-6 py-8 w-4/5  border-2 border-red-500"
+            className="text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-red-500"
           >
             Cancel
           </Button>
         </div>
       </div>
+
+
+      <AlertDialog open={showModal} onOpenChange={setShowModal}>
+        <AlertDialogContent className="bg-black border-2 border-[#1c1c1f] max-w-[90%] rounded-xl">
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle className={`text-2xl font-bold text-center ${
+              modalContent.accepted ? 'text-green-500' : 'text-red-500'
+            }`}>
+              {modalContent.accepted ? 'Answer Accepted' : 'Answer Not Accepted'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-lg text-center text-gray-300">
+              {modalContent.reason}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction 
+              onClick={handleModalClose}
+              className="text-xl rounded-full px-6 py-4 w-full sm:w-2/3 border-2 border-[#8b5cf6] bg-transparent hover:bg-[#8b5cf6]/20 transition-colors"
+            >
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   )
 }

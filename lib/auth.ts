@@ -40,6 +40,13 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user }) {
       return true;
     },
+    session: ({ session, user }) => ({
+      ...session,
+      user: {
+        ...session.user,
+        id: user.id,
+      },
+    }),
   },
   debug: process.env.NODE_ENV === 'development',
 }

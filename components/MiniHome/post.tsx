@@ -12,7 +12,6 @@ export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostTy
   
   const handleSubmit = async () => {
     // Handle submit logic here
-    console.log('Submitted answer:', answer)
     const res = await fetch('/api/post', {
       method: 'POST',
       body: JSON.stringify({ postId: post.id, answer })

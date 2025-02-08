@@ -9,4 +9,5 @@ export type Post = {
     image?: string;
     comments: number;
     pay: string;
+    status: string;
   }

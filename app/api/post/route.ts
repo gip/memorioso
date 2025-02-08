@@ -1,8 +1,7 @@
 import { insecureGetSession } from "@/lib/insecure-api"
 import { NextResponse } from "next/server"
 import { client } from "@/lib/db"
-import { anthropicClient } from "@/lib/anthropic";
-import { sendUSDCe } from "@/lib/pay";
+import { anthropicClient } from "@/lib/anthropic"
 
 interface PostActionDetails {
   // Post details
@@ -79,7 +78,6 @@ async function getPostActionDetails(
   }
 }
 
-
 export const POST = async (req: Request) => {
   const insecureSession = await insecureGetSession()
   if (!insecureSession) {
@@ -114,17 +112,17 @@ export const POST = async (req: Request) => {
     max_tokens: 100, // Added required property
   })
 
+  console.log('RESPONSE', response)
   // @ts-expect-error - Not sure why this is throwing an error
   const decision = JSON.parse(response.content[0].text)
   console.log('RESPONSE', decision)
 
-
+  const success = decision.decision === 'yes'
   const actionId = postActionDetails?.actionId
 
-  await client.query(`UPDATE actions SET decision = $1, decision_reason = $2, reply = $3
-                      WHERE uuid = $4`, [decision.decision, JSON.stringify(decision.reason), JSON.stringify({ text: answer }), actionId])
+  await client.query(`UPDATE actions SET decision = $1, decision_reason = $2, reply = $3, status = $4
+                      WHERE uuid = $5`, [decision.decision, JSON.stringify(decision.reason), JSON.stringify({ text: answer }), success ? 'pending_payment' : 'rejected', actionId])
 
-  await sendUSDCe(insecureSession.address, 0.0015)
-
+  console.log('DON', actionId)
   return NextResponse.json({ success: true, postId, answer })
 }

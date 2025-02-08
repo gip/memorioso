@@ -9,7 +9,11 @@ export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: Po
   return (
     <div className="space-y-4">
       {posts.map((post) => (
-        <article key={post.id} className="px-4 py-3 border-b border-[#1c1c1f]" onClick={() => setPost(post)}>
+        <article 
+          key={post.id} 
+          className={`px-4 py-3 border-b border-[#1c1c1f] ${post.status === 'pending_reply' ? 'cursor-pointer hover:bg-gray-900' : 'cursor-not-allowed'}`} 
+          onClick={() => post.status === 'pending_reply' ? setPost(post) : null}
+        >
           <div className="flex items-start gap-3">
             {post.avatar && <Avatar className="w-10 h-10">
               <AvatarImage src={post.avatar} alt={post.author} />
@@ -57,6 +61,18 @@ export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: Po
                 <button className="flex items-center gap-1.5">
                   <span className="text-sm">USDC {post.pay}</span>
                 </button>
+                <Badge 
+                  variant="secondary" 
+                  className={`bg-transparent border px-1.5 py-0 text-xs rounded-md ${post.status === 'pending_reply' ? 'border-green-500 text-green-500' : 
+                    post.status === 'pending_payment' ? 'border-gray-500 text-gray-500' : 
+                    post.status === 'paid' ? 'border-green-500 text-green-500' : 
+                    post.status === 'rejected' ? 'border-red-500 text-red-500' : ''}`}
+                >
+                  {post.status === 'pending_reply' ? 'Active' : 
+                    post.status === 'pending_payment' ? 'To Be Paid' : 
+                    post.status === 'paid' ? 'Paid' : 
+                    post.status === 'rejected' ? 'Rejected' : ''}
+                </Badge>
               </div>
             </div>
           </div>

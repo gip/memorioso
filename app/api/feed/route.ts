@@ -23,24 +23,24 @@ async function getUnrepliedMessagesForWallet(
             post_id,
             COUNT(*) as comment_count
           FROM actions
-          WHERE decision IS NULL
+          WHERE status != 'pending_reply'
           GROUP BY post_id
         )
         SELECT 
-          p.uuid as id,
+          a.uuid as id,
           c.author,
           c.title,
           p.content->>'text' as content,
           c.type as community,
           COALESCE(ps.comment_count, 0) as comments,
-          CAST(p.amount AS DECIMAL(10,2)) as pay
+          CAST(p.amount AS DECIMAL(10,2)) as pay,
+          a.status as status
         FROM actions a
         INNER JOIN humans h ON h.uuid = a.human_id
         INNER JOIN posts p ON p.uuid = a.post_id
         INNER JOIN campaigns c ON c.uuid = p.campaign_id
         LEFT JOIN post_stats ps ON ps.post_id = p.uuid
         WHERE h.wallet_address = $1
-        AND a.decision IS NULL
         ORDER BY p.added_at ASC;
       `;
   
@@ -53,7 +53,8 @@ async function getUnrepliedMessagesForWallet(
         community: row.community,
         content: row.content,
         comments: Number(row.comments),
-        pay: Number(row.pay).toFixed(2)
+        pay: Number(row.pay).toFixed(2),
+        status: row.status
       }));
     } catch (error) {
       console.error('Error fetching unreplied messages:', error);
@@ -102,7 +103,8 @@ async function getUnrepliedMessagesForWallet(
           human_id,
           reply,
           replied_at,
-          reviewed_at
+          reviewed_at,
+          status
         )
         SELECT 
           gen_random_uuid(),
@@ -110,7 +112,8 @@ async function getUnrepliedMessagesForWallet(
           $1::uuid as human_id,
           '{"text": ""}' as reply,
           NULL as replied_at,
-          NULL as reviewed_at
+          NULL as reviewed_at,
+          'pending_reply' as status
         FROM available_posts
         RETURNING uuid;
       `;
@@ -125,60 +128,6 @@ async function getUnrepliedMessagesForWallet(
       throw error;
     }
   }
-
-// const posts: Post[] = [
-//   {
-//     id: '533ebdcc-8425-4dda-b696-d0800c5e8e7c',
-//     author: "Human Research Inc",
-//     community: "AI",
-//     title: "Building a San Francisco Dataset",
-//     content:
-//       "What neighborhoods have the highest concentration of fine dining restaurants?",
-//     image: '',
-//     comments: 42,
-//     pay: '0.20'
-//   },
-//   {
-//     id: '533ebdcc-8425-4dda-b696-d0800c5e8e7d',
-//     author: "nftcollector",
-//     avatar: "/placeholder.svg?height=40&width=40",
-//     community: "San Francisco",
-//     content:
-//       "Just minted my latest NFT collection! It's a series of digital art pieces inspired by classic literature. Check it out on OpenSea! #NFT #DigitalArt",
-//     comments: 23,
-//     pay: '0.50'
-//   },
-//   {
-//     id: '533ebdcc-8425-4dda-b696-d0800c5e8e8c',
-//     author: "techanalyst",
-//     avatar: null,
-//     community: "tech",
-//     content:
-//       "New report suggests AI will create more jobs than it displaces in the next decade. Exciting times ahead for the tech industry! What skills do you think will be most valuable?",
-//     comments: 67,
-//     pay: '0.50'
-//   },
-//   {
-//     id: '533ebdcc-8425-4dda-b696-d0800c5e8e9c',
-//     author: "techanalyst",
-//     avatar: "/placeholder.svg?height=40&width=40",
-//     community: "tech",
-//     content:
-//       "New report suggests AI will create more jobs than it displaces in the next decade. Exciting times ahead for the tech industry! What skills do you think will be most valuable?",
-//     comments: 67,
-//     pay: '0.50'
-//   },
-//   {
-//     id: '533ebdcc-8425-4dda-b696-d0800c5e8eac',
-//     author: "techanalyst",
-//     avatar: "/placeholder.svg?height=40&width=40",
-//     community: "tech",
-//     content:
-//       "New report suggests AI will create more jobs than it displaces in the next decade. Exciting times ahead for the tech industry! What skills do you think will be most valuable?",
-//     comments: 67,
-//     pay: '0.50'
-//   },
-// ]
 
 export const GET = async () => {
  const insecureSession = await insecureGetSession()

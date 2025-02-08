@@ -19,17 +19,18 @@ export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: Po
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <span className="font-semibold text-[15px]">{post.author}</span>
-                  {post.community && (
-                    <>
-                      <span className="text-gray-500 text-sm">in</span>
+                  {post.community && (<>
+                    <span className="text-gray-500 text-sm">in</span>
+                    {post.community.split(',').map((community, index) => (
                       <Badge
+                        key={index}
                         variant="secondary"
                         className="bg-transparent border border-[#8b5cf6] text-[#8b5cf6] px-1.5 py-0 text-xs rounded-md"
                       >
-                        {post.community}
+                        {community.trim()}
                       </Badge>
-                    </>
-                  )}
+                    ))}
+                  </>)}
                 </div>
                 <button className="text-gray-500">
                   <MoreHorizontal className="w-5 h-5" />

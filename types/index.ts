@@ -1,6 +1,6 @@
 
 export type Post = {
-    id: number;
+    id: string;
     author: string;
     avatar?: string | null;
     community: string;

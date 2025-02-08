@@ -12,7 +12,6 @@ export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostTy
   
   const handleSubmit = async () => {
     // Handle submit logic here
-    console.log('Submitted answer:', answer)
     const res = await fetch('/api/post', {
       method: 'POST',
       body: JSON.stringify({ postId: post.id, answer })
@@ -41,12 +40,15 @@ export const Post = ({ post, setPost }: { post: PostType, setPost: (post: PostTy
                 {post.community && (
                   <>
                     <span className="text-gray-500 text-sm">in</span>
-                    <Badge
-                      variant="secondary"
-                      className="bg-transparent border border-[#8b5cf6] text-[#8b5cf6] px-1.5 py-0 text-xs rounded-md"
-                    >
-                      {post.community}
-                    </Badge>
+                    {post.community.split(',').map((community, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="bg-transparent border border-[#8b5cf6] text-[#8b5cf6] px-1.5 py-0 text-xs rounded-md"
+                      >
+                        {community.trim()}
+                      </Badge>
+                    ))}
                   </>
                 )}
               </div>

@@ -17,8 +17,8 @@ export function BottomNav({ tab, setTab }: { tab: string, setTab: (tab: string) 
           <MessageSquare className="w-10 h-10" />
         </button>
         <button 
-          onClick={() => setTab('notifications')} 
-          className={`${tab === 'notifications' ? 'text-[#8b5cf6]' : 'text-gray-500'}`}
+          onClick={() => setTab('payments')} 
+          className={`${tab === 'payments' ? 'text-[#8b5cf6]' : 'text-gray-500'}`}
         >
           <DollarSign className="w-10 h-10" />
         </button>

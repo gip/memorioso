@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MiniKit } from '@worldcoin/minikit-js'
+import { MiniKit, PayCommandInput, Tokens, tokenToDecimals } from '@worldcoin/minikit-js'
 import { BottomNav } from './bottom-navigation'
 import { Feed } from './feed'
 import { Button } from '../ui/button'
@@ -9,10 +9,24 @@ import { Post } from './post'
 import { Post as PostType } from '@/types'
 export const MiniHome = () => {
   const [tab, setTab] = useState('home')
-  const [walletAuth, setWalletAuth] = useState(null)
+  const [walletAuth, setWalletAuth] = useState<{ address: string } | null>(null)
   const [isTextVisible, setIsTextVisible] = useState(true)
   const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
+  const [posts, setPosts] = useState<PostType[]>([])
+  const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
+  const [amount, setAmount] = useState<number>(0)
+
+
+  const fetchPosts = async () => {
+    const res = await fetch('/api/feed')
+    const data = await res.json()
+    const feed = data.feed as PostType[]
+    setPosts(feed)
+    const postsToBePaid = feed.filter((post) => post.status === 'pending_payment')
+    setPostsToBePaid(postsToBePaid)
+    setAmount(postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0))
+  }
 
   useEffect(() => {
     if (walletAuth) {
@@ -21,57 +35,79 @@ export const MiniHome = () => {
   }, [walletAuth])
 
   const getLocation = async () => {
-    if (navigator.geolocation) {
-      let position = null
-      navigator.geolocation.getCurrentPosition((pos) => { position = pos })
+    try {      
+      const position = await new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported'))
+          return
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      })
+      
       const response = await fetch('/api/geo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position }),
+        body: JSON.stringify({
+          // @ts-expect-error - position is a GeolocationPosition object
+          latitude: position.coords.latitude,
+          // @ts-expect-error - position is a GeolocationPosition object
+          longitude: position.coords.longitude
+        }),
       })
+      
       const { city, country } = await response.json()
       setLocation({ success: true, city, country })
-    } else {
-      setLocation({ success: false })
+      await fetchPosts()
+    } catch {
+      setLocation({ success: false });
     }
   }
 
-  // const sendPayment = async () => {
-  //   const res = await fetch('/api/pay/initiate', {
-  //     method: 'POST',
-  //   })
-  //   const { id } = await res.json()
+  const sendPayment = async (address: string, amount: number) => {
+    const res = await fetch('/api/pay/initiate', {
+      method: 'POST',
+    })
+    const { id } = await res.json()
 
-  //   const payload: PayCommandInput = {
-  //     reference: id,
-  //     to: '0x2Eb67DdFf6761bC0938e670bf1e1ed46110DDABb',
-  //     tokens: [
-  //       {
-  //         symbol: Tokens.USDCE,
-  //         token_amount: tokenToDecimals(0.001, Tokens.USDCE).toString(),
-  //       }
-  //     ],
-  //     description: 'Test example payment for minikit',
-  //   }
+    const payload: PayCommandInput = {
+      reference: id,
+      to: address,
+      tokens: [
+        {
+          symbol: Tokens.USDCE,
+          token_amount: tokenToDecimals(amount, Tokens.USDCE).toString(),
+        }
+      ],
+      description: 'Memorioso payment',
+    }
 
-  //   if (!MiniKit.isInstalled()) {
-  //     return
-  //   }
+    if (!MiniKit.isInstalled()) {
+      return
+    }
 
-  //   const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
-
-  //   if (finalPayload.status == 'success') {
-  //     const res = await fetch(`/api/pay/confirm`, {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ payload: finalPayload }),
-  //     })
-  //     const payment = await res.json()
-  //     if (payment.success) {
-  //       // Congrats your payment was successful!
-  //     }
-  //   }
-  // }
+    const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
+    await fetch(`/api/debug`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finalPayload),
+    })
+    if (finalPayload.status == 'success') {
+      const res = await fetch(`/api/pay/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: finalPayload, postsToBePaid }),
+      })
+      const payment = await res.json()
+      await fetch(`/api/debug`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payment),
+      })
+      if (payment.success) {
+        await fetchPosts()
+      }
+    }
+  }
 
   // const requestPermission = useCallback(
   //   async () => {
@@ -119,15 +155,28 @@ export const MiniHome = () => {
       })
       const json = await response.json()
       setWalletAuth(json)
-      // await requestPermission()
+      await fetchPosts()
     }
   }
 
   return (
     <div className="min-h-screen flex flex-col pt-2">
       <main className="flex-1 pb-16">
-        {tab === 'post' && post&& <Post post={post} setPost={() => { setPost(null); setTab('messages') }} />}
-        {tab === 'messages' && <Feed setPost={(post) => { setPost(post); setTab('post') }} />}
+        {tab === 'payments' && <>
+          <div className="flex flex-col items-center justify-center h-full mt-10">
+            <p className="text-2xl py-6">Amount to be paid</p>
+            <p className="text-2xl italic py-6">USDC ${amount}</p>
+            {amount > 0 && walletAuth && <Button
+              className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
+              onClick={() => sendPayment(walletAuth.address, amount)}
+              disabled={amount === 0}
+            >
+              Get My Money
+            </Button>}
+          </div>
+        </>}
+        {tab === 'post' && post&& <Post post={post} setPost={async () => { setPost(null); await fetchPosts(); setTab('messages') }} />}
+        {tab === 'messages' && <Feed posts={posts} setPost={(post) => { setPost(post); setTab('post') }} />}
         {tab === 'home' && (
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl italic py-6">Memorioso</p>
@@ -164,19 +213,22 @@ export const MiniHome = () => {
               {walletAuth && (
                 <div className="flex flex-col items-center w-full">
                   <Button
-                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white'}`}
+                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
                     onClick={getLocation}
                     disabled={!!location}
                   >
-                    <span className={walletAuth ? 'text-green-500' : ''}>
-                      {location ? '✅ ' : ''}Share location
+                    <span className={walletAuth ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
+                      {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Share location
                     </span>
                   </Button>
                   {!location && (
                     <p className="text-md italic text-center mt-2">Share your location to act as a local expert</p>
                   )}
-                  {location && (
+                  {location && location.success && (
                     <p className="text-md italic text-center mt-2">Location: {location.city}, {location.country}</p>
+                  )}
+                  {location && !location.success && (
+                    <p className="text-md italic text-center mt-2">Could not get location</p>
                   )}
                 </div>
               )}
@@ -191,5 +243,4 @@ export const MiniHome = () => {
       </div>
     </div>
   )
-
 }

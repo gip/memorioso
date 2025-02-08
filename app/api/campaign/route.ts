@@ -3,7 +3,7 @@ import { client } from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 
-interface Campaign {
+export interface Campaign {
   id: string;
   title: string;
   type: string;
@@ -24,6 +24,7 @@ export async function GET() {
         return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 })
     }
 
+    // @ts-expect-error - user.id is not typed
     const userId = session.user?.id
 
     const query = `

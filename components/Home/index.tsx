@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { FcGoogle } from 'react-icons/fc'
 import { TbWorldWww } from 'react-icons/tb'
 import { useState, useEffect } from 'react'
-
+import { Campaign } from '@/app/api/campaign/route'
 function FloatingPaths({ position }: { position: number }) {
   const paths = Array.from({ length: 36 }, (_, i) => ({
     id: i,
@@ -53,7 +53,7 @@ function FloatingPaths({ position }: { position: number }) {
 
 export const Home = () => {
   const { data: session } = useSession()
-  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
 
   const words = ['Memorioso']
 

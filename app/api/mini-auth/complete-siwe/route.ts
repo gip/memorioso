@@ -9,9 +9,10 @@ interface IRequestPayload {
 
 export const POST = async (req: NextRequest) => {
 	const { payload, nonce } = (await req.json()) as IRequestPayload
-    console.log('PAL', payload)
+  const cookieStore = await cookies()
 	if (nonce != (await cookies()).get('siwe')?.value) {
-		return NextResponse.json({
+      cookieStore.delete('insecure-session')
+	    return NextResponse.json({
 			status: 'error',
 			isValid: false,
 			message: 'Invalid nonce',
@@ -19,16 +20,22 @@ export const POST = async (req: NextRequest) => {
 	}
 	try {
 		const validMessage = await verifySiweMessage(payload, nonce)
-        console.log('VALID MESSAGE', validMessage)
-        const userWalletAddress = payload.address
-        const isUserVerified = await getIsUserVerified(userWalletAddress)
-        console.log('IS USER VERIFIED', isUserVerified)
-		return NextResponse.json({
+    const userWalletAddress = payload.address
+    const isUserOrbVerified = await getIsUserVerified(userWalletAddress) // Proof of humans (according to TG!)
+
+    const response = {
 			status: 'success',
 			isValid: validMessage.isValid,
-            isUserVerified: isUserVerified
-		})
+      isHuman: isUserOrbVerified,
+      address: userWalletAddress,
+		}
+    cookieStore.set('insecure-session', JSON.stringify(response), {
+      secure: true,
+      httpOnly: true,
+    })
+		return NextResponse.json(response)
 	} catch (error: unknown) {
+    cookieStore.delete('insecure-session')
 		return NextResponse.json({
 			status: 'error',
 			isValid: false,

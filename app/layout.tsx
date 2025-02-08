@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
-import MiniKitProvider from '@/components/providers/MinikitProvider'
+import { MiniKitProvider } from '@/components/providers/MinikitProvider'
+
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -22,7 +23,7 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <html lang='en'>
       <MiniKitProvider>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <body className={`${geistSans.variable} ${geistMono.variable} bg-purple-950 text-white antialiased`}>
           {children}
         </body>
       </MiniKitProvider>

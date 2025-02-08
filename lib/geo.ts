@@ -6,7 +6,7 @@ export const getAddress = async ({ lat, lng }: { lat: number, lng: number }) => 
   const response = await client.reverseGeocode({
     params: {
       latlng: { lat, lng },
-      key: 'AIzaSyBnY062ImOtNuubHRZtqoPPFN_ZrI8VgKU', // process.env.GOOGLE_MAPS_API_KEY || '',
+      key: process.env.GOOGLE_MAPS_API_KEY || '',
     },
   })
   console.log('GEO',response)

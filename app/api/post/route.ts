@@ -61,7 +61,7 @@ async function getPostActionDetails(
       FROM posts
       INNER JOIN actions ON actions.post_id = posts.uuid
       INNER JOIN campaigns ON campaigns.uuid = posts.campaign_id
-      WHERE posts.uuid = $1
+      WHERE actions.uuid = $1
       LIMIT 1
     `;
 

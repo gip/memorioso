@@ -9,7 +9,9 @@ interface IRequestPayload {
 
 export const POST = async (req: NextRequest) => {
 	const { payload, nonce } = (await req.json()) as IRequestPayload
+  const cookieStore = await cookies()
 	if (nonce != (await cookies()).get('siwe')?.value) {
+      cookieStore.delete('insecure-session')
 	    return NextResponse.json({
 			status: 'error',
 			isValid: false,
@@ -20,12 +22,20 @@ export const POST = async (req: NextRequest) => {
 		const validMessage = await verifySiweMessage(payload, nonce)
     const userWalletAddress = payload.address
     const isUserOrbVerified = await getIsUserVerified(userWalletAddress) // Proof of humans (according to TG!)
-		return NextResponse.json({
+
+    const response = {
 			status: 'success',
 			isValid: validMessage.isValid,
-      isHuman: isUserOrbVerified
-		})
+      isHuman: isUserOrbVerified,
+      address: userWalletAddress,
+		}
+    cookieStore.set('insecure-session', JSON.stringify(response), {
+      secure: true,
+      httpOnly: true,
+    })
+		return NextResponse.json(response)
 	} catch (error: unknown) {
+    cookieStore.delete('insecure-session')
 		return NextResponse.json({
 			status: 'error',
 			isValid: false,

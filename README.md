@@ -4,4 +4,4 @@ Memorioso (aka Memo) is a platform to build better datasets for AI models utiliz
 
 [Website](https://memorioso.xyz)
 
-[Overview](/docs/memorioso_overview.png)
+![Overview](/docs/memorioso_overview.png)

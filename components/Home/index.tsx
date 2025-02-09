@@ -108,6 +108,9 @@ export const Home = () => {
                 <p className="italic text-neutral-900 dark:text-white">
                   Tags: {campaign.tags.length > 0 ? campaign.tags.join(', ') : 'No tags available'}
                 </p>
+                <p className="italic text-neutral-900 dark:text-white">
+                  Budget: USD $1000
+                </p>
               </div>
             ))}
           </div>

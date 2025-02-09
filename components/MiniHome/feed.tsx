@@ -3,12 +3,41 @@ import { Badge } from "@/components/ui/badge"
 import { MessageSquare, MoreHorizontal } from "lucide-react"
 import Image from "next/image"
 import { Post as PostType } from '@/types'
+import { useState } from 'react'
 
 export const Feed = ({ posts, setPost }: { posts: PostType[], setPost: (post: PostType) => void }) => {
+  const [filter, setFilter] = useState<string>('Active')
+
+  const statusMap = {
+    'Active': 'pending_reply',
+    'To Be Paid': 'pending_payment',
+    'Paid': 'paid',
+    'Rejected': 'rejected'
+  }
+
+  const filteredPosts = posts.filter(post => 
+    filter === 'All' ? true : post.status === statusMap[filter as keyof typeof statusMap]
+  )
 
   return (
     <div className="space-y-4">
-      {posts.map((post) => (
+      <div className="flex justify-center gap-3 px-4 mb-4 mt-4">
+        {['All', 'Active', 'To Be Paid', 'Paid', 'Rejected'].map((status) => (
+          <Badge
+            key={status}
+            variant="secondary"
+            className={`cursor-pointer hover:opacity-80 text-[14px] py-0 px-2 ${
+              filter === status 
+                ? 'bg-yellow-500 text-black' 
+                : 'bg-transparent border border-yellow-500 text-yellow-500'
+            }`}
+            onClick={() => setFilter(status)}
+          >
+            {status}
+          </Badge>
+        ))}
+      </div>
+      {filteredPosts.map((post) => (
         <article 
           key={post.id} 
           className={`px-4 py-3 border-b border-[#1c1c1f] ${post.status === 'pending_reply' ? 'cursor-pointer hover:bg-gray-900' : 'cursor-not-allowed'}`} 

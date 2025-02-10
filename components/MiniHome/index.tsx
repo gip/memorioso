@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MiniKit, PayCommandInput, Tokens, tokenToDecimals } from '@worldcoin/minikit-js'
+import { MiniKit } from '@worldcoin/minikit-js'
 import { BottomNav } from './bottom-navigation'
 import { Feed } from './feed'
 import { Button } from '../ui/button'
@@ -9,13 +9,15 @@ import { Post } from './post'
 import { Post as PostType } from '@/types'
 export const MiniHome = () => {
   const [tab, setTab] = useState('home')
-  const [walletAuth, setWalletAuth] = useState<{ address: string } | null>(null)
+  const [walletAuth, setWalletAuth] = useState<{ address: string; isHuman: boolean } | null>(null)
   const [isTextVisible, setIsTextVisible] = useState(true)
   const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
   const [posts, setPosts] = useState<PostType[]>([])
   const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
-  const [amount, setAmount] = useState<number>(0)
+  const [amount, setAmount] = useState<string | null>(null)
+  const [disablePaymentButton, setDisablePaymentButton] = useState(false)
+  const [paymentMessage, setPaymentMessage] = useState<{ text: string; color: string } | null>(null)
 
 
   const fetchPosts = async () => {
@@ -25,7 +27,12 @@ export const MiniHome = () => {
     setPosts(feed)
     const postsToBePaid = feed.filter((post) => post.status === 'pending_payment')
     setPostsToBePaid(postsToBePaid)
-    setAmount(postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0))
+    if(postsToBePaid.length > 0) {
+      const amount = postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0).toFixed(2)
+      setAmount(amount)
+    } else {
+      setAmount(null)
+    }
   }
 
   useEffect(() => {
@@ -41,7 +48,7 @@ export const MiniHome = () => {
           reject(new Error('Geolocation is not supported'))
           return
         }
-        navigator.geolocation.getCurrentPosition(resolve, reject);
+        navigator.geolocation.getCurrentPosition(resolve, reject)
       })
       
       const response = await fetch('/api/geo', {
@@ -57,55 +64,26 @@ export const MiniHome = () => {
       
       const { city, country } = await response.json()
       setLocation({ success: true, city, country })
-      await fetchPosts()
     } catch {
-      setLocation({ success: false });
+      setLocation({ success: false })
     }
+    await fetchPosts()
   }
 
-  const sendPayment = async (address: string, amount: number) => {
-    const res = await fetch('/api/pay/initiate', {
-      method: 'POST',
-    })
-    const { id } = await res.json()
-
-    const payload: PayCommandInput = {
-      reference: id,
-      to: address,
-      tokens: [
-        {
-          symbol: Tokens.USDCE,
-          token_amount: tokenToDecimals(amount, Tokens.USDCE).toString(),
-        }
-      ],
-      description: 'Memorioso payment',
-    }
-
-    if (!MiniKit.isInstalled()) {
-      return
-    }
-
-    const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
-    await fetch(`/api/debug`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(finalPayload),
-    })
-    if (finalPayload.status == 'success') {
-      const res = await fetch(`/api/pay/confirm`, {
+  const sendPayment = async (address: string, amount: string) => {
+    try {
+      setDisablePaymentButton(true)
+      await fetch('/api/pay/escrow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: finalPayload, postsToBePaid }),
+        body: JSON.stringify({ address, amount, postsToBePaid }),
       })
-      const payment = await res.json()
-      await fetch(`/api/debug`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payment),
-      })
-      if (payment.success) {
-        await fetchPosts()
-      }
+      setPaymentMessage({ text: 'Payment successful!', color: 'green-500' })
+      await fetchPosts()
+    } catch {
+      setPaymentMessage({ text: 'Payment failed. Please try again.', color: 'red-500' })
+    } finally {
+      setDisablePaymentButton(false)
     }
   }
 
@@ -155,7 +133,9 @@ export const MiniHome = () => {
       })
       const json = await response.json()
       setWalletAuth(json)
-      await fetchPosts()
+      if(json.isHuman) {
+        await fetchPosts()
+      }
     }
   }
 
@@ -165,14 +145,26 @@ export const MiniHome = () => {
         {tab === 'payments' && <>
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl py-6">Amount to be paid</p>
-            <p className="text-2xl italic py-6">USDC ${amount}</p>
-            {amount > 0 && walletAuth && <Button
-              className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
-              onClick={() => sendPayment(walletAuth.address, amount)}
-              disabled={amount === 0}
-            >
-              Get My Money
-            </Button>}
+            <p className="text-2xl italic py-6">USDC ${amount || '0.00'}</p>
+            {walletAuth && (
+              <>
+                <Button
+                  className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
+                  onClick={() => sendPayment(walletAuth.address, amount || '0.00')}
+                  disabled={amount === null || disablePaymentButton}
+                >
+                  {disablePaymentButton ? 'Processing...' : 'Get My Money'}
+                </Button>
+                {disablePaymentButton && (
+                  <div className="w-8 h-8 border-4 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mt-8" />
+                )}
+                {paymentMessage && (
+                  <div className={`text-xl text-center mt-4 text-${paymentMessage.color}`}>
+                    {paymentMessage.text}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </>}
         {tab === 'post' && post&& <Post post={post} setPost={async () => { setPost(null); await fetchPosts(); setTab('messages') }} />}
@@ -210,7 +202,11 @@ export const MiniHome = () => {
                 )}
               </div>
 
-              {walletAuth && (<>
+              {walletAuth && !walletAuth.isHuman && (<>
+                <p className="text-md italic text-center mt-2 text-red-500">This app is for verified humans</p>
+                <p className="text-md italic text-center mt-2">Please find an Orb to confirm your humanity</p>
+              </>)}
+              {walletAuth && walletAuth.isHuman && (<>
                 <div className="flex flex-col items-center w-full">
                   <Button
                     className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}

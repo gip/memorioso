@@ -15,7 +15,7 @@ export const MiniHome = () => {
   const [post, setPost] = useState<PostType | null>(null)
   const [posts, setPosts] = useState<PostType[]>([])
   const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
-  const [amount, setAmount] = useState<number>(0)
+  const [amount, setAmount] = useState<string | null>(null)
 
 
   const fetchPosts = async () => {
@@ -25,7 +25,8 @@ export const MiniHome = () => {
     setPosts(feed)
     const postsToBePaid = feed.filter((post) => post.status === 'pending_payment')
     setPostsToBePaid(postsToBePaid)
-    setAmount(postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0))
+    const amount = postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0).toFixed(2)
+    setAmount(amount)
   }
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export const MiniHome = () => {
     }
   }
 
-  const sendPayment = async (address: string, amount: number) => {
+  const sendPayment = async (address: string, amount: string) => {
     const res = await fetch('/api/pay/initiate', {
       method: 'POST',
     })
@@ -75,7 +76,7 @@ export const MiniHome = () => {
       tokens: [
         {
           symbol: Tokens.USDCE,
-          token_amount: tokenToDecimals(amount, Tokens.USDCE).toString(),
+          token_amount: tokenToDecimals(Number(amount), Tokens.USDCE).toString(),
         }
       ],
       description: 'Memorioso payment',
@@ -166,10 +167,10 @@ export const MiniHome = () => {
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl py-6">Amount to be paid</p>
             <p className="text-2xl italic py-6">USDC ${amount}</p>
-            {amount > 0 && walletAuth && <Button
+            {amount && walletAuth && <Button
               className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
               onClick={() => sendPayment(walletAuth.address, amount)}
-              disabled={amount === 0}
+              disabled={!amount}
             >
               Get My Money
             </Button>}

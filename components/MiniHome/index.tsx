@@ -9,7 +9,7 @@ import { Post } from './post'
 import { Post as PostType } from '@/types'
 export const MiniHome = () => {
   const [tab, setTab] = useState('home')
-  const [walletAuth, setWalletAuth] = useState<{ address: string } | null>(null)
+  const [walletAuth, setWalletAuth] = useState<{ address: string; isHuman: boolean } | null>(null)
   const [isTextVisible, setIsTextVisible] = useState(true)
   const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
@@ -17,6 +17,7 @@ export const MiniHome = () => {
   const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
   const [amount, setAmount] = useState<string | null>(null)
   const [disablePaymentButton, setDisablePaymentButton] = useState(false)
+  const [paymentMessage, setPaymentMessage] = useState<{ text: string; color: string } | null>(null)
 
 
   const fetchPosts = async () => {
@@ -77,7 +78,10 @@ export const MiniHome = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, amount, postsToBePaid }),
       })
+      setPaymentMessage({ text: 'Payment successful!', color: 'green-500' })
       await fetchPosts()
+    } catch {
+      setPaymentMessage({ text: 'Payment failed. Please try again.', color: 'red-500' })
     } finally {
       setDisablePaymentButton(false)
     }
@@ -129,7 +133,9 @@ export const MiniHome = () => {
       })
       const json = await response.json()
       setWalletAuth(json)
-      await fetchPosts()
+      if(json.isHuman) {
+        await fetchPosts()
+      }
     }
   }
 
@@ -150,7 +156,12 @@ export const MiniHome = () => {
                   {disablePaymentButton ? 'Processing...' : 'Get My Money'}
                 </Button>
                 {disablePaymentButton && (
-                  <div className="w-8 h-8 border-4 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
+                  <div className="w-8 h-8 border-4 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mt-8" />
+                )}
+                {paymentMessage && (
+                  <div className={`text-xl text-center mt-4 text-${paymentMessage.color}`}>
+                    {paymentMessage.text}
+                  </div>
                 )}
               </>
             )}
@@ -191,7 +202,11 @@ export const MiniHome = () => {
                 )}
               </div>
 
-              {walletAuth && (<>
+              {walletAuth && !walletAuth.isHuman && (<>
+                <p className="text-md italic text-center mt-2 text-red-500">This app is for verified humans</p>
+                <p className="text-md italic text-center mt-2">Please find an Orb to confirm your humanity</p>
+              </>)}
+              {walletAuth && walletAuth.isHuman && (<>
                 <div className="flex flex-col items-center w-full">
                   <Button
                     className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}

@@ -142,6 +142,5 @@ export const GET = async () => {
     unrepliedMessages = await getUnrepliedMessagesForWallet(insecureSession.address)
   }
 
-  console.log('MMM', unrepliedMessages)
   return NextResponse.json({ success: true, feed: unrepliedMessages })
 }

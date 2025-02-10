@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MiniKit, PayCommandInput, Tokens, tokenToDecimals } from '@worldcoin/minikit-js'
+import { MiniKit } from '@worldcoin/minikit-js'
 import { BottomNav } from './bottom-navigation'
 import { Feed } from './feed'
 import { Button } from '../ui/button'
@@ -16,6 +16,7 @@ export const MiniHome = () => {
   const [posts, setPosts] = useState<PostType[]>([])
   const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
   const [amount, setAmount] = useState<string | null>(null)
+  const [disablePaymentButton, setDisablePaymentButton] = useState(false)
 
 
   const fetchPosts = async () => {
@@ -25,8 +26,12 @@ export const MiniHome = () => {
     setPosts(feed)
     const postsToBePaid = feed.filter((post) => post.status === 'pending_payment')
     setPostsToBePaid(postsToBePaid)
-    const amount = postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0).toFixed(2)
-    setAmount(amount)
+    if(postsToBePaid.length > 0) {
+      const amount = postsToBePaid.reduce((acc, post) => acc + Number(post.pay), 0).toFixed(2)
+      setAmount(amount)
+    } else {
+      setAmount(null)
+    }
   }
 
   useEffect(() => {
@@ -65,48 +70,16 @@ export const MiniHome = () => {
   }
 
   const sendPayment = async (address: string, amount: string) => {
-    const res = await fetch('/api/pay/initiate', {
-      method: 'POST',
-    })
-    const { id } = await res.json()
-
-    const payload: PayCommandInput = {
-      reference: id,
-      to: address,
-      tokens: [
-        {
-          symbol: Tokens.USDCE,
-          token_amount: tokenToDecimals(Number(amount), Tokens.USDCE).toString(),
-        }
-      ],
-      description: 'Memorioso payment',
-    }
-
-    if (!MiniKit.isInstalled()) {
-      return
-    }
-
-    const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
-    await fetch(`/api/debug`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(finalPayload),
-    })
-    if (finalPayload.status == 'success') {
-      const res = await fetch(`/api/pay/confirm`, {
+    try {
+      setDisablePaymentButton(true)
+      await fetch('/api/pay/escrow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: finalPayload, postsToBePaid }),
+        body: JSON.stringify({ address, amount, postsToBePaid }),
       })
-      const payment = await res.json()
-      await fetch(`/api/debug`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payment),
-      })
-      if (payment.success) {
-        await fetchPosts()
-      }
+      await fetchPosts()
+    } finally {
+      setDisablePaymentButton(false)
     }
   }
 
@@ -166,14 +139,21 @@ export const MiniHome = () => {
         {tab === 'payments' && <>
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl py-6">Amount to be paid</p>
-            <p className="text-2xl italic py-6">USDC ${amount}</p>
-            {amount && walletAuth && <Button
-              className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
-              onClick={() => sendPayment(walletAuth.address, amount)}
-              disabled={!amount}
-            >
-              Get My Money
-            </Button>}
+            <p className="text-2xl italic py-6">USDC ${amount || '0.00'}</p>
+            {walletAuth && (
+              <>
+                <Button
+                  className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
+                  onClick={() => sendPayment(walletAuth.address, amount || '0.00')}
+                  disabled={amount === null || disablePaymentButton}
+                >
+                  {disablePaymentButton ? 'Processing...' : 'Get My Money'}
+                </Button>
+                {disablePaymentButton && (
+                  <div className="w-8 h-8 border-4 border-t-white border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
+                )}
+              </>
+            )}
           </div>
         </>}
         {tab === 'post' && post&& <Post post={post} setPost={async () => { setPost(null); await fetchPosts(); setTab('messages') }} />}

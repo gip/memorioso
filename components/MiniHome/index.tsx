@@ -48,7 +48,7 @@ export const MiniHome = () => {
           reject(new Error('Geolocation is not supported'))
           return
         }
-        navigator.geolocation.getCurrentPosition(resolve, reject);
+        navigator.geolocation.getCurrentPosition(resolve, reject)
       })
       
       const response = await fetch('/api/geo', {
@@ -64,10 +64,10 @@ export const MiniHome = () => {
       
       const { city, country } = await response.json()
       setLocation({ success: true, city, country })
-      await fetchPosts()
     } catch {
-      setLocation({ success: false });
+      setLocation({ success: false })
     }
+    await fetchPosts()
   }
 
   const sendPayment = async (address: string, amount: string) => {

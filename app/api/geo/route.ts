@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAddress } from '@/lib/geo'
-import { insecureGetSession } from '@/lib/insecure-api'
+import { insecureGetUser } from '@/lib/insecure-api'
 
 export const POST = async (req: NextRequest) => {
-  const insecureSession = await insecureGetSession()
-  if (!insecureSession) {
+  const user = await insecureGetUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

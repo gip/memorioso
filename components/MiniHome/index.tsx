@@ -21,6 +21,16 @@ export const MiniHome = () => {
   const [disablePaymentButton, setDisablePaymentButton] = useState(false)
   const [paymentMessage, setPaymentMessage] = useState<{ text: string; color: string } | null>(null)
 
+  useEffect(() => {
+    const init = async () => {
+      const res = await fetch('/api/mini-auth/me')
+      const json = await res.json()
+      if(json.status === 'success') {
+        setUser(json.user)
+      }
+    }
+    init()
+  }, [])
 
   const fetchPosts = async () => {
     const res = await fetch('/api/feed')

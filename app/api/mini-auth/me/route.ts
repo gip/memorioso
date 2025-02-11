@@ -1,11 +1,11 @@
-import { cookies } from 'next/headers'
+import { insecureGetUser } from '@/lib/insecure-api'
 import { NextResponse } from 'next/server'
 
 export const GET = async () => {
-  const cookieStore = await cookies()
-  const res = cookieStore.get('insecure-session')
-  const json = JSON.parse(res?.value || '{}')
-  const response = { status: !!json.status, isValid: json.isValid, isHuman: json.isHuman, address: json.address }
-  console.log('MER', response)
-  return NextResponse.json(response)
+  const user = await insecureGetUser()
+  if (!user) {
+    return NextResponse.json(null, { status: 401 })
+  }
+
+  return NextResponse.json({ status: 'success', user })
 }

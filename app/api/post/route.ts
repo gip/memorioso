@@ -1,4 +1,4 @@
-import { insecureGetSession } from "@/lib/insecure-api"
+import { insecureGetUser } from "@/lib/insecure-api"
 import { NextResponse } from "next/server"
 import { client } from "@/lib/db"
 import { anthropicClient } from "@/lib/anthropic"
@@ -79,8 +79,8 @@ async function getPostActionDetails(
 }
 
 export const POST = async (req: Request) => {
-  const insecureSession = await insecureGetSession()
-  if (!insecureSession) {
+  const user = await insecureGetUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

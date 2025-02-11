@@ -1,4 +1,4 @@
-import { insecureGetSession } from "@/lib/insecure-api"
+import { insecureGetUser } from "@/lib/insecure-api"
 import { sendUSDCe } from "@/lib/pay"
 import { NextResponse } from "next/server"
 import { client } from '@/lib/db'
@@ -42,8 +42,8 @@ async function setActionsToPaid(actionIds: string[]): Promise<void> {
 }
 
 export const POST = async (req: Request) => {
-  const insecureSession = await insecureGetSession()
-  if (!insecureSession) {
+  const user = await insecureGetUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -59,50 +59,60 @@ async function createOrFindHuman(input: CreateHumanInput): Promise<Human> {
 }
 
 interface IRequestPayload {
-	payload: MiniAppWalletAuthSuccessPayload
-	nonce: string
+  payload: MiniAppWalletAuthSuccessPayload
+  nonce: string
 }
 
 
 
 export const POST = async (req: NextRequest) => {
-	const { payload, nonce } = (await req.json()) as IRequestPayload
+
+  const { payload, nonce, user } = (await req.json()) as (IRequestPayload & { user: { walletAddress: string, username: string } })
+
   const cookieStore = await cookies()
-	if (nonce != (await cookies()).get('siwe')?.value) {
-      cookieStore.delete('insecure-session')
-	    return NextResponse.json({
-			status: 'error',
-			isValid: false,
-			message: 'Invalid nonce',
-		})
-	}
-	try {
-		const validMessage = await verifySiweMessage(payload, nonce)
-    const userWalletAddress = payload.address
-    const isUserOrbVerified = await getIsUserVerified(userWalletAddress) // Proof of humans (according to TG!)
+  cookieStore.delete('insecure-session')
+
+  if (nonce != (await cookies()).get('siwe')?.value) {
+      return NextResponse.json({
+      status: 'error',
+      isValid: false,
+      message: 'Invalid nonce',
+    })
+  }
+  try {
+    const validMessage = await verifySiweMessage(payload, nonce)
+    const isUserOrbVerified = await getIsUserVerified(user.walletAddress) // Proof of humans (according to TG!)
+
+    if(!validMessage.isValid) {
+      return NextResponse.json({
+        status: 'error',
+        isValid: false,
+        message: 'Invalid message',
+      })
+    }
 
     const response = {
-			status: 'success',
-			isValid: validMessage.isValid,
-      isHuman: isUserOrbVerified,
-      address: userWalletAddress,
-		}
-    console.log('COO', response)
+      status: 'success',
+      user : {
+        isVerified: isUserOrbVerified,
+        isHuman: isUserOrbVerified,
+        ...user
+      },
+    }
     cookieStore.set('insecure-session', JSON.stringify(response), {
       secure: true,
       httpOnly: true,
     })
     await createOrFindHuman({
-      address: userWalletAddress,
+      address: user.walletAddress,
       isHuman: isUserOrbVerified
     })
-		return NextResponse.json(response)
-	} catch (error: unknown) {
-    cookieStore.delete('insecure-session')
-		return NextResponse.json({
-			status: 'error',
-			isValid: false,
-			message: error instanceof Error ? error.message : 'Unknown error',
-		})
-	}
+    return NextResponse.json(response)
+  } catch (error: unknown) {
+    return NextResponse.json({
+      status: 'error',
+      isValid: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
 }

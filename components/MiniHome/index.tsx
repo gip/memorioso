@@ -7,9 +7,11 @@ import { Feed } from './feed'
 import { Button } from '../ui/button'
 import { Post } from './post'
 import { Post as PostType } from '@/types'
+
+
 export const MiniHome = () => {
   const [tab, setTab] = useState('home')
-  const [walletAuth, setWalletAuth] = useState<{ address: string; isHuman: boolean } | null>(null)
+  const [user, setUser] = useState<{ walletAddress: string; username: string; isHuman: boolean, isVerified: boolean } | null>(null)
   const [isTextVisible, setIsTextVisible] = useState(true)
   const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
@@ -36,10 +38,10 @@ export const MiniHome = () => {
   }
 
   useEffect(() => {
-    if (walletAuth) {
+    if (user) {
       setIsTextVisible(false)
     }
-  }, [walletAuth])
+  }, [user])
 
   const getLocation = async () => {
     try {      
@@ -118,6 +120,9 @@ export const MiniHome = () => {
       statement: 'This is my statement and here is a link https://worldcoin.com/apps',
     })
 
+    // @ts-expect-error - finalPayload is a MiniAppWalletAuthPayload
+    const user =await MiniKit.getUserByAddress(finalPayload.address)
+
     if (finalPayload.status === 'error') {
       return { success: false }
     } else {
@@ -129,12 +134,17 @@ export const MiniHome = () => {
         body: JSON.stringify({
           payload: finalPayload,
           nonce,
+          user,
         }),
       })
       const json = await response.json()
-      setWalletAuth(json)
-      if(json.isHuman) {
-        await fetchPosts()
+      if(json.status === 'success') {
+        setUser(json.user)
+        if(json.isHuman) {
+          await fetchPosts()
+        }
+      } else {
+        setUser(null)
       }
     }
   }
@@ -146,11 +156,11 @@ export const MiniHome = () => {
           <div className="flex flex-col items-center justify-center h-full mt-10">
             <p className="text-2xl py-6">Amount to be paid</p>
             <p className="text-2xl italic py-6">USDC ${amount || '0.00'}</p>
-            {walletAuth && (
+            {user && (
               <>
                 <Button
                   className={`text-3xl rounded-full px-6 py-8 w-4/5 border-2 border-white`}
-                  onClick={() => sendPayment(walletAuth.address, amount || '0.00')}
+                  onClick={() => sendPayment(user.walletAddress, amount || '0.00')}
                   disabled={amount === null || disablePaymentButton}
                 >
                   {disablePaymentButton ? 'Processing...' : 'Get My Money'}
@@ -189,31 +199,32 @@ export const MiniHome = () => {
             <div className="flex flex-col gap-6 items-center w-full max-w-md">
               <div className="flex flex-col items-center w-full">
                 <Button
-                  className={`text-3xl rounded-full px-6 py-8 w-4/5 ${walletAuth ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white'}`}
+                  className={`text-3xl rounded-full px-6 py-8 w-4/5 ${user ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white'}`}
                   onClick={signInWithWallet}
-                  disabled={!!walletAuth}
+                  disabled={!!user}
                 >
-                  <span className={walletAuth ? 'text-green-500' : ''}>
-                    {walletAuth ? '✅ ' : ''}Sign with wallet
+                  <span className={user ? 'text-green-500' : ''}>
+                    {user ? '✅ ' : ''}Sign with wallet
                   </span>
                 </Button>
-                {!walletAuth && (
+                {!user && (
                   <p className="text-md italic text-center mt-2">To get started, sign in with your wallet</p>
                 )}
               </div>
 
-              {walletAuth && !walletAuth.isHuman && (<>
+              {user && !user.isHuman && (<>
                 <p className="text-md italic text-center mt-2 text-red-500">This app is for verified humans</p>
                 <p className="text-md italic text-center mt-2">Please find an Orb to confirm your humanity</p>
               </>)}
-              {walletAuth && walletAuth.isHuman && (<>
+              {user && user.isHuman && (<>
+                {user.username && (<p className="text-md italic text-center mt-2">Welcome @{user.username}</p>)}
                 <div className="flex flex-col items-center w-full">
                   <Button
                     className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
                     onClick={getLocation}
                     disabled={!!location}
                   >
-                    <span className={walletAuth ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
+                    <span className={user ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
                       {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Share location
                     </span>
                   </Button>
@@ -227,7 +238,7 @@ export const MiniHome = () => {
                     <p className="text-md italic text-center mt-6">Could not get location</p>
                   )}
                 </div>
-                {walletAuth && location && (<>
+                {user && location && (<>
                   <Button
                     className="text-6xl font-bold rounded-full mt-6 w-32 h-32 bg-green-500 hover:bg-green-600 transition-colors"
                     onClick={() => setTab('messages')}
@@ -243,7 +254,7 @@ export const MiniHome = () => {
         )}
       </main>
       <div className={`fixed bottom-0 w-full transition-all duration-700 ease-in-out ${
-        walletAuth && location ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`} >
+        user && location ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`} >
         <BottomNav tab={tab} setTab={setTab} />
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/lib/db'
-import { insecureGetSession } from '@/lib/insecure-api';
+import { insecureGetUser } from '@/lib/insecure-api';
 
 type ActionStatus = 'pending_reply' | 'pending_decision' | 'pending_payment' | 'completed'
 
@@ -85,12 +85,12 @@ async function getPostsByState(
 }
 
 export async function GET() {
-  const session = await insecureGetSession()
-  if (!session) {
+  const user = await insecureGetUser()
+  if (!user) {
     return NextResponse.json({ status: 'error', message: 'Unauthorized' }, { status: 401 })
   }
   
-  const address = session.address   
+  const address = user.walletAddress   
   const posts = await getPostsByState(address, 'pending_payment')
   console.log('POS', posts)
   return NextResponse.json({ status: 'success', posts })

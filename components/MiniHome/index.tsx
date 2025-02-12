@@ -23,7 +23,7 @@ export const MiniHome = () => {
 
   useEffect(() => {
     const init = async () => {
-      const res = await fetch('/api/mini-auth/me')
+      const res = await fetch('/api/mini-auth/session')
       const json = await res.json()
       if(json.status === 'success') {
         setUser(json.user)

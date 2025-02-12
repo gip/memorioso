@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { insecureGetUser } from '@/lib/insecure-api'
+import { insecureGetSession } from '@/lib/insecure-session'
 import { client } from '@/lib/db';
 
 interface FormattedMessage {
@@ -129,13 +129,13 @@ async function getUnrepliedMessagesForWallet(
   }
 
 export const GET = async () => {
- const user = await insecureGetUser()
-  if (!user) {
+ const session = await insecureGetSession()
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  console.log('SSS', user)
-  const walletAddress = user.walletAddress
+  console.log('SSS', session)
+  const walletAddress = session.user.walletAddress
   let unrepliedMessages = await getUnrepliedMessagesForWallet(walletAddress)
   if(unrepliedMessages.length === 0) {
     await createActionsForWallet(walletAddress)

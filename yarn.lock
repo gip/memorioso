@@ -1111,10 +1111,10 @@
     viem "^2.17.0"
     zustand "^4.5"
 
-"@worldcoin/minikit-js@^1.5.0":
-  version "1.5.0"
-  resolved "https://registry.npmjs.org/@worldcoin/minikit-js/-/minikit-js-1.5.0.tgz"
-  integrity sha512-L0o4sQ4Z+lIhWRuaQGHU8YUFQ7vYfUgIh1YEu4z7otfuf3GAzPXfTTbcFYTEqYVjhYr2/9IbEGarZbEtmmrL5A==
+"@worldcoin/minikit-js@^1.6.0":
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/@worldcoin/minikit-js/-/minikit-js-1.6.0.tgz#9914611a955224c75d3a609e4781192ec6b867db"
+  integrity sha512-D03EYePLyc+TRsKFNwNF5r/Z4FFeZ5Vd/EkyE+tOijLBMfvEW/4olEK5fQ1VZ+r8bwGrHrB+bj7PZnYAZ0AGmA==
   dependencies:
     "@worldcoin/idkit-core" "^1.3.0"
     abitype "^1.0.6"
@@ -4311,6 +4311,20 @@ viem@^2.17.0:
   version "2.22.21"
   resolved "https://registry.npmjs.org/viem/-/viem-2.22.21.tgz"
   integrity sha512-CujapStF+F3VP+bKBQOGFk5YHyJKZOY2TGvD1e04CAm8VrtLo3sfTydYW2Rri6LMktqp6ilGB9GvSiZczxvOBQ==
+  dependencies:
+    "@noble/curves" "1.8.1"
+    "@noble/hashes" "1.7.1"
+    "@scure/bip32" "1.6.2"
+    "@scure/bip39" "1.5.4"
+    abitype "1.0.8"
+    isows "1.0.6"
+    ox "0.6.7"
+    ws "8.18.0"
+
+viem@^2.21.10:
+  version "2.23.1"
+  resolved "https://registry.yarnpkg.com/viem/-/viem-2.23.1.tgz#5fe527de258e33b2445af266698fd6575068112d"
+  integrity sha512-c5AyJCTA5LeNI/KCu++vkbqbh7irYjUSHxLIAHPKJ6IEcBNMt8+7sPG7gjMXpqVWnqPMzaW9CA2n+yUsKWttDA==
   dependencies:
     "@noble/curves" "1.8.1"
     "@noble/hashes" "1.7.1"

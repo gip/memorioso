@@ -7,5 +7,5 @@ export const GET = async () => {
     return NextResponse.json(null, { status: 401 })
   }
 
-  return NextResponse.json({ status: 'success', user: session.user })
+  return NextResponse.json(session)
 }

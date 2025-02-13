@@ -6,8 +6,32 @@ export type User = {
   isHuman: boolean
 }
 
+export type Location = {
+  success: boolean
+  city?: string
+  country?: string
+  expiresAt?: number
+}
+
 export type Session = {
   user: User
+  location?: Location
+}
+
+export const insecureSetLocation = async (location: Location) => {
+  const cookieStore = await cookies()
+  const body = cookieStore.get('insecure-session')
+  const session = JSON.parse(body?.value || '{}')
+  if (session && session.user && session.user.walletAddress) {
+    const sessionWithLocation = {
+      ...session,
+      location,
+    }
+    cookieStore.set('insecure-session', JSON.stringify(sessionWithLocation), {
+      secure: true,
+      httpOnly: true,
+    })
+  }
 }
 
 export const insecureDeleteSession = async () => {

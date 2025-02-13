@@ -81,15 +81,6 @@ export const MiniHome = () => {
           longitude: position.coords.longitude
         }),
       }) as unknown as LocationType
-      
-      const aaa = await MiniKit.getUserByAddress('0x83d759ebe356408b700e4bd786895acc94edd612')
-      fetch('/api/debug', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          debug: aaa
-        }),
-      })
 
       // TODO: Check expiresAt
       setLocation(response)

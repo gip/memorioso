@@ -25,11 +25,16 @@ export const MiniHome = () => {
   useEffect(() => {
     const init = async () => {
       const res = await fetch('/api/mini-auth/session')
-      const json = await res.json()
-      if(json.status === 'success') {
-        setUser(json.user)
-        setLocation(json.location)
-        await fetchPosts()
+      if(res.ok) {
+        const json = await res.json()
+        if(json.status === 'success') {
+          setUser(json.user)
+          setLocation(json.location)
+          await fetchPosts()
+        }
+      } else {
+        setUser(null)
+        setLocation(null)
       }
     }
     init()
@@ -77,6 +82,15 @@ export const MiniHome = () => {
         }),
       }) as unknown as LocationType
       
+      const aaa = await MiniKit.getUserByAddress('0x83d759ebe356408b700e4bd786895acc94edd612')
+      fetch('/api/debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          debug: aaa
+        }),
+      })
+
       // TODO: Check expiresAt
       setLocation(response)
     } catch {
@@ -134,7 +148,7 @@ export const MiniHome = () => {
     })
 
     // @ts-expect-error - finalPayload is a MiniAppWalletAuthPayload
-    const user =await MiniKit.getUserByAddress(finalPayload.address)
+    const user = await MiniKit.getUserByAddress(finalPayload.address)
 
     if (finalPayload.status === 'error') {
       return { success: false }
@@ -240,7 +254,7 @@ export const MiniHome = () => {
                   >
                     <span className={user ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
                       {!location && 'Share location'}
-                      {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Update location
+                      {location && (!location.success ? '🟡 ' : '✅ ') + 'Update location'}
                     </span>
                   </Button>
                   {!location && (

@@ -7,13 +7,14 @@ import { Feed } from './feed'
 import { Button } from '../ui/button'
 import { Post } from './post'
 import { Post as PostType } from '@/types'
+import { Location as LocationType } from '@/lib/insecure-session'
 
 
 export const MiniHome = () => {
   const [tab, setTab] = useState('home')
   const [user, setUser] = useState<{ walletAddress: string; username: string; isHuman: boolean, isVerified: boolean } | null>(null)
   const [isTextVisible, setIsTextVisible] = useState(true)
-  const [location, setLocation] = useState<{ success: boolean, city?: string, country?: string } | null>(null)
+  const [location, setLocation] = useState<LocationType | null>(null)
   const [post, setPost] = useState<PostType | null>(null)
   const [posts, setPosts] = useState<PostType[]>([])
   const [postsToBePaid, setPostsToBePaid] = useState<PostType[]>([])
@@ -23,10 +24,12 @@ export const MiniHome = () => {
 
   useEffect(() => {
     const init = async () => {
-      const res = await fetch('/api/mini-auth/me')
+      const res = await fetch('/api/mini-auth/session')
       const json = await res.json()
       if(json.status === 'success') {
         setUser(json.user)
+        setLocation(json.location)
+        await fetchPosts()
       }
     }
     init()
@@ -72,10 +75,10 @@ export const MiniHome = () => {
           // @ts-expect-error - position is a GeolocationPosition object
           longitude: position.coords.longitude
         }),
-      })
+      }) as unknown as LocationType
       
-      const { city, country } = await response.json()
-      setLocation({ success: true, city, country })
+      // TODO: Check expiresAt
+      setLocation(response)
     } catch {
       setLocation({ success: false })
     }
@@ -150,6 +153,7 @@ export const MiniHome = () => {
       const json = await response.json()
       if(json.status === 'success') {
         setUser(json.user)
+        setLocation(json.location)
         if(json.isHuman) {
           await fetchPosts()
         }
@@ -190,7 +194,7 @@ export const MiniHome = () => {
         {tab === 'post' && post&& <Post post={post} setPost={async () => { setPost(null); await fetchPosts(); setTab('messages') }} />}
         {tab === 'messages' && <Feed posts={posts} setPost={(post) => { setPost(post); setTab('post') }} />}
         {tab === 'home' && (
-          <div className="flex flex-col items-center justify-center h-full mt-10">
+          <div className="flex flex-col items-center justify-center h-full mt-2">
             <p className="text-2xl italic py-6">Memorioso</p>
             <div
               className={`
@@ -230,27 +234,28 @@ export const MiniHome = () => {
                 {user.username && (<p className="text-md italic text-center mt-2">Welcome @{user.username}</p>)}
                 <div className="flex flex-col items-center w-full">
                   <Button
-                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'opacity-50 cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
+                    className={`text-3xl rounded-full px-6 py-8 w-4/5 ${location && !location.success ? 'border-2 border-yellow-500' : (location ? 'cursor-not-allowed border-2 border-green-500' : 'border-2 border-white')}`}
                     onClick={getLocation}
-                    disabled={!!location}
+                    disabled={false}
                   >
                     <span className={user ? (location && !location.success ? 'text-yellow-500' : 'text-green-500') : ''}>
-                      {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Share location
+                      {!location && 'Share location'}
+                      {location && !location.success ? '🟡 ' : (location ? '✅ ' : '')}Update location
                     </span>
                   </Button>
                   {!location && (
                     <p className="text-md italic text-center mt-2">Share your location to act as a local expert</p>
                   )}
                   {location && location.success && (
-                    <p className="text-md italic text-center mt-6">Location: {location.city}, {location.country}</p>
+                    <p className="text-md italic text-center mt-4">Location: {location.city}, {location.country}</p>
                   )}
                   {location && !location.success && (
-                    <p className="text-md italic text-center mt-6">Could not get location</p>
+                    <p className="text-md italic text-center mt-4">Could not get location</p>
                   )}
                 </div>
                 {user && location && (<>
                   <Button
-                    className="text-6xl font-bold rounded-full mt-6 w-32 h-32 bg-green-500 hover:bg-green-600 transition-colors"
+                    className="text-6xl font-bold rounded-full mt-2 w-32 h-32 bg-green-500 hover:bg-green-600 transition-colors"
                     onClick={() => setTab('messages')}
                   >
                     GO

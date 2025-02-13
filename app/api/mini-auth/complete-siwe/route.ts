@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { getIsUserVerified, MiniAppWalletAuthSuccessPayload, verifySiweMessage } from '@worldcoin/minikit-js'
 import { client } from '@/lib/db';
+import { insecureDeleteSession, insecureSetSession } from '@/lib/insecure-session';
 
 interface CreateHumanInput {
   isHuman: boolean;
@@ -69,10 +70,8 @@ export const POST = async (req: NextRequest) => {
 
   const { payload, nonce, user } = (await req.json()) as (IRequestPayload & { user: { walletAddress: string, username: string } })
 
-  const cookieStore = await cookies()
-  cookieStore.delete('insecure-session')
-
   if (nonce != (await cookies()).get('siwe')?.value) {
+      await insecureDeleteSession()
       return NextResponse.json({
       status: 'error',
       isValid: false,
@@ -84,6 +83,7 @@ export const POST = async (req: NextRequest) => {
     const isUserOrbVerified = await getIsUserVerified(user.walletAddress) // Proof of humans (according to TG!)
 
     if(!validMessage.isValid) {
+      await insecureDeleteSession()
       return NextResponse.json({
         status: 'error',
         isValid: false,
@@ -91,7 +91,7 @@ export const POST = async (req: NextRequest) => {
       })
     }
 
-    const response = {
+    const session = {
       status: 'success',
       user : {
         isVerified: isUserOrbVerified,
@@ -99,16 +99,14 @@ export const POST = async (req: NextRequest) => {
         ...user
       },
     }
-    cookieStore.set('insecure-session', JSON.stringify(response), {
-      secure: true,
-      httpOnly: true,
-    })
+    insecureSetSession(session)
     await createOrFindHuman({
       address: user.walletAddress,
       isHuman: isUserOrbVerified
     })
-    return NextResponse.json(response)
+    return NextResponse.json(session)
   } catch (error: unknown) {
+    await insecureDeleteSession()
     return NextResponse.json({
       status: 'error',
       isValid: false,

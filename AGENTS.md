@@ -17,14 +17,14 @@ Core stack:
 
 ## Commands
 
-Use Yarn in this repo; `yarn.lock` is the lockfile.
+Use pnpm in this repo; `pnpm-lock.yaml` is the lockfile.
 
-- `yarn dev` starts the local Next.js dev server.
-- `yarn build` builds the app.
-- `yarn start` serves a production build.
-- `yarn lint` runs the configured Next lint command.
+- `pnpm dev` starts the local Next.js dev server.
+- `pnpm build` builds the app.
+- `pnpm start` serves a production build.
+- `pnpm lint` runs the configured Next lint command.
 
-There is no test suite configured at the time this file was written. For non-trivial changes, run at least `yarn lint` and, when environment variables and services are available, `yarn build`.
+There is no test suite configured at the time this file was written. For non-trivial changes, run at least `pnpm lint` and, when environment variables and services are available, `pnpm build`.
 
 ## Required Environment
 
@@ -95,5 +95,5 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 
 - Check `git status --short` before and after edits.
 - Do not revert unrelated user changes.
-- Run the narrowest useful verification command available for the change. For most code changes, that is `yarn lint`; for routing, config, or server changes, prefer `yarn build` as well when environment permits.
+- Run the narrowest useful verification command available for the change. For most code changes, that is `pnpm lint`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits.
 - If verification cannot run because services or environment variables are missing, state that clearly in the final response.

@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import { Footer } from '@/components/Footer'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 const Info = async () => {
   const session = await getServerSession(authOptions)
   const name = session?.user?.name

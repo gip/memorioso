@@ -11,8 +11,6 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import js from 'highlight.js/lib/languages/javascript'
-import ts from 'highlight.js/lib/languages/typescript'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
 import { Bold, Italic, Strikethrough, Quote, LinkIcon, ImageIcon, List, ListOrdered, ChevronDown, X, Plus, Underline as UnderlineIcon } from 'lucide-react'
@@ -38,8 +36,6 @@ import type { Author } from '@/lib/db/objects'
 import { all, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(all)
-lowlight.register('js', js)
-lowlight.register('ts', ts)
 
 const editorStyles = `
   .ProseMirror {
@@ -573,4 +569,3 @@ export default function Editor({
     </div>
   )
 }
-

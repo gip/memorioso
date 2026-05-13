@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { timeAgo } from '@/lib/time'
 import { Divider } from '@/components/Divider'
 
+export const dynamic = 'force-dynamic'
+
 const Page = async () => {
   const publications = await getLatestPublications()
 

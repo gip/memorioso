@@ -1,142 +1,214 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import type { IDKitResult } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
-import { verifyCloudProof, IVerifyResponse, ISuccessResult, VerificationLevel } from '@worldcoin/minikit-js'
-import { isJsonEqual, sortAndStringifyJson } from '@/lib/json';
+import { getAuthenticatedUser } from '@/lib/auth-user'
+import { canonicalPublicationSignal, createPublicationV2, hashPublicationSignal } from '@/lib/world-id/publication'
+import { getWorldIdServerConfig, verifyWorldIdProof } from '@/lib/world-id/server'
+import { validateCredentialResponses, validateWorldIdV4Result } from '@/lib/world-id/proof'
+import { isJsonEqual } from '@/lib/json'
+import type { ContentOrHtml, PublicationV2, WorldIdProofV4 } from '@/types'
+
+type PublishRequest = {
+  challengeId?: string
+  idkitResult?: IDKitResult
+}
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
+  const authenticatedUser = await getAuthenticatedUser()
 
-  if (!session) {
-    return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
+  if (!authenticatedUser) {
+    return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 })
   }
 
-  const { user } = session;
-  const fullPayload = await req.json();
-  const { draftId } = await params;
-
-  if (!user || !user.name) {
-    return NextResponse.json({ success: false, message: "Invalid user" }, { status: 401 });
-  }
-
-  const { publication, verification } = fullPayload;
-  const { publication_title, publication_subtitle, publication_content, publication_date, author_id_libro } = publication;
-
-  const signal = JSON.stringify(publication);
-
-  const proof: ISuccessResult = {
-    proof: verification.proof,
-    merkle_root: verification.merkle_root,
-    nullifier_hash: verification.nullifier_hash,
-    verification_level: VerificationLevel.Orb,
-  };
-
-  // verify the proof
-  const verifyRes = (await verifyCloudProof(
-    proof,
-    process.env.APP_ID as `app_${string}`,
-    'written-by-a-human',
-    signal,
-  )) as IVerifyResponse
-
-  if(!verifyRes.success) {
-    return NextResponse.json({ success: false, message: "Invalid proof" }, { status: 400 });
-  }
-
-  const client = await pool.connect();
-
-  // Check that the draft belongs to the user
-  const userResult = await client.query(
-    'SELECT id FROM users WHERE name = $1',
-    [user.name]
-  );
-
-  if (userResult.rows.length === 0) {
-    return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
-  }
-
-  const userId = userResult.rows[0].id;
-
-  const draftResult = await client.query(
-    'SELECT * FROM drafts WHERE "id" = $1 AND "userId" = $2',
-    [draftId, userId]
-  );
-
-  if (draftResult.rows.length === 0) {
-    return NextResponse.json({ success: false, message: "Draft not found or does not belong to the user" }, { status: 404 });
-  }
-
-  const draft = draftResult.rows[0];
-
-  // Consolidated check for title, subtitle, and content
-  if (
-    draft.title !== publication_title || 
-    draft.subtitle !== publication_subtitle || 
-    !isJsonEqual(draft.content, publication_content)
-  ) {
-    return NextResponse.json({ success: false, message: "Title, subtitle, or content does not match the draft" }, { status: 400 });
-  }
-
-  // Check that the title is more than 5 characters
-  if (publication_title.length < 5) {
-    return NextResponse.json({ success: false, message: "Title is too short" }, { status: 400 });
-  }
-
-  // Check that the date is not in the future and not 5 mins older than the current date and time
-  const publicationDate = new Date(publication_date);
-  const now = new Date();
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-  if (publicationDate > now || publicationDate < fiveMinutesAgo) {
-    return NextResponse.json({ success: false, message: "Invalid publication date" }, { status: 400 });
-  }
-
-  // Check that the author belongs to the user
-  const authorResult = await client.query(
-    'SELECT * FROM authors WHERE "id" = $1 AND "userId" = $2',
-    [author_id_libro, userId]
-  );
-
-  if (authorResult.rows.length === 0) {
-    return NextResponse.json({ success: false, message: "Author not found or does not belong to the user" }, { status: 404 });
-  }
-  
+  let config
   try {
-    // Begin transaction
-    await client.query('BEGIN');
+    config = getWorldIdServerConfig()
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : "World ID configuration is invalid",
+    }, { status: 500 })
+  }
 
-    const version = '1';
-    // Create article
+  const { challengeId, idkitResult } = await req.json() as PublishRequest
+  const { draftId } = await params
+
+  if (!challengeId || !idkitResult) {
+    return NextResponse.json({ success: false, message: "Challenge and World ID result are required" }, { status: 400 })
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const fail = async (message: string, status: number = 400) => {
+      await client.query('ROLLBACK')
+      return NextResponse.json({ success: false, message }, { status })
+    }
+
+    const challengeResult = await client.query(
+      `SELECT *
+       FROM world_id_publish_challenges
+       WHERE id = $1 AND "draftId" = $2 AND "userId" = $3
+       FOR UPDATE`,
+      [challengeId, draftId, authenticatedUser.id]
+    )
+
+    if (challengeResult.rows.length === 0) {
+      return await fail("Publish challenge not found", 404)
+    }
+
+    const challenge = challengeResult.rows[0]
+
+    if (challenge.consumed_at) {
+      return await fail("Publish challenge has already been used")
+    }
+
+    if (new Date(challenge.expires_at) < new Date()) {
+      return await fail("Publish challenge has expired")
+    }
+
+    let validatedResult
+    let credentialIdentifiers: string[]
+    try {
+      validatedResult = validateWorldIdV4Result(idkitResult, {
+        action: challenge.action,
+        nonce: challenge.nonce,
+        environment: config.environment,
+        signalHash: challenge.signal_hash,
+      })
+      if (validatedResult.action !== config.publishAction) {
+        throw new Error('World ID proof context does not match this publication')
+      }
+      credentialIdentifiers = validateCredentialResponses(validatedResult.responses, challenge.signal_hash)
+    } catch (error) {
+      return await fail(error instanceof Error ? error.message : "Invalid World ID credential response")
+    }
+
+    const draftResult = await client.query(
+      `SELECT
+        d.id,
+        d.title,
+        d.subtitle,
+        d.content,
+        d.status,
+        d."authorId",
+        a.name AS author_name,
+        a.handle AS author_handle,
+        a.bio AS author_bio
+       FROM drafts d
+       INNER JOIN authors a ON a.id = d."authorId"
+       WHERE d.id = $1 AND d."userId" = $2
+       FOR UPDATE`,
+      [draftId, authenticatedUser.id]
+    )
+
+    if (draftResult.rows.length === 0) {
+      return await fail("Draft not found or does not belong to the user", 404)
+    }
+
+    const draft = draftResult.rows[0]
+
+    if (draft.status !== 'editing') {
+      return await fail("Only editing drafts can be published")
+    }
+
+    const storedPublication = challenge.publication as PublicationV2
+    const expectedPublication = createPublicationV2({
+      author: {
+        id: draft.authorId,
+        name: draft.author_name,
+        handle: draft.author_handle,
+        bio: draft.author_bio || '',
+      },
+      title: draft.title,
+      subtitle: draft.subtitle || '',
+      content: draft.content as ContentOrHtml,
+      publicationDate: storedPublication.publication_date,
+      action: challenge.action,
+    })
+    const expectedSignalText = canonicalPublicationSignal(expectedPublication)
+    const expectedSignalHash = hashPublicationSignal(expectedSignalText)
+
+    if (
+      expectedSignalText !== challenge.signal_text ||
+      expectedSignalHash !== challenge.signal_hash ||
+      !isJsonEqual(storedPublication, expectedPublication)
+    ) {
+      return await fail("Draft, author, or publication content changed after proof challenge creation")
+    }
+
+    const publicationDate = new Date(storedPublication.publication_date)
+    const now = new Date()
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+    if (publicationDate > now || publicationDate < fiveMinutesAgo) {
+      return await fail("Invalid publication date")
+    }
+
+    const verifyRes = await verifyWorldIdProof(validatedResult, config.rpId)
+
+    if (!verifyRes.ok) {
+      return await fail("Invalid World ID proof")
+    }
+
+    const proof: WorldIdProofV4 = {
+      protocol_version: '4.0',
+      action: challenge.action,
+      nonce: challenge.nonce,
+      signal_text: challenge.signal_text,
+      signal_hash: challenge.signal_hash,
+      credential_identifier: credentialIdentifiers[0],
+      credential_identifiers: credentialIdentifiers,
+      idkit_result: validatedResult as unknown as WorldIdProofV4['idkit_result'],
+      verify_response: verifyRes.body as WorldIdProofV4['verify_response'],
+    }
+
     const articleResult = await client.query(
-      'INSERT INTO publications ("userId", "authorId", proof, signal, content, version, title, subtitle, date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-      [userId, author_id_libro, proof, signal, draft.content, version, publication_title, publication_subtitle, publication_date]
-    );
+      `INSERT INTO publications
+        ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
+      [
+        authenticatedUser.id,
+        storedPublication.author_id_libro,
+        proof,
+        storedPublication,
+        draft.content,
+        '2',
+        storedPublication.publication_title,
+        storedPublication.publication_subtitle,
+        storedPublication.publication_date,
+      ]
+    )
 
-    // Update draft status to published
     await client.query(
       'UPDATE drafts SET status = $1 WHERE id = $2',
       ['published', draftId]
-    );
+    )
 
-    // Commit transaction
-    await client.query('COMMIT');
+    await client.query(
+      'UPDATE world_id_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [challengeId]
+    )
 
-    return NextResponse.json({ 
-      success: true, 
-      publicationId: articleResult.rows[0].id
-    });
+    await client.query('COMMIT')
+
+    return NextResponse.json({
+      success: true,
+      publicationId: articleResult.rows[0].id,
+    })
   } catch (error) {
-    // Rollback in case of error
-    await client.query('ROLLBACK');
-    return NextResponse.json({ 
-      success: false, 
+    await client.query('ROLLBACK')
+    return NextResponse.json({
+      success: false,
       message: "Failed to publish draft",
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, { status: 500 })
   } finally {
-    client.release();
+    client.release()
   }
-} 
+}

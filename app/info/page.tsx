@@ -1,15 +1,14 @@
 import { Header } from '@/components/Header'
 import { getAuthors } from '@/lib/db/objects'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-user'
 import { Footer } from '@/components/Footer'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 const Info = async () => {
-  const session = await getServerSession(authOptions)
-  const name = session?.user?.name
+  const user = await getAuthenticatedUser()
+  const name = user?.subject
   const authors = name && await getAuthors(name)
 
   return (<>

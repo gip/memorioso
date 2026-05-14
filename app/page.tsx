@@ -4,12 +4,12 @@ import Link from 'next/link'
 import { Feed } from '@/components/Feed'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
-import { useSession } from 'next-auth/react'
 import { Divider } from '@/components/Divider'
 import { Button } from '@/components/ui/button'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 const Page = () => {
-  const { data: session, status } = useSession()
+  const { status } = useWorldIdAuth()
 
   return (<>
     <Header />

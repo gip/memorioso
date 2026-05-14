@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Publication } from '@/components/Publication'
-import { getPublication } from '@/lib/db/objects'
+import { getProof, getPublication } from '@/lib/db/objects'
 import { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 
@@ -13,6 +13,14 @@ const getCachedPublication = unstable_cache(
     return getPublication(publicationId)
   },
   ['publication'],
+  { revalidate: 3600 }
+)
+
+const getCachedProof = unstable_cache(
+  async (publicationId: string) => {
+    return getProof(publicationId)
+  },
+  ['publication-proof'],
   { revalidate: 3600 }
 )
 
@@ -33,11 +41,12 @@ const Page = async ({ params }: { params: Params }) => {
 
   const { publicationId } = await params
   const publication = await getCachedPublication(publicationId)
+  const proof = await getCachedProof(publicationId)
 
   return (<>
     <Header />
     <Suspense fallback={<div>Loading...</div>}>
-      {publication && <Publication publication={publication} proofLink={`/p/${publicationId}/proof`} />}
+      {publication && <Publication publication={publication} proof={proof} proofLink={`/p/${publicationId}/proof`} />}
     </Suspense>
     <Footer />
   </>)

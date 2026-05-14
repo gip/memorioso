@@ -1,16 +1,16 @@
 'use client'
 
-import { useSession, signIn } from 'next-auth/react'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { FeedItem } from '@/components/FeedItem'
 import {
-  MiniKit,
-  VerificationLevel,
-  VerifyCommandInput
-} from "@worldcoin/minikit-js"
-import { JsonValue, sortAndStringifyJson } from '@/lib/json'
+  IDKitRequestWidget,
+  CredentialRequest,
+  any as anyCredential,
+  type IDKitResult,
+  type RpContext,
+} from '@worldcoin/idkit'
 import { type Author } from '@/types'
 import Editor from '@/components/Editor'
 import { AlertCircle } from "lucide-react"
@@ -19,14 +19,27 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-import { type PublicationV1 as PublicationType, type ContentOrHtml } from '@/types'
+import { type ContentOrHtml } from '@/types'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type DraftData = {
   id?: string
+  status?: string
   title: string
   subtitle: string
   content: ContentOrHtml
   authorId?: string
+  history?: unknown
+}
+
+type PublishContext = {
+  challengeId: string
+  appId: `app_${string}`
+  action: string
+  environment: 'production' | 'staging'
+  rpContext: RpContext
+  signalText: string
+  signalHash: string
 }
 
 const AlertDestructive = ({ message }: { message: string }) => {
@@ -42,7 +55,6 @@ const AlertDestructive = ({ message }: { message: string }) => {
 }
 
 export const Draft = ({ draftId }: { draftId: string | null }) => {
-  const { data: session, status } = useSession()
   const [draft, setDraft] = useState<DraftData | null>({ title: '', subtitle: '', content: { html: '' } })
   const [originalDraft, setOriginalDraft] = useState<DraftData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
@@ -54,12 +66,15 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [initialTitle, setInitialTitle] = useState<string>('')
   const [initialSubtitle, setInitialSubtitle] = useState<string>('')
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
+  const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
+  const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const { status, signInWithWorldId } = useWorldIdAuth()
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      signIn('worldcoin')
+      signInWithWorldId().catch(() => setError('Failed to sign in'))
     }
-  }, [status])
+  }, [status, signInWithWorldId])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)
@@ -113,7 +128,6 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         const raw = await fetch('/api/authors')
         const response = await raw.json()
         if (response.success) {
-          console.log('Authors:', response.authors)
           setAuthors(response.authors)
         }
       } catch (error) {
@@ -140,6 +154,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           setDraft(response.draft)
           setOriginalDraft(response.draft)
           router.push(`/d/${response.draft.id}`)
+          return response.draft
         }
       } else {
         raw = await fetch(`/api/draft/${draftId}`, {
@@ -152,64 +167,45 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         response = await raw.json()
         if (response.success) {
           setOriginalDraft(draft) // Update original draft to the saved state
+          return draft
         }
       }
+      throw new Error(response?.message || 'Failed to save draft')
     } catch (error) {
       console.error('Failed to save draft:', error)
+      throw error
     }
   }
 
   const handlePublish = async () => {
     try {
-      if(!MiniKit.isInstalled()) {
-        setError('Proof of humanity is required to sign and publish. Please try again in the World App.')
-        return
-      }
+      setError(null)
       setIsEditingDisabled(true)
       await handleSave()
       if (!draftId || !draft?.authorId) throw new Error('Draft ID or Author ID is missing')
-      
-      const author = authors.find((author) => author.id === draft.authorId)
-      if (!author) throw new Error('Author not found')
-      
-      const action = 'written-by-a-human'
-      // Create signature payload
-      const publicatonPayload: PublicationType = {
-        author_id_libro: author.id,
-        author_name_libro: author.name,
-        author_handle_libro: author.handle,
-        author_bio_libro: author.bio || '',
-        publication_title: draft.title,
-        publication_subtitle: draft.subtitle,
-        publication_content: draft.content,
-        publication_date: new Date().toISOString(),
-      }
-      const verifyPayload: VerifyCommandInput = {
-        action,
-        signal: JSON.stringify(publicatonPayload),
-        verification_level: VerificationLevel.Orb,
-      }
-      const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload)
-      if (finalPayload.status === 'error') {
-        throw new Error('Verification failed')
-      }
-      const fullPayload = {
-        publication: publicatonPayload,
-        verification: finalPayload,
-      }
-      const raw = await fetch(`/api/draft/${draftId}/publish`, {
-        method: 'PUT',
+
+      const raw = await fetch('/api/world-id/publish-context', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(fullPayload),
+        body: JSON.stringify({ draftId }),
       })
       const response = await raw.json()
+
       if (response.success) {
-        const publicationId = response.publicationId
-        router.push(`/p/${publicationId}`)
+        setPublishContext({
+          challengeId: response.challengeId,
+          appId: response.appId,
+          action: response.action,
+          environment: response.environment,
+          rpContext: response.rpContext,
+          signalText: response.signalText,
+          signalHash: response.signalHash,
+        })
+        setIsWorldIdOpen(true)
       } else {
-        throw new Error('Failed to publish')
+        throw new Error(response.message || 'Failed to start World ID verification')
       }
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -221,6 +217,30 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       }
       setIsEditingDisabled(false)
     }
+  }
+
+  const handleWorldIdResult = async (idkitResult: IDKitResult) => {
+    if (!publishContext || !draftId) {
+      throw new Error('Publish challenge is missing')
+    }
+
+    const raw = await fetch(`/api/draft/${draftId}/publish`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        challengeId: publishContext.challengeId,
+        idkitResult,
+      }),
+    })
+    const response = await raw.json()
+
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to publish')
+    }
+
+    router.push(`/p/${response.publicationId}`)
   }
 
   const handleDelete = async () => {
@@ -246,8 +266,42 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     return <FeedItem item={null} />
   }
 
+  const worldIdConstraints = publishContext
+    ? anyCredential(
+      CredentialRequest('proof_of_human', { signal: publishContext.signalText }),
+      CredentialRequest('face', { signal: publishContext.signalText }),
+      CredentialRequest('passport', { signal: publishContext.signalText }),
+      CredentialRequest('mnc', { signal: publishContext.signalText })
+    )
+    : null
+
   return (
     <div className="w-[90%] mx-auto space-y-4 py-4">
+      {publishContext && worldIdConstraints && (
+        <IDKitRequestWidget
+          open={isWorldIdOpen}
+          onOpenChange={(open) => {
+            setIsWorldIdOpen(open)
+            if (!open) {
+              setIsEditingDisabled(false)
+            }
+          }}
+          app_id={publishContext.appId}
+          action={publishContext.action}
+          rp_context={publishContext.rpContext}
+          allow_legacy_proofs={false}
+          environment={publishContext.environment}
+          constraints={worldIdConstraints}
+          handleVerify={handleWorldIdResult}
+          onSuccess={() => {
+            setIsWorldIdOpen(false)
+          }}
+          onError={(errorCode) => {
+            setError(`World ID verification failed: ${errorCode}`)
+            setIsEditingDisabled(false)
+          }}
+        />
+      )}
       {error && <AlertDestructive message={error} />}
 
       <div className="flex space-x-2">

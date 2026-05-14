@@ -1,8 +1,20 @@
 import { pool } from './index'
 import { cache } from 'react'
-import { Author, PublicationV1, Proof, PublicationInfo } from '@/types'
+import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
 
-export type { Author, PublicationV1, Proof, PublicationInfo }
+export type { Author, PublicationRecord, Proof, PublicationInfo }
+
+type PublicationRow = {
+  signal: Omit<PublicationRecord, 'version'>
+  version: string
+}
+
+export function mapPublicationRow(row: PublicationRow): PublicationRecord {
+  return {
+    ...row.signal,
+    version: row.version,
+  }
+}
 
 export const getAuthor = cache(async (authorId: string): Promise<Author | null> => {
   const client = await pool.connect()
@@ -53,12 +65,11 @@ export const getAuthors = cache(async (userId: string): Promise<Author[]> => {
   }
 })
 
-export const getPublication = cache(async (publicationId: string): Promise<PublicationV1 | null> => {
+export const getPublication = cache(async (publicationId: string): Promise<PublicationRecord | null> => {
   const client = await pool.connect()
-  console.log('LOA', publicationId)
   try {
     const { rows } = await client.query(
-      'SELECT signal FROM publications WHERE id = $1',
+      'SELECT signal, version FROM publications WHERE id = $1',
       [publicationId]
     )
 
@@ -66,7 +77,7 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
       return null
     }
 
-    return rows[0].signal
+    return mapPublicationRow(rows[0])
   } finally {
     client.release()
   }
@@ -74,7 +85,6 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
 
 export const getProof = cache(async (publicationId: string): Promise<Proof | null> => {
   const client = await pool.connect()
-  console.log('LOB', publicationId)
   try {
     const { rows } = await client.query(
       'SELECT proof FROM publications WHERE id = $1',
@@ -102,9 +112,9 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
     // TODO: Not efficient - we need to fix this
     return rows.map(row => ({
       id: row.id,
-      author_id_libro: row.signal.authorId,
+      author_id_libro: row.signal.author_id_libro,
       publication_date: row.signal.publication_date,
-      author_name_libro: row.signal.authorName,
+      author_name_libro: row.signal.author_name_libro,
       publication_title: row.signal.publication_title,
       publication_subtitle: row.signal.publication_subtitle
     }))

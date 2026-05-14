@@ -1,6 +1,5 @@
 'use client'
 
-import { signIn, useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
@@ -8,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/objects'
 import Link from 'next/link'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Author = ({ create, author, publicationInfos, redirect = null }: { create: boolean, author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null }) => {
-  const { data: session, status } = useSession()
+  const { status, signInWithWorldId } = useWorldIdAuth()
   const [newAuthor, setNewAuthor] = useState<Omit<AuthorType, 'id'>>({
     name: '',
     bio: '',
@@ -21,9 +21,9 @@ export const Author = ({ create, author, publicationInfos, redirect = null }: { 
 
   useEffect(() => {
     if (create && status === 'unauthenticated') {
-      signIn('worldcoin')
+      signInWithWorldId().catch(() => setError('Failed to sign in'))
     }
-  }, [create, status])
+  }, [create, status, signInWithWorldId])
 
   useEffect(() => {
     if (redirect) {

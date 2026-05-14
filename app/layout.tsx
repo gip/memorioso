@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import NextAuthProvider from '@/components/next-auth-provider'
 import { WorldIdAuthProvider } from '@/lib/world-id/client-auth'
 import { Analytics } from '@vercel/analytics/next'
 
@@ -29,14 +28,12 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <NextAuthProvider>
-        <body className={inter.className}>
-          <WorldIdAuthProvider>
-            <div className="min-h-screen flex flex-col">{children}</div>
-          </WorldIdAuthProvider>
-          <Analytics />
-        </body>
-      </NextAuthProvider>
+      <body className={inter.className}>
+        <WorldIdAuthProvider>
+          <div className="min-h-screen flex flex-col">{children}</div>
+        </WorldIdAuthProvider>
+        <Analytics />
+      </body>
     </html>
   )
 }

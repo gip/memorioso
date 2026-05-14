@@ -1,6 +1,5 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -9,9 +8,8 @@ import { ArrowLeft, LogIn } from 'lucide-react'
 import { Diamond } from '@/components/Diamond'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 export const Header = () => {
-  const { data: session } = useSession()
   const router = useRouter()
-  const { signInWithWorldId } = useWorldIdAuth()
+  const { user, signInWithWorldId } = useWorldIdAuth()
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -41,7 +39,7 @@ export const Header = () => {
           </Link>
         </div>
         <div className="flex items-center">
-          {!session && (
+          {!user && (
             <Button
               className="rounded-full w-10 h-10"
               size="icon"
@@ -52,7 +50,7 @@ export const Header = () => {
             </Button>
           )}
         </div>
-        {session && (
+        {user && (
           <Diamond atBottom={false} />
         )}
       </div>

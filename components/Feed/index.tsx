@@ -1,20 +1,15 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { Plus } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 
-import { Separator } from "@/components/ui/separator"
 import type { FeedItemD } from '@/components/FeedItem'
 import { FeedItem } from '@/components/FeedItem'
 
 type FeedStatus = 'loading' | 'ready'
 
 export const Feed = () => {
-  const { data: session, status } = useSession(); 
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading')
   const [feedItems, setFeedItems] = useState<FeedItemD[]>([])
   const router = useRouter()

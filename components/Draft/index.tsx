@@ -1,6 +1,5 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -56,7 +55,6 @@ const AlertDestructive = ({ message }: { message: string }) => {
 }
 
 export const Draft = ({ draftId }: { draftId: string | null }) => {
-  const { data: session, status } = useSession()
   const [draft, setDraft] = useState<DraftData | null>({ title: '', subtitle: '', content: { html: '' } })
   const [originalDraft, setOriginalDraft] = useState<DraftData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
@@ -70,7 +68,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
-  const { signInWithWorldId } = useWorldIdAuth()
+  const { status, signInWithWorldId } = useWorldIdAuth()
 
   useEffect(() => {
     if (status === 'unauthenticated') {

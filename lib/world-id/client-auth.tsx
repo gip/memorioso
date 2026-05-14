@@ -5,10 +5,10 @@ import {
   ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
-import { signIn } from 'next-auth/react'
 import {
   IDKitSessionWidget,
   CredentialRequest,
@@ -17,6 +17,7 @@ import {
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
+import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
 
 type AuthContextResponse = {
   success: boolean
@@ -25,8 +26,14 @@ type AuthContextResponse = {
   rpContext: RpContext
 }
 
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
+
 type WorldIdAuthContextValue = {
+  user: WorldIdSessionUser | null
+  status: AuthStatus
   signInWithWorldId: () => Promise<void>
+  signOut: () => Promise<void>
+  refreshSession: () => Promise<void>
 }
 
 type ActiveAuthContext = {
@@ -49,6 +56,8 @@ export function useWorldIdAuth(): WorldIdAuthContextValue {
 }
 
 export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<WorldIdSessionUser | null>(null)
+  const [status, setStatus] = useState<AuthStatus>('loading')
   const [activeContext, setActiveContext] = useState<ActiveAuthContext | null>(null)
   const [isOpen, setIsOpen] = useState(false)
 
@@ -58,6 +67,33 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     CredentialRequest('passport'),
     CredentialRequest('mnc')
   ), [])
+
+  const refreshSession = useCallback(async () => {
+    setStatus('loading')
+    const response = await fetch('/api/auth/session', {
+      method: 'GET',
+    })
+    const body = await response.json() as WorldIdSessionResponse
+
+    if (body.success && body.authenticated) {
+      setUser(body.user)
+      setStatus('authenticated')
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(WORLD_ID_SESSION_STORAGE_KEY, body.user.worldIdSessionId)
+      }
+      return
+    }
+
+    setUser(null)
+    setStatus('unauthenticated')
+  }, [])
+
+  useEffect(() => {
+    refreshSession().catch(() => {
+      setUser(null)
+      setStatus('unauthenticated')
+    })
+  }, [refreshSession])
 
   const signInWithWorldId = useCallback(async () => {
     const response = await fetch('/api/auth/world-id/context', {
@@ -87,23 +123,51 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       throw new Error('World ID login context is missing')
     }
 
-    const signInResult = await signIn('world-id', {
-      payload: JSON.stringify(result),
-      nonce: activeContext.rpContext.nonce,
-      redirect: false,
+    const response = await fetch('/api/auth/world-id/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        payload: result,
+        nonce: activeContext.rpContext.nonce,
+      }),
     })
+    const body = await response.json() as WorldIdSessionResponse
 
-    if (signInResult?.error) {
-      throw new Error(signInResult.error)
+    if (!response.ok || !body.success || !body.authenticated) {
+      throw new Error(body.success === false ? body.message : 'World ID login failed')
     }
+
+    setUser(body.user)
+    setStatus('authenticated')
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(WORLD_ID_SESSION_STORAGE_KEY, result.session_id)
     }
   }, [activeContext])
 
+  const signOut = useCallback(async () => {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+    })
+    setUser(null)
+    setStatus('unauthenticated')
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(WORLD_ID_SESSION_STORAGE_KEY)
+    }
+  }, [])
+
+  const value = useMemo<WorldIdAuthContextValue>(() => ({
+    user,
+    status,
+    signInWithWorldId,
+    signOut,
+    refreshSession,
+  }), [user, status, signInWithWorldId, signOut, refreshSession])
+
   return (
-    <WorldIdAuthContext.Provider value={{ signInWithWorldId }}>
+    <WorldIdAuthContext.Provider value={value}>
       {activeContext && (
         <IDKitSessionWidget
           open={isOpen}

@@ -1,39 +1,24 @@
-import { getServerSession } from 'next-auth'
-import type { Session } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthSessionPayload } from '@/lib/auth-session'
 import { pool } from '@/lib/db'
+import type { WorldIdSessionUser } from '@/lib/auth-types'
 
-export type AuthenticatedUser = {
-  id: number
-  subject: string
-  worldIdSessionId: string | null
-}
+export type AuthenticatedUser = WorldIdSessionUser
 
-type SessionUserWithWorldId = NonNullable<Session['user']> & {
-  worldIdSessionId?: string | null
-}
-
-export async function getAuthenticatedUser(session?: Session | null): Promise<AuthenticatedUser | null> {
-  const currentSession = session ?? await getServerSession(authOptions)
-  const user = currentSession?.user as SessionUserWithWorldId | undefined
-
-  if (!user?.name) {
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+  const session = await getAuthSessionPayload()
+  if (!session) {
     return null
   }
 
-  const worldIdSessionId = user.worldIdSessionId || null
   const client = await pool.connect()
 
   try {
-    const { rows } = worldIdSessionId
-      ? await client.query(
-        'SELECT id, name, world_id_session_id FROM users WHERE world_id_session_id = $1',
-        [worldIdSessionId]
-      )
-      : await client.query(
-        'SELECT id, name, world_id_session_id FROM users WHERE name = $1',
-        [user.name]
-      )
+    const { rows } = await client.query(
+      `SELECT id, name, world_id_session_id, world_id_credential_identifier
+       FROM users
+       WHERE id = $1 AND world_id_session_id = $2`,
+      [session.userId, session.worldIdSessionId]
+    )
 
     if (rows.length === 0) {
       return null
@@ -43,6 +28,7 @@ export async function getAuthenticatedUser(session?: Session | null): Promise<Au
       id: rows[0].id,
       subject: rows[0].name,
       worldIdSessionId: rows[0].world_id_session_id,
+      worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
     }
   } finally {
     client.release()

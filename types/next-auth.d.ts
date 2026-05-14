@@ -7,18 +7,21 @@ declare module 'next-auth' {
       name?: string | null
       email?: string | null
       image?: string | null
-      walletAddress?: string | null
+      worldIdSessionId?: string | null
+      worldIdCredentialIdentifier?: string | null
     }
   }
 
   interface User {
-    walletAddress?: string | null
+    worldIdSessionId?: string | null
+    worldIdCredentialIdentifier?: string | null
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     userId?: string
-    walletAddress?: string | null
+    worldIdSessionId?: string | null
+    worldIdCredentialIdentifier?: string | null
   }
 }

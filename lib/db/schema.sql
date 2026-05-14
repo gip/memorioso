@@ -35,7 +35,9 @@ CREATE TABLE users
 (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
-  wallet_address TEXT UNIQUE,
+  world_id_session_id TEXT UNIQUE,
+  world_id_session_nullifier TEXT,
+  world_id_credential_identifier VARCHAR(255),
   email VARCHAR(255) UNIQUE,
   "emailVerified" TIMESTAMPTZ,
   image TEXT,

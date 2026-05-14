@@ -21,7 +21,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { type ContentOrHtml } from '@/types'
-import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type DraftData = {
   id?: string
@@ -70,12 +70,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const { signInWithWorldId } = useWorldIdAuth()
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      signInWithWorldWallet().catch(() => setError('Failed to sign in'))
+      signInWithWorldId().catch(() => setError('Failed to sign in'))
     }
-  }, [status])
+  }, [status, signInWithWorldId])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)

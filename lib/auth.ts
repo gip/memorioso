@@ -2,12 +2,10 @@ import { NextAuthOptions } from "next-auth";
 import PostgresAdapter from "@auth/pg-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { Pool } from "pg";
-import { verifySiweMessage } from "@worldcoin/minikit-js/siwe";
-import {
-  WORLD_CHAIN_ID,
-  WORLD_ID_WALLET_AUTH_STATEMENT,
-  WORLD_WALLET_NONCE_COOKIE,
-} from "@/lib/world-id/constants";
+import type { IDKitResult } from "@worldcoin/idkit";
+import { WORLD_ID_AUTH_NONCE_COOKIE } from "@/lib/world-id/constants";
+import { getWorldIdServerConfig, verifyWorldIdProof } from "@/lib/world-id/server";
+import { validateSessionCredentialResponses, validateWorldIdSessionResult } from "@/lib/world-id/proof";
  
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -31,14 +29,6 @@ function getCookieValue(cookieHeader: string | string[] | undefined, name: strin
   return value ? decodeURIComponent(value) : null
 }
 
-function getExpectedAppOrigin(): URL {
-  if (!process.env.NEXT_PUBLIC_APP_URL) {
-    throw new Error("NEXT_PUBLIC_APP_URL is required")
-  }
-
-  return new URL(process.env.NEXT_PUBLIC_APP_URL)
-}
-
 export const authOptions: NextAuthOptions = {
   adapter: PostgresAdapter(pool),
   secret: process.env.NEXTAUTH_SECRET,
@@ -47,73 +37,65 @@ export const authOptions: NextAuthOptions = {
   },
   providers: [
     CredentialsProvider({
-      id: "world-wallet",
-      name: "World App Wallet",
+      id: "world-id",
+      name: "World ID",
       credentials: {
-        payload: { label: "Wallet auth payload", type: "text" },
+        payload: { label: "World ID session proof", type: "text" },
         nonce: { label: "Nonce", type: "text" },
       },
       async authorize(credentials, req) {
         const payloadRaw = credentials?.payload
         const nonce = credentials?.nonce
-        const cookieNonce = getCookieValue(req.headers?.cookie, WORLD_WALLET_NONCE_COOKIE)
+        const cookieNonce = getCookieValue(req.headers?.cookie, WORLD_ID_AUTH_NONCE_COOKIE)
 
         if (!payloadRaw || !nonce || !cookieNonce || nonce !== cookieNonce) {
           return null
         }
 
-        let payload
-        let verification
+        let config
+        let idkitResult
+        let validatedResult
         try {
-          payload = JSON.parse(payloadRaw)
-          verification = await verifySiweMessage(
-            payload,
+          config = getWorldIdServerConfig()
+          idkitResult = JSON.parse(payloadRaw) as IDKitResult
+          validatedResult = validateWorldIdSessionResult(idkitResult, {
             nonce,
-            WORLD_ID_WALLET_AUTH_STATEMENT
-          )
+            environment: config.environment,
+          })
         } catch {
           return null
         }
 
-        if (!verification.isValid) {
+        const verifyRes = await verifyWorldIdProof(validatedResult, config.rpId)
+        if (!verifyRes.ok) {
           return null
         }
 
-        let expectedOrigin
-        let messageUri
-        try {
-          expectedOrigin = getExpectedAppOrigin()
-          messageUri = new URL(verification.siweMessageData.uri)
-        } catch {
-          return null
-        }
-
-        if (
-          verification.siweMessageData.domain !== expectedOrigin.host ||
-          messageUri.origin !== expectedOrigin.origin ||
-          verification.siweMessageData.chain_id !== WORLD_CHAIN_ID
-        ) {
-          return null
-        }
-
-        const walletAddress = payload.address.toLowerCase()
-        const subject = `wallet:${walletAddress}`
+        const credentialIdentifiers = validateSessionCredentialResponses(validatedResult.responses)
+        const subject = `world-id:${validatedResult.session_id}`
+        const sessionNullifier = validatedResult.responses[0]?.session_nullifier?.[0] || null
         const client = await pool.connect()
 
         try {
           const { rows } = await client.query(
-            `INSERT INTO users (name, wallet_address)
-             VALUES ($1, $2)
-             ON CONFLICT (wallet_address)
-             DO UPDATE SET name = EXCLUDED.name, modified_at = CURRENT_TIMESTAMP
-             RETURNING id, name, wallet_address`,
-            [subject, walletAddress]
+            `INSERT INTO users
+              (name, world_id_session_id, world_id_session_nullifier, world_id_credential_identifier)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (world_id_session_id)
+             DO UPDATE SET
+               name = EXCLUDED.name,
+               world_id_session_nullifier = EXCLUDED.world_id_session_nullifier,
+               world_id_credential_identifier = EXCLUDED.world_id_credential_identifier,
+               modified_at = CURRENT_TIMESTAMP
+             RETURNING id, name, world_id_session_id, world_id_credential_identifier`,
+            [subject, validatedResult.session_id, sessionNullifier, credentialIdentifiers[0]]
           )
 
           return {
             id: String(rows[0].id),
             name: rows[0].name,
-            walletAddress: rows[0].wallet_address,
+            worldIdSessionId: rows[0].world_id_session_id,
+            worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
           }
         } finally {
           client.release()
@@ -125,14 +107,16 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.userId = user.id
-        token.walletAddress = user.walletAddress || null
+        token.worldIdSessionId = user.worldIdSessionId || null
+        token.worldIdCredentialIdentifier = user.worldIdCredentialIdentifier || null
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.userId
-        session.user.walletAddress = token.walletAddress || null
+        session.user.worldIdSessionId = token.worldIdSessionId || null
+        session.user.worldIdCredentialIdentifier = token.worldIdCredentialIdentifier || null
       }
       return session
     },

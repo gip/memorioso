@@ -12,7 +12,7 @@ The first iteration of Memorioso (the product) and Libro (the protocol) is built
 
 ## World ID 4.0 configuration
 
-Memorioso uses IDKit 4.x for publication proofs and MiniKit Wallet Auth for login. Required World-related environment variables:
+Memorioso uses IDKit 4.x for both login session proofs and publication proofs. Required World-related environment variables:
 
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`
 - `WORLD_ID_RP_ID`

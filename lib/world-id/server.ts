@@ -32,9 +32,9 @@ export function getWorldIdServerConfig(): WorldIdServerConfig {
   }
 }
 
-export function createRpContext(config: WorldIdServerConfig): RpContext {
+export function createRpContext(config: WorldIdServerConfig, action?: string): RpContext {
   const signature = signRequest({
-    action: config.publishAction,
+    action,
     signingKeyHex: config.signingKeyHex,
     ttl: 5 * 60,
   })

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/objects'
 import Link from 'next/link'
-import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Author = ({ create, author, publicationInfos, redirect = null }: { create: boolean, author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null }) => {
   const { data: session, status } = useSession()
@@ -19,12 +19,13 @@ export const Author = ({ create, author, publicationInfos, redirect = null }: { 
   })
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { signInWithWorldId } = useWorldIdAuth()
 
   useEffect(() => {
     if (create && status === 'unauthenticated') {
-      signInWithWorldWallet().catch(() => setError('Failed to sign in'))
+      signInWithWorldId().catch(() => setError('Failed to sign in'))
     }
-  }, [create, status])
+  }, [create, status, signInWithWorldId])
 
   useEffect(() => {
     if (redirect) {

@@ -6,32 +6,32 @@ import { pool } from '@/lib/db'
 export type AuthenticatedUser = {
   id: number
   subject: string
-  walletAddress: string | null
+  worldIdSessionId: string | null
 }
 
-type SessionUserWithWorldWallet = NonNullable<Session['user']> & {
-  walletAddress?: string | null
+type SessionUserWithWorldId = NonNullable<Session['user']> & {
+  worldIdSessionId?: string | null
 }
 
 export async function getAuthenticatedUser(session?: Session | null): Promise<AuthenticatedUser | null> {
   const currentSession = session ?? await getServerSession(authOptions)
-  const user = currentSession?.user as SessionUserWithWorldWallet | undefined
+  const user = currentSession?.user as SessionUserWithWorldId | undefined
 
   if (!user?.name) {
     return null
   }
 
-  const walletAddress = user.walletAddress?.toLowerCase() || null
+  const worldIdSessionId = user.worldIdSessionId || null
   const client = await pool.connect()
 
   try {
-    const { rows } = walletAddress
+    const { rows } = worldIdSessionId
       ? await client.query(
-        'SELECT id, name, wallet_address FROM users WHERE wallet_address = $1',
-        [walletAddress]
+        'SELECT id, name, world_id_session_id FROM users WHERE world_id_session_id = $1',
+        [worldIdSessionId]
       )
       : await client.query(
-        'SELECT id, name, wallet_address FROM users WHERE name = $1',
+        'SELECT id, name, world_id_session_id FROM users WHERE name = $1',
         [user.name]
       )
 
@@ -42,7 +42,7 @@ export async function getAuthenticatedUser(session?: Session | null): Promise<Au
     return {
       id: rows[0].id,
       subject: rows[0].name,
-      walletAddress: rows[0].wallet_address,
+      worldIdSessionId: rows[0].world_id_session_id,
     }
   } finally {
     client.release()

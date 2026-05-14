@@ -10,11 +10,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Diamond = ({ atBottom = true }) => {
   const { data: session } = useSession()
   const router = useRouter()
+  const { signInWithWorldId } = useWorldIdAuth()
 
   return (
     <DropdownMenu>
@@ -29,7 +30,7 @@ export const Diamond = ({ atBottom = true }) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {!session && (
-          <DropdownMenuItem onClick={() => signInWithWorldWallet()}>
+          <DropdownMenuItem onClick={() => signInWithWorldId()}>
             Login
           </DropdownMenuItem>
         )}

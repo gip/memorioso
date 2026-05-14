@@ -79,7 +79,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)
-    const rpContext = createRpContext(config)
+    const rpContext = createRpContext(config, config.publishAction)
     const challengeId = crypto.randomUUID()
 
     await client.query(

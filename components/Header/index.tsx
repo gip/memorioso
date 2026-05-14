@@ -7,10 +7,11 @@ import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, LogIn } from 'lucide-react'
 import { Diamond } from '@/components/Diamond'
-import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 export const Header = () => {
   const { data: session } = useSession()
   const router = useRouter()
+  const { signInWithWorldId } = useWorldIdAuth()
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -44,7 +45,7 @@ export const Header = () => {
             <Button
               className="rounded-full w-10 h-10"
               size="icon"
-              onClick={() => signInWithWorldWallet()}
+              onClick={() => signInWithWorldId()}
             >
               <LogIn className="h-5 w-5" />
               <span className="sr-only">Log in</span>

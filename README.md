@@ -19,5 +19,3 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 - `WORLD_ID_RP_SIGNING_KEY`
 - `WORLD_ID_PUBLISH_ACTION=written-by-a-human-v4`
 - `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT=production`
-
-Set `NEXT_PUBLIC_WORLD_ID_LEGACY_APP_ID` only if you need public verification snippets for pre-4.0 publications.

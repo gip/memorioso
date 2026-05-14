@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { IDKitResult } from '@worldcoin/idkit'
 import { canonicalStringify, createPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '../publication'
 import { validateWorldIdV4Result } from '../proof'
+import { mapPublicationRow } from '../../db/objects'
+import {
+  getCredentialIdentifierForPublication,
+  isLegacyPublication,
+  LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
+} from '../../publication-status'
+import type { JsonValue } from '../../json'
+import type { PublicationRecord, WorldIdProofV4 } from '../../../types'
 
 const content = { html: '<p>Hello human world.</p>' }
 const author = {
@@ -61,6 +69,61 @@ describe('World ID publication signals', () => {
     expect(signalText).toContain('"world_id_credential_policy":"document_or_orb"')
     expect(signalText).not.toContain('credential_identifier')
     expect(signalText).not.toContain('passport')
+  })
+})
+
+describe('publication version compatibility', () => {
+  it('maps table version onto the publication record', () => {
+    const mapped = mapPublicationRow({
+      signal: publication(),
+      version: '1',
+    })
+
+    expect(mapped.version).toBe('1')
+    expect(mapped.publication_title).toBe('A human note')
+  })
+
+  it('marks version 1 publications as visible but not verifiable', () => {
+    const legacyPublication: PublicationRecord = {
+      ...publication(),
+      version: '1',
+    }
+    const v4Proof: WorldIdProofV4 = {
+      protocol_version: '4.0',
+      action: 'written-by-a-human-v4',
+      nonce: 'nonce123',
+      signal_text: canonicalPublicationSignal(publication()),
+      signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
+      credential_identifier: 'passport',
+      credential_identifiers: ['passport'],
+      idkit_result: result('0x123') as unknown as JsonValue,
+      verify_response: { success: true },
+    }
+
+    expect(isLegacyPublication(legacyPublication)).toBe(true)
+    expect(LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE).toContain('independent verification is no longer available')
+    expect(getCredentialIdentifierForPublication(legacyPublication, v4Proof)).toBeNull()
+  })
+
+  it('keeps version 2 credential display derived from proof JSON', () => {
+    const v2Publication: PublicationRecord = {
+      ...publication(),
+      version: '2',
+    }
+    const v4Proof: WorldIdProofV4 = {
+      protocol_version: '4.0',
+      action: 'written-by-a-human-v4',
+      nonce: 'nonce123',
+      signal_text: canonicalPublicationSignal(publication()),
+      signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
+      credential_identifier: 'passport',
+      credential_identifiers: ['passport'],
+      idkit_result: result('0x123') as unknown as JsonValue,
+      verify_response: { success: true },
+    }
+
+    expect(isLegacyPublication(v2Publication)).toBe(false)
+    expect(getCredentialIdentifierForPublication(v2Publication, v4Proof)).toBe('passport')
   })
 })
 

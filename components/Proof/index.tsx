@@ -3,6 +3,11 @@ import { Diamond } from '@/components/Diamond'
 import { Proof as ProofType, PublicationRecord as PublicationType, Author as AuthorType } from '@/lib/db/objects'
 import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 import { CopyButton } from './CopyButton'
+import {
+  isLegacyPublication,
+  isWorldIdV4Proof,
+  LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
+} from '@/lib/publication-status'
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
@@ -12,56 +17,11 @@ const escapeHtml = (value: string) => value
 
 const codeToHtml = (code: string) => escapeHtml(code).replace(/\n/g, '<br/>')
 
-const extractHtmlContent = (publication: PublicationType) => {
-  return 'html' in publication.publication_content ? publication.publication_content.html : ''
-}
-
-const isWorldIdV4Proof = (proof: ProofType): proof is Extract<ProofType, { protocol_version: '4.0' }> => {
-  return 'protocol_version' in proof && proof.protocol_version === '4.0'
-}
-
-function buildLegacyProofDocument(publication: PublicationType, proof: ProofType) {
-  if (isWorldIdV4Proof(proof)) {
-    throw new Error('Expected legacy proof')
-  }
-
-  const publicationLiteral = `{
-  author_id_libro: '${publication.author_id_libro}',
-  author_name_libro: "${publication.author_name_libro.replace(/"/g, '\\"')}",
-  author_handle_libro: "${publication.author_handle_libro.replace(/"/g, '\\"')}",
-  author_bio_libro: "${(publication.author_bio_libro || '').replace(/"/g, '\\"')}",
-  publication_title: "${publication.publication_title.replace(/"/g, '\\"')}",
-  publication_subtitle: "${publication.publication_subtitle.replace(/"/g, '\\"')}",
-  publication_content: { html: "${extractHtmlContent(publication).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" },
-  publication_date: '${publication.publication_date}'
-}`
-
-  const code = `const { hashSignal } = require('@worldcoin/idkit-core/hashing');
-
-const publication = ${publicationLiteral};
-const body = {
-  proof: '${proof.proof}',
-  merkle_root: '${proof.merkle_root}',
-  nullifier_hash: '${proof.nullifier_hash}',
-  verification_level: '${proof.verification_level}',
-  action: 'written-by-a-human',
-  signal_hash: hashSignal(JSON.stringify(publication))
-};
-
-const appId = '${process.env.NEXT_PUBLIC_WORLD_ID_LEGACY_APP_ID || 'app_...'}';
-const response = await fetch(\`https://developer.worldcoin.org/api/v2/verify/\${appId}\`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(body)
-});
-
-console.log(await response.json());`
-
+function buildLegacyUnavailableDocument(publication: PublicationType) {
   return {
-    code,
-    content: `This document shows how to independently verify the legacy World ID proof of authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i>.
-<br/><br/>This publication was signed with the pre-World ID 4.0 flow. The script reconstructs the original publication payload, hashes it into <i>signal_hash</i>, and sends the legacy proof to World's v2 verification endpoint.
-<br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
+    code: '',
+    content: `Independent verification is not available for <i><u>${escapeHtml(publication.publication_title)}</u></i>.
+<br/><br/>${escapeHtml(LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE)}`,
   }
 }
 
@@ -117,9 +77,11 @@ console.log(await verifyResponse.json());`
 export const Proof = ({ publication, proof }: { publication: PublicationType, proof: ProofType }) => {
   const authors: AuthorType[] = [{ id: '0', name: 'Memorioso Team', handle: 'libro' }]
   const title = 'Independent Verification of Human Authorship'
-  const document = isWorldIdV4Proof(proof)
+  const document = isLegacyPublication(publication)
+    ? buildLegacyUnavailableDocument(publication)
+    : isWorldIdV4Proof(proof)
     ? buildWorldIdV4ProofDocument(publication, proof)
-    : buildLegacyProofDocument(publication, proof)
+    : buildLegacyUnavailableDocument(publication)
   const content = document.content.replace(/\n/g, '')
 
   return (
@@ -133,7 +95,7 @@ export const Proof = ({ publication, proof }: { publication: PublicationType, pr
           editable={false}
           codeBlocks={true}
         />
-        <CopyButton codeContent={document.code} />
+        {document.code && <CopyButton codeContent={document.code} />}
       </div>
       <Diamond />
     </div>

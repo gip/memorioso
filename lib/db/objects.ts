@@ -4,6 +4,18 @@ import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
+type PublicationRow = {
+  signal: Omit<PublicationRecord, 'version'>
+  version: string
+}
+
+export function mapPublicationRow(row: PublicationRow): PublicationRecord {
+  return {
+    ...row.signal,
+    version: row.version,
+  }
+}
+
 export const getAuthor = cache(async (authorId: string): Promise<Author | null> => {
   const client = await pool.connect()
   try {
@@ -57,7 +69,7 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT signal FROM publications WHERE id = $1',
+      'SELECT signal, version FROM publications WHERE id = $1',
       [publicationId]
     )
 
@@ -65,7 +77,7 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
       return null
     }
 
-    return rows[0].signal
+    return mapPublicationRow(rows[0])
   } finally {
     client.release()
   }

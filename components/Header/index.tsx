@@ -1,15 +1,15 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { signIn, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, LogIn } from 'lucide-react'
 import { Diamond } from '@/components/Diamond'
+import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
 export const Header = () => {
-  const { data: session, status } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
 
   const handleBack = () => {
@@ -44,7 +44,7 @@ export const Header = () => {
             <Button
               className="rounded-full w-10 h-10"
               size="icon"
-              onClick={() => signIn('worldcoin')}
+              onClick={() => signInWithWorldWallet()}
             >
               <LogIn className="h-5 w-5" />
               <span className="sr-only">Log in</span>

@@ -8,8 +8,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { signIn, signOut, useSession } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { signInWithWorldWallet } from '@/lib/world-id/client-auth'
 
 export const Diamond = ({ atBottom = true }) => {
   const { data: session } = useSession()
@@ -28,7 +29,7 @@ export const Diamond = ({ atBottom = true }) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {!session && (
-          <DropdownMenuItem onClick={() => signIn('worldcoin')}>
+          <DropdownMenuItem onClick={() => signInWithWorldWallet()}>
             Login
           </DropdownMenuItem>
         )}

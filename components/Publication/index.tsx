@@ -1,7 +1,7 @@
 import Editor from '@/components/Editor'
-import { timeAgo } from '@/lib/time'
 import Link from 'next/link'
-import { PublicationV1 as PublicationType, Author } from '@/lib/db/objects'
+import { PublicationRecord as PublicationType, Author } from '@/lib/db/objects'
+import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 
 export const Publication = ({ publication, proofLink }: { publication: PublicationType, proofLink?: string }) => {
 
@@ -11,11 +11,14 @@ export const Publication = ({ publication, proofLink }: { publication: Publicati
   const content = 'content' in publication.publication_content 
     ? publication.publication_content.content
     : publication.publication_content.html
+  const credentialLabel = publication.world_id_credential_identifier
+    ? WORLD_ID_CREDENTIAL_LABELS[publication.world_id_credential_identifier as WorldIdCredentialIdentifier] || publication.world_id_credential_identifier
+    : null
 
   return (
     <div className="w-[96%] mx-auto space-y-4 py-4">
-      {/* <div className="text-xs text-muted-foreground text-center">
-        Signed by <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/a/${authors[0].id}`} className="underline hover:text-primary">{authors[0].name}</Link> {timeAgo(publication.publication_date)}. <br />
+      <div className="text-xs text-muted-foreground text-center">
+        {credentialLabel && <>Verified with {credentialLabel}. </>}
         Proof of authorship can be {proofLink ? (
           <Link href={proofLink} className="underline hover:text-primary">
             verified
@@ -23,7 +26,7 @@ export const Publication = ({ publication, proofLink }: { publication: Publicati
         ) : (
           'verified'
         )} independently.
-      </div> */}
+      </div>
         <Editor authors={authors}
               initialContent={content}
               initialTitle={publication.publication_title}

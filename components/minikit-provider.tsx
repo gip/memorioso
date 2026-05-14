@@ -1,13 +1,17 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { MiniKit } from '@worldcoin/minikit-js';
 
 export default function MiniKitProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const init = async () => {
-        const r = MiniKit.install(process.env.NEXT_PUBLIC_WLD_CLIENT_ID);
+        if (!process.env.NEXT_PUBLIC_WORLD_ID_APP_ID) {
+          throw new Error('NEXT_PUBLIC_WORLD_ID_APP_ID is required');
+        }
+
+        MiniKit.install(process.env.NEXT_PUBLIC_WORLD_ID_APP_ID);
     };
 
     init();

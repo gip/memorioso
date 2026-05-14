@@ -169,10 +169,8 @@ export async function PUT(
 
     const articleResult = await client.query(
       `INSERT INTO publications
-        ("userId", "authorId", proof, signal, content, version, title, subtitle, date,
-         world_id_protocol_version, world_id_action, world_id_signal_text, world_id_signal_hash,
-         world_id_credential_identifier, world_id_verify_response, world_id_challenge_nonce)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
         authenticatedUser.id,
@@ -184,13 +182,6 @@ export async function PUT(
         storedPublication.publication_title,
         storedPublication.publication_subtitle,
         storedPublication.publication_date,
-        '4.0',
-        challenge.action,
-        challenge.signal_text,
-        challenge.signal_hash,
-        credentialIdentifiers[0],
-        verifyRes.body,
-        challenge.nonce,
       ]
     )
 

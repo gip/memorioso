@@ -1,9 +1,15 @@
 import Editor from '@/components/Editor'
 import Link from 'next/link'
-import { PublicationRecord as PublicationType, Author } from '@/lib/db/objects'
+import { PublicationRecord as PublicationType, Proof as ProofType, Author } from '@/lib/db/objects'
 import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 
-export const Publication = ({ publication, proofLink }: { publication: PublicationType, proofLink?: string }) => {
+const getCredentialIdentifier = (proof?: ProofType | null) => {
+  return proof && 'protocol_version' in proof && proof.protocol_version === '4.0'
+    ? proof.credential_identifier
+    : null
+}
+
+export const Publication = ({ publication, proof, proofLink }: { publication: PublicationType, proof?: ProofType | null, proofLink?: string }) => {
 
   const authors: Author[] = [{ id: publication.author_id_libro, name: publication.author_name_libro,
                                bio: publication.author_bio_libro, handle: publication.author_handle_libro }]
@@ -11,8 +17,9 @@ export const Publication = ({ publication, proofLink }: { publication: Publicati
   const content = 'content' in publication.publication_content 
     ? publication.publication_content.content
     : publication.publication_content.html
-  const credentialLabel = publication.world_id_credential_identifier
-    ? WORLD_ID_CREDENTIAL_LABELS[publication.world_id_credential_identifier as WorldIdCredentialIdentifier] || publication.world_id_credential_identifier
+  const credentialIdentifier = getCredentialIdentifier(proof)
+  const credentialLabel = credentialIdentifier
+    ? WORLD_ID_CREDENTIAL_LABELS[credentialIdentifier as WorldIdCredentialIdentifier] || credentialIdentifier
     : null
 
   return (

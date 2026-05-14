@@ -57,9 +57,7 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT signal, world_id_protocol_version, world_id_credential_identifier
-       FROM publications
-       WHERE id = $1`,
+      'SELECT signal FROM publications WHERE id = $1',
       [publicationId]
     )
 
@@ -67,11 +65,7 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
       return null
     }
 
-    return {
-      ...rows[0].signal,
-      world_id_protocol_version: rows[0].world_id_protocol_version,
-      world_id_credential_identifier: rows[0].world_id_credential_identifier,
-    }
+    return rows[0].signal
   } finally {
     client.release()
   }

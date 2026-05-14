@@ -37,10 +37,7 @@ export type Author = {
     world_id_credential_policy: typeof WORLD_ID_CREDENTIAL_POLICY
   }
 
-  export type PublicationRecord = (PublicationV1 | PublicationV2) & {
-    world_id_protocol_version?: string | null
-    world_id_credential_identifier?: string | null
-  }
+  export type PublicationRecord = PublicationV1 | PublicationV2
   
   export type PublicationInfo = {
     id: string

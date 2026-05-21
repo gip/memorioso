@@ -5,6 +5,7 @@ import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/
 import { CopyButton } from './CopyButton'
 import {
   isLegacyPublication,
+  isLibroRegisteredProof,
   isWorldIdV4Proof,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
 } from '@/lib/publication-status'
@@ -67,9 +68,66 @@ console.log(await verifyResponse.json());`
 
   return {
     code,
-    content: `This document shows how to independently verify the World ID 4.0 proof of authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
+    content: `This World ID 4.0 proof for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a> was stored before Libro on-chain registration was enabled.
+<br/><br/><strong>Libro registration:</strong> not registered on-chain.
 <br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalText</i>. World ID 4.0 does not send that content to the verifier directly; it hashes the signal into <i>responses[].signal_hash</i>. Independent verification must recompute that hash locally and confirm every returned credential response is bound to the same publication signal before calling World's v4 verifier.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
+<br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
+  }
+}
+
+function buildLibroProofDocument(publication: PublicationType, proof: Extract<ProofType, { protocol_version: '4.0' }> & { libro_registration: NonNullable<Extract<ProofType, { protocol_version: '4.0' }>['libro_registration']> }) {
+  const credentialLabel = WORLD_ID_CREDENTIAL_LABELS[proof.credential_identifier as WorldIdCredentialIdentifier] || proof.credential_identifier
+  const registration = proof.libro_registration
+  const code = `const { createPublicClient, http } = require('viem');
+const { worldchain } = require('viem/chains');
+const { hashSignal } = require('@worldcoin/idkit-core/hashing');
+
+const libroProofRegistryAbi = [{
+  type: 'function',
+  name: 'verify',
+  stateMutability: 'view',
+  inputs: [{ name: 'signalHash', type: 'uint256' }],
+  outputs: [{ name: '', type: 'bool' }],
+}];
+
+const signalText = ${JSON.stringify(proof.signal_text)};
+const expectedSignalHash = ${JSON.stringify(registration.signal_hash)};
+const registryAddress = ${JSON.stringify(registration.registry_address)};
+
+const localSignalHash = hashSignal(signalText).toLowerCase();
+if (localSignalHash !== expectedSignalHash.toLowerCase()) {
+  throw new Error('Stored signal hash does not match the publication signal');
+}
+
+const client = createPublicClient({
+  chain: worldchain,
+  transport: http('https://worldchain-mainnet.g.alchemy.com/public'),
+});
+
+const registered = await client.readContract({
+  address: registryAddress,
+  abi: libroProofRegistryAbi,
+  functionName: 'verify',
+  args: [BigInt(expectedSignalHash)],
+});
+
+if (!registered) {
+  throw new Error('Libro registry does not contain this publication signal');
+}
+
+console.log({ registered, signalHash: expectedSignalHash });`
+
+  return {
+    code,
+    content: `This document shows how to independently verify the Libro on-chain proof of human authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
+<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalText</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Anyone can call the registry with a valid proof; MiniKit is only a sponsored-gas path used by Memorioso.
+<br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
+<br/><br/>Chain ID: <strong>${registration.chain_id}</strong>.
+<br/>Registry: <code>${escapeHtml(registration.registry_address)}</code>.
+<br/>Signal hash: <code>${escapeHtml(registration.signal_hash)}</code>.
+<br/>User operation: <code>${escapeHtml(registration.user_op_hash)}</code>.
+<br/>Transaction: <code>${escapeHtml(registration.transaction_hash)}</code>.
 <br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
   }
 }
@@ -79,6 +137,8 @@ export const Proof = ({ publication, proof }: { publication: PublicationType, pr
   const title = 'Independent Verification of Human Authorship'
   const document = isLegacyPublication(publication)
     ? buildLegacyUnavailableDocument(publication)
+    : isLibroRegisteredProof(proof)
+    ? buildLibroProofDocument(publication, proof)
     : isWorldIdV4Proof(proof)
     ? buildWorldIdV4ProofDocument(publication, proof)
     : buildLegacyUnavailableDocument(publication)

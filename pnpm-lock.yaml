@@ -71,6 +71,12 @@ importers:
       '@worldcoin/idkit-core':
         specifier: 4.1.5
         version: 4.1.5
+      '@worldcoin/minikit-js':
+        specifier: 2.0.3
+        version: 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))
+      '@worldcoin/minikit-react':
+        specifier: 2.0.3
+        version: 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -1097,6 +1103,36 @@ packages:
   '@tiptap/starter-kit@2.27.2':
     resolution: {integrity: sha512-bb0gJvPoDuyRUQ/iuN52j1//EtWWttw+RXAv1uJxfR0uKf8X7uAqzaOOgwjknoCIDC97+1YHwpGdnRjpDkOBxw==}
 
+  '@turbo/darwin-64@2.9.12':
+    resolution: {integrity: sha512-eu3eFRmE9NjgZ0wPdRJ44l+LGSeIky+tz5ZQd8zQkw/Yqi+BM7wq+8nbabeoiVUcICi/IZweMOKl/MCmkrd1+g==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@turbo/darwin-arm64@2.9.12':
+    resolution: {integrity: sha512-RUkAE404z/J8NsyrUosMcBaXT6M4bRFxTQrmkDQBLQVXaC8Jl0e9bMvYDSX0GW7Ffm2m3j9y7RXgR1foeUAM9w==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@turbo/linux-64@2.9.12':
+    resolution: {integrity: sha512-InIUtH7cw/vqXNX1Gr7QgWfmw3ct08pV5CpfdEOR48z2u2rzdmpIuk00B/Q2xCb0PMWtKgiMQynfuphmEuUyTQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@turbo/linux-arm64@2.9.12':
+    resolution: {integrity: sha512-lC6nD//Xh67fmJM0LKaLsg74Wry0aYrgMklpiNgCbUaMdPIOqj0A00iri3NU7Lb7pZHx8ViisgpeDKlpSgFUCA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@turbo/windows-64@2.9.12':
+    resolution: {integrity: sha512-conYri8VUl72JOdYnLDPYwzqbPcY5ECoHmo9FWoKznemhaAIilj4maHqs9Uar0aKfNoZIULniy+6iWaLtLO34A==}
+    cpu: [x64]
+    os: [win32]
+
+  '@turbo/windows-arm64@2.9.12':
+    resolution: {integrity: sha512-XoR4bsg62/L/esRVcmoMESEiNZ36+YmyjYGLpoqk8nwMgXzzVjNOgX0lRSz5w/U/ajLGv3nhMsS0Q2QOdvp2AQ==}
+    cpu: [arm64]
+    os: [win32]
+
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
 
@@ -1351,6 +1387,28 @@ packages:
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
+
+  '@worldcoin/minikit-js@2.0.3':
+    resolution: {integrity: sha512-41rhB59/MOWpAihcCidMijYmzlht5BDPTBQwRRDMhX65rC4Ac2+qEkajDgCR1xW/YWZm122Z8muJzr1pODDq1A==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      react: ^17 || ^18 || ^19
+      siwe: ^3.0.0
+      viem: ^2.21.0
+      wagmi: ^3.0.0
+    peerDependenciesMeta:
+      siwe:
+        optional: true
+      viem:
+        optional: true
+      wagmi:
+        optional: true
+
+  '@worldcoin/minikit-react@2.0.3':
+    resolution: {integrity: sha512-m6eoSFHltfHzQQcWWguOLbierLCyf8Kmg7WZ5I/hN8IaayVmN+HQwEm0DqKTkzdcnug5sDoQxB5avOFuwLoiTA==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      react: ^18 || ^19
 
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
@@ -3112,6 +3170,10 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  turbo@2.9.12:
+    resolution: {integrity: sha512-lCPgus1NuTiBdaITWqzSH/Ff6HVL8HHGBtOXHg1dHRfcshN79XkygSdh0M6g8b0td91ILLG5MTkLOkp5UvyPJw==}
+    hasBin: true
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -4205,6 +4267,24 @@ snapshots:
       '@tiptap/extension-text-style': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
       '@tiptap/pm': 2.27.2
 
+  '@turbo/darwin-64@2.9.12':
+    optional: true
+
+  '@turbo/darwin-arm64@2.9.12':
+    optional: true
+
+  '@turbo/linux-64@2.9.12':
+    optional: true
+
+  '@turbo/linux-arm64@2.9.12':
+    optional: true
+
+  '@turbo/windows-64@2.9.12':
+    optional: true
+
+  '@turbo/windows-arm64@2.9.12':
+    optional: true
+
   '@tybys/wasm-util@0.10.2':
     dependencies:
       tslib: 2.8.1
@@ -4422,6 +4502,29 @@ snapshots:
       qrcode: 1.5.4
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
+
+  '@worldcoin/minikit-js@2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))':
+    dependencies:
+      abitype: 1.2.3(typescript@5.7.3)
+      react: 19.2.6
+    optionalDependencies:
+      viem: 2.48.11(typescript@5.7.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
+
+  '@worldcoin/minikit-react@2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))':
+    dependencies:
+      '@worldcoin/minikit-js': 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))
+      abitype: 1.2.3(typescript@5.7.3)
+      react: 19.2.6
+      turbo: 2.9.12
+    transitivePeerDependencies:
+      - siwe
+      - typescript
+      - viem
+      - wagmi
+      - zod
 
   abitype@1.2.3(typescript@5.7.3):
     optionalDependencies:
@@ -6432,6 +6535,15 @@ snapshots:
       strip-bom: 3.0.0
 
   tslib@2.8.1: {}
+
+  turbo@2.9.12:
+    optionalDependencies:
+      '@turbo/darwin-64': 2.9.12
+      '@turbo/darwin-arm64': 2.9.12
+      '@turbo/linux-64': 2.9.12
+      '@turbo/linux-arm64': 2.9.12
+      '@turbo/windows-64': 2.9.12
+      '@turbo/windows-arm64': 2.9.12
 
   type-check@0.4.0:
     dependencies:

@@ -20,5 +20,20 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 - `WORLD_ID_RP_SIGNING_KEY`
 - `WORLD_ID_PUBLISH_ACTION=written-by-a-human-v4`
 - `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT=production`
+- `NEXT_PUBLIC_LIBRO_CHAIN_ID=480`
+- `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`
+- `LIBRO_WORLD_ID_VERIFIER_ADDRESS`
+- `LIBRO_WORLD_ID_RP_ID_UINT64`
 
 Use `.env.example` as the starting point for local configuration.
+
+## Libro on-chain registration
+
+Libro protocol assets live under `libro/` so they can be split into a separate repository later:
+
+- `libro/contracts` contains the Foundry project for `LibroProofRegistry`.
+- `libro/skill` contains the Libro protocol skill and reference.
+
+`LibroProofRegistry.register(...)` is permissionless: anyone can submit a valid registration transaction. Memorioso uses MiniKit for World App gas sponsorship, not because the contract requires MiniKit.
+
+Run `forge test` from `libro/contracts` to test the registry contract.

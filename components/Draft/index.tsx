@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { FeedItem } from '@/components/FeedItem'
@@ -11,6 +11,9 @@ import {
   type IDKitResult,
   type RpContext,
 } from '@worldcoin/idkit'
+import { useUserOperationReceipt } from '@worldcoin/minikit-react'
+import { createPublicClient, http } from 'viem'
+import { worldchain } from 'viem/chains'
 import { type Author } from '@/types'
 import Editor from '@/components/Editor'
 import { AlertCircle } from "lucide-react"
@@ -21,6 +24,8 @@ import {
 } from "@/components/ui/alert"
 import { type ContentOrHtml } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
+import { sendLibroRegistrationTransaction } from '@/lib/libro/client'
+import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 
 type DraftData = {
   id?: string
@@ -41,6 +46,27 @@ type PublishContext = {
   signalText: string
   signalHash: string
 }
+
+type PreparePublishResponse =
+  | {
+      success: true
+      registrationId: string
+      transaction: LibroRegistrationTransaction
+    }
+  | {
+      success: false
+      message?: string
+    }
+
+type FinalizePublishResponse =
+  | {
+      success: true
+      publicationId: string
+    }
+  | {
+      success: false
+      message?: string
+    }
 
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
@@ -68,7 +94,15 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
+  const publicClient = useMemo(() => createPublicClient({
+    chain: worldchain,
+    transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
+  }), [])
+  const { poll: pollUserOperationReceipt, isLoading: isPollingRegistration } = useUserOperationReceipt({
+    client: publicClient,
+  })
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -180,6 +214,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const handlePublish = async () => {
     try {
       setError(null)
+      setPublishStatus(null)
       setIsEditingDisabled(true)
       await handleSave()
       if (!draftId || !draft?.authorId) throw new Error('Draft ID or Author ID is missing')
@@ -224,23 +259,57 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       throw new Error('Publish challenge is missing')
     }
 
-    const raw = await fetch(`/api/draft/${draftId}/publish`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        challengeId: publishContext.challengeId,
-        idkitResult,
-      }),
-    })
-    const response = await raw.json()
+    try {
+      setPublishStatus('Preparing on-chain registration')
+      const prepareRaw = await fetch(`/api/draft/${draftId}/publish/prepare`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          challengeId: publishContext.challengeId,
+          idkitResult,
+        }),
+      })
+      const prepareResponse = await prepareRaw.json() as PreparePublishResponse
 
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to publish')
+      if (!prepareResponse.success) {
+        throw new Error(prepareResponse.message || 'Failed to prepare on-chain registration')
+      }
+
+      setPublishStatus('Confirming sponsored registration in World App')
+      const { userOpHash } = await sendLibroRegistrationTransaction(prepareResponse.transaction)
+
+      setPublishStatus('Waiting for on-chain registration')
+      const { transactionHash } = await pollUserOperationReceipt(userOpHash)
+
+      setPublishStatus('Finalizing publication')
+      const finalizeRaw = await fetch(`/api/draft/${draftId}/publish/finalize`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          registrationId: prepareResponse.registrationId,
+          userOpHash,
+          transactionHash,
+        }),
+      })
+      const finalizeResponse = await finalizeRaw.json() as FinalizePublishResponse
+
+      if (!finalizeResponse.success) {
+        throw new Error(finalizeResponse.message || 'Failed to finalize publication')
+      }
+
+      setPublishStatus(null)
+      router.push(`/p/${finalizeResponse.publicationId}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish'
+      setError(message)
+      setPublishStatus(null)
+      setIsEditingDisabled(false)
+      throw error
     }
-
-    router.push(`/p/${response.publicationId}`)
   }
 
   const handleDelete = async () => {
@@ -282,7 +351,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           open={isWorldIdOpen}
           onOpenChange={(open) => {
             setIsWorldIdOpen(open)
-            if (!open) {
+            if (!open && !publishStatus) {
               setIsEditingDisabled(false)
             }
           }}
@@ -303,14 +372,20 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         />
       )}
       {error && <AlertDestructive message={error} />}
+      {publishStatus && (
+        <Alert>
+          <AlertTitle>Publishing</AlertTitle>
+          <AlertDescription>{publishStatus}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex space-x-2">
-        <Button onClick={handleSave} disabled={!isDraftChanged() || isEditingDisabled}>Save</Button>
-        {draftId && <Button onClick={handleDelete} variant="destructive" disabled={isEditingDisabled}>Delete</Button>}
+        <Button onClick={handleSave} disabled={!isDraftChanged() || isEditingDisabled || isPollingRegistration}>Save</Button>
+        {draftId && <Button onClick={handleDelete} variant="destructive" disabled={isEditingDisabled || isPollingRegistration}>Delete</Button>}
         {draftId && (
           <Button 
             onClick={handlePublish} 
-            disabled={!draft?.authorId || isEditingDisabled}
+            disabled={!draft?.authorId || isEditingDisabled || isPollingRegistration}
           >
             Publish
           </Button>

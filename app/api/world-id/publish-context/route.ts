@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { createPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
+import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
+import { getLibroServerConfig } from '@/lib/libro/config'
 import type { ContentOrHtml } from '@/types'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -16,10 +17,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let config
   try {
     config = getWorldIdServerConfig()
+    getLibroServerConfig()
   } catch (error) {
     return NextResponse.json({
       success: false,
-      message: error instanceof Error ? error.message : "World ID configuration is invalid",
+      message: error instanceof Error ? error.message : "World ID or Libro configuration is invalid",
     }, { status: 500 })
   }
 
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const publicationDate = new Date().toISOString()
-    const publication = createPublicationV2({
+    const publication = createLibroPublicationV1({
       author: {
         id: draft.authorId,
         name: draft.author_name,

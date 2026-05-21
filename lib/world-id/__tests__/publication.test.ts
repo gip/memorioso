@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { IDKitResult } from '@worldcoin/idkit'
-import { canonicalStringify, createPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '../publication'
+import {
+  canonicalStringify,
+  createLibroPublicationV1,
+  createPublicationV2,
+  canonicalPublicationSignal,
+  hashPublicationSignal,
+} from '../publication'
 import { validateWorldIdV4Result } from '../proof'
 import { mapPublicationRow } from '../../db/objects'
+import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1, LIBRO_WORLD_CHAIN_ID } from '../../libro/contract'
+import { actionHashToUint256, parseUint64 } from '../../libro/encoding'
+import { prepareLibroRegistration } from '../../libro/proof'
 import {
   getCredentialIdentifierForPublication,
   isLegacyPublication,
@@ -69,6 +78,70 @@ describe('World ID publication signals', () => {
     expect(signalText).toContain('"world_id_credential_policy":"document_or_orb"')
     expect(signalText).not.toContain('credential_identifier')
     expect(signalText).not.toContain('passport')
+  })
+
+  it('creates a Libro v1 publication schema without changing authorship fields', () => {
+    const signal = createLibroPublicationV1({
+      author,
+      title: 'A human note',
+      subtitle: 'On signatures',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(signal.publication_schema).toBe(LIBRO_PUBLICATION_SCHEMA_V1)
+    expect(signal.libro_protocol_version).toBe(LIBRO_PROTOCOL_VERSION)
+    expect(signal.author_id_libro).toBe(author.id)
+    expect(signal.publication_title).toBe('A human note')
+  })
+})
+
+describe('Libro registration helpers', () => {
+  it('maps a World ID v4 response into registry calldata', () => {
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
+    const validated = validateWorldIdV4Result(result(signalHash, {
+      nonce: '0x123',
+      responses: [{
+        identifier: 'passport',
+        signal_hash: signalHash,
+        proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+        nullifier: '0xabc',
+        issuer_schema_id: 9303,
+        expires_at_min: 1770000000,
+      }],
+    } as Partial<IDKitResult>), {
+      action: 'written-by-a-human-v4',
+      nonce: '0x123',
+      environment: 'production',
+      signalHash,
+    })
+    const prepared = prepareLibroRegistration(validated, signalHash, {
+      protocolVersion: LIBRO_PROTOCOL_VERSION,
+      chainId: LIBRO_WORLD_CHAIN_ID,
+      registryAddress: '0x1111111111111111111111111111111111111111',
+      worldIdVerifierAddress: '0x2222222222222222222222222222222222222222',
+      rpId: BigInt(1),
+      action: 'written-by-a-human-v4',
+      actionHash: actionHashToUint256('written-by-a-human-v4'),
+      rpcUrl: 'https://worldchain-mainnet.g.alchemy.com/public',
+    })
+
+    expect(prepared.signalHash).toBe(signalHash)
+    expect(prepared.signalHashUint256).toBe(BigInt(signalHash).toString())
+    expect(prepared.proof.nullifier).toBe(BigInt('0xabc').toString())
+    expect(prepared.proof.nonce).toBe(BigInt('0x123').toString())
+    expect(prepared.proof.zeroKnowledgeProof).toEqual(['1', '2', '3', '4', '5'])
+    expect(prepared.transaction.chainId).toBe(480)
+    expect(prepared.transaction.transactions[0].to).toBe('0x1111111111111111111111111111111111111111')
+    expect(prepared.transaction.transactions[0].data).toMatch(/^0x/)
+  })
+
+  it('validates fixed action hashes and numeric rp ids', () => {
+    expect(actionHashToUint256('written-by-a-human-v4')).toBeGreaterThan(BigInt(0))
+    expect(parseUint64('1', 'rpId')).toBe(BigInt(1))
+    expect(() => parseUint64('0', 'rpId')).toThrow('rpId must be between')
+    expect(() => parseUint64('abc', 'rpId')).toThrow('rpId must be a decimal uint64')
   })
 })
 

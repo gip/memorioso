@@ -72,6 +72,26 @@ CREATE TABLE world_id_publish_challenges (
 CREATE INDEX idx_world_id_publish_challenges_draft_user
     ON world_id_publish_challenges("draftId", "userId");
 
+CREATE TABLE libro_publish_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "draftId" UUID NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+    "challengeId" UUID NOT NULL REFERENCES world_id_publish_challenges(id) ON DELETE CASCADE UNIQUE,
+    signal_hash VARCHAR(255) NOT NULL,
+    contract_signal_hash VARCHAR(78) NOT NULL,
+    chain_id INTEGER NOT NULL,
+    registry_address VARCHAR(255) NOT NULL,
+    proof JSONB NOT NULL,
+    transaction JSONB NOT NULL,
+    user_op_hash VARCHAR(255),
+    transaction_hash VARCHAR(255),
+    finalized_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_publish_registrations_draft_user
+    ON libro_publish_registrations("draftId", "userId");
+
 -- Create function to update modified_at timestamp
 CREATE OR REPLACE FUNCTION update_modified_at_column()
 RETURNS TRIGGER AS $$

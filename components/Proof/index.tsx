@@ -5,6 +5,7 @@ import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/
 import { CopyButton } from './CopyButton'
 import {
   isLegacyPublication,
+  isLibroAgentProof,
   isLibroRegisteredProof,
   isWorldIdV4Proof,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
@@ -132,11 +133,105 @@ console.log({ registered, signalHash: expectedSignalHash });`
   }
 }
 
+function buildLibroAgentProofDocument(
+  publication: PublicationType,
+  proof: Extract<ProofType, { proof_type: 'human_authorized_agent_signature' }>
+) {
+  const registration = proof.agent_registration
+  const document = proof.agent_document_signature
+  const code = `const { createPublicClient, http, recoverTypedDataAddress } = require('viem');
+const { worldchain } = require('viem/chains');
+const { hashSignal } = require('@worldcoin/idkit-core/hashing');
+
+const libroAgentRegistryAbi = [{
+  type: 'function',
+  name: 'verifyAgentDocument',
+  stateMutability: 'view',
+  inputs: [{ name: 'documentSignalHash', type: 'uint256' }],
+  outputs: [{ name: '', type: 'bool' }],
+}];
+
+const signalText = ${JSON.stringify(document.document_signal_text)};
+const expectedSignalHash = ${JSON.stringify(document.document_signal_hash)};
+const registryAddress = ${JSON.stringify(document.registry_address)};
+const registrationHash = ${JSON.stringify(registration.registration_hash)};
+const documentNonce = ${JSON.stringify(document.document_nonce)};
+const signedAt = BigInt(${JSON.stringify(Math.floor(new Date(document.signed_at).getTime() / 1000))});
+const signature = ${JSON.stringify(document.signature)};
+const expectedAgent = ${JSON.stringify(document.agent_address)};
+
+const localSignalHash = hashSignal(signalText).toLowerCase();
+if (localSignalHash !== expectedSignalHash.toLowerCase()) {
+  throw new Error('Stored signal hash does not match the agent publication signal');
+}
+
+const typedData = {
+  domain: {
+    name: 'LibroAgentRegistry',
+    version: '1',
+    chainId: ${document.chain_id},
+    verifyingContract: registryAddress,
+  },
+  types: {
+    AgentDocument: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'documentNonce', type: 'bytes32' },
+      { name: 'signedAt', type: 'uint64' },
+    ],
+  },
+  primaryType: 'AgentDocument',
+  message: {
+    registrationHash,
+    documentSignalHash: BigInt(expectedSignalHash),
+    documentNonce,
+    signedAt,
+  },
+};
+
+const signer = await recoverTypedDataAddress({ ...typedData, signature });
+if (signer.toLowerCase() !== expectedAgent.toLowerCase()) {
+  throw new Error('Agent signature was not made by the registered agent');
+}
+
+const client = createPublicClient({
+  chain: worldchain,
+  transport: http('https://worldchain-mainnet.g.alchemy.com/public'),
+});
+
+const registered = await client.readContract({
+  address: registryAddress,
+  abi: libroAgentRegistryAbi,
+  functionName: 'verifyAgentDocument',
+  args: [BigInt(expectedSignalHash)],
+});
+
+if (!registered) {
+  throw new Error('Libro agent registry does not contain this document signal');
+}
+
+console.log({ registered, signer, signalHash: expectedSignalHash });`
+
+  return {
+    code,
+    content: `This document shows how to independently verify the Libro proof for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
+<br/><br/>This is a <strong>human-authorized agent signature</strong>, not a direct human-authorship proof. A human principal registered the agent address with World ID, and the registered agent signed this exact publication signal.
+<br/><br/>Agent: <code>${escapeHtml(document.agent_address)}</code>.
+<br/>Agent registration: <code>${escapeHtml(registration.registration_hash)}</code>.
+<br/>Registry: <code>${escapeHtml(document.registry_address)}</code>.
+<br/>Document signal hash: <code>${escapeHtml(document.document_signal_hash)}</code>.
+<br/>Document transaction: <code>${escapeHtml(document.transaction_hash)}</code>.
+<br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
+  }
+}
+
 export const Proof = ({ publication, proof }: { publication: PublicationType, proof: ProofType }) => {
   const authors: AuthorType[] = [{ id: '0', name: 'Memorioso Team', handle: 'libro' }]
   const title = 'Independent Verification of Human Authorship'
   const document = isLegacyPublication(publication)
     ? buildLegacyUnavailableDocument(publication)
+    : isLibroAgentProof(proof)
+    ? buildLibroAgentProofDocument(publication, proof)
     : isLibroRegisteredProof(proof)
     ? buildLibroProofDocument(publication, proof)
     : isWorldIdV4Proof(proof)

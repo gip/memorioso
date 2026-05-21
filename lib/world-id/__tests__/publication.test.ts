@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { IDKitResult } from '@worldcoin/idkit'
+import { privateKeyToAccount } from 'viem/accounts'
 import {
   canonicalStringify,
   createLibroPublicationV1,
@@ -9,16 +10,32 @@ import {
 } from '../publication'
 import { validateWorldIdV4Result } from '../proof'
 import { mapPublicationRow } from '../../db/objects'
-import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1, LIBRO_WORLD_CHAIN_ID } from '../../libro/contract'
+import {
+  LIBRO_AGENT_AUTHORSHIP_CLAIM,
+  LIBRO_AGENT_PROTOCOL_VERSION,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_PROTOCOL_VERSION,
+  LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_WORLD_CHAIN_ID,
+} from '../../libro/contract'
 import { actionHashToUint256, parseUint64 } from '../../libro/encoding'
 import { prepareLibroRegistration } from '../../libro/proof'
 import {
+  createAgentDocumentTypedData,
+  createAgentRegistrationPayload,
+  createLibroAgentPublicationV1,
+  createPrincipalAuthorHash,
+  LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
+  recoverAgentDocumentSigner,
+} from '../../libro/agent'
+import {
   getCredentialIdentifierForPublication,
+  isLibroAgentProof,
   isLegacyPublication,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
 } from '../../publication-status'
 import type { JsonValue } from '../../json'
-import type { PublicationRecord, WorldIdProofV4 } from '../../../types'
+import type { LibroAgentProofV1, PublicationRecord, WorldIdProofV4 } from '../../../types'
 
 const content = { html: '<p>Hello human world.</p>' }
 const author = {
@@ -145,6 +162,70 @@ describe('Libro registration helpers', () => {
   })
 })
 
+describe('Libro agent authorization helpers', () => {
+  it('creates a stable agent registration signal hash', () => {
+    const principalAuthorHash = createPrincipalAuthorHash(author.id)
+    const registration = createAgentRegistrationPayload({
+      action: 'register-agent-v1',
+      principalAuthorHash,
+      controllerAddress: '0x1111111111111111111111111111111111111111',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      scope: LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
+      validFrom: '2026-05-13T12:00:00.000Z',
+      expiresAt: '2026-06-13T12:00:00.000Z',
+      salt: '0x3333333333333333333333333333333333333333333333333333333333333333',
+      chainId: LIBRO_WORLD_CHAIN_ID,
+      registryAddress: '0x4444444444444444444444444444444444444444',
+    })
+
+    expect(registration.payload.schema).toBe('libro-agent-registration-v1')
+    expect(registration.payload.principal_author_hash).toBe(principalAuthorHash)
+    expect(registration.registrationHash).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(registration.signalHash).toBe(`0x${(BigInt(registration.registrationHash) >> BigInt(8)).toString(16).padStart(64, '0')}`)
+  })
+
+  it('creates an agent publication schema distinct from direct human authorship', () => {
+    const agentPublication = createLibroAgentPublicationV1({
+      author,
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      principalAuthorHash: createPrincipalAuthorHash(author.id),
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+    })
+    const humanPublication = createLibroPublicationV1({
+      author,
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(agentPublication.publication_schema).toBe(LIBRO_AGENT_PUBLICATION_SCHEMA_V1)
+    expect(agentPublication.libro_agent_protocol_version).toBe(LIBRO_AGENT_PROTOCOL_VERSION)
+    expect(agentPublication.authorship_claim).toBe(LIBRO_AGENT_AUTHORSHIP_CLAIM)
+    expect(canonicalPublicationSignal(agentPublication)).not.toBe(canonicalPublicationSignal(humanPublication))
+  })
+
+  it('recovers the EIP-712 document signer', async () => {
+    const account = privateKeyToAccount('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    const typedData = createAgentDocumentTypedData({
+      chainId: LIBRO_WORLD_CHAIN_ID,
+      registryAddress: '0x4444444444444444444444444444444444444444',
+      registrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+      documentSignalHash: '0x5555555555555555555555555555555555555555555555555555555555555555',
+      documentNonce: '0x6666666666666666666666666666666666666666666666666666666666666666',
+      signedAt: 1770000000,
+    })
+    const signature = await account.signTypedData(typedData)
+
+    await expect(recoverAgentDocumentSigner({ typedData, signature })).resolves.toBe(account.address)
+  })
+})
+
 describe('publication version compatibility', () => {
   it('maps table version onto the publication record', () => {
     const mapped = mapPublicationRow({
@@ -197,6 +278,45 @@ describe('publication version compatibility', () => {
 
     expect(isLegacyPublication(v2Publication)).toBe(false)
     expect(getCredentialIdentifierForPublication(v2Publication, v4Proof)).toBe('passport')
+  })
+
+  it('distinguishes human-authorized agent proofs from direct World ID proofs', () => {
+    const proof: LibroAgentProofV1 = {
+      proof_type: 'human_authorized_agent_signature',
+      protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      agent_registration: {
+        action: 'register-agent-v1',
+        signal: '0x1234',
+        signal_hash: '0x1234',
+        registration_hash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+        payload: {},
+        credential_identifier: 'passport',
+        credential_identifiers: ['passport'],
+        idkit_result: {},
+        chain_id: LIBRO_WORLD_CHAIN_ID,
+        registry_address: '0x4444444444444444444444444444444444444444',
+        user_op_hash: '0x1',
+        transaction_hash: '0x2',
+        registered_at: '2026-05-13T12:00:00.000Z',
+      },
+      agent_document_signature: {
+        document_signal_text: '{}',
+        document_signal_hash: '0x5555555555555555555555555555555555555555555555555555555555555555',
+        document_nonce: '0x6666666666666666666666666666666666666666666666666666666666666666',
+        signed_at: '2026-05-13T12:00:00.000Z',
+        agent_address: '0x2222222222222222222222222222222222222222',
+        signature_type: 'eip712',
+        signature: '0x1234',
+        chain_id: LIBRO_WORLD_CHAIN_ID,
+        registry_address: '0x4444444444444444444444444444444444444444',
+        user_op_hash: '0x3',
+        transaction_hash: '0x4',
+        registered_at: '2026-05-13T12:00:00.000Z',
+      },
+    }
+
+    expect(isLibroAgentProof(proof)).toBe(true)
+    expect(getCredentialIdentifierForPublication({ ...publication(), version: '4' }, proof)).toBeNull()
   })
 })
 

@@ -2,6 +2,7 @@
 
 import { MiniKit } from '@worldcoin/minikit-js'
 import type { LibroRegistrationTransaction } from './proof'
+import type { AgentDocumentTypedData } from './agent'
 
 type WorldAppCommand = {
   name: string
@@ -51,5 +52,35 @@ export async function sendLibroRegistrationTransaction(
 
   return {
     userOpHash: result.data.userOpHash,
+  }
+}
+
+export async function getLibroControllerAddress(): Promise<string> {
+  installMiniKitForLibro()
+
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(16))
+  const nonce = Array.from(nonceBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  const result = await MiniKit.walletAuth({ nonce })
+
+  if (result.executedWith === 'fallback') {
+    throw new Error('Open Memorioso in World App to register a Libro agent controller address.')
+  }
+
+  return result.data.address
+}
+
+export async function signLibroAgentDocument(
+  typedData: AgentDocumentTypedData
+): Promise<{ signature: string; address: string }> {
+  installMiniKitForLibro()
+
+  const result = await MiniKit.signTypedData(typedData)
+  if (result.executedWith === 'fallback') {
+    throw new Error('Open Memorioso in World App or use an EIP-712 capable agent wallet.')
+  }
+
+  return {
+    signature: result.data.signature,
+    address: result.data.address,
   }
 }

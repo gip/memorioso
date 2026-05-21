@@ -19,6 +19,10 @@ export function isLibroRegisteredProof(
   return isWorldIdV4Proof(proof) && Boolean(proof.libro_registration)
 }
 
+export function isLibroAgentProof(proof?: Proof | null): proof is Extract<Proof, { proof_type: 'human_authorized_agent_signature' }> {
+  return Boolean(proof && 'proof_type' in proof && proof.proof_type === 'human_authorized_agent_signature')
+}
+
 export function getCredentialIdentifierForPublication(
   publication: Pick<PublicationRecord, 'version'>,
   proof?: Proof | null

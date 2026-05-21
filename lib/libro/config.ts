@@ -1,6 +1,10 @@
 import { isAddress, type Address } from 'viem'
-import { DEFAULT_WORLD_ID_PUBLISH_ACTION } from '@/lib/world-id/constants'
 import {
+  DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION,
+  DEFAULT_WORLD_ID_PUBLISH_ACTION,
+} from '@/lib/world-id/constants'
+import {
+  LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_WORLD_CHAIN_ID,
   LIBRO_WORLD_CHAIN_RPC_URL,
@@ -9,6 +13,17 @@ import { actionHashToUint256, parseUint64 } from './encoding'
 
 export type LibroServerConfig = {
   protocolVersion: typeof LIBRO_PROTOCOL_VERSION
+  chainId: typeof LIBRO_WORLD_CHAIN_ID
+  registryAddress: Address
+  worldIdVerifierAddress: Address
+  rpId: bigint
+  action: string
+  actionHash: bigint
+  rpcUrl: string
+}
+
+export type LibroAgentServerConfig = {
+  protocolVersion: typeof LIBRO_AGENT_PROTOCOL_VERSION
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
   worldIdVerifierAddress: Address
@@ -52,6 +67,21 @@ export function getLibroServerConfig(): LibroServerConfig {
     protocolVersion: LIBRO_PROTOCOL_VERSION,
     chainId: getLibroChainId(),
     registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
+    worldIdVerifierAddress: requireAddress('LIBRO_WORLD_ID_VERIFIER_ADDRESS'),
+    rpId: parseUint64(requireEnv('LIBRO_WORLD_ID_RP_ID_UINT64'), 'LIBRO_WORLD_ID_RP_ID_UINT64'),
+    action,
+    actionHash: actionHashToUint256(action),
+    rpcUrl: process.env.LIBRO_RPC_URL || LIBRO_WORLD_CHAIN_RPC_URL,
+  }
+}
+
+export function getLibroAgentServerConfig(): LibroAgentServerConfig {
+  const action = process.env.WORLD_ID_AGENT_REGISTRATION_ACTION || DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION
+
+  return {
+    protocolVersion: LIBRO_AGENT_PROTOCOL_VERSION,
+    chainId: getLibroChainId(),
+    registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS'),
     worldIdVerifierAddress: requireAddress('LIBRO_WORLD_ID_VERIFIER_ADDRESS'),
     rpId: parseUint64(requireEnv('LIBRO_WORLD_ID_RP_ID_UINT64'), 'LIBRO_WORLD_ID_RP_ID_UINT64'),
     action,

@@ -1,5 +1,5 @@
 import { hashSignal } from '@worldcoin/idkit-core/hashing'
-import type { Author, ContentOrHtml, LibroPublicationV1, PublicationV2 } from '@/types'
+import type { Author, ContentOrHtml, LibroAgentPublicationV1, LibroPublicationV1, PublicationV2 } from '@/types'
 import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
 import {
   DEFAULT_WORLD_ID_PUBLISH_ACTION,
@@ -80,7 +80,7 @@ export function isLibroPublicationV1(publication: PublicationV2 | LibroPublicati
   return 'libro_protocol_version' in publication && publication.libro_protocol_version === LIBRO_PROTOCOL_VERSION
 }
 
-export function canonicalPublicationSignal(publication: PublicationV2 | LibroPublicationV1): string {
+export function canonicalPublicationSignal(publication: PublicationV2 | LibroPublicationV1 | LibroAgentPublicationV1): string {
   return canonicalStringify(publication as unknown as JsonInput)
 }
 

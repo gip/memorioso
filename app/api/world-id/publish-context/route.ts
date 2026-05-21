@@ -5,7 +5,7 @@ import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSi
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
-import type { ContentOrHtml } from '@/types'
+import type { PublicationContent } from '@/types'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
       title: draft.title,
       subtitle: draft.subtitle || '',
-      content: draft.content as ContentOrHtml,
+      content: draft.content as PublicationContent,
       publicationDate,
       action: config.publishAction,
     })

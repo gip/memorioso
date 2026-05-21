@@ -16,12 +16,7 @@ export type Author = {
     bio?: string
   }
   
-  export type ContentOrHtml = {
-    content: {
-      type: string
-      content: Array<any>
-    }
-  } | {
+  export type PublicationContent = {
     html: string
   }
   
@@ -33,7 +28,7 @@ export type Author = {
     author_handle_libro: string
     author_bio_libro: string
     publication_title: string
-    publication_content: ContentOrHtml
+    publication_content: PublicationContent
     publication_subtitle: string
   }
 

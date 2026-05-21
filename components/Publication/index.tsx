@@ -13,9 +13,7 @@ export const Publication = ({ publication, proof, proofLink }: { publication: Pu
   const authors: Author[] = [{ id: publication.author_id_libro, name: publication.author_name_libro,
                                bio: publication.author_bio_libro, handle: publication.author_handle_libro }]
 
-  const content = 'content' in publication.publication_content 
-    ? publication.publication_content.content
-    : publication.publication_content.html
+  const content = publication.publication_content.html
   const isLegacy = isLegacyPublication(publication)
   const credentialIdentifier = getCredentialIdentifierForPublication(publication, proof)
   const credentialLabel = credentialIdentifier

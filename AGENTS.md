@@ -99,7 +99,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 ## Frontend Notes
 
 - The editor supports both editable drafts and read-only publications through `components/Editor/index.tsx`.
-- Draft content is currently stored as `{ html: string }` in normal editor usage, while types also allow structured TipTap content. Preserve both forms unless doing a coordinated data migration.
+- Draft and publication content is stored as `{ html: string }`. Structured TipTap JSON can be reintroduced later if a coordinated migration needs it.
 - Public author URLs prefer handles under `/a/[authorId]`; UUID author paths redirect to handle paths when possible.
 - Shared layout wraps pages in `WorldIdAuthProvider` and Vercel Analytics.
 

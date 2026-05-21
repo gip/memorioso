@@ -1,5 +1,5 @@
 import { hashSignal } from '@worldcoin/idkit-core/hashing'
-import type { Author, ContentOrHtml, LibroAgentPublicationV1, LibroPublicationV1, PublicationV2 } from '@/types'
+import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
 import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
 import {
   DEFAULT_WORLD_ID_PUBLISH_ACTION,
@@ -15,7 +15,7 @@ export type PublicationDraftInput = {
   author: Pick<Author, 'id' | 'name' | 'handle' | 'bio'>
   title: string
   subtitle?: string | null
-  content: ContentOrHtml
+  content: PublicationContent
   publicationDate: string
   action?: string
 }

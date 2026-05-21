@@ -7,7 +7,7 @@ export type FeedItemD = {
     id: string;
     title: string;
     subtitle?: string;
-    content: { content: string } | { html: string };
+    content: { html: string };
     created_at?: string;
     updated_at?: string;
     author_name?: string;

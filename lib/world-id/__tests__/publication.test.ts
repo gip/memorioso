@@ -26,6 +26,7 @@ import {
   createLibroAgentPublicationV1,
   createPrincipalAuthorHash,
   LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
+  parseAgentPublicationPayload,
   recoverAgentDocumentSigner,
 } from '../../libro/agent'
 import {
@@ -223,6 +224,22 @@ describe('Libro agent authorization helpers', () => {
     const signature = await account.signTypedData(typedData)
 
     await expect(recoverAgentDocumentSigner({ typedData, signature })).resolves.toBe(account.address)
+  })
+
+  it('only accepts HTML publication content for agent documents', () => {
+    expect(parseAgentPublicationPayload({
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+    }).content).toEqual(content)
+
+    expect(() => parseAgentPublicationPayload({
+      title: 'A delegated note',
+      content: {
+        type: 'doc',
+        content: [],
+      },
+    })).toThrow('Publication content HTML is required')
   })
 })
 

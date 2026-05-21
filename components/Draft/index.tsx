@@ -22,7 +22,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-import { type ContentOrHtml } from '@/types'
+import { type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 import { sendLibroRegistrationTransaction } from '@/lib/libro/client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
@@ -32,7 +32,7 @@ type DraftData = {
   status?: string
   title: string
   subtitle: string
-  content: ContentOrHtml
+  content: PublicationContent
   authorId?: string
   history?: unknown
 }

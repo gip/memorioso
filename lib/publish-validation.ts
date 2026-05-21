@@ -8,7 +8,7 @@ import {
 } from '@/lib/world-id/publication'
 import { isJsonEqual } from '@/lib/json'
 import type { JsonValue } from '@/lib/json'
-import type { ContentOrHtml, LibroPublicationV1, PublicationV2 } from '@/types'
+import type { LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
 
 type PublishChallengeLookup = {
   challengeId: string
@@ -33,7 +33,7 @@ export type PublishDraftRow = {
   id: string
   title: string
   subtitle: string | null
-  content: ContentOrHtml
+  content: PublicationContent
   status: string
   authorId: string
   author_name: string

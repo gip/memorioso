@@ -25,7 +25,7 @@ import {
   type PublicationDraftInput,
 } from '../world-id/publication'
 import type { WorldIdV4UniquenessResult } from '../world-id/proof'
-import type { ContentOrHtml, LibroAgentPublicationV1 } from '../../types'
+import type { LibroAgentPublicationV1, PublicationContent } from '../../types'
 
 export const LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE = BigInt(1)
 export const LIBRO_AGENT_REGISTRATION_TYPE =
@@ -380,7 +380,7 @@ export function buildAgentPublicationSignal(publication: LibroAgentPublicationV1
 export function parseAgentPublicationPayload(value: unknown): {
   title: string
   subtitle: string
-  content: ContentOrHtml
+  content: PublicationContent
 } {
   if (!value || typeof value !== 'object') {
     throw new Error('Publication payload is required')
@@ -389,14 +389,14 @@ export function parseAgentPublicationPayload(value: unknown): {
   const payload = value as Record<string, unknown>
   const title = typeof payload.title === 'string' ? payload.title : ''
   const subtitle = typeof payload.subtitle === 'string' ? payload.subtitle : ''
-  const content = payload.content as ContentOrHtml | undefined
+  const content = payload.content as PublicationContent | undefined
 
   if (title.length < 5) {
     throw new Error('Title is too short')
   }
 
-  if (!content || typeof content !== 'object') {
-    throw new Error('Publication content is required')
+  if (!content || typeof content !== 'object' || typeof content.html !== 'string') {
+    throw new Error('Publication content HTML is required')
   }
 
   return { title, subtitle, content }

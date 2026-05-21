@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project Overview
 
-Memorioso is a Next.js App Router application for human-authored publications. Users sign in with World ID 4.0, create authors and drafts, sign publication payloads through IDKit proof verification, and store publication/proof data in Postgres.
+Memorioso is a Next.js App Router application for human-authored publications. Users sign in with World ID 4.0, create authors and drafts, sign publication payloads through IDKit proof verification, register publication/proof data on World Chain through Libro registries, and store publication/proof data in Postgres.
 
 Core stack:
 
@@ -13,6 +13,7 @@ Core stack:
 - Raw Postgres queries through `pg`.
 - TipTap editor for draft/publication content.
 - World ID 4.0 IDKit session proofs for login and publication proofs for publishing.
+- Libro protocol contracts under `libro/contracts`, currently using Foundry.
 
 ## Commands
 
@@ -22,8 +23,10 @@ Use pnpm in this repo; `pnpm-lock.yaml` is the lockfile.
 - `pnpm build` builds the app.
 - `pnpm start` serves a production build.
 - `pnpm lint` runs the configured Next lint command.
+- `pnpm test` runs the Vitest suite.
+- `forge test` from `libro/contracts` runs Libro contract tests.
 
-There is no test suite configured at the time this file was written. For non-trivial changes, run at least `pnpm lint` and, when environment variables and services are available, `pnpm build`.
+For non-trivial changes, run the narrowest relevant checks. For app or protocol helper changes, run at least `pnpm lint` and `pnpm test`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits. For contract changes, run `forge test` from `libro/contracts`.
 
 ## Required Environment
 
@@ -34,6 +37,11 @@ The app expects these environment variables in local and deployed environments:
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
   `WORLD_ID_PUBLISH_ACTION`, and `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
+- `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`,
+  `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`, `LIBRO_WORLD_ID_VERIFIER_ADDRESS`,
+  `LIBRO_WORLD_ID_RP_ID_UINT64`, and optional `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
+  for Libro on-chain registration.
+- `WORLD_ID_AGENT_REGISTRATION_ACTION` for the agent registration proof action, defaulting to `register-agent-v1`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -45,7 +53,9 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `components/Editor/` contains the TipTap editor and editor-specific CSS.
 - `lib/auth-user.ts` and `lib/auth-session.ts` contain the World ID backed app session helpers.
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
+- `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
+- `libro/contracts/` contains the Foundry contracts and tests for `LibroProofRegistry` and `LibroAgentRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
 
@@ -82,6 +92,9 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - IDKit publication verification uses action `written-by-a-human-v4` and the canonical publication JSON as the signal. Changing payload shape or serialization affects proof validity.
 - Published data stores the proof, signal, content, title, subtitle, version, and date in `publications`.
 - Publication dates are validated server-side to be no later than now and no older than five minutes at publish time.
+- Direct human publications use `LibroProofRegistry` and action `written-by-a-human-v4`.
+- Human-authorized agent documents use `LibroAgentRegistry`: a human registers an agent address with World ID action `register-agent-v1`, then the agent signs document payloads with EIP-712. Keep this proof class semantically separate from direct human authorship.
+- The World ID verifier integration should use the WorldIDVerifier proxy address, not the implementation address.
 
 ## Frontend Notes
 

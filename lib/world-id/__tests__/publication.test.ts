@@ -138,7 +138,6 @@ describe('Libro registration helpers', () => {
       protocolVersion: LIBRO_PROTOCOL_VERSION,
       chainId: LIBRO_WORLD_CHAIN_ID,
       registryAddress: '0x1111111111111111111111111111111111111111',
-      worldIdVerifierAddress: '0x2222222222222222222222222222222222222222',
       rpId: BigInt(1),
       action: 'written-by-a-human-v4',
       actionHash: actionHashToUint256('written-by-a-human-v4'),

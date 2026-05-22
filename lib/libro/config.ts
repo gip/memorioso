@@ -15,7 +15,6 @@ export type LibroServerConfig = {
   protocolVersion: typeof LIBRO_PROTOCOL_VERSION
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
-  worldIdVerifierAddress: Address
   rpId: bigint
   action: string
   actionHash: bigint
@@ -26,7 +25,6 @@ export type LibroAgentServerConfig = {
   protocolVersion: typeof LIBRO_AGENT_PROTOCOL_VERSION
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
-  worldIdVerifierAddress: Address
   rpId: bigint
   action: string
   actionHash: bigint
@@ -67,7 +65,6 @@ export function getLibroServerConfig(): LibroServerConfig {
     protocolVersion: LIBRO_PROTOCOL_VERSION,
     chainId: getLibroChainId(),
     registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
-    worldIdVerifierAddress: requireAddress('LIBRO_WORLD_ID_VERIFIER_ADDRESS'),
     rpId: parseUint64(requireEnv('LIBRO_WORLD_ID_RP_ID_UINT64'), 'LIBRO_WORLD_ID_RP_ID_UINT64'),
     action,
     actionHash: actionHashToUint256(action),
@@ -82,7 +79,6 @@ export function getLibroAgentServerConfig(): LibroAgentServerConfig {
     protocolVersion: LIBRO_AGENT_PROTOCOL_VERSION,
     chainId: getLibroChainId(),
     registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS'),
-    worldIdVerifierAddress: requireAddress('LIBRO_WORLD_ID_VERIFIER_ADDRESS'),
     rpId: parseUint64(requireEnv('LIBRO_WORLD_ID_RP_ID_UINT64'), 'LIBRO_WORLD_ID_RP_ID_UINT64'),
     action,
     actionHash: actionHashToUint256(action),

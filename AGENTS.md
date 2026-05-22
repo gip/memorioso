@@ -38,8 +38,8 @@ The app expects these environment variables in local and deployed environments:
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
   `WORLD_ID_PUBLISH_ACTION`, and `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`,
-  `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`, `LIBRO_WORLD_ID_VERIFIER_ADDRESS`,
-  `LIBRO_WORLD_ID_RP_ID_UINT64`, and optional `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
+  `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`, `LIBRO_WORLD_ID_RP_ID_UINT64`,
+  and optional `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
   for Libro on-chain registration.
 - `WORLD_ID_AGENT_REGISTRATION_ACTION` for the agent registration proof action, defaulting to `register-agent-v1`.
 
@@ -94,7 +94,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Publication dates are validated server-side to be no later than now and no older than five minutes at publish time.
 - Direct human publications use `LibroProofRegistry` and action `written-by-a-human-v4`.
 - Human-authorized agent documents use `LibroAgentRegistry`: a human registers an agent address with World ID action `register-agent-v1`, then the agent signs document payloads with EIP-712. Keep this proof class semantically separate from direct human authorship.
-- The World ID verifier integration should use the WorldIDVerifier proxy address, not the implementation address.
+- Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address.
 
 ## Frontend Notes
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -9,7 +10,15 @@ import { Diamond } from '@/components/Diamond'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 export const Header = () => {
   const router = useRouter()
-  const { user, signInWithWorldId } = useWorldIdAuth()
+  const {
+    user,
+    error: authError,
+    isWorldAppLoginPending,
+    worldAppLoginDiagnostic,
+    signInWithWorldId,
+  } = useWorldIdAuth()
+  const [signInError, setSignInError] = useState<string | null>(null)
+  const authMessage = signInError || authError
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -20,6 +29,19 @@ export const Header = () => {
   const showBackButton = () => {
     return true
   }
+
+  const handleSignIn = () => {
+    setSignInError(null)
+    signInWithWorldId().catch((error) => {
+      setSignInError(error instanceof Error ? error.message : 'Could not start World ID login')
+    })
+  }
+
+  useEffect(() => {
+    if (user) {
+      setSignInError(null)
+    }
+  }, [user])
 
   return (
     <header className="sticky top-0 z-10 bg-background border-b shadow-sm">
@@ -43,7 +65,7 @@ export const Header = () => {
             <Button
               className="rounded-full w-10 h-10"
               size="icon"
-              onClick={() => signInWithWorldId()}
+              onClick={handleSignIn}
             >
               <LogIn className="h-5 w-5" />
               <span className="sr-only">Log in</span>
@@ -54,6 +76,22 @@ export const Header = () => {
           <Diamond atBottom={false} />
         )}
       </div>
+      {!user && authMessage && (
+        <div
+          role="alert"
+          className="border-t px-4 py-2 text-center text-xs text-destructive break-words"
+        >
+          {authMessage}
+        </div>
+      )}
+      {!user && !authMessage && isWorldAppLoginPending && (
+        <div className="border-t px-4 py-2 text-center text-xs text-muted-foreground">
+          Waiting for World App verification.
+          {worldAppLoginDiagnostic && (
+            <span className="block break-words">{worldAppLoginDiagnostic}</span>
+          )}
+        </div>
+      )}
     </header>
   )
 }

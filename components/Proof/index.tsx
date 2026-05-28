@@ -30,7 +30,7 @@ function buildLegacyUnavailableDocument(publication: PublicationType) {
 function buildWorldIdV4ProofDocument(publication: PublicationType, proof: Extract<ProofType, { protocol_version: '4.0' }>) {
   const credentialLabel = WORLD_ID_CREDENTIAL_LABELS[proof.credential_identifier as WorldIdCredentialIdentifier] || proof.credential_identifier
   const rpId = process.env.WORLD_ID_RP_ID || 'rp_...'
-  const code = `const { hashSignal } = require('@worldcoin/idkit-core/hashing');
+  const code = `const { hashSignal } = require('@worldcoin/idkit/hashing');
 
 const signalText = ${JSON.stringify(proof.signal_text)};
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
@@ -82,7 +82,7 @@ function buildLibroProofDocument(publication: PublicationType, proof: Extract<Pr
   const registration = proof.libro_registration
   const code = `const { createPublicClient, http } = require('viem');
 const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit-core/hashing');
+const { hashSignal } = require('@worldcoin/idkit/hashing');
 
 const libroProofRegistryAbi = [{
   type: 'function',
@@ -141,7 +141,7 @@ function buildLibroAgentProofDocument(
   const document = proof.agent_document_signature
   const code = `const { createPublicClient, http, recoverTypedDataAddress } = require('viem');
 const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit-core/hashing');
+const { hashSignal } = require('@worldcoin/idkit/hashing');
 
 const libroAgentRegistryAbi = [{
   type: 'function',

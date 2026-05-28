@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Diamond as DiamondIcon } from 'lucide-react'
 import {
@@ -13,7 +14,36 @@ import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Diamond = ({ atBottom = true }) => {
   const router = useRouter()
-  const { user, signInWithWorldId, signOut } = useWorldIdAuth()
+  const {
+    user,
+    error: worldIdError,
+    isWorldAppLoginPending,
+    worldAppLoginDiagnostic,
+    signInWithWorldId,
+    signOut,
+  } = useWorldIdAuth()
+  const [authError, setAuthError] = useState<string | null>(null)
+  const authMessage = authError || worldIdError
+
+  const handleSignIn = () => {
+    setAuthError(null)
+    signInWithWorldId().catch((error) => {
+      setAuthError(error instanceof Error ? error.message : 'Could not start World ID login')
+    })
+  }
+
+  const handleSignOut = () => {
+    setAuthError(null)
+    signOut().catch((error) => {
+      setAuthError(error instanceof Error ? error.message : 'Failed to log out')
+    })
+  }
+
+  useEffect(() => {
+    if (user) {
+      setAuthError(null)
+    }
+  }, [user])
 
   return (
     <DropdownMenu>
@@ -27,8 +57,27 @@ export const Diamond = ({ atBottom = true }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {authMessage && (
+          <div
+            role="alert"
+            className="max-w-56 break-words px-2 py-1.5 text-xs text-destructive"
+          >
+            {authMessage}
+          </div>
+        )}
+        {!authMessage && isWorldAppLoginPending && (
+          <div className="max-w-56 break-words px-2 py-1.5 text-xs text-muted-foreground">
+            Waiting for World App verification.
+            {worldAppLoginDiagnostic && (
+              <span className="block">{worldAppLoginDiagnostic}</span>
+            )}
+          </div>
+        )}
         {!user && (
-          <DropdownMenuItem onClick={() => signInWithWorldId()}>
+          <DropdownMenuItem onSelect={(event) => {
+            event.preventDefault()
+            handleSignIn()
+          }}>
             Login
           </DropdownMenuItem>
         )}
@@ -43,7 +92,10 @@ export const Diamond = ({ atBottom = true }) => {
             <DropdownMenuItem onClick={() => router.push('/info')}>
               Information
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => signOut()}>
+            <DropdownMenuItem onSelect={(event) => {
+              event.preventDefault()
+              handleSignOut()
+            }}>
               Logout
             </DropdownMenuItem>
           </>

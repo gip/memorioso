@@ -1,4 +1,4 @@
-import { hashSignal } from '@worldcoin/idkit-core/hashing'
+import { hashSignal } from '@worldcoin/idkit/hashing'
 import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
 import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
 import {

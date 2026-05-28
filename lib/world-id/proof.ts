@@ -15,6 +15,12 @@ export type WorldIdSessionContext = {
   environment: 'production' | 'staging'
 }
 
+export type WorldIdLoginContext = {
+  action: string
+  nonce: string
+  environment: 'production' | 'staging'
+}
+
 export function isV4UniquenessResult(result: IDKitResult | undefined): result is WorldIdV4UniquenessResult {
   return Boolean(
     result &&
@@ -63,6 +69,43 @@ export function validateWorldIdV4Result(result: IDKitResult | undefined, context
   }
 
   validateCredentialResponses(result.responses, context.signalHash)
+  return result
+}
+
+export function validateLoginCredentialResponses(responses: ResponseItemV4[] | undefined): string[] {
+  if (!responses || responses.length === 0) {
+    throw new Error('World ID login result does not contain a credential response')
+  }
+
+  const allowed = new Set<string>(WORLD_ID_ALLOWED_CREDENTIALS)
+
+  return responses.map((response) => {
+    if (!allowed.has(response.identifier)) {
+      throw new Error(`Unsupported World ID credential: ${response.identifier}`)
+    }
+
+    if (!Array.isArray(response.proof) || typeof response.nullifier !== 'string' || response.nullifier.length === 0) {
+      throw new Error('World ID result is not a v4 login proof response')
+    }
+
+    return response.identifier
+  })
+}
+
+export function validateWorldIdLoginResult(result: IDKitResult | undefined, context: WorldIdLoginContext): WorldIdV4UniquenessResult {
+  if (!isV4UniquenessResult(result)) {
+    throw new Error('World ID 4.0 login proof is required')
+  }
+
+  if (
+    result.action !== context.action ||
+    result.nonce !== context.nonce ||
+    result.environment !== context.environment
+  ) {
+    throw new Error('World ID login proof context does not match this login')
+  }
+
+  validateLoginCredentialResponses(result.responses)
   return result
 }
 

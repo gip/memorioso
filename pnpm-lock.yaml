@@ -66,11 +66,8 @@ importers:
         specifier: ^1.5.0
         version: 1.6.1(next@16.2.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       '@worldcoin/idkit':
-        specifier: 4.1.5
-        version: 4.1.5(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@worldcoin/idkit-core':
-        specifier: 4.1.5
-        version: 4.1.5
+        specifier: 4.1.6
+        version: 4.1.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@worldcoin/minikit-js':
         specifier: 2.0.3
         version: 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3))
@@ -1375,15 +1372,15 @@ packages:
   '@vitest/utils@4.1.6':
     resolution: {integrity: sha512-FxIY+U81R3LGKCxaHHFRQ5+g6/iRgGLmeHWdp2Amj4ljQRrEIWHmZyDfDYBRZlpyqA7qKxtS9DD1dhk8RnRIVQ==}
 
-  '@worldcoin/idkit-core@4.1.5':
-    resolution: {integrity: sha512-jiErbazPAJf35ul7dcQfDdQRcXphZcbgi3jq+BaNh8WCIqizMSKLpOjcW1Ka/GUOZQ+Z/ILhmC+SxSrdDddOoQ==}
+  '@worldcoin/idkit-core@4.1.6':
+    resolution: {integrity: sha512-CRCXZaBAjsRe+w92+jtKUnequ54K0Qh+PrjLHmRTfeGe7svBnP/QOBx3kiPJaysj5IgnjS8oMj6imYMH7k8kUQ==}
 
   '@worldcoin/idkit-server@1.1.1':
     resolution: {integrity: sha512-iO4Kd3QBLzJak3BPz5eIzRjW0kT8Px5c3LbNzvCKMnczLvVSKoWqdvGiJlkK8Dp29KstNI62iv4ak0z8nzui/Q==}
     engines: {node: '>=18'}
 
-  '@worldcoin/idkit@4.1.5':
-    resolution: {integrity: sha512-4C8EZw7ABBGM4Ep+y+Sl9tCkmY8/9vmLj/C84UcLlzxP8/6H8JPYxdYawTO6vuvwuN+loeqdFgo5UlS4slOGeQ==}
+  '@worldcoin/idkit@4.1.6':
+    resolution: {integrity: sha512-rPb5cC5ERXPxFeA+0SIU0FcvxPe8l7KbeppwgqXiuPVAuhKwZVMs/eCtFPU/NV7f8WW5thOFMLcHY3aNZw+O2w==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -4486,7 +4483,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@worldcoin/idkit-core@4.1.5':
+  '@worldcoin/idkit-core@4.1.6':
     dependencies:
       '@noble/hashes': 1.8.0
       '@worldcoin/idkit-server': 1.1.1
@@ -4496,9 +4493,9 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@noble/secp256k1': 2.3.0
 
-  '@worldcoin/idkit@4.1.5(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@worldcoin/idkit@4.1.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@worldcoin/idkit-core': 4.1.5
+      '@worldcoin/idkit-core': 4.1.6
       qrcode: 1.5.4
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)

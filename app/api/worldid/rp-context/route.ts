@@ -1,13 +1,19 @@
-import { NextResponse } from 'next/server'
-import { DEFAULT_WORLD_ID_LOGIN_ACTION, WORLD_ID_AUTH_NONCE_COOKIE } from '@/lib/world-id/constants'
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  isWorldIdSessionId,
+  WORLD_ID_ALLOWED_CREDENTIALS,
+  WORLD_ID_AUTH_NONCE_COOKIE,
+  WORLD_ID_SESSION_HINT_COOKIE,
+} from '@/lib/world-id/constants'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 
-export async function GET() {
-  const action = DEFAULT_WORLD_ID_LOGIN_ACTION
+export async function GET(request: NextRequest) {
+  const existingSessionId = request.cookies.get(WORLD_ID_SESSION_HINT_COOKIE)?.value
   let rpContext
+  let config
   try {
-    const config = getWorldIdServerConfig()
-    rpContext = createRpContext(config, action)
+    config = getWorldIdServerConfig()
+    rpContext = createRpContext(config)
   } catch (error) {
     return NextResponse.json({
       message: error instanceof Error ? error.message : 'World ID configuration is invalid',
@@ -15,8 +21,12 @@ export async function GET() {
   }
 
   const response = NextResponse.json({
-    action,
+    success: true,
+    appId: config.appId,
+    environment: config.environment,
     rpContext,
+    existingSessionId: isWorldIdSessionId(existingSessionId) ? existingSessionId : null,
+    allowedCredentials: WORLD_ID_ALLOWED_CREDENTIALS,
   })
   response.cookies.set(WORLD_ID_AUTH_NONCE_COOKIE, rpContext.nonce, {
     httpOnly: true,

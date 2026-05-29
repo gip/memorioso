@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { IDKitResult } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
 import { AUTH_SESSION_COOKIE, createAuthSessionToken, getAuthSessionCookieOptions } from '@/lib/auth-session'
-import { DEFAULT_WORLD_ID_LOGIN_ACTION, WORLD_ID_AUTH_NONCE_COOKIE } from '@/lib/world-id/constants'
+import {
+  WORLD_ID_AUTH_NONCE_COOKIE,
+  WORLD_ID_SESSION_HINT_COOKIE,
+  WORLD_ID_SESSION_HINT_MAX_AGE_SECONDS,
+} from '@/lib/world-id/constants'
 import { getWorldIdServerConfig, verifyWorldIdProof } from '@/lib/world-id/server'
 import {
-  validateLoginCredentialResponses,
-  validateWorldIdLoginResult,
+  validateSessionCredentialResponses,
+  validateWorldIdSessionResult,
 } from '@/lib/world-id/proof'
 
 type VerifyRequestBody = {
@@ -102,17 +106,15 @@ export async function POST(request: NextRequest) {
     parsedResult = parseIdKitResult(payload)
     const result = parsedResult
 
-    validatedResult = validateWorldIdLoginResult(result, {
-      action: DEFAULT_WORLD_ID_LOGIN_ACTION,
+    validatedResult = validateWorldIdSessionResult(result, {
       nonce,
       environment: config.environment,
     })
 
-    const credentialIdentifiers = validateLoginCredentialResponses(validatedResult.responses)
-    const nullifier = validatedResult.responses[0].nullifier
-    subject = `world-id-login:${DEFAULT_WORLD_ID_LOGIN_ACTION}:${nullifier}`
-    worldIdSessionId = subject
-    sessionNullifier = nullifier || null
+    const credentialIdentifiers = validateSessionCredentialResponses(validatedResult.responses)
+    subject = `world-id-session:${validatedResult.session_id}`
+    worldIdSessionId = validatedResult.session_id
+    sessionNullifier = validatedResult.responses[0].session_nullifier[0]
     credentialIdentifier = credentialIdentifiers[0]
   } catch (error) {
     const message = error instanceof Error ? error.message : 'World ID login proof is invalid'
@@ -180,6 +182,13 @@ export async function POST(request: NextRequest) {
     response.cookies.set(WORLD_ID_AUTH_NONCE_COOKIE, '', {
       ...getAuthSessionCookieOptions(0),
       expires: new Date(0),
+    })
+    response.cookies.set(WORLD_ID_SESSION_HINT_COOKIE, user.worldIdSessionId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: WORLD_ID_SESSION_HINT_MAX_AGE_SECONDS,
     })
 
     return response

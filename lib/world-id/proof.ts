@@ -130,7 +130,12 @@ export function validateSessionCredentialResponses(responses: ResponseItemSessio
       throw new Error(`Unsupported World ID credential: ${response.identifier}`)
     }
 
-    if (!Array.isArray(response.proof) || !Array.isArray(response.session_nullifier)) {
+    if (
+      !Array.isArray(response.proof) ||
+      !Array.isArray(response.session_nullifier) ||
+      response.session_nullifier.length < 2 ||
+      response.session_nullifier.some((value) => typeof value !== 'string' || value.length === 0)
+    ) {
       throw new Error('World ID result is not a v4 session proof response')
     }
 

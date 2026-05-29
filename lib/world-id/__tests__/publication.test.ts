@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IDKitResult } from '@worldcoin/idkit'
+import type { IDKitResult, IDKitResultSession } from '@worldcoin/idkit'
 import { privateKeyToAccount } from 'viem/accounts'
 import {
   canonicalStringify,
@@ -8,7 +8,7 @@ import {
   canonicalPublicationSignal,
   hashPublicationSignal,
 } from '../publication'
-import { validateWorldIdV4Result } from '../proof'
+import { validateWorldIdSessionResult, validateWorldIdV4Result } from '../proof'
 import { mapPublicationRow } from '../../db/objects'
 import {
   LIBRO_AGENT_AUTHORSHIP_CLAIM,
@@ -74,6 +74,23 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     }],
     ...overrides,
   } as IDKitResult
+}
+
+function sessionResult(overrides: Partial<IDKitResultSession> = {}): IDKitResultSession {
+  return {
+    protocol_version: '4.0',
+    nonce: 'nonce123',
+    environment: 'production',
+    session_id: `session_${'a'.repeat(128)}`,
+    responses: [{
+      identifier: 'passport',
+      proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+      session_nullifier: ['0xabc', '0xdef'],
+      issuer_schema_id: 9303,
+      expires_at_min: 1770000000,
+    }],
+    ...overrides,
+  } as IDKitResultSession
 }
 
 describe('World ID publication signals', () => {
@@ -372,5 +389,70 @@ describe('World ID v4 result validation', () => {
       environment: 'production',
       signalHash,
     })).toThrow('World ID signal hash does not match the publication payload')
+  })
+
+  it('accepts v4 session results for login continuity', () => {
+    expect(() => validateWorldIdSessionResult(sessionResult(), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).not.toThrow()
+  })
+
+  it('rejects uniqueness results for session login', () => {
+    expect(() => validateWorldIdSessionResult(result('0x123'), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).toThrow('World ID 4.0 session proof is required')
+  })
+
+  it('rejects session results from a different login context', () => {
+    expect(() => validateWorldIdSessionResult(sessionResult({ nonce: 'other-nonce' }), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).toThrow('World ID session proof context does not match this login')
+  })
+
+  it('rejects unsupported session credentials', () => {
+    expect(() => validateWorldIdSessionResult(sessionResult({
+      responses: [{
+        identifier: 'email',
+        proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+        session_nullifier: ['0xabc', '0xdef'],
+        issuer_schema_id: 1,
+        expires_at_min: 1770000000,
+      }],
+    } as Partial<IDKitResultSession>), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).toThrow('Unsupported World ID credential: email')
+  })
+
+  it('rejects malformed session nullifiers', () => {
+    expect(() => validateWorldIdSessionResult(sessionResult({
+      responses: [{
+        identifier: 'passport',
+        proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+        session_nullifier: ['0xabc'],
+        issuer_schema_id: 9303,
+        expires_at_min: 1770000000,
+      }],
+    } as Partial<IDKitResultSession>), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).toThrow('World ID result is not a v4 session proof response')
+  })
+
+  it('rejects missing session nullifiers', () => {
+    expect(() => validateWorldIdSessionResult(sessionResult({
+      responses: [{
+        identifier: 'passport',
+        proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+        issuer_schema_id: 9303,
+        expires_at_min: 1770000000,
+      } as unknown as IDKitResultSession['responses'][number]],
+    }), {
+      nonce: 'nonce123',
+      environment: 'production',
+    })).toThrow('World ID result is not a v4 session proof response')
   })
 })

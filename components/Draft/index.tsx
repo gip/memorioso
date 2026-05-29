@@ -338,7 +338,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const worldIdConstraints = publishContext
     ? anyCredential(
       CredentialRequest('proof_of_human', { signal: publishContext.signalText }),
-      CredentialRequest('face', { signal: publishContext.signalText }),
+      CredentialRequest('selfie', { signal: publishContext.signalText }),
       CredentialRequest('passport', { signal: publishContext.signalText }),
       CredentialRequest('mnc', { signal: publishContext.signalText })
     )

@@ -12,7 +12,7 @@ export const WORLD_ID_SESSION_HINT_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 
 export const WORLD_ID_ALLOWED_CREDENTIALS = [
   'proof_of_human',
-  'face',
+  'selfie',
   'passport',
   'mnc',
 ] as const satisfies readonly CredentialType[]
@@ -25,7 +25,7 @@ export function isWorldIdSessionId(value: unknown): value is `session_${string}`
 
 export const WORLD_ID_CREDENTIAL_LABELS: Record<WorldIdCredentialIdentifier, string> = {
   proof_of_human: 'Orb',
-  face: 'Secure Document',
+  selfie: 'Secure Document',
   passport: 'Document',
   mnc: 'Document',
 }

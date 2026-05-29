@@ -1,0 +1,6 @@
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@worldcoin/idkit-core@4.1.8'
+  - '@worldcoin/idkit@4.1.8'

@@ -95,7 +95,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
-  const { status, signInWithWorldId } = useWorldIdAuth()
+  const { status, signInWithWallet } = useWorldIdAuth()
   const publicClient = useMemo(() => createPublicClient({
     chain: worldchain,
     transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
@@ -106,9 +106,9 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      signInWithWorldId().catch(() => setError('Failed to sign in'))
+      signInWithWallet().catch(() => setError('Failed to sign in'))
     }
-  }, [status, signInWithWorldId])
+  }, [status, signInWithWallet])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)

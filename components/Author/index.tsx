@@ -11,7 +11,7 @@ import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 import { AgentRegistrationPanel } from './AgentRegistrationPanel'
 
 export const Author = ({ create, author, publicationInfos, redirect = null }: { create: boolean, author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null }) => {
-  const { status, signInWithWorldId } = useWorldIdAuth()
+  const { status, signInWithWallet } = useWorldIdAuth()
   const [newAuthor, setNewAuthor] = useState<Omit<AuthorType, 'id'>>({
     name: '',
     bio: '',
@@ -22,9 +22,9 @@ export const Author = ({ create, author, publicationInfos, redirect = null }: { 
 
   useEffect(() => {
     if (create && status === 'unauthenticated') {
-      signInWithWorldId().catch(() => setError('Failed to sign in'))
+      signInWithWallet().catch(() => setError('Failed to sign in'))
     }
-  }, [create, status, signInWithWorldId])
+  }, [create, status, signInWithWallet])
 
   useEffect(() => {
     if (redirect) {

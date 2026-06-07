@@ -1,15 +1,14 @@
-export type WorldIdSessionUser = {
+export type WalletSessionUser = {
   id: number
   subject: string
-  worldIdSessionId: string
-  worldIdCredentialIdentifier: string | null
+  walletAddress: string
 }
 
-export type WorldIdSessionResponse =
+export type WalletSessionResponse =
   | {
       success: true
       authenticated: true
-      user: WorldIdSessionUser
+      user: WalletSessionUser
     }
   | {
       success: true

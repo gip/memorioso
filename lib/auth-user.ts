@@ -1,8 +1,8 @@
 import { getAuthSessionPayload } from '@/lib/auth-session'
 import { pool } from '@/lib/db'
-import type { WorldIdSessionUser } from '@/lib/auth-types'
+import type { WalletSessionUser } from '@/lib/auth-types'
 
-export type AuthenticatedUser = WorldIdSessionUser
+export type AuthenticatedUser = WalletSessionUser
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const session = await getAuthSessionPayload()
@@ -14,10 +14,10 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   try {
     const { rows } = await client.query(
-      `SELECT id, name, world_id_session_id, world_id_credential_identifier
+      `SELECT id, name, wallet_address
        FROM users
-       WHERE id = $1 AND world_id_session_id = $2`,
-      [session.userId, session.worldIdSessionId]
+       WHERE id = $1 AND wallet_address = $2`,
+      [session.userId, session.walletAddress.toLowerCase()]
     )
 
     if (rows.length === 0) {
@@ -27,8 +27,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
     return {
       id: rows[0].id,
       subject: rows[0].name,
-      worldIdSessionId: rows[0].world_id_session_id,
-      worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
+      walletAddress: rows[0].wallet_address,
     }
   } finally {
     client.release()

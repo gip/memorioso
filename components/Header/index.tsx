@@ -13,9 +13,9 @@ export const Header = () => {
   const {
     user,
     error: authError,
-    isWorldAppLoginPending,
-    worldAppLoginDiagnostic,
-    signInWithWorldId,
+    isWalletAuthPending,
+    walletAuthDiagnostic,
+    signInWithWallet,
   } = useWorldIdAuth()
   const [signInError, setSignInError] = useState<string | null>(null)
   const authMessage = signInError || authError
@@ -32,8 +32,8 @@ export const Header = () => {
 
   const handleSignIn = () => {
     setSignInError(null)
-    signInWithWorldId().catch((error) => {
-      setSignInError(error instanceof Error ? error.message : 'Could not start World ID login')
+    signInWithWallet().catch((error) => {
+      setSignInError(error instanceof Error ? error.message : 'Could not start wallet login')
     })
   }
 
@@ -84,11 +84,11 @@ export const Header = () => {
           {authMessage}
         </div>
       )}
-      {!user && !authMessage && isWorldAppLoginPending && (
+      {!user && !authMessage && isWalletAuthPending && (
         <div className="border-t px-4 py-2 text-center text-xs text-muted-foreground">
-          Waiting for World App verification.
-          {worldAppLoginDiagnostic && (
-            <span className="block break-words">{worldAppLoginDiagnostic}</span>
+          Waiting for World App wallet signature.
+          {walletAuthDiagnostic && (
+            <span className="block break-words">{walletAuthDiagnostic}</span>
           )}
         </div>
       )}

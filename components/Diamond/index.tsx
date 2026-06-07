@@ -17,9 +17,9 @@ export const Diamond = ({ atBottom = true }) => {
   const {
     user,
     error: worldIdError,
-    isWorldAppLoginPending,
-    worldAppLoginDiagnostic,
-    signInWithWorldId,
+    isWalletAuthPending,
+    walletAuthDiagnostic,
+    signInWithWallet,
     signOut,
   } = useWorldIdAuth()
   const [authError, setAuthError] = useState<string | null>(null)
@@ -27,8 +27,8 @@ export const Diamond = ({ atBottom = true }) => {
 
   const handleSignIn = () => {
     setAuthError(null)
-    signInWithWorldId().catch((error) => {
-      setAuthError(error instanceof Error ? error.message : 'Could not start World ID login')
+    signInWithWallet().catch((error) => {
+      setAuthError(error instanceof Error ? error.message : 'Could not start wallet login')
     })
   }
 
@@ -65,11 +65,11 @@ export const Diamond = ({ atBottom = true }) => {
             {authMessage}
           </div>
         )}
-        {!authMessage && isWorldAppLoginPending && (
+        {!authMessage && isWalletAuthPending && (
           <div className="max-w-56 break-words px-2 py-1.5 text-xs text-muted-foreground">
-            Waiting for World App verification.
-            {worldAppLoginDiagnostic && (
-              <span className="block">{worldAppLoginDiagnostic}</span>
+            Waiting for World App wallet signature.
+            {walletAuthDiagnostic && (
+              <span className="block">{walletAuthDiagnostic}</span>
             )}
           </div>
         )}
@@ -78,7 +78,7 @@ export const Diamond = ({ atBottom = true }) => {
             event.preventDefault()
             handleSignIn()
           }}>
-            Login
+            Log in
           </DropdownMenuItem>
         )}
         {user && (
@@ -96,7 +96,7 @@ export const Diamond = ({ atBottom = true }) => {
               event.preventDefault()
               handleSignOut()
             }}>
-              Logout
+              Log out
             </DropdownMenuItem>
           </>
         )}

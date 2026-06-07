@@ -1,13 +1,13 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 
-export const AUTH_SESSION_COOKIE = 'memorioso_world_id_session' as const
+export const AUTH_SESSION_COOKIE = 'memorioso_wallet_session' as const
 export const AUTH_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 type AuthSessionPayload = {
-  v: 1
+  v: 2
   userId: number
-  worldIdSessionId: string
+  walletAddress: string
   iat: number
   exp: number
 }
@@ -34,10 +34,10 @@ function decodePayload(value: string): AuthSessionPayload | null {
   try {
     const payload = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<AuthSessionPayload>
     if (
-      payload.v !== 1 ||
+      payload.v !== 2 ||
       typeof payload.userId !== 'number' ||
-      typeof payload.worldIdSessionId !== 'string' ||
-      payload.worldIdSessionId.length === 0 ||
+      typeof payload.walletAddress !== 'string' ||
+      payload.walletAddress.length === 0 ||
       typeof payload.iat !== 'number' ||
       typeof payload.exp !== 'number'
     ) {
@@ -50,12 +50,12 @@ function decodePayload(value: string): AuthSessionPayload | null {
   }
 }
 
-export function createAuthSessionToken(userId: number, worldIdSessionId: string): string {
+export function createAuthSessionToken(userId: number, walletAddress: string): string {
   const now = Math.floor(Date.now() / 1000)
   const encodedPayload = encodePayload({
-    v: 1,
+    v: 2,
     userId,
-    worldIdSessionId,
+    walletAddress: walletAddress.toLowerCase(),
     iat: now,
     exp: now + AUTH_SESSION_MAX_AGE_SECONDS,
   })

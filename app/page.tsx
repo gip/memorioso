@@ -1,15 +1,32 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Feed } from '@/components/Feed'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { Divider } from '@/components/Divider'
 import { Button } from '@/components/ui/button'
-import { useWorldIdAuth } from '@/lib/world-id/client-auth'
+import { useWorldIdAuth, isInWorldApp } from '@/lib/world-id/client-auth'
 
 const Page = () => {
-  const { status } = useWorldIdAuth()
+  const { status, signInWithWallet } = useWorldIdAuth()
+  const router = useRouter()
+  // World App is only detectable client-side; avoid hydration mismatch.
+  const [canWrite, setCanWrite] = useState(false)
+
+  useEffect(() => {
+    setCanWrite(isInWorldApp())
+  }, [])
+
+  const handleStartWriting = () => {
+    signInWithWallet()
+      .then(() => router.push('/d/new'))
+      .catch(() => {
+        // Error is surfaced by the header banner.
+      })
+  }
 
   return (<>
     <Header />
@@ -33,8 +50,11 @@ const Page = () => {
         A protocol to protect and preserve human-created texts, stories, novels, publications, articles, pictures, and more.<br />
         <br />
         Memorioso leverages World Network&apos;s <Link href="https://whitepaper.world.org/#proof-of-human-(poh)" className="text-blurple hover:underline" target="_blank" rel="noopener noreferrer">Proof of Human (PoH)</Link> to ensure that all users are real humans.
-        <div className="mt-8">
-          <Button asChild>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          {canWrite && (
+            <Button onClick={handleStartWriting}>Start writing</Button>
+          )}
+          <Button asChild variant={canWrite ? 'outline' : 'default'}>
             <Link href="/latest">See Latest Publications</Link>
           </Button>
         </div>

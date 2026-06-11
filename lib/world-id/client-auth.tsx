@@ -55,7 +55,7 @@ function getClientWorldIdAppId(): string | null {
   return process.env.NEXT_PUBLIC_WORLD_ID_APP_ID || null
 }
 
-function isInWorldApp(): boolean {
+export function isInWorldApp(): boolean {
   return typeof window !== 'undefined' && Boolean((window as WorldAppWindow).WorldApp)
 }
 

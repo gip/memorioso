@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, LogIn } from 'lucide-react'
+import { ArrowLeft, LogIn, PenLine } from 'lucide-react'
 import { Diamond } from '@/components/Diamond'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 export const Header = () => {
   const router = useRouter()
+  const pathname = usePathname()
   const {
     user,
     error: authError,
@@ -27,8 +28,10 @@ export const Header = () => {
   }
 
   const showBackButton = () => {
-    return true
+    return pathname !== '/'
   }
+
+  const isWriting = pathname?.startsWith('/d/')
 
   const handleSignIn = () => {
     setSignInError(null)
@@ -46,11 +49,13 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-10 bg-background border-b shadow-sm">
       <div className="container mx-auto flex items-center justify-between py-2 px-4">
-        {showBackButton() && (
+        {showBackButton() ? (
           <Button size="icon" className="rounded-full w-10 h-10" onClick={handleBack}>
             <ArrowLeft className="h-5 w-5" />
             <span className="sr-only">Go back</span>
           </Button>
+        ) : (
+          <div className="w-10" aria-hidden />
         )}
         <div className="flex-1 flex justify-center">
           <Link href="/" passHref>
@@ -60,7 +65,7 @@ export const Header = () => {
             </h1>
           </Link>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           {!user && (
             <Button
               className="rounded-full w-10 h-10"
@@ -71,10 +76,16 @@ export const Header = () => {
               <span className="sr-only">Log in</span>
             </Button>
           )}
+          {user && !isWriting && (
+            <Button className="rounded-full h-10 px-4" onClick={() => router.push('/d/new')}>
+              <PenLine className="h-4 w-4 mr-1.5" />
+              Write
+            </Button>
+          )}
+          {user && (
+            <Diamond atBottom={false} />
+          )}
         </div>
-        {user && (
-          <Diamond atBottom={false} />
-        )}
       </div>
       {!user && authMessage && (
         <div

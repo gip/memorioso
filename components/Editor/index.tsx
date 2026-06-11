@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import NextLink from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -13,7 +13,7 @@ import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
-import { Bold, Italic, Strikethrough, Quote, LinkIcon, ImageIcon, List, ListOrdered, ChevronDown, X, Plus, Underline as UnderlineIcon } from 'lucide-react'
+import { Bold, Italic, Strikethrough, Quote, LinkIcon, ImageIcon, List, ListOrdered, ChevronDown, Underline as UnderlineIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,10 +27,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
 import './editor.css'
 import type { Author } from '@/lib/db/objects'
 import { all, createLowlight } from 'lowlight'
@@ -136,7 +132,6 @@ export default function Editor({
     return []
   }, [initialAuthorId, authors])
   const [author, setLocalAuthor] = useState<Author[]>(findAuthor())
-  const [isAuthorDialogOpen, setIsAuthorDialogOpen] = useState(false)
   const [title, setLocalTitle] = useState(initialTitle)
   const [subtitle, setLocalSubtitle] = useState(initialSubtitle)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -218,17 +213,6 @@ export default function Editor({
     }
   }
 
-  const removeAuthor = (index: number) => {
-    setAuthorId(null)
-    setLocalAuthor([])
-  }
-
-  const addAuthor = (author: Author) => {
-    setAuthorId(author.id)
-    setLocalAuthor([author])
-    setIsAuthorDialogOpen(false)
-  }
-
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -267,12 +251,12 @@ export default function Editor({
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pt-4">
       {editable && (
-        <div className="sticky top-0 z-50 bg-background flex justify-center">
-          <div className="flex items-center justify-between gap-2 pb-2">
+        <div className="-mx-4 px-2 mb-3 border-b flex justify-center overflow-x-auto">
+          <div className="flex items-center justify-between gap-2 py-1.5">
             <div className="flex items-center gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                  <Button variant="ghost" size="sm" className="h-9 px-3 text-sm">
                     Style
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
@@ -295,41 +279,41 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('bold')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('bold') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('bold') ? 'bg-muted' : ''}`}
                 >
-                  <Bold className="h-3 w-3" />
+                  <Bold className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('italic')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('italic') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('italic') ? 'bg-muted' : ''}`}
                 >
-                  <Italic className="h-3 w-3" />
+                  <Italic className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('underline')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('underline') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('underline') ? 'bg-muted' : ''}`}
                 >
-                  <UnderlineIcon className="h-3 w-3" />
+                  <UnderlineIcon className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('strike')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('strike') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('strike') ? 'bg-muted' : ''}`}
                 >
-                  <Strikethrough className="h-3 w-3" />
+                  <Strikethrough className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('quote')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('blockquote') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('blockquote') ? 'bg-muted' : ''}`}
                 >
-                  <Quote className="h-3 w-3" />
+                  <Quote className="h-4 w-4" />
                 </Button>
               </div>
 
@@ -339,9 +323,9 @@ export default function Editor({
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className={`h-7 w-7 p-0 ${editor?.isActive('link') ? 'bg-muted' : ''}`}
+                      className={`h-9 w-9 p-0 ${editor?.isActive('link') ? 'bg-muted' : ''}`}
                     >
-                      <LinkIcon className="h-3 w-3" />
+                      <LinkIcon className="h-4 w-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
@@ -396,10 +380,10 @@ export default function Editor({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-7 w-7 p-0"
+                  className="h-9 w-9 p-0"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <ImageIcon className="h-3 w-3" />
+                  <ImageIcon className="h-4 w-4" />
                 </Button>
               </div>
 
@@ -408,17 +392,17 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('bullet-list')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('bulletList') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('bulletList') ? 'bg-muted' : ''}`}
                 >
-                  <List className="h-3 w-3" />
+                  <List className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('ordered-list')}
-                  className={`h-7 w-7 p-0 ${editor?.isActive('orderedList') ? 'bg-muted' : ''}`}
+                  className={`h-9 w-9 p-0 ${editor?.isActive('orderedList') ? 'bg-muted' : ''}`}
                 >
-                  <ListOrdered className="h-3 w-3" />
+                  <ListOrdered className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -435,6 +419,7 @@ export default function Editor({
             setTitle(newValue);
           }}
           placeholder="Title"
+          autoFocus={editable && !initialTitle}
           className="editor-input text-4xl sm:text-4xl md:text-4xl px-0 w-full resize-none overflow-hidden border-none bg-transparent focus:outline-none focus:ring-0 whitespace-pre-wrap break-words"
           readOnly={!editable}
           rows={1}
@@ -471,67 +456,8 @@ export default function Editor({
           />
         ) : null}
 
-        {editable ? (
-          <div className="flex flex-wrap items-center gap-2 mb-4 sm:mb-8 mt-2">
-            {author.map((author, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-1 sm:gap-2 bg-muted rounded-full px-3 sm:px-5 py-2 text-sm bg-gray-100"
-              >
-                <span className="truncate max-w-[100px] sm:max-w-[150px]">{author.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 hover:bg-gray-200"
-                  onClick={() => removeAuthor(index)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            {author.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 rounded-full"
-                disabled
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            )}
-            {author.length === 0 && (
-              <Dialog open={isAuthorDialogOpen} onOpenChange={setIsAuthorDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="bg-gray-100 hover:bg-gray-200 rounded-full text-sm py-2 px-3"
-                  >
-                    Choose Author +
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-semibold mb-4">Select Author</DialogTitle>
-                  </DialogHeader>
-                  <Card>
-                    <CardContent className="grid gap-4 py-4">
-                      {authors.map((author) => (
-                        <Button
-                          key={author.id}
-                          variant="ghost"
-                          onClick={() => addAuthor(author)}
-                          className="bg-gray-100 rounded-full py-2 px-3"
-                        >
-                          {author.name}
-                        </Button>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        ) : (
+        {/* While editing, the author is chosen in the publish sheet; show the byline read-only. */}
+        {!editable && (
           <div className="flex flex-wrap items-center gap-2 mb-4 sm:mb-8 mt-2 ml-1 italic text-sm">
             {author.map((author, index) => (
               <div key={index} className="flex flex-col items-start gap-1">
@@ -563,6 +489,46 @@ export default function Editor({
 
         <div className="editable text-xl">
           <style>{editorStyles}</style>
+          {editable && editor && (
+            <BubbleMenu
+              editor={editor}
+              tippyOptions={{ duration: 100 }}
+              className="flex items-center gap-1 rounded-lg border bg-background p-1 shadow-md"
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleFormat('bold')}
+                className={`h-9 w-9 p-0 ${editor.isActive('bold') ? 'bg-muted' : ''}`}
+              >
+                <Bold className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleFormat('italic')}
+                className={`h-9 w-9 p-0 ${editor.isActive('italic') ? 'bg-muted' : ''}`}
+              >
+                <Italic className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleFormat('underline')}
+                className={`h-9 w-9 p-0 ${editor.isActive('underline') ? 'bg-muted' : ''}`}
+              >
+                <UnderlineIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsLinkDialogOpen(true)}
+                className={`h-9 w-9 p-0 ${editor.isActive('link') ? 'bg-muted' : ''}`}
+              >
+                <LinkIcon className="h-4 w-4" />
+              </Button>
+            </BubbleMenu>
+          )}
           <EditorContent editor={editor} />
         </div>
       </div>

@@ -24,6 +24,10 @@ contract MockWorldIDVerifier is IWorldIDVerifier {
         expectedSignalHash = signalHash;
     }
 
+    function setExpectedAction(uint256 action) external {
+        expectedAction = action;
+    }
+
     function setShouldReject(bool value) external {
         shouldReject = value;
     }
@@ -64,7 +68,7 @@ contract LibroProofRegistryTest {
 
     function setUp() public {
         verifier = new MockWorldIDVerifier();
-        registry = new LibroProofRegistry(address(verifier), 303, 202);
+        registry = new LibroProofRegistry(address(verifier), 303);
     }
 
     function validProof() private pure returns (LibroProofRegistry.WorldIdV4Proof memory) {
@@ -87,17 +91,17 @@ contract LibroProofRegistryTest {
     function testRegisterValidProof() public {
         setUp();
 
-        registry.register(808, validProof());
+        registry.register(808, 202, validProof());
 
         require(registry.verify(808), "signal was not registered");
     }
 
     function testDuplicateSignalReverts() public {
         setUp();
-        registry.register(808, validProof());
+        registry.register(808, 202, validProof());
 
         bool reverted;
-        try registry.register(808, validProof()) {
+        try registry.register(808, 202, validProof()) {
             reverted = false;
         } catch {
             reverted = true;
@@ -108,10 +112,10 @@ contract LibroProofRegistryTest {
 
     function testSameNullifierCanRegisterDifferentSignal() public {
         setUp();
-        registry.register(808, validProof());
+        registry.register(808, 202, validProof());
 
         verifier.setExpectedSignalHash(909);
-        registry.register(909, validProof());
+        registry.register(909, 202, validProof());
 
         require(registry.verify(808), "first signal missing");
         require(registry.verify(909), "second signal missing");
@@ -122,7 +126,7 @@ contract LibroProofRegistryTest {
         verifier.setShouldReject(true);
 
         bool reverted;
-        try registry.register(808, validProof()) {
+        try registry.register(808, 202, validProof()) {
             reverted = false;
         } catch {
             reverted = true;
@@ -130,5 +134,28 @@ contract LibroProofRegistryTest {
 
         require(reverted, "verifier rejection did not revert");
         require(!registry.verify(808), "rejected signal registered");
+    }
+
+    function testZeroActionHashReverts() public {
+        setUp();
+
+        bool reverted;
+        try registry.register(808, 0, validProof()) {
+            reverted = false;
+        } catch {
+            reverted = true;
+        }
+
+        require(reverted, "zero action did not revert");
+        require(!registry.verify(808), "zero action signal registered");
+    }
+
+    function testDifferentActionHashIsPassedToVerifier() public {
+        setUp();
+
+        verifier.setExpectedAction(9090);
+        registry.register(808, 9090, validProof());
+
+        require(registry.verify(808), "signal was not registered");
     }
 }

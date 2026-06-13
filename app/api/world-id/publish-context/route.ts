@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
-import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
+import { createPublishAction, createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import type { PublicationContent } from '@/types'
@@ -65,6 +65,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: "Title is too short" }, { status: 400 })
     }
 
+    const challengeId = crypto.randomUUID()
+    const publishAction = createPublishAction(challengeId, config.publishActionPrefix)
     const publicationDate = new Date().toISOString()
     const publication = createLibroPublicationV1({
       author: {
@@ -77,12 +79,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       subtitle: draft.subtitle || '',
       content: draft.content as PublicationContent,
       publicationDate,
-      action: config.publishAction,
+      action: publishAction,
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)
-    const rpContext = createRpContext(config, config.publishAction)
-    const challengeId = crypto.randomUUID()
+    const rpContext = createRpContext(config, publishAction)
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         challengeId,
         authenticatedUser.id,
         draftId,
-        config.publishAction,
+        publishAction,
         rpContext.nonce,
         signalText,
         signalHash,
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       success: true,
       challengeId,
       appId: config.appId,
-      action: config.publishAction,
+      action: publishAction,
       environment: config.environment,
       rpContext,
       signalText,

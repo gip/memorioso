@@ -16,6 +16,7 @@ export const libroProofRegistryAbi = [
     stateMutability: 'nonpayable',
     inputs: [
       { name: 'signalHash', type: 'uint256' },
+      { name: 'actionHash', type: 'uint256' },
       {
         name: 'proof',
         type: 'tuple',
@@ -41,7 +42,10 @@ export const libroProofRegistryAbi = [
   {
     type: 'event',
     name: 'SignalRegistered',
-    inputs: [{ name: 'signalHash', type: 'uint256', indexed: true }],
+    inputs: [
+      { name: 'signalHash', type: 'uint256', indexed: true },
+      { name: 'actionHash', type: 'uint256', indexed: true },
+    ],
   },
 ] as const satisfies Abi
 

@@ -5,7 +5,7 @@ import { DEFAULT_WORLD_ID_PUBLISH_ACTION } from "./constants";
 export type WorldIdServerConfig = {
   appId: `app_${string}`;
   rpId: `rp_${string}`;
-  publishAction: string;
+  publishActionPrefix: string;
   environment: "production" | "staging";
   signingKeyHex: string;
 };
@@ -27,11 +27,18 @@ export function getWorldIdServerConfig(): WorldIdServerConfig {
   return {
     appId: requireEnv("NEXT_PUBLIC_WORLD_ID_APP_ID") as `app_${string}`,
     rpId: requireEnv("WORLD_ID_RP_ID") as `rp_${string}`,
-    publishAction:
-      process.env.WORLD_ID_PUBLISH_ACTION || DEFAULT_WORLD_ID_PUBLISH_ACTION,
+    publishActionPrefix:
+      process.env.WORLD_ID_PUBLISH_ACTION_PREFIX || DEFAULT_WORLD_ID_PUBLISH_ACTION,
     environment,
     signingKeyHex: requireEnv("WORLD_ID_RP_SIGNING_KEY"),
   };
+}
+
+export function createPublishAction(
+  challengeId: string,
+  actionPrefix: string = DEFAULT_WORLD_ID_PUBLISH_ACTION,
+): string {
+  return `${actionPrefix}-${challengeId}`;
 }
 
 export function createRpContext(

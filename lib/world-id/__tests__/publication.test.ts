@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { IDKitResult } from '@worldcoin/idkit'
+import { decodeFunctionData } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import {
   canonicalStringify,
@@ -17,8 +18,9 @@ import {
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_WORLD_CHAIN_ID,
+  libroProofRegistryAbi,
 } from '../../libro/contract'
-import { actionHashToUint256, parseUint64 } from '../../libro/encoding'
+import { actionHashToHex, actionHashToUint256, rpIdToUint64 } from '../../libro/encoding'
 import { prepareLibroRegistration } from '../../libro/proof'
 import {
   createAgentDocumentTypedData,
@@ -117,19 +119,21 @@ describe('World ID publication signals', () => {
 
 describe('Libro registration helpers', () => {
   it('maps a World ID v4 response into registry calldata', () => {
-    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
+    const action = 'written-by-a-human-v4-03b18435-96c5-46e6-91c5-cd4ac1abb197'
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication({ action })))
     const validated = validateWorldIdV4Result(result(signalHash, {
+      action,
       nonce: '0x123',
       responses: [{
         identifier: 'passport',
         signal_hash: signalHash,
-        proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+        proof: ['1', '2', '3', '4', '5'],
         nullifier: '0xabc',
         issuer_schema_id: 9303,
         expires_at_min: 1770000000,
       }],
     } as Partial<IDKitResult>), {
-      action: 'written-by-a-human-v4',
+      action,
       nonce: '0x123',
       environment: 'production',
       signalHash,
@@ -139,26 +143,36 @@ describe('Libro registration helpers', () => {
       chainId: LIBRO_WORLD_CHAIN_ID,
       registryAddress: '0x1111111111111111111111111111111111111111',
       rpId: BigInt(1),
-      action: 'written-by-a-human-v4',
-      actionHash: actionHashToUint256('written-by-a-human-v4'),
       rpcUrl: 'https://worldchain-mainnet.g.alchemy.com/public',
+    })
+    const decoded = decodeFunctionData({
+      abi: libroProofRegistryAbi,
+      data: prepared.transaction.transactions[0].data,
     })
 
     expect(prepared.signalHash).toBe(signalHash)
     expect(prepared.signalHashUint256).toBe(BigInt(signalHash).toString())
+    expect(prepared.actionHash).toBe(actionHashToUint256(action).toString())
     expect(prepared.proof.nullifier).toBe(BigInt('0xabc').toString())
     expect(prepared.proof.nonce).toBe(BigInt('0x123').toString())
     expect(prepared.proof.zeroKnowledgeProof).toEqual(['1', '2', '3', '4', '5'])
     expect(prepared.transaction.chainId).toBe(480)
     expect(prepared.transaction.transactions[0].to).toBe('0x1111111111111111111111111111111111111111')
     expect(prepared.transaction.transactions[0].data).toMatch(/^0x/)
+    expect(decoded.functionName).toBe('register')
+    expect(decoded.args[0]).toBe(BigInt(signalHash))
+    expect(decoded.args[1]).toBe(actionHashToUint256(action))
   })
 
-  it('validates fixed action hashes and numeric rp ids', () => {
+  it('validates action hashes and rp ids', () => {
+    const fullKeccak = '0x64278be7aebb455c0daa33c32137f5f6f6007a9021f4ab4bb773c82f1ab7c67'
+
+    expect(actionHashToHex('written-by-a-human-v4')).toBe('0x0064278be7aebb455c0daa33c32137f5f6f6007a9021f4ab4bb773c82f1ab7c6')
+    expect(actionHashToHex('written-by-a-human-v4')).not.toBe(fullKeccak)
     expect(actionHashToUint256('written-by-a-human-v4')).toBeGreaterThan(BigInt(0))
-    expect(parseUint64('1', 'rpId')).toBe(BigInt(1))
-    expect(() => parseUint64('0', 'rpId')).toThrow('rpId must be between')
-    expect(() => parseUint64('abc', 'rpId')).toThrow('rpId must be a decimal uint64')
+    expect(rpIdToUint64('rp_81220394c70700e2')).toBe(BigInt('9305003717630034146'))
+    expect(() => rpIdToUint64('rp_b8a20e4bc9a21acd00')).toThrow('WORLD_ID_RP_ID must be in')
+    expect(() => rpIdToUint64('b8a20e4bc9a21acd')).toThrow('WORLD_ID_RP_ID must be in')
   })
 })
 

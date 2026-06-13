@@ -154,6 +154,7 @@ export async function PUT(
         chain_id: libroConfig.chainId,
         registry_address: libroConfig.registryAddress,
         signal_hash: challenge.signal_hash,
+        action_hash: registration.action_hash,
         user_op_hash: userOpHash.toLowerCase(),
         transaction_hash: transactionHash.toLowerCase(),
         registered_at: registeredAt,

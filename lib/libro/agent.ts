@@ -18,7 +18,7 @@ import {
   libroAgentRegistryAbi,
 } from './contract'
 import type { LibroAgentServerConfig } from './config'
-import { hexToUint256, normalizeHex } from './encoding'
+import { hexToUint256, normalizeHex, parseUint256 } from './encoding'
 import {
   canonicalPublicationSignal,
   hashPublicationSignal,
@@ -143,7 +143,7 @@ function mapProofValues(response: ResponseItemV4WithGenesis, nonce: string) {
     issuerSchemaId: BigInt(response.issuer_schema_id),
     credentialGenesisIssuedAtMin: BigInt(response.credential_genesis_issued_at_min || 0),
     zeroKnowledgeProof: response.proof.map((value, index) =>
-      hexToUint256(value, `responses[0].proof[${index}]`)
+      parseUint256(value, `responses[0].proof[${index}]`)
     ) as [bigint, bigint, bigint, bigint, bigint],
   }
 }

@@ -80,6 +80,7 @@ CREATE TABLE libro_publish_registrations (
     "challengeId" UUID NOT NULL REFERENCES world_id_publish_challenges(id) ON DELETE CASCADE UNIQUE,
     signal_hash VARCHAR(255) NOT NULL,
     contract_signal_hash VARCHAR(78) NOT NULL,
+    action_hash VARCHAR(78) NOT NULL,
     chain_id INTEGER NOT NULL,
     registry_address VARCHAR(255) NOT NULL,
     proof JSONB NOT NULL,

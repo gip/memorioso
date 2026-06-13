@@ -20,15 +20,16 @@ For a v4 uniqueness proof, map the first accepted credential response:
 The registry constructor fixes:
 
 - World ID v4 verifier address
-- numeric `rpId` (`uint64`)
-- action hash for `written-by-a-human-v4`
+- numeric `rpId` (`uint64`), derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_`
+
+Each publication uses a one-time World ID action shaped as `written-by-a-human-v4-<challengeId>`. The app hashes that full action string and passes the resulting field element to the registry with the proof.
 
 ## Contract ABI
 
 ```solidity
-function register(uint256 signalHash, WorldIdV4Proof calldata proof) external;
+function register(uint256 signalHash, uint256 actionHash, WorldIdV4Proof calldata proof) external;
 function verify(uint256 signalHash) external view returns (bool);
-event SignalRegistered(uint256 indexed signalHash);
+event SignalRegistered(uint256 indexed signalHash, uint256 indexed actionHash);
 ```
 
 `LibroProofRegistry` is permissionless. Any account, relayer, backend, or MiniKit wallet can call `register` as long as the calldata contains a valid World ID proof for the signal. The caller is not part of the proof.
@@ -69,4 +70,4 @@ The result is true only if the signal was previously registered through a succes
 
 ## Privacy Note
 
-Libro v1 uses the fixed action `written-by-a-human-v4`. World ID v4 nullifiers are stable for a human/RP/action, so on-chain proofs may link multiple registrations by the same anonymous human if proof calldata is inspected. This is an explicit v1 tradeoff.
+Libro v1 uses per-challenge actions such as `written-by-a-human-v4-<challengeId>`. World ID v4 nullifiers are stable for a human/RP/action, so changing the action per publication avoids reusing the same nullifier across direct human publications.

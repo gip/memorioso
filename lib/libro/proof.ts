@@ -2,7 +2,7 @@ import type { IDKitResult, ResponseItemV4 } from '@worldcoin/idkit'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { libroProofRegistryAbi } from './contract'
 import type { LibroServerConfig } from './config'
-import { actionHashToUint256, hexToUint256, normalizeHex } from './encoding'
+import { actionHashToUint256, hexToUint256, normalizeHex, parseUint256 } from './encoding'
 import type { WorldIdV4UniquenessResult } from '@/lib/world-id/proof'
 
 export type LibroContractProof = {
@@ -64,7 +64,7 @@ function mapProofValues(response: ResponseItemV4WithGenesis, nonce: string): Lib
     issuerSchemaId: BigInt(response.issuer_schema_id),
     credentialGenesisIssuedAtMin: BigInt(response.credential_genesis_issued_at_min || 0),
     zeroKnowledgeProof: response.proof.map((value, index) =>
-      hexToUint256(value, `responses[0].proof[${index}]`)
+      parseUint256(value, `responses[0].proof[${index}]`)
     ) as [bigint, bigint, bigint, bigint, bigint],
   }
 }
@@ -76,18 +76,19 @@ export function prepareLibroRegistration(
 ): PreparedLibroRegistration {
   const normalizedSignalHash = normalizeHex(signalHash, 'signal_hash')
   const signalHashUint256 = hexToUint256(normalizedSignalHash, 'signal_hash')
+  const actionHash = actionHashToUint256(result.action)
   const contractProof = mapProofValues(getPrimaryResponse(result), result.nonce)
 
   const data = encodeFunctionData({
     abi: libroProofRegistryAbi,
     functionName: 'register',
-    args: [signalHashUint256, contractProof],
+    args: [signalHashUint256, actionHash, contractProof],
   })
 
   return {
     signalHash: normalizedSignalHash,
     signalHashUint256: signalHashUint256.toString(),
-    actionHash: config.actionHash.toString(),
+    actionHash: actionHash.toString(),
     proof: {
       nullifier: contractProof.nullifier.toString(),
       nonce: contractProof.nonce.toString(),

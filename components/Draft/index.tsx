@@ -23,7 +23,6 @@ import { FeedItem } from '@/components/FeedItem'
 import {
   IDKitRequestWidget,
   CredentialRequest,
-  any as anyCredential,
   type IDKitResult,
   type RpContext,
 } from '@worldcoin/idkit'
@@ -63,6 +62,45 @@ type PublishContext = {
   signalHash: string
 }
 
+type WorldAppCommand = {
+  name: string
+  supported_versions?: number[]
+}
+
+type WorldAppBridgeWindow = Window & {
+  WorldApp?: {
+    world_app_version?: number
+    device_os?: string
+    supported_commands?: WorldAppCommand[]
+  }
+  MiniKit?: {
+    subscribe?: (command: string, handler: (payload: unknown) => void) => unknown
+    unsubscribe?: (command: string) => unknown
+  }
+  webkit?: {
+    messageHandlers?: {
+      minikit?: {
+        postMessage?: (payload: unknown) => void
+      }
+    }
+  }
+  Android?: {
+    postMessage?: (payload: string) => void
+  }
+}
+
+type PublishDebugItem = {
+  label: string
+  value: string
+}
+
+type PublishDebugEvent = {
+  id: string
+  time: string
+  label: string
+  detail: string
+}
+
 type PreparePublishResponse =
   | {
       success: true
@@ -72,6 +110,7 @@ type PreparePublishResponse =
   | {
       success: false
       message?: string
+      error?: string
     }
 
 type FinalizePublishResponse =
@@ -103,6 +142,206 @@ const PUBLISH_STEPS = [
   'Register on-chain',
   'Finalize publication',
 ]
+
+const formatDebugBool = (value: boolean) => value ? 'yes' : 'no'
+
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+
+const getRecordValue = (value: unknown, key: string): unknown => {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  return (value as Record<string, unknown>)[key]
+}
+
+const formatUnknownValue = (value: unknown): string => {
+  if (value === undefined) return 'missing'
+  if (value === null) return 'null'
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return Array.isArray(value) ? 'array' : typeof value
+}
+
+const getObjectKeysSummary = (value: unknown): string => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return 'none'
+  }
+
+  return Object.keys(value).slice(0, 12).join(', ') || 'none'
+}
+
+const getJsonByteLength = (value: unknown): string => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).length.toString()
+  } catch {
+    return 'unknown'
+  }
+}
+
+const summarizeBridgePayload = (payload: unknown): string => {
+  const command = getRecordValue(payload, 'command')
+  const type = getRecordValue(payload, 'type')
+  const version = getRecordValue(payload, 'version')
+  const status = getRecordValue(payload, 'status')
+  const errorCode = getRecordValue(payload, 'error_code') || getRecordValue(payload, 'errorCode')
+  const nestedPayload = getRecordValue(payload, 'payload')
+  const payloadKeys = getObjectKeysSummary(nestedPayload)
+  const payloadBytes = getJsonByteLength(nestedPayload)
+
+  return [
+    `command=${formatUnknownValue(command)}`,
+    `type=${formatUnknownValue(type)}`,
+    `version=${formatUnknownValue(version)}`,
+    `status=${formatUnknownValue(status)}`,
+    `error=${formatUnknownValue(errorCode)}`,
+    `payload=${formatUnknownValue(nestedPayload)}`,
+    `payloadBytes=${payloadBytes}`,
+    `payloadKeys=${payloadKeys}`,
+  ].join(' ')
+}
+
+const summarizeWorldIdResult = (result: IDKitResult, expectedSignalHash: string): string => {
+  const responses = 'responses' in result && Array.isArray(result.responses) ? result.responses : []
+  const identifiers = responses.map((response) => response.identifier).join(', ') || 'none'
+  const signalHashes = responses.map((response) => response.signal_hash || 'missing').join(', ') || 'none'
+  const signalMatches = responses.length > 0
+    ? responses.every((response) => response.signal_hash?.toLowerCase() === expectedSignalHash.toLowerCase())
+    : false
+
+  return [
+    `protocol=${result.protocol_version}`,
+    `action=${'action' in result ? result.action : 'missing'}`,
+    `environment=${'environment' in result ? result.environment : 'missing'}`,
+    `nonce=${result.nonce}`,
+    `responses=${responses.length}`,
+    `identifiers=${identifiers}`,
+    `signalMatches=${formatDebugBool(signalMatches)}`,
+    `signalHashes=${signalHashes}`,
+  ].join(' ')
+}
+
+const createPublishDebugEvent = (label: string, detail: string): PublishDebugEvent => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  time: new Date().toLocaleTimeString(),
+  label,
+  detail,
+})
+
+const installPublishBridgeProbe = (onEvent: (event: PublishDebugEvent) => void): (() => void) => {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+
+  const browserWindow = window as WorldAppBridgeWindow
+  const cleanups: Array<() => void> = []
+  const emit = (label: string, detail: string) => {
+    const event = createPublishDebugEvent(label, detail)
+    console.info('[publish] World ID bridge event', { label, detail })
+    onEvent(event)
+  }
+
+  const iOSHandler = browserWindow.webkit?.messageHandlers?.minikit
+  if (iOSHandler?.postMessage) {
+    const originalPostMessage = iOSHandler.postMessage.bind(iOSHandler)
+    try {
+      iOSHandler.postMessage = (payload: unknown) => {
+        emit('iOS postMessage', summarizeBridgePayload(payload))
+        return originalPostMessage(payload)
+      }
+      cleanups.push(() => {
+        iOSHandler.postMessage = originalPostMessage
+      })
+      emit('probe installed', 'iOS postMessage')
+    } catch (error) {
+      emit('probe install failed', `iOS postMessage: ${getErrorMessage(error)}`)
+    }
+  }
+
+  const androidBridge = browserWindow.Android
+  if (androidBridge?.postMessage) {
+    const originalPostMessage = androidBridge.postMessage.bind(androidBridge)
+    try {
+      androidBridge.postMessage = (payload: string) => {
+        emit('Android postMessage', payload.slice(0, 160))
+        return originalPostMessage(payload)
+      }
+      cleanups.push(() => {
+        androidBridge.postMessage = originalPostMessage
+      })
+      emit('probe installed', 'Android postMessage')
+    } catch (error) {
+      emit('probe install failed', `Android postMessage: ${getErrorMessage(error)}`)
+    }
+  }
+
+  const messageHandler = (event: MessageEvent) => {
+    emit('window message', summarizeBridgePayload(event.data))
+  }
+  window.addEventListener('message', messageHandler)
+  cleanups.push(() => window.removeEventListener('message', messageHandler))
+
+  const miniKit = browserWindow.MiniKit
+  if (miniKit?.subscribe) {
+    const originalSubscribe = miniKit.subscribe.bind(miniKit)
+    try {
+      miniKit.subscribe = (command: string, handler: (payload: unknown) => void) => {
+        emit('MiniKit subscribe', command)
+        return originalSubscribe(command, (payload: unknown) => {
+          emit('MiniKit event', `${command} ${summarizeBridgePayload(payload)}`)
+          handler(payload)
+        })
+      }
+      cleanups.push(() => {
+        miniKit.subscribe = originalSubscribe
+      })
+      emit('probe installed', 'MiniKit subscribe')
+    } catch (error) {
+      emit('probe install failed', `MiniKit subscribe: ${getErrorMessage(error)}`)
+    }
+  }
+
+  if (cleanups.length === 1) {
+    emit('probe installed', 'window message')
+  }
+
+  return () => {
+    cleanups.slice().reverse().forEach((cleanup) => cleanup())
+  }
+}
+
+const collectPublishStepOneDebugInfo = (context: PublishContext): PublishDebugItem[] => {
+  if (typeof window === 'undefined') {
+    return [{ label: 'client', value: 'unavailable' }]
+  }
+
+  const browserWindow = window as WorldAppBridgeWindow
+  const supportedCommands = browserWindow.WorldApp?.supported_commands
+  const verifyCommand = supportedCommands?.find((command) => command.name === 'verify')
+  const verifyVersions = verifyCommand?.supported_versions?.length
+    ? verifyCommand.supported_versions.join(', ')
+    : verifyCommand
+      ? 'not advertised'
+      : 'missing'
+
+  return [
+    { label: 'WorldApp detected', value: formatDebugBool(Boolean(browserWindow.WorldApp)) },
+    { label: 'WorldApp version', value: browserWindow.WorldApp?.world_app_version?.toString() || 'unknown' },
+    { label: 'device OS', value: browserWindow.WorldApp?.device_os || 'unknown' },
+    { label: 'verify command', value: verifyCommand ? 'present' : 'missing' },
+    { label: 'verify versions', value: verifyVersions },
+    { label: 'verify v2 supported', value: formatDebugBool(Boolean(verifyCommand?.supported_versions?.includes(2))) },
+    { label: 'iOS bridge', value: formatDebugBool(Boolean(browserWindow.webkit?.messageHandlers?.minikit)) },
+    { label: 'Android bridge', value: formatDebugBool(Boolean(browserWindow.Android)) },
+    { label: 'MiniKit object', value: formatDebugBool(Boolean(browserWindow.MiniKit)) },
+    { label: 'IDKit action', value: context.action },
+    { label: 'IDKit environment', value: context.environment },
+    { label: 'signal bytes', value: new TextEncoder().encode(context.signalText).length.toString() },
+    { label: 'challenge', value: context.challengeId },
+  ]
+}
 
 const PublishProgress = ({ step, status }: { step: number; status: string | null }) => (
   <Alert>
@@ -152,6 +391,9 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
+  const [publishDebugInfo, setPublishDebugInfo] = useState<PublishDebugItem[]>([])
+  const [publishDebugEvents, setPublishDebugEvents] = useState<PublishDebugEvent[]>([])
+  const [publishStepOneWaitSeconds, setPublishStepOneWaitSeconds] = useState(0)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
@@ -162,6 +404,9 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [authorSaving, setAuthorSaving] = useState(false)
   const [authorError, setAuthorError] = useState<string | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const publishStepOneStartedAt = useRef<number | null>(null)
+  const publishBridgeProbeCleanup = useRef<(() => void) | null>(null)
+  const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWallet } = useWorldIdAuth()
   const publicClient = useMemo(() => createPublicClient({
     chain: worldchain,
@@ -170,6 +415,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const { poll: pollUserOperationReceipt, isLoading: isPollingRegistration } = useUserOperationReceipt({
     client: publicClient,
   })
+
+  const cleanupPublishBridgeProbe = useCallback(() => {
+    publishBridgeProbeCleanup.current?.()
+    publishBridgeProbeCleanup.current = null
+  }, [])
+
+  useEffect(() => cleanupPublishBridgeProbe, [cleanupPublishBridgeProbe])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -180,6 +432,22 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   useEffect(() => {
     setCurrentDraftId(draftId)
   }, [draftId])
+
+  useEffect(() => {
+    if (publishStep !== 0 || !publishStepOneStartedAt.current) {
+      return
+    }
+
+    const updateWaitSeconds = () => {
+      if (publishStepOneStartedAt.current) {
+        setPublishStepOneWaitSeconds(Math.floor((Date.now() - publishStepOneStartedAt.current) / 1000))
+      }
+    }
+
+    updateWaitSeconds()
+    const timer = setInterval(updateWaitSeconds, 1000)
+    return () => clearInterval(timer)
+  }, [publishStep])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)
@@ -289,23 +557,25 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const handleSave = async () => {
     try {
       let raw: Response, response: any
+      const draftToSave = draft
       if (!currentDraftId) {
         raw = await fetch(`/api/draft`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(draftToSave),
         })
         response = await raw.json()
         if (response.success) {
           // Adopt the new id without remounting, so typing/focus survives autosave.
-          const newId: string = response.draft.id
+          const savedDraft = response.draft as DraftData
+          const newId: string = savedDraft.id as string
           setCurrentDraftId(newId)
-          setOriginalDraft(draft ? { ...draft, id: newId } : null)
-          setDraft((prev) => (prev ? { ...prev, id: newId } : prev))
+          setOriginalDraft(draftToSave ? { ...draftToSave, id: newId, status: savedDraft.status } : savedDraft)
+          setDraft((prev) => (prev ? { ...prev, id: newId, status: savedDraft.status } : prev))
           window.history.replaceState(null, '', `/d/${newId}`)
-          return response.draft
+          return savedDraft
         }
       } else {
         raw = await fetch(`/api/draft/${currentDraftId}`, {
@@ -313,12 +583,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(draftToSave),
         })
         response = await raw.json()
         if (response.success) {
-          setOriginalDraft(draft) // Update original draft to the saved state
-          return draft
+          const savedDraft = response.draft as DraftData
+          setOriginalDraft(draftToSave ? { ...draftToSave, status: savedDraft.status } : savedDraft)
+          return savedDraft
         }
       }
       throw new Error(response?.message || 'Failed to save draft')
@@ -334,6 +605,12 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       setError(null)
       setPublishStatus(null)
       setPublishStep(0)
+      setPublishDebugInfo([])
+      setPublishDebugEvents([])
+      setPublishStepOneWaitSeconds(0)
+      publishStepOneStartedAt.current = Date.now()
+      publishHostVerifyError.current = null
+      cleanupPublishBridgeProbe()
       setIsEditingDisabled(true)
       // Cancel any pending autosave; we save explicitly here.
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
@@ -352,7 +629,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       const response = await raw.json()
 
       if (response.success) {
-        setPublishContext({
+        const nextPublishContext: PublishContext = {
           challengeId: response.challengeId,
           appId: response.appId,
           action: response.action,
@@ -360,6 +637,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           rpContext: response.rpContext,
           signalText: response.signalText,
           signalHash: response.signalHash,
+        }
+        const debugInfo = collectPublishStepOneDebugInfo(nextPublishContext)
+        setPublishContext(nextPublishContext)
+        setPublishDebugInfo(debugInfo)
+        console.info('[publish] World ID step 1 debug', Object.fromEntries(debugInfo.map((item) => [item.label, item.value])))
+        publishBridgeProbeCleanup.current = installPublishBridgeProbe((event) => {
+          setPublishDebugEvents((events) => [...events.slice(-11), event])
         })
         setIsWorldIdOpen(true)
       } else {
@@ -374,6 +658,10 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         setError('Failed to verify draft')
       }
       setPublishStep(null)
+      setPublishDebugInfo([])
+      setPublishDebugEvents([])
+      publishStepOneStartedAt.current = null
+      cleanupPublishBridgeProbe()
       setIsEditingDisabled(false)
     }
   }
@@ -385,7 +673,11 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
 
     try {
       setPublishStep(1)
+      publishStepOneStartedAt.current = null
+      cleanupPublishBridgeProbe()
       setPublishStatus('Preparing on-chain registration')
+      const resultSummary = summarizeWorldIdResult(idkitResult, publishContext.signalHash)
+      console.info('[publish] World ID result summary', resultSummary)
       const prepareRaw = await fetch(`/api/draft/${currentDraftId}/publish/prepare`, {
         method: 'PUT',
         headers: {
@@ -396,10 +688,25 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           idkitResult,
         }),
       })
-      const prepareResponse = await prepareRaw.json() as PreparePublishResponse
+      const prepareResponse = await prepareRaw.json().catch(() => ({
+        success: false,
+        message: `Publish prepare returned ${prepareRaw.status}`,
+      })) as PreparePublishResponse
+
+      if (!prepareRaw.ok) {
+        const message = prepareResponse.success
+          ? `Publish prepare returned ${prepareRaw.status}`
+          : prepareResponse.error || prepareResponse.message || `Publish prepare returned ${prepareRaw.status}`
+        publishHostVerifyError.current = message
+        setError(message)
+        throw new Error(message)
+      }
 
       if (!prepareResponse.success) {
-        throw new Error(prepareResponse.message || 'Failed to prepare on-chain registration')
+        const message = prepareResponse.error || prepareResponse.message || `Publish prepare returned ${prepareRaw.status}`
+        publishHostVerifyError.current = message
+        setError(message)
+        throw new Error(message)
       }
 
       setPublishStep(2)
@@ -430,12 +737,20 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       }
 
       setPublishStatus(null)
+      setPublishDebugInfo([])
+      setPublishDebugEvents([])
+      publishHostVerifyError.current = null
       router.push(`/p/${finalizeResponse.publicationId}`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to publish'
+      publishHostVerifyError.current = message
       setError(message)
       setPublishStatus(null)
       setPublishStep(null)
+      setPublishDebugInfo([])
+      setPublishDebugEvents([])
+      publishStepOneStartedAt.current = null
+      cleanupPublishBridgeProbe()
       setIsEditingDisabled(false)
       throw error
     }
@@ -495,12 +810,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   }
 
   const worldIdConstraints = publishContext
-    ? anyCredential(
-      CredentialRequest('proof_of_human', { signal: publishContext.signalText }),
-      CredentialRequest('face', { signal: publishContext.signalText }),
-      CredentialRequest('passport', { signal: publishContext.signalText }),
-      CredentialRequest('mnc', { signal: publishContext.signalText })
-    )
+    ? CredentialRequest('proof_of_human', { signal: publishContext.signalText })
     : null
 
   const selectedAuthor = authors.find((a) => a.id === draft?.authorId) || null
@@ -527,7 +837,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
             setIsWorldIdOpen(false)
           }}
           onError={(errorCode) => {
-            setError(`World ID verification failed: ${errorCode}`)
+            if (errorCode === 'failed_by_host_app' && publishHostVerifyError.current) {
+              setError(publishHostVerifyError.current)
+            } else {
+              setError(`World ID verification failed: ${errorCode}`)
+            }
+            publishStepOneStartedAt.current = null
+            cleanupPublishBridgeProbe()
             setIsEditingDisabled(false)
           }}
         />
@@ -535,6 +851,41 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       {error && <AlertDestructive message={error} />}
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
+      )}
+      {publishStep === 0 && publishDebugInfo.length > 0 && (
+        <Alert>
+          <AlertTitle>World ID step 1 debug</AlertTitle>
+          <AlertDescription>
+            <dl className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+              <dt className="text-muted-foreground">waiting</dt>
+              <dd className="font-mono">{publishStepOneWaitSeconds}s</dd>
+              <dt className="text-muted-foreground">IDKit open</dt>
+              <dd className="font-mono">{formatDebugBool(isWorldIdOpen)}</dd>
+              {publishDebugInfo.map((item) => (
+                <div key={item.label} className="contents">
+                  <dt className="text-muted-foreground">{item.label}</dt>
+                  <dd className="min-w-0 break-words font-mono">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {publishDebugEvents.length > 0 && (
+              <div className="mt-3 border-t pt-2">
+                <div className="mb-1 text-xs font-medium">bridge events</div>
+                <ol className="space-y-1 text-xs">
+                  {publishDebugEvents.map((event) => (
+                    <li key={event.id} className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-2">
+                      <span className="font-mono text-muted-foreground">{event.time}</span>
+                      <span className="min-w-0 break-words">
+                        <span className="font-medium">{event.label}</span>
+                        <span className="font-mono text-muted-foreground"> {event.detail}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="sticky top-14 z-20 -mx-[5vw] px-[5vw] py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2">

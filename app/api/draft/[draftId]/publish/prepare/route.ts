@@ -85,9 +85,6 @@ export async function PUT(
         environment: worldIdConfig.environment,
         signalHash: challenge.signal_hash,
       })
-      if (validatedResult.action !== worldIdConfig.publishAction) {
-        throw new Error('World ID proof context does not match this publication')
-      }
       credentialIdentifiers = validateCredentialResponses(validatedResult.responses, challenge.signal_hash)
     } catch (error) {
       return await fail(error instanceof Error ? error.message : 'Invalid World ID credential response')
@@ -111,6 +108,12 @@ export async function PUT(
     let preparedRegistration
     try {
       preparedRegistration = prepareLibroRegistration(validatedResult, challenge.signal_hash, libroConfig)
+      console.info('Prepared Libro registration transaction', {
+        draftId,
+        chainId: preparedRegistration.transaction.chainId,
+        targets: preparedRegistration.transaction.transactions.map((item) => item.to),
+        dataBytes: preparedRegistration.transaction.transactions.map((item) => Math.max(0, (item.data.length - 2) / 2)),
+      })
     } catch (error) {
       return await fail(error instanceof Error ? error.message : 'Failed to prepare Libro registration')
     }
@@ -132,12 +135,13 @@ export async function PUT(
 
     const registrationResult = await client.query(
       `INSERT INTO libro_publish_registrations
-        ("userId", "draftId", "challengeId", signal_hash, contract_signal_hash, chain_id, registry_address, proof, transaction)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ("userId", "draftId", "challengeId", signal_hash, contract_signal_hash, action_hash, chain_id, registry_address, proof, transaction)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT ("challengeId")
        DO UPDATE SET
          signal_hash = EXCLUDED.signal_hash,
          contract_signal_hash = EXCLUDED.contract_signal_hash,
+         action_hash = EXCLUDED.action_hash,
          chain_id = EXCLUDED.chain_id,
          registry_address = EXCLUDED.registry_address,
          proof = EXCLUDED.proof,
@@ -153,6 +157,7 @@ export async function PUT(
         challenge.id,
         preparedRegistration.signalHash,
         preparedRegistration.signalHashUint256,
+        preparedRegistration.actionHash,
         libroConfig.chainId,
         libroConfig.registryAddress,
         proof,
@@ -174,10 +179,13 @@ export async function PUT(
     })
   } catch (error) {
     await client.query('ROLLBACK')
+    console.error('Failed to prepare Libro registration', {
+      draftId,
+      error,
+    })
     return NextResponse.json({
       success: false,
-      message: 'Failed to prepare Libro registration',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: 'Internal error',
     }, { status: 500 })
   } finally {
     client.release()

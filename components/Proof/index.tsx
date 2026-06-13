@@ -127,6 +127,7 @@ console.log({ registered, signalHash: expectedSignalHash });`
 <br/><br/>Chain ID: <strong>${registration.chain_id}</strong>.
 <br/>Registry: <code>${escapeHtml(registration.registry_address)}</code>.
 <br/>Signal hash: <code>${escapeHtml(registration.signal_hash)}</code>.
+<br/>Action hash: <code>${escapeHtml(registration.action_hash || 'unknown')}</code>.
 <br/>User operation: <code>${escapeHtml(registration.user_op_hash)}</code>.
 <br/>Transaction: <code>${escapeHtml(registration.transaction_hash)}</code>.
 <br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,

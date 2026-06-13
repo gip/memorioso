@@ -88,6 +88,7 @@ export type Author = {
       chain_id: number
       registry_address: string
       signal_hash: string
+      action_hash: string
       user_op_hash: string
       transaction_hash: string
       registered_at: string

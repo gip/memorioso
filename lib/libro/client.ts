@@ -44,6 +44,11 @@ export async function sendLibroRegistrationTransaction(
   transaction: LibroRegistrationTransaction
 ): Promise<{ userOpHash: string }> {
   installMiniKitForLibro()
+  console.info('[libro] sending registration transaction', {
+    chainId: transaction.chainId,
+    targets: transaction.transactions.map((item) => item.to),
+    dataBytes: transaction.transactions.map((item) => Math.max(0, (item.data.length - 2) / 2)),
+  })
 
   const result = await MiniKit.sendTransaction(transaction)
   if (result.executedWith === 'fallback') {

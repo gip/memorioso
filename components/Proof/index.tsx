@@ -19,6 +19,9 @@ const escapeHtml = (value: string) => value
 
 const codeToHtml = (code: string) => escapeHtml(code).replace(/\n/g, '<br/>')
 
+const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
+const signalText = JSON.stringify(signalJson);`
+
 function buildLegacyUnavailableDocument(publication: PublicationType) {
   return {
     code: '',
@@ -32,7 +35,7 @@ function buildWorldIdV4ProofDocument(publication: PublicationType, proof: Extrac
   const rpId = process.env.WORLD_ID_RP_ID || 'rp_...'
   const code = `const { hashSignal } = require('@worldcoin/idkit/hashing');
 
-const signalText = ${JSON.stringify(proof.signal_text)};
+${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
 const idkitResult = ${JSON.stringify(proof.idkit_result, null, 2)};
 
@@ -71,7 +74,7 @@ console.log(await verifyResponse.json());`
     code,
     content: `This World ID 4.0 proof for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a> was stored before Libro on-chain registration was enabled.
 <br/><br/><strong>Libro registration:</strong> not registered on-chain.
-<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalText</i>. World ID 4.0 does not send that content to the verifier directly; it hashes the signal into <i>responses[].signal_hash</i>. Independent verification must recompute that hash locally and confirm every returned credential response is bound to the same publication signal before calling World's v4 verifier.
+<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. World ID 4.0 does not send that content to the verifier directly; it hashes the signal into <i>responses[].signal_hash</i>. Independent verification must recompute that hash locally and confirm every returned credential response is bound to the same publication signal before calling World's v4 verifier.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
 <br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
   }
@@ -92,7 +95,7 @@ const libroProofRegistryAbi = [{
   outputs: [{ name: '', type: 'bool' }],
 }];
 
-const signalText = ${JSON.stringify(proof.signal_text)};
+${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(registration.signal_hash)};
 const registryAddress = ${JSON.stringify(registration.registry_address)};
 
@@ -122,7 +125,7 @@ console.log({ registered, signalHash: expectedSignalHash });`
   return {
     code,
     content: `This document shows how to independently verify the Libro on-chain proof of human authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
-<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalText</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Anyone can call the registry with a valid proof; MiniKit is only a sponsored-gas path used by Memorioso.
+<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Anyone can call the registry with a valid proof; MiniKit is only a sponsored-gas path used by Memorioso.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
 <br/><br/>Chain ID: <strong>${registration.chain_id}</strong>.
 <br/>Registry: <code>${escapeHtml(registration.registry_address)}</code>.
@@ -152,7 +155,7 @@ const libroAgentRegistryAbi = [{
   outputs: [{ name: '', type: 'bool' }],
 }];
 
-const signalText = ${JSON.stringify(document.document_signal_text)};
+${signalJsonDeclaration(document.document_signal_text)}
 const expectedSignalHash = ${JSON.stringify(document.document_signal_hash)};
 const registryAddress = ${JSON.stringify(document.registry_address)};
 const registrationHash = ${JSON.stringify(registration.registration_hash)};

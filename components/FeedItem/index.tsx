@@ -1,56 +1,34 @@
-import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useRouter } from 'next/navigation'
-import { timeAgo } from '@/lib/time'
+import { TextListCard } from '@/components/TextListCard'
 
 export type FeedItemD = {
     id: string;
     title: string;
     subtitle?: string;
-    content: { content: string } | { html: string };
+    content: { html: string };
     created_at?: string;
     updated_at?: string;
     author_name?: string;
 }
 
 const FeedItemLoading = () => (
-  <Skeleton className="h-4 w-[250px]" />
+  <div className="rounded-xl border bg-card px-4 py-3.5 shadow-sm">
+    <Skeleton className="h-4 w-[250px]" />
+    <Skeleton className="mt-2 h-3 w-[120px]" />
+  </div>
 )
 
 export const FeedItem = ({ item }: { item: FeedItemD | null }) => {
-  const router = useRouter();
-
-  const handleClick = () => {
-    if (item) {
-      router.push(`/d/${item.id}`);
-    }
-  };
+  if (!item) {
+    return <FeedItemLoading />
+  }
 
   return (
-    <Card key={item?.id} className={`shadow-sm w-full ${item ? 'cursor-pointer' : ''}`} onClick={handleClick}>
-      <CardContent className="py-2 px-3">
-        <div className="flex flex-col gap-1">
-          <div className="text-sm font-medium line-clamp-1">
-            {item ? (item.title || '<No Title>') : <FeedItemLoading />}
-          </div>
-          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {item ? (
-              <>
-                <div className="flex items-center gap-2">
-                  {item.subtitle && <span className="line-clamp-1">{item.subtitle}</span>}
-                </div>
-                {item.created_at && (
-                  <p className="text-xs text-muted-foreground italic text-right">
-                    Started {timeAgo(item.created_at)}
-                  </p>
-                )}
-              </>
-            ) : (
-              <FeedItemLoading />
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <TextListCard
+      href={`/d/${item.id}`}
+      title={item.title || '<No Title>'}
+      subtitle={item.subtitle}
+      signed={false}
+    />
   );
 }

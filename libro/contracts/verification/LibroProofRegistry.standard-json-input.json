@@ -1,0 +1,32 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "src/LibroProofRegistry.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.26;\n\ninterface IWorldIDVerifier {\n    function verify(\n        uint256 nullifier,\n        uint256 action,\n        uint64 rpId,\n        uint256 nonce,\n        uint256 signalHash,\n        uint64 expiresAtMin,\n        uint64 issuerSchemaId,\n        uint256 credentialGenesisIssuedAtMin,\n        uint256[5] calldata zeroKnowledgeProof\n    ) external view;\n}\n\ncontract LibroProofRegistry {\n    struct WorldIdV4Proof {\n        uint256 nullifier;\n        uint256 nonce;\n        uint64 expiresAtMin;\n        uint64 issuerSchemaId;\n        uint256 credentialGenesisIssuedAtMin;\n        uint256[5] zeroKnowledgeProof;\n    }\n\n    IWorldIDVerifier public immutable worldIdVerifier;\n    uint64 public immutable rpId;\n\n    mapping(uint256 => bool) private registeredSignals;\n\n    event SignalRegistered(uint256 indexed signalHash, uint256 indexed actionHash);\n\n    error InvalidVerifier();\n    error InvalidRpId();\n    error InvalidActionHash();\n    error InvalidSignalHash();\n    error SignalAlreadyRegistered(uint256 signalHash);\n\n    constructor(address _worldIdVerifier, uint64 _rpId) {\n        if (_worldIdVerifier == address(0)) revert InvalidVerifier();\n        if (_rpId == 0) revert InvalidRpId();\n\n        worldIdVerifier = IWorldIDVerifier(_worldIdVerifier);\n        rpId = _rpId;\n    }\n\n    // Permissionless: any caller can submit a valid proof for a signal.\n    function register(uint256 signalHash, uint256 actionHash, WorldIdV4Proof calldata proof) external {\n        if (signalHash == 0) revert InvalidSignalHash();\n        if (actionHash == 0) revert InvalidActionHash();\n        if (registeredSignals[signalHash]) revert SignalAlreadyRegistered(signalHash);\n\n        worldIdVerifier.verify(\n            proof.nullifier,\n            actionHash,\n            rpId,\n            proof.nonce,\n            signalHash,\n            proof.expiresAtMin,\n            proof.issuerSchemaId,\n            proof.credentialGenesisIssuedAtMin,\n            proof.zeroKnowledgeProof\n        );\n\n        registeredSignals[signalHash] = true;\n\n        emit SignalRegistered(signalHash, actionHash);\n    }\n\n    function verify(uint256 signalHash) external view returns (bool) {\n        return registeredSignals[signalHash];\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "metadata": {
+      "useLiteralContent": false,
+      "bytecodeHash": "ipfs",
+      "appendCBOR": true
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata"
+        ]
+      }
+    },
+    "viaIR": false,
+    "libraries": {}
+  }
+}

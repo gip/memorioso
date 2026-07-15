@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/objects'
 import Link from 'next/link'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
+import { AgentRegistrationPanel } from './AgentRegistrationPanel'
 
 export const Author = ({ create, author, publicationInfos, redirect = null }: { create: boolean, author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null }) => {
   const { status, signInWithWorldId } = useWorldIdAuth()
@@ -105,6 +106,7 @@ export const Author = ({ create, author, publicationInfos, redirect = null }: { 
             </Link>
           ))}
         </div>
+        <AgentRegistrationPanel authorId={author.id} />
       </div>
     </>)
   }

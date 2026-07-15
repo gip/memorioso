@@ -17,6 +17,9 @@ OLD
 
 # production
 /build
+/libro/contracts/out/
+/libro/contracts/cache/
+/libro/contracts/broadcast/
 
 # misc
 .DS_Store

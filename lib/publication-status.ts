@@ -11,6 +11,18 @@ export function isWorldIdV4Proof(proof?: Proof | null): proof is Extract<Proof, 
   return Boolean(proof && 'protocol_version' in proof && proof.protocol_version === '4.0')
 }
 
+export function isLibroRegisteredProof(
+  proof?: Proof | null
+): proof is Extract<Proof, { protocol_version: '4.0' }> & {
+  libro_registration: NonNullable<Extract<Proof, { protocol_version: '4.0' }>['libro_registration']>
+} {
+  return isWorldIdV4Proof(proof) && Boolean(proof.libro_registration)
+}
+
+export function isLibroAgentProof(proof?: Proof | null): proof is Extract<Proof, { proof_type: 'human_authorized_agent_signature' }> {
+  return Boolean(proof && 'proof_type' in proof && proof.proof_type === 'human_authorized_agent_signature')
+}
+
 export function getCredentialIdentifierForPublication(
   publication: Pick<PublicationRecord, 'version'>,
   proof?: Proof | null

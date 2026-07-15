@@ -7,6 +7,7 @@ import { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 
 type Params = Promise<{ publicationId: string }>
+type SearchParams = Promise<{ signed?: string }>
 
 const getCachedPublication = unstable_cache(
   async (publicationId: string) => {
@@ -37,16 +38,24 @@ export const generateMetadata = async ({ params }: { params: Params }): Promise<
   }
 }
 
-const Page = async ({ params }: { params: Params }) => {
+const Page = async ({ params, searchParams }: { params: Params; searchParams: SearchParams }) => {
 
   const { publicationId } = await params
+  const { signed } = await searchParams
   const publication = await getCachedPublication(publicationId)
   const proof = await getCachedProof(publicationId)
 
   return (<>
     <Header />
     <Suspense fallback={<div>Loading...</div>}>
-      {publication && <Publication publication={publication} proof={proof} proofLink={`/p/${publicationId}/proof`} />}
+      {publication && (
+        <Publication
+          publication={publication}
+          proof={proof}
+          proofLink={`/p/${publicationId}/proof`}
+          celebrate={signed === '1'}
+        />
+      )}
     </Suspense>
     <Footer />
   </>)

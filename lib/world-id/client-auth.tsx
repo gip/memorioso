@@ -10,27 +10,24 @@ import {
   useState,
 } from 'react'
 import {
-  IDKitSessionWidget,
   CredentialRequest,
+  IDKitSessionWidget,
   any as anyCredential,
   type ConstraintNode,
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
-
-type AuthContextResponse = {
-  success: boolean
-  appId: `app_${string}`
-  environment: 'production' | 'staging'
-  rpContext: RpContext
-}
+import { isWorldIdSessionId, WORLD_ID_ALLOWED_CREDENTIALS } from '@/lib/world-id/constants'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 type WorldIdAuthContextValue = {
   user: WorldIdSessionUser | null
   status: AuthStatus
+  error: string | null
+  isWorldAppLoginPending: boolean
+  worldAppLoginDiagnostic: string | null
   signInWithWorldId: () => Promise<void>
   signOut: () => Promise<void>
   refreshSession: () => Promise<void>
@@ -43,9 +40,140 @@ type ActiveAuthContext = {
   existingSessionId: `session_${string}` | null
 }
 
-const WORLD_ID_SESSION_STORAGE_KEY = 'memorioso_world_id_session_id'
-
 const WorldIdAuthContext = createContext<WorldIdAuthContextValue | null>(null)
+
+type WorldAppWindow = Window & {
+  IDKIT_DEBUG?: boolean
+  WorldApp?: {
+    world_app_version?: number
+    device_os?: string
+    supported_commands?: Array<{
+      name: string
+      supported_versions?: number[]
+    }>
+  }
+  Android?: {
+    postMessage?: (payload: string) => void
+  }
+  webkit?: {
+    messageHandlers?: {
+      minikit?: {
+        postMessage?: (payload: unknown) => void
+      }
+    }
+  }
+}
+
+export function isInWorldApp(): boolean {
+  return typeof window !== 'undefined' && Boolean((window as WorldAppWindow).WorldApp)
+}
+
+function getWorldAppVerifyVersions(): number[] | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const supportedCommands = (window as WorldAppWindow).WorldApp?.supported_commands
+  if (!Array.isArray(supportedCommands)) {
+    return null
+  }
+
+  return supportedCommands.find((command) => command.name === 'verify')?.supported_versions || null
+}
+
+function getWorldAppBridgeName(): string | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const worldAppWindow = window as WorldAppWindow
+  if (typeof worldAppWindow.webkit?.messageHandlers?.minikit?.postMessage === 'function') {
+    return 'ios'
+  }
+  if (typeof worldAppWindow.Android?.postMessage === 'function') {
+    return 'android'
+  }
+
+  return null
+}
+
+function getWorldAppDiagnostic(step?: string): string | null {
+  if (!isInWorldApp()) {
+    return step || null
+  }
+
+  const worldApp = (window as WorldAppWindow).WorldApp
+  const verifyVersions = getWorldAppVerifyVersions()
+  const verifyLabel = verifyVersions?.length ? verifyVersions.join(',') : 'missing'
+  const bridgeName = getWorldAppBridgeName() || 'missing'
+  const version = worldApp?.world_app_version ? `World App ${worldApp.world_app_version}` : 'World App'
+  const os = worldApp?.device_os ? ` on ${worldApp.device_os}` : ''
+
+  const diagnostic = `${version}${os}; verify=${verifyLabel}; bridge=${bridgeName}`
+  return step ? `${step}. ${diagnostic}` : diagnostic
+}
+
+function logWorldIdAuthStep(step: string, details?: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === 'production') {
+    return
+  }
+
+  console.info('[world-id] login step', {
+    step,
+    ...details,
+  })
+}
+
+function createWorldIdLoginConstraints(): ConstraintNode {
+  return anyCredential(...WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => CredentialRequest(credential)))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isRpContext(value: unknown): value is RpContext {
+  return isRecord(value) &&
+    typeof value.rp_id === 'string' &&
+    typeof value.nonce === 'string' &&
+    typeof value.created_at === 'number' &&
+    typeof value.expires_at === 'number' &&
+    typeof value.signature === 'string'
+}
+
+type WorldIdLoginContext = {
+  success: true
+  appId: `app_${string}`
+  environment: 'production' | 'staging'
+  rpContext: RpContext
+  existingSessionId: `session_${string}` | null
+}
+
+function isWorldIdLoginContext(value: unknown): value is WorldIdLoginContext {
+  return isRecord(value) &&
+    value.success === true &&
+    typeof value.appId === 'string' &&
+    value.appId.startsWith('app_') &&
+    (value.environment === 'production' || value.environment === 'staging') &&
+    isRpContext(value.rpContext) &&
+    (value.existingSessionId === null || isWorldIdSessionId(value.existingSessionId))
+}
+
+async function fetchLoginContext(): Promise<WorldIdLoginContext> {
+  const response = await fetch('/api/worldid/rp-context', {
+    cache: 'no-store',
+  })
+  const body = await response.json().catch(() => null) as unknown
+
+  if (!response.ok || !isWorldIdLoginContext(body)) {
+    const message = isRecord(body) && typeof body.message === 'string'
+      ? body.message
+      : 'Could not start World ID login'
+    throw new Error(message)
+  }
+
+  return body
+}
 
 export function useWorldIdAuth(): WorldIdAuthContextValue {
   const context = useContext(WorldIdAuthContext)
@@ -58,15 +186,13 @@ export function useWorldIdAuth(): WorldIdAuthContextValue {
 export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<WorldIdSessionUser | null>(null)
   const [status, setStatus] = useState<AuthStatus>('loading')
+  const [error, setError] = useState<string | null>(null)
   const [activeContext, setActiveContext] = useState<ActiveAuthContext | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [isWorldAppLoginPending, setIsWorldAppLoginPending] = useState(false)
+  const [worldAppLoginDiagnostic, setWorldAppLoginDiagnostic] = useState<string | null>(null)
 
-  const constraints = useMemo<ConstraintNode>(() => anyCredential(
-    CredentialRequest('proof_of_human'),
-    CredentialRequest('face'),
-    CredentialRequest('passport'),
-    CredentialRequest('mnc')
-  ), [])
+  const loginConstraints = useMemo<ConstraintNode>(() => createWorldIdLoginConstraints(), [])
 
   const refreshSession = useCallback(async () => {
     setStatus('loading')
@@ -78,9 +204,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     if (body.success && body.authenticated) {
       setUser(body.user)
       setStatus('authenticated')
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(WORLD_ID_SESSION_STORAGE_KEY, body.user.worldIdSessionId)
-      }
       return
     }
 
@@ -96,89 +219,127 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   }, [refreshSession])
 
   const signInWithWorldId = useCallback(async () => {
-    const response = await fetch('/api/auth/world-id/context', {
-      method: 'POST',
+    setError(null)
+    setIsOpen(false)
+    setIsWorldAppLoginPending(isInWorldApp())
+    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Fetching RP context'))
+    if (typeof window !== 'undefined') {
+      (window as WorldAppWindow).IDKIT_DEBUG = process.env.NODE_ENV !== 'production'
+    }
+    logWorldIdAuthStep('start-widget-login', {
+      inWorldApp: isInWorldApp(),
+      bridge: getWorldAppBridgeName(),
+      verifyVersions: getWorldAppVerifyVersions(),
     })
-    const body = await response.json() as AuthContextResponse
 
-    if (!response.ok || !body.success) {
-      throw new Error('Could not start World ID login')
+    let loginContext
+    try {
+      loginContext = await fetchLoginContext()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start World ID login'
+      setError(message)
+      setIsWorldAppLoginPending(false)
+      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
+      throw error
     }
 
-    const existingSessionId = typeof window !== 'undefined'
-      ? window.localStorage.getItem(WORLD_ID_SESSION_STORAGE_KEY) as `session_${string}` | null
-      : null
-
     setActiveContext({
-      appId: body.appId,
-      environment: body.environment,
-      rpContext: body.rpContext,
-      existingSessionId: existingSessionId?.startsWith('session_') ? existingSessionId : null,
+      appId: loginContext.appId,
+      environment: loginContext.environment,
+      rpContext: loginContext.rpContext,
+      existingSessionId: loginContext.existingSessionId,
+    })
+    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Opening IDKit session widget'))
+    logWorldIdAuthStep('open-session-widget', {
+      hasExistingSessionId: Boolean(loginContext.existingSessionId),
     })
     setIsOpen(true)
   }, [])
 
   const handleVerify = useCallback(async (result: IDKitResultSession) => {
     if (!activeContext) {
-      throw new Error('World ID login context is missing')
+      const message = 'World ID login context is missing'
+      setError(message)
+      setIsWorldAppLoginPending(false)
+      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
+      throw new Error(message)
     }
 
-    const response = await fetch('/api/auth/world-id/verify', {
+    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID proof received'))
+    const response = await fetch('/api/worldid/verify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        payload: result,
-        nonce: activeContext.rpContext.nonce,
-      }),
+      body: JSON.stringify(result),
     })
     const body = await response.json() as WorldIdSessionResponse
 
     if (!response.ok || !body.success || !body.authenticated) {
-      throw new Error(body.success === false ? body.message : 'World ID login failed')
+      const message = body.success === false ? body.message : 'World ID login failed'
+      setError(message)
+      setIsWorldAppLoginPending(false)
+      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
+      throw new Error(message)
     }
 
     setUser(body.user)
     setStatus('authenticated')
-
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(WORLD_ID_SESSION_STORAGE_KEY, result.session_id)
-    }
   }, [activeContext])
 
   const signOut = useCallback(async () => {
+    setError(null)
+    setIsOpen(false)
+    setIsWorldAppLoginPending(false)
+    setWorldAppLoginDiagnostic(null)
     await fetch('/api/auth/logout', {
       method: 'POST',
     })
     setUser(null)
     setStatus('unauthenticated')
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(WORLD_ID_SESSION_STORAGE_KEY)
-    }
   }, [])
 
   const value = useMemo<WorldIdAuthContextValue>(() => ({
     user,
     status,
+    error,
+    isWorldAppLoginPending,
+    worldAppLoginDiagnostic,
     signInWithWorldId,
     signOut,
     refreshSession,
-  }), [user, status, signInWithWorldId, signOut, refreshSession])
+  }), [user, status, error, isWorldAppLoginPending, worldAppLoginDiagnostic, signInWithWorldId, signOut, refreshSession])
 
   return (
     <WorldIdAuthContext.Provider value={value}>
       {activeContext && (
         <IDKitSessionWidget
+          key={activeContext.rpContext.nonce}
           open={isOpen}
-          onOpenChange={setIsOpen}
+          onOpenChange={(open) => {
+            setIsOpen(open)
+            if (!open) {
+              setIsWorldAppLoginPending(false)
+            }
+          }}
           app_id={activeContext.appId}
           rp_context={activeContext.rpContext}
           environment={activeContext.environment}
-          constraints={constraints}
           existing_session_id={activeContext.existingSessionId || undefined}
+          constraints={loginConstraints}
+          polling={{ interval: 1000, timeout: 120_000 }}
           handleVerify={handleVerify}
-          onSuccess={() => setIsOpen(false)}
+          onError={(errorCode) => {
+            setIsWorldAppLoginPending(false)
+            setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
+            setError((current) => current || `World ID login failed: ${errorCode}`)
+          }}
+          onSuccess={() => {
+            setError(null)
+            setIsWorldAppLoginPending(false)
+            setWorldAppLoginDiagnostic(null)
+            setIsOpen(false)
+          }}
         />
       )}
       {children}

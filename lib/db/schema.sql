@@ -72,6 +72,82 @@ CREATE TABLE world_id_publish_challenges (
 CREATE INDEX idx_world_id_publish_challenges_draft_user
     ON world_id_publish_challenges("draftId", "userId");
 
+CREATE TABLE libro_publish_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "draftId" UUID NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+    "challengeId" UUID NOT NULL REFERENCES world_id_publish_challenges(id) ON DELETE CASCADE UNIQUE,
+    signal_hash VARCHAR(255) NOT NULL,
+    contract_signal_hash VARCHAR(78) NOT NULL,
+    action_hash VARCHAR(78) NOT NULL,
+    chain_id INTEGER NOT NULL,
+    registry_address VARCHAR(255) NOT NULL,
+    proof JSONB NOT NULL,
+    transaction JSONB NOT NULL,
+    user_op_hash VARCHAR(255),
+    transaction_hash VARCHAR(255),
+    finalized_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_publish_registrations_draft_user
+    ON libro_publish_registrations("draftId", "userId");
+
+CREATE TABLE libro_agent_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "authorId" UUID NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    registration_hash VARCHAR(66) NOT NULL UNIQUE,
+    principal_author_hash VARCHAR(66) NOT NULL,
+    controller_address VARCHAR(42) NOT NULL,
+    agent_address VARCHAR(42) NOT NULL,
+    scope INTEGER NOT NULL,
+    valid_from TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    action VARCHAR(255) NOT NULL,
+    nonce VARCHAR(255) NOT NULL UNIQUE,
+    signal VARCHAR(255) NOT NULL,
+    signal_hash VARCHAR(78) NOT NULL,
+    payload JSONB NOT NULL,
+    proof JSONB,
+    chain_id INTEGER NOT NULL,
+    registry_address VARCHAR(255) NOT NULL,
+    transaction JSONB,
+    user_op_hash VARCHAR(255),
+    transaction_hash VARCHAR(255),
+    finalized_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_agent_registrations_author_user
+    ON libro_agent_registrations("authorId", "userId");
+
+CREATE TABLE libro_agent_document_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "registrationId" UUID NOT NULL REFERENCES libro_agent_registrations(id) ON DELETE CASCADE,
+    "publicationId" BIGINT REFERENCES publications(id) ON DELETE SET NULL,
+    registration_hash VARCHAR(66) NOT NULL,
+    document_signal_hash VARCHAR(78) NOT NULL UNIQUE,
+    document_signal_text TEXT NOT NULL,
+    document_nonce VARCHAR(66) NOT NULL,
+    signed_at TIMESTAMPTZ NOT NULL,
+    agent_address VARCHAR(42) NOT NULL,
+    agent_signature TEXT NOT NULL,
+    publication JSONB NOT NULL,
+    proof JSONB NOT NULL,
+    chain_id INTEGER NOT NULL,
+    registry_address VARCHAR(255) NOT NULL,
+    transaction JSONB NOT NULL,
+    user_op_hash VARCHAR(255),
+    transaction_hash VARCHAR(255),
+    finalized_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_agent_document_registrations_registration
+    ON libro_agent_document_registrations("registrationId");
+
 -- Create function to update modified_at timestamp
 CREATE OR REPLACE FUNCTION update_modified_at_column()
 RETURNS TRIGGER AS $$

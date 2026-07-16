@@ -1,16 +1,34 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from '@/components/ui/sheet'
+import { MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
   IDKitRequestWidget,
   CredentialRequest,
-  any as anyCredential,
   type IDKitResult,
   type RpContext,
 } from '@worldcoin/idkit'
+import { useUserOperationReceipt } from '@worldcoin/minikit-react'
+import { createPublicClient, http } from 'viem'
+import { worldchain } from 'viem/chains'
 import { type Author } from '@/types'
 import Editor from '@/components/Editor'
 import { AlertCircle } from "lucide-react"
@@ -19,15 +37,17 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-import { type ContentOrHtml } from '@/types'
+import { type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
+import { sendLibroRegistrationTransaction } from '@/lib/libro/client'
+import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 
 type DraftData = {
   id?: string
   status?: string
   title: string
   subtitle: string
-  content: ContentOrHtml
+  content: PublicationContent
   authorId?: string
   history?: unknown
 }
@@ -42,6 +62,28 @@ type PublishContext = {
   signalHash: string
 }
 
+type PreparePublishResponse =
+  | {
+      success: true
+      registrationId: string
+      transaction: LibroRegistrationTransaction
+    }
+  | {
+      success: false
+      message?: string
+      error?: string
+    }
+
+type FinalizePublishResponse =
+  | {
+      success: true
+      publicationId: string
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
     <Alert variant="destructive">
@@ -53,6 +95,46 @@ const AlertDestructive = ({ message }: { message: string }) => {
     </Alert>
   )
 }
+
+const PUBLISH_STEPS = [
+  'Verify you are human',
+  'Prepare registration',
+  'Confirm in World App',
+  'Register on-chain',
+  'Finalize publication',
+]
+
+const PublishProgress = ({ step, status }: { step: number; status: string | null }) => (
+  <Alert>
+    <AlertTitle>Publishing</AlertTitle>
+    <AlertDescription>
+      <ol className="mt-2 space-y-1.5">
+        {PUBLISH_STEPS.map((label, index) => {
+          const done = index < step
+          const active = index === step
+          return (
+            <li key={label} className="flex items-center gap-2 text-sm">
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] ${
+                  done
+                    ? 'bg-green-600 text-white'
+                    : active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {done ? '✓' : index + 1}
+              </span>
+              <span className={active ? 'font-medium' : done ? '' : 'text-muted-foreground'}>
+                {active && status ? status : label}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+    </AlertDescription>
+  </Alert>
+)
 
 export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [draft, setDraft] = useState<DraftData | null>({ title: '', subtitle: '', content: { html: '' } })
@@ -68,13 +150,37 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const [publishStatus, setPublishStatus] = useState<string | null>(null)
+  const [publishStep, setPublishStep] = useState<number | null>(null)
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isPickingAuthor, setIsPickingAuthor] = useState(false)
+  const [isCreatingAuthor, setIsCreatingAuthor] = useState(false)
+  const [newAuthorName, setNewAuthorName] = useState('')
+  const [newAuthorHandle, setNewAuthorHandle] = useState('')
+  const [authorSaving, setAuthorSaving] = useState(false)
+  const [authorError, setAuthorError] = useState<string | null>(null)
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
+  const publicClient = useMemo(() => createPublicClient({
+    chain: worldchain,
+    transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
+  }), [])
+  const { poll: pollUserOperationReceipt, isLoading: isPollingRegistration } = useUserOperationReceipt({
+    client: publicClient,
+  })
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       signInWithWorldId().catch(() => setError('Failed to sign in'))
     }
   }, [status, signInWithWorldId])
+
+  useEffect(() => {
+    setCurrentDraftId(draftId)
+  }, [draftId])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)
@@ -122,52 +228,101 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     fetchDraft()
   }, [draftId, router])
 
-  useEffect(() => {
-    const fetchAuthors = async () => {
-      try {
-        const raw = await fetch('/api/authors')
-        const response = await raw.json()
-        if (response.success) {
-          setAuthors(response.authors)
-        }
-      } catch (error) {
-        console.error('Failed to fetch authors:', error)
+  const fetchAuthors = useCallback(async () => {
+    try {
+      const raw = await fetch('/api/authors')
+      const response = await raw.json()
+      if (response.success) {
+        setAuthors(response.authors)
       }
+    } catch (error) {
+      console.error('Failed to fetch authors:', error)
     }
-
-    fetchAuthors()
   }, [])
+
+  useEffect(() => {
+    fetchAuthors()
+  }, [fetchAuthors])
+
+  // Auto-assign the author when the writer has exactly one identity.
+  useEffect(() => {
+    if (authors.length === 1) {
+      setDraft((prev) => (prev && !prev.authorId ? { ...prev, authorId: authors[0].id } : prev))
+    }
+  }, [authors])
+
+  const resetAuthorForm = () => {
+    setIsCreatingAuthor(false)
+    setNewAuthorName('')
+    setNewAuthorHandle('')
+    setAuthorError(null)
+  }
+
+  const createAuthor = async () => {
+    const name = newAuthorName.trim()
+    const handle = newAuthorHandle.trim()
+    if (name.length < 3 || handle.length < 3) return
+    setAuthorSaving(true)
+    setAuthorError(null)
+    try {
+      const raw = await fetch('/api/author', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, handle }),
+      })
+      const response = await raw.json()
+      if (response.success && response.author?.id) {
+        const created = response.author as Author
+        setAuthors((prev) => [...prev, created])
+        setAuthorId(created.id)
+        resetAuthorForm()
+        setIsPickingAuthor(false)
+      } else {
+        setAuthorError(response.message || 'Could not create author')
+      }
+    } catch {
+      setAuthorError('Could not create author')
+    } finally {
+      setAuthorSaving(false)
+    }
+  }
 
   const handleSave = async () => {
     try {
-      let raw, response
-      if (!draftId) {
+      let raw: Response, response: any
+      const draftToSave = draft
+      if (!currentDraftId) {
         raw = await fetch(`/api/draft`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(draftToSave),
         })
         response = await raw.json()
         if (response.success) {
-          setDraft(response.draft)
-          setOriginalDraft(response.draft)
-          router.push(`/d/${response.draft.id}`)
-          return response.draft
+          // Adopt the new id without remounting, so typing/focus survives autosave.
+          const savedDraft = response.draft as DraftData
+          const newId: string = savedDraft.id as string
+          setCurrentDraftId(newId)
+          setOriginalDraft(draftToSave ? { ...draftToSave, id: newId, status: savedDraft.status } : savedDraft)
+          setDraft((prev) => (prev ? { ...prev, id: newId, status: savedDraft.status } : prev))
+          window.history.replaceState(null, '', `/d/${newId}`)
+          return savedDraft
         }
       } else {
-        raw = await fetch(`/api/draft/${draftId}`, {
+        raw = await fetch(`/api/draft/${currentDraftId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(draftToSave),
         })
         response = await raw.json()
         if (response.success) {
-          setOriginalDraft(draft) // Update original draft to the saved state
-          return draft
+          const savedDraft = response.draft as DraftData
+          setOriginalDraft(draftToSave ? { ...draftToSave, status: savedDraft.status } : savedDraft)
+          return savedDraft
         }
       }
       throw new Error(response?.message || 'Failed to save draft')
@@ -179,22 +334,30 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
 
   const handlePublish = async () => {
     try {
+      setIsConfirmOpen(false)
       setError(null)
+      setPublishStatus(null)
+      setPublishStep(0)
+      publishHostVerifyError.current = null
       setIsEditingDisabled(true)
-      await handleSave()
-      if (!draftId || !draft?.authorId) throw new Error('Draft ID or Author ID is missing')
+      // Cancel any pending autosave; we save explicitly here.
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+      const saved = await handleSave()
+      // currentDraftId state may be stale right after a first save; use the returned draft.
+      const publishDraftId: string | null = saved?.id || currentDraftId
+      if (!publishDraftId || !draft?.authorId) throw new Error('Draft ID or Author ID is missing')
 
       const raw = await fetch('/api/world-id/publish-context', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ draftId }),
+        body: JSON.stringify({ draftId: publishDraftId }),
       })
       const response = await raw.json()
 
       if (response.success) {
-        setPublishContext({
+        const nextPublishContext: PublishContext = {
           challengeId: response.challengeId,
           appId: response.appId,
           action: response.action,
@@ -202,7 +365,8 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           rpContext: response.rpContext,
           signalText: response.signalText,
           signalHash: response.signalHash,
-        })
+        }
+        setPublishContext(nextPublishContext)
         setIsWorldIdOpen(true)
       } else {
         throw new Error(response.message || 'Failed to start World ID verification')
@@ -215,43 +379,100 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         console.error('Error during publish:', error)
         setError('Failed to verify draft')
       }
+      setPublishStep(null)
       setIsEditingDisabled(false)
     }
   }
 
   const handleWorldIdResult = async (idkitResult: IDKitResult) => {
-    if (!publishContext || !draftId) {
+    if (!publishContext || !currentDraftId) {
       throw new Error('Publish challenge is missing')
     }
 
-    const raw = await fetch(`/api/draft/${draftId}/publish`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        challengeId: publishContext.challengeId,
-        idkitResult,
-      }),
-    })
-    const response = await raw.json()
+    try {
+      setPublishStep(1)
+      setPublishStatus('Preparing on-chain registration')
+      const prepareRaw = await fetch(`/api/draft/${currentDraftId}/publish/prepare`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          challengeId: publishContext.challengeId,
+          idkitResult,
+        }),
+      })
+      const prepareResponse = await prepareRaw.json().catch(() => ({
+        success: false,
+        message: `Publish prepare returned ${prepareRaw.status}`,
+      })) as PreparePublishResponse
 
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to publish')
+      if (!prepareRaw.ok) {
+        const message = prepareResponse.success
+          ? `Publish prepare returned ${prepareRaw.status}`
+          : prepareResponse.error || prepareResponse.message || `Publish prepare returned ${prepareRaw.status}`
+        publishHostVerifyError.current = message
+        setError(message)
+        throw new Error(message)
+      }
+
+      if (!prepareResponse.success) {
+        const message = prepareResponse.error || prepareResponse.message || `Publish prepare returned ${prepareRaw.status}`
+        publishHostVerifyError.current = message
+        setError(message)
+        throw new Error(message)
+      }
+
+      setPublishStep(2)
+      setPublishStatus('Confirming sponsored registration in World App')
+      const { userOpHash } = await sendLibroRegistrationTransaction(prepareResponse.transaction)
+
+      setPublishStep(3)
+      setPublishStatus('Waiting for on-chain registration')
+      const { transactionHash } = await pollUserOperationReceipt(userOpHash)
+
+      setPublishStep(4)
+      setPublishStatus('Finalizing publication')
+      const finalizeRaw = await fetch(`/api/draft/${currentDraftId}/publish/finalize`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          registrationId: prepareResponse.registrationId,
+          userOpHash,
+          transactionHash,
+        }),
+      })
+      const finalizeResponse = await finalizeRaw.json() as FinalizePublishResponse
+
+      if (!finalizeResponse.success) {
+        throw new Error(finalizeResponse.message || 'Failed to finalize publication')
+      }
+
+      setPublishStatus(null)
+      publishHostVerifyError.current = null
+      router.push(`/p/${finalizeResponse.publicationId}?signed=1`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish'
+      publishHostVerifyError.current = message
+      setError(message)
+      setPublishStatus(null)
+      setPublishStep(null)
+      setIsEditingDisabled(false)
+      throw error
     }
-
-    router.push(`/p/${response.publicationId}`)
   }
 
   const handleDelete = async () => {
-    if (!draftId) return
+    if (!currentDraftId) return
     try {
-      const raw = await fetch(`/api/draft?id=${draftId}`, {
+      const raw = await fetch(`/api/draft?id=${currentDraftId}`, {
         method: 'DELETE',
       })
       const response = await raw.json()
       if (response.success) {
-        router.push('/drafts')
+        router.push('/')
       }
     } catch (error) {
       console.error('Failed to delete draft:', error)
@@ -262,18 +483,45 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     return JSON.stringify(draft) !== JSON.stringify(originalDraft)
   }, [draft, originalDraft])
 
+  // Keep the in-memory save ref pointing at the latest closure for autosave.
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  const hasText =
+    (draft?.title?.trim()?.length ?? 0) > 0 ||
+    (draft?.subtitle?.trim()?.length ?? 0) > 0 ||
+    (draft?.content?.html || '').replace(/<[^>]*>/g, '').trim().length > 0
+
+  // Debounced autosave: no Save button, work is never lost.
+  useEffect(() => {
+    if (isEditingDisabled || !isDraftChanged()) return
+    if (!hasText) return
+
+    setSaveState('saving')
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = setTimeout(async () => {
+      try {
+        await handleSaveRef.current()
+        setSaveState('saved')
+      } catch {
+        setSaveState('error')
+      }
+    }, 1200)
+
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    }
+  }, [draft, isEditingDisabled, isDraftChanged, hasText])
+
   if (status === 'loading' || loading) {
     return <FeedItem item={null} />
   }
 
   const worldIdConstraints = publishContext
-    ? anyCredential(
-      CredentialRequest('proof_of_human', { signal: publishContext.signalText }),
-      CredentialRequest('face', { signal: publishContext.signalText }),
-      CredentialRequest('passport', { signal: publishContext.signalText }),
-      CredentialRequest('mnc', { signal: publishContext.signalText })
-    )
+    ? CredentialRequest('proof_of_human', { signal: publishContext.signalText })
     : null
+
+  const selectedAuthor = authors.find((a) => a.id === draft?.authorId) || null
 
   return (
     <div className="w-[90%] mx-auto space-y-4 py-4">
@@ -282,7 +530,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           open={isWorldIdOpen}
           onOpenChange={(open) => {
             setIsWorldIdOpen(open)
-            if (!open) {
+            if (!open && !publishStatus) {
               setIsEditingDisabled(false)
             }
           }}
@@ -297,25 +545,53 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
             setIsWorldIdOpen(false)
           }}
           onError={(errorCode) => {
-            setError(`World ID verification failed: ${errorCode}`)
+            if (errorCode === 'failed_by_host_app' && publishHostVerifyError.current) {
+              setError(publishHostVerifyError.current)
+            } else {
+              setError(`World ID verification failed: ${errorCode}`)
+            }
             setIsEditingDisabled(false)
           }}
         />
       )}
       {error && <AlertDestructive message={error} />}
-
-      <div className="flex space-x-2">
-        <Button onClick={handleSave} disabled={!isDraftChanged() || isEditingDisabled}>Save</Button>
-        {draftId && <Button onClick={handleDelete} variant="destructive" disabled={isEditingDisabled}>Delete</Button>}
-        {draftId && (
-          <Button 
-            onClick={handlePublish} 
-            disabled={!draft?.authorId || isEditingDisabled}
+      {publishStep !== null && (
+        <PublishProgress step={publishStep} status={publishStatus} />
+      )}
+      <div className="sticky top-14 z-20 -mx-[5vw] px-[5vw] py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
+          {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
+          {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsConfirmOpen(true)}
+            disabled={!hasText || isEditingDisabled || isPollingRegistration}
           >
-            Publish
+            Sign &amp; publish
           </Button>
-        )}
+          {currentDraftId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" disabled={isEditingDisabled || isPollingRegistration}>
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="sr-only">More actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete draft
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
+
       <Editor authors={authors}
               initialContent={initialContent}
               initialTitle={initialTitle}
@@ -324,8 +600,125 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
               setContent={setContent}
               setTitle={setTitle}
               setSubtitle={setSubtitle}
-              setAuthorId={setAuthorId}
               />
+
+      <Sheet
+        open={isConfirmOpen}
+        onOpenChange={(open) => {
+          setIsConfirmOpen(open)
+          if (!open) {
+            setIsPickingAuthor(false)
+            resetAuthorForm()
+          }
+        }}
+      >
+        <SheetContent side="bottom" className="rounded-t-xl pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <SheetHeader>
+            <SheetTitle>Sign &amp; publish</SheetTitle>
+            <SheetDescription>
+              This permanently registers proof that a human authored this text. It can&apos;t be undone.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-4 space-y-3">
+            <div className="space-y-1 text-sm">
+              <div className="font-medium text-base">{draft?.title || 'Untitled'}</div>
+              {draft?.subtitle && <div className="text-muted-foreground">{draft.subtitle}</div>}
+            </div>
+            {selectedAuthor && !isPickingAuthor ? (
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground truncate">
+                  by <span className="font-medium text-foreground">{selectedAuthor.name}</span>
+                  {' '}@{selectedAuthor.handle}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setIsPickingAuthor(true)}>
+                  Change
+                </Button>
+              </div>
+            ) : isCreatingAuthor || authors.length === 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {authors.length === 0
+                    ? 'Create your author identity. This name appears on your publications.'
+                    : 'New author'}
+                </p>
+                {authorError && <p className="text-sm text-destructive">{authorError}</p>}
+                <Input
+                  autoFocus
+                  value={newAuthorName}
+                  onChange={(e) => setNewAuthorName(e.target.value.slice(0, 100))}
+                  placeholder="Name"
+                />
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500">@</span>
+                  <Input
+                    value={newAuthorHandle}
+                    onChange={(e) =>
+                      setNewAuthorHandle(e.target.value.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 32))
+                    }
+                    placeholder="handle"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        createAuthor()
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  {authors.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={resetAuthorForm} disabled={authorSaving}>
+                      Back
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={createAuthor}
+                    disabled={
+                      authorSaving ||
+                      newAuthorName.trim().length < 3 ||
+                      newAuthorHandle.trim().length < 3
+                    }
+                  >
+                    {authorSaving ? 'Creating…' : 'Create author'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Publish as</p>
+                <div className="flex flex-wrap gap-2">
+                  {authors.map((a) => (
+                    <Button
+                      key={a.id}
+                      variant={a.id === draft?.authorId ? 'default' : 'outline'}
+                      className="rounded-full h-10"
+                      onClick={() => {
+                        setAuthorId(a.id)
+                        setIsPickingAuthor(false)
+                      }}
+                    >
+                      {a.name}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="outline"
+                    className="rounded-full h-10"
+                    onClick={() => setIsCreatingAuthor(true)}
+                  >
+                    + New author
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <SheetFooter>
+            <Button variant="ghost" onClick={() => setIsConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={handlePublish} disabled={!draft?.authorId}>
+              Verify with World ID
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

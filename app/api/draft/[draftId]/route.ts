@@ -46,7 +46,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
   }
 
   const { draftId } = await context.params;
-  const { id, status, title, subtitle, content, history, authorId } = await req.json();
+  const { id, title, subtitle, content, history, authorId } = await req.json();
 
   if (draftId !== id) {
     return NextResponse.json({ success: false, message: "Draft ID mismatch" }, { status: 400 });
@@ -56,19 +56,17 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
     return NextResponse.json({ success: false, message: "Draft ID is required" }, { status: 400 });
   }
 
-  if (status !== 'editing') {
-    return NextResponse.json({ success: false, message: "Only drafts with status 'editing' can be modified" }, { status: 400 });
-  }
-
   const client = await pool.connect();
 
   try {
+    const historyValue = history ?? { history: null };
+
     const draftResult = await client.query(
-      `UPDATE drafts 
-       SET status = $1, title = $2, subtitle = $3, content = $4, history = $5, "authorId" = $6 
-       WHERE id = $7 AND "userId" = $8 AND status = $9 
+      `UPDATE drafts
+       SET title = $1, subtitle = $2, content = $3, history = $4, "authorId" = $5
+       WHERE id = $6 AND "userId" = $7 AND status = $8
        RETURNING *`,
-      [status, title, subtitle, content, history, authorId, id, authenticatedUser.id, 'editing']
+      [title, subtitle, content, historyValue, authorId, id, authenticatedUser.id, 'editing']
     );
 
     if (draftResult.rows.length === 0) {
@@ -78,6 +76,12 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
     const draft = draftResult.rows[0];
 
     return NextResponse.json({ success: true, draft });
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: "Failed to update draft",
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, { status: 500 });
   } finally {
     client.release();
   }

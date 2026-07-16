@@ -1,8 +1,7 @@
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { getLatestPublications } from '@/lib/db/objects'
-import { Card, CardContent } from "@/components/ui/card"
-import Link from 'next/link'
+import { TextListCard } from '@/components/TextListCard'
 import { timeAgo } from '@/lib/time'
 import { Divider } from '@/components/Divider'
 
@@ -18,36 +17,22 @@ const Page = async () => {
         <h1 className="text-5xl">
           For Human Creativity
         </h1>
-        <Divider animate={false} />
+        <Divider animate />
       </div>
-      <div className="w-[90%] mx-auto">
+      <div className="w-[90%] max-w-2xl mx-auto">
         <main className="w-full">
           <div className="text-left p-4 flex items-start gap-2">
             <h2 className="text-2xl font-bold">Latest Publications</h2>
           </div>
-          <div className="space-y-6 py-4">
+          <div className="space-y-3 py-4">
             {publications.map(publication => (
-              <Link href={`/p/${publication.id}`} key={publication.id}>
-                <Card className="shadow-sm w-full cursor-pointer my-4">
-                  <CardContent className="py-2 px-3">
-                    <div className="flex flex-col gap-1">
-                      <div className="text-sm font-medium line-clamp-1">
-                        {publication.publication_title}
-                      </div>
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        {publication.publication_subtitle && (
-                          <div className="flex items-center gap-2">
-                            <span className="line-clamp-1">{publication.publication_subtitle}</span>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground italic text-right">
-                          Published {timeAgo(publication.publication_date)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+              <TextListCard
+                key={publication.id}
+                href={`/p/${publication.id}`}
+                title={publication.publication_title}
+                subtitle={publication.publication_subtitle}
+                metaText={`${publication.author_name_libro} · ${timeAgo(publication.publication_date)}`}
+              />
             ))}
           </div>
         </main>

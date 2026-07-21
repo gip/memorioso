@@ -19,10 +19,12 @@ export async function GET(request: NextRequest) {
   const client = await pool.connect()
 
   try {
+    // Handles are one namespace across users and legacy author rows.
     const { rows } = await client.query(
-      `SELECT world_id_session_id IS NOT NULL AS can_login
-       FROM users
-       WHERE handle = $1`,
+      `SELECT
+         (SELECT world_id_session_id IS NOT NULL FROM users WHERE handle = $1) AS can_login,
+         EXISTS (SELECT 1 FROM users WHERE handle = $1)
+           OR EXISTS (SELECT 1 FROM authors WHERE handle = $1) AS taken`,
       [handle]
     )
 
@@ -30,8 +32,8 @@ export async function GET(request: NextRequest) {
       success: true,
       handle,
       valid: true,
-      exists: rows.length > 0,
-      canLogin: rows.length > 0 && rows[0].can_login === true,
+      exists: rows[0].taken === true,
+      canLogin: rows[0].can_login === true,
     })
   } finally {
     client.release()

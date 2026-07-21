@@ -148,6 +148,17 @@ export async function POST(request: NextRequest) {
           rows[0].handle = claim.rows[0]?.handle ?? rows[0].handle
         }
 
+        if (rows[0].handle) {
+          // The handle is the author identity: ensure the account's single
+          // author profile exists.
+          await client.query(
+            `INSERT INTO authors ("userId", name, handle)
+             SELECT $1, $2, $2
+             WHERE NOT EXISTS (SELECT 1 FROM authors WHERE "userId" = $1)`,
+            [rows[0].id, rows[0].handle]
+          )
+        }
+
         await client.query('COMMIT')
       } catch (error) {
         await client.query('ROLLBACK')

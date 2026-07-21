@@ -14,9 +14,10 @@ CREATE TABLE users
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- One author identity per user; created at signup from the user's handle.
 CREATE TABLE authors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "userId" INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     handle VARCHAR(32) NOT NULL UNIQUE,
     bio TEXT,

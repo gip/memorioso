@@ -14,6 +14,7 @@ export type Author = {
     name: string
     handle: string
     bio?: string
+    userId?: number
   }
   
   export type PublicationContent = {

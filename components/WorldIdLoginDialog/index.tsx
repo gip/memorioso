@@ -146,7 +146,7 @@ export const WorldIdLoginDialog = ({
               <span>@{lookup.handle} is taken and cannot be used to log in.</span>
             )}
             {lookup.status === 'available' && (
-              <span>@{lookup.handle} is available.</span>
+              <span>@{lookup.handle} is available. It will be your public author name.</span>
             )}
             {lookup.status === 'error' && <span>{lookup.message}</span>}
           </div>

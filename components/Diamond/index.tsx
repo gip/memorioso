@@ -90,9 +90,6 @@ export const Diamond = ({ atBottom = true }) => {
             <DropdownMenuItem onClick={() => router.push('/')}>
               My drafts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/a/new')}>
-              New author
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push('/info')}>
               Information
             </DropdownMenuItem>

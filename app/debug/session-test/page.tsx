@@ -5,6 +5,7 @@ import {
   CredentialRequest,
   IDKitSessionWidget,
   any as anyCredential,
+  enumerate,
   setDebug,
   type ConstraintNode,
   type IDKitDebugReport,
@@ -12,9 +13,9 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import { Button } from '@/components/ui/button'
-import { WORLD_ID_ALLOWED_CREDENTIALS } from '@/lib/world-id/constants'
+import { WORLD_ID_ALLOWED_CREDENTIALS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 
-type ConstraintMode = 'all' | 'proof_of_human'
+type ConstraintMode = 'all' | 'enumerate' | WorldIdCredentialIdentifier
 
 type TestContext = {
   appId: `app_${string}`
@@ -28,10 +29,13 @@ type TestOutcome =
   | { kind: 'error'; errorCode: string; debugReport?: IDKitDebugReport }
 
 function buildConstraints(mode: ConstraintMode): ConstraintNode {
-  if (mode === 'proof_of_human') {
-    return anyCredential(CredentialRequest('proof_of_human'))
+  if (mode === 'all') {
+    return anyCredential(...WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => CredentialRequest(credential)))
   }
-  return anyCredential(...WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => CredentialRequest(credential)))
+  if (mode === 'enumerate') {
+    return enumerate(...WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => CredentialRequest(credential)))
+  }
+  return anyCredential(CredentialRequest(mode))
 }
 
 export default function SessionTestPage() {
@@ -80,14 +84,18 @@ export default function SessionTestPage() {
       <p className="mt-2 text-sm text-gray-500">
         Runs the same IDKit session flow as the login on the home page, but with debug logging
         always on, no <code>existing_session_id</code>, and the raw error code or session result
-        shown below. The second button narrows the constraints to <code>proof_of_human</code> only.
+        shown below. Each button requests a different constraint shape to isolate which one
+        World App fails to handle.
       </p>
 
-      <div className="mt-6 flex gap-2">
-        <Button onClick={() => startTest('all')}>Run session test (login constraints)</Button>
-        <Button variant="outline" onClick={() => startTest('proof_of_human')}>
-          Run with proof_of_human only
-        </Button>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Button onClick={() => startTest('all')}>any(all credentials)</Button>
+        <Button variant="outline" onClick={() => startTest('enumerate')}>enumerate(all credentials)</Button>
+        {WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => (
+          <Button key={credential} variant="outline" onClick={() => startTest(credential)}>
+            {credential} only
+          </Button>
+        ))}
       </div>
       {context && (
         <p className="mt-2 text-xs text-gray-500">

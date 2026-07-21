@@ -20,6 +20,12 @@ export const WORLD_ID_ALLOWED_CREDENTIALS = [
 
 export type WorldIdCredentialIdentifier = typeof WORLD_ID_ALLOWED_CREDENTIALS[number]
 
+// World App silently hangs on session requests listing credentials the account
+// does not hold, so login only requests proof_of_human for now.
+export const WORLD_ID_LOGIN_CREDENTIALS = [
+  'proof_of_human',
+] as const satisfies readonly CredentialType[]
+
 export function isWorldIdSessionId(value: unknown): value is `session_${string}` {
   return typeof value === 'string' && /^session_[0-9a-fA-F]{128}$/.test(value)
 }

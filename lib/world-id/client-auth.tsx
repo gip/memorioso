@@ -18,7 +18,7 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
-import { isWorldIdSessionId, WORLD_ID_ALLOWED_CREDENTIALS } from '@/lib/world-id/constants'
+import { isWorldIdSessionId, WORLD_ID_LOGIN_CREDENTIALS } from '@/lib/world-id/constants'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
@@ -125,7 +125,7 @@ function logWorldIdAuthStep(step: string, details?: Record<string, unknown>): vo
 }
 
 function createWorldIdLoginConstraints(): ConstraintNode {
-  return anyCredential(...WORLD_ID_ALLOWED_CREDENTIALS.map((credential) => CredentialRequest(credential)))
+  return anyCredential(...WORLD_ID_LOGIN_CREDENTIALS.map((credential) => CredentialRequest(credential)))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

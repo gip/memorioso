@@ -19,8 +19,14 @@ import {
 } from '@worldcoin/idkit'
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
 import { isWorldIdSessionId, WORLD_ID_LOGIN_CREDENTIALS } from '@/lib/world-id/constants'
+import { WorldIdLoginDialog } from '@/components/WorldIdLoginDialog'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
+
+type PendingLogin = {
+  handle: string
+  intent: 'login' | 'signup'
+}
 
 type WorldIdAuthContextValue = {
   user: WorldIdSessionUser | null
@@ -159,8 +165,9 @@ function isWorldIdLoginContext(value: unknown): value is WorldIdLoginContext {
     (value.existingSessionId === null || isWorldIdSessionId(value.existingSessionId))
 }
 
-async function fetchLoginContext(): Promise<WorldIdLoginContext> {
-  const response = await fetch('/api/worldid/rp-context', {
+async function fetchLoginContext(handle?: string): Promise<WorldIdLoginContext> {
+  const query = handle ? `?handle=${encodeURIComponent(handle)}` : ''
+  const response = await fetch(`/api/worldid/rp-context${query}`, {
     cache: 'no-store',
   })
   const body = await response.json().catch(() => null) as unknown
@@ -189,6 +196,8 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [activeContext, setActiveContext] = useState<ActiveAuthContext | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
+  const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null)
   const [isWorldAppLoginPending, setIsWorldAppLoginPending] = useState(false)
   const [worldAppLoginDiagnostic, setWorldAppLoginDiagnostic] = useState<string | null>(null)
 
@@ -243,15 +252,61 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       throw error
     }
 
+    if (!loginContext.existingSessionId) {
+      // No session hint on this browser: ask for a name so the account can be
+      // found (log in) or created cross-device.
+      setIsWorldAppLoginPending(false)
+      setWorldAppLoginDiagnostic(null)
+      setPendingLogin(null)
+      setIsLoginDialogOpen(true)
+      return
+    }
+
     setActiveContext({
       appId: loginContext.appId,
       environment: loginContext.environment,
       rpContext: loginContext.rpContext,
       existingSessionId: loginContext.existingSessionId,
     })
+    setPendingLogin(null)
     setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Opening IDKit session widget'))
     logWorldIdAuthStep('open-session-widget', {
-      hasExistingSessionId: Boolean(loginContext.existingSessionId),
+      hasExistingSessionId: true,
+    })
+    setIsOpen(true)
+  }, [])
+
+  const startHandleFlow = useCallback(async (handle: string, intent: PendingLogin['intent']) => {
+    setError(null)
+    setIsWorldAppLoginPending(isInWorldApp())
+    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Fetching RP context'))
+
+    let loginContext
+    try {
+      loginContext = await fetchLoginContext(intent === 'login' ? handle : undefined)
+      if (intent === 'login' && !loginContext.existingSessionId) {
+        throw new Error('No World ID login is linked to that name')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start World ID login'
+      setError(message)
+      setIsWorldAppLoginPending(false)
+      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
+      throw error
+    }
+
+    setActiveContext({
+      appId: loginContext.appId,
+      environment: loginContext.environment,
+      rpContext: loginContext.rpContext,
+      existingSessionId: intent === 'login' ? loginContext.existingSessionId : null,
+    })
+    setPendingLogin({ handle, intent })
+    setIsLoginDialogOpen(false)
+    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Opening IDKit session widget'))
+    logWorldIdAuthStep('open-session-widget', {
+      intent,
+      hasExistingSessionId: intent === 'login',
     })
     setIsOpen(true)
   }, [])
@@ -271,7 +326,11 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(result),
+      body: JSON.stringify({
+        payload: result,
+        handle: pendingLogin?.handle ?? null,
+        intent: pendingLogin?.intent ?? null,
+      }),
     })
     const body = await response.json() as WorldIdSessionResponse
 
@@ -283,13 +342,16 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       throw new Error(message)
     }
 
+    setPendingLogin(null)
     setUser(body.user)
     setStatus('authenticated')
-  }, [activeContext])
+  }, [activeContext, pendingLogin])
 
   const signOut = useCallback(async () => {
     setError(null)
     setIsOpen(false)
+    setIsLoginDialogOpen(false)
+    setPendingLogin(null)
     setIsWorldAppLoginPending(false)
     setWorldAppLoginDiagnostic(null)
     await fetch('/api/auth/logout', {
@@ -312,6 +374,18 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorldIdAuthContext.Provider value={value}>
+      <WorldIdLoginDialog
+        open={isLoginDialogOpen}
+        onOpenChange={(open) => {
+          setIsLoginDialogOpen(open)
+          if (open) {
+            setError(null)
+          }
+        }}
+        onLogin={(handle) => startHandleFlow(handle, 'login')}
+        onSignup={(handle) => startHandleFlow(handle, 'signup')}
+        error={error}
+      />
       {activeContext && (
         <IDKitSessionWidget
           key={activeContext.rpContext.nonce}

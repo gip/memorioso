@@ -83,6 +83,11 @@ export const Diamond = ({ atBottom = true }) => {
         )}
         {user && (
           <>
+            {user.handle && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Logged in as @{user.handle}
+              </div>
+            )}
             <DropdownMenuItem onClick={() => router.push('/d/new')}>
               New draft
             </DropdownMenuItem>

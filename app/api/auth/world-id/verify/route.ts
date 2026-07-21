@@ -12,10 +12,13 @@ import {
   validateSessionCredentialResponses,
   validateWorldIdSessionResult,
 } from '@/lib/world-id/proof'
+import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
 
 type VerifyRequestBody = {
   payload?: unknown
   nonce?: unknown
+  handle?: unknown
+  intent?: unknown
 }
 
 type VerifyDiagnosticContext = {
@@ -87,10 +90,20 @@ export async function POST(request: NextRequest) {
       ? payload.nonce
       : null
 
+  const intent = body?.intent === 'login' || body?.intent === 'signup' ? body.intent : null
+  const requestedHandle = typeof body?.handle === 'string' ? normalizeUserHandle(body.handle) : null
+
   if (!payload || !nonce || !cookieNonce || nonce !== cookieNonce) {
     return NextResponse.json({
       success: false,
       message: 'World ID login context is invalid',
+    }, { status: 400 })
+  }
+
+  if (intent === 'signup' && (!requestedHandle || !isValidUserHandle(requestedHandle))) {
+    return NextResponse.json({
+      success: false,
+      message: 'A valid name is required to create an account',
     }, { status: 400 })
   }
 
@@ -148,23 +161,73 @@ export async function POST(request: NextRequest) {
   const client = await pool.connect()
 
   try {
-    const { rows } = await client.query(
-      `INSERT INTO users
-        (name, world_id_session_id, world_id_session_nullifier, world_id_credential_identifier)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (world_id_session_id) WHERE world_id_session_id IS NOT NULL
-       DO UPDATE SET
-         name = EXCLUDED.name,
-         world_id_session_nullifier = EXCLUDED.world_id_session_nullifier,
-         world_id_credential_identifier = EXCLUDED.world_id_credential_identifier,
-         modified_at = CURRENT_TIMESTAMP
-       RETURNING id, name, world_id_session_id, world_id_credential_identifier`,
-      [subject, worldIdSessionId, sessionNullifier, credentialIdentifier]
-    )
+    let rows
+
+    if (intent === 'login') {
+      // Logging in by name must resolve to the account that owns the proved
+      // session; never create a fresh account on this path.
+      ({ rows } = await client.query(
+        `UPDATE users SET
+           world_id_session_nullifier = $2,
+           world_id_credential_identifier = $3,
+           modified_at = CURRENT_TIMESTAMP
+         WHERE world_id_session_id = $1
+         RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
+        [worldIdSessionId, sessionNullifier, credentialIdentifier]
+      ))
+
+      if (rows.length === 0) {
+        return NextResponse.json({
+          success: false,
+          message: 'That name is not linked to the World ID in your World App',
+        }, { status: 409 })
+      }
+    } else {
+      await client.query('BEGIN')
+      try {
+        ({ rows } = await client.query(
+          `INSERT INTO users
+            (name, world_id_session_id, world_id_session_nullifier, world_id_credential_identifier)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (world_id_session_id) WHERE world_id_session_id IS NOT NULL
+           DO UPDATE SET
+             name = EXCLUDED.name,
+             world_id_session_nullifier = EXCLUDED.world_id_session_nullifier,
+             world_id_credential_identifier = EXCLUDED.world_id_credential_identifier,
+             modified_at = CURRENT_TIMESTAMP
+           RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
+          [subject, worldIdSessionId, sessionNullifier, credentialIdentifier]
+        ))
+
+        if (intent === 'signup' && requestedHandle && rows[0].handle === null) {
+          const claim = await client.query(
+            `UPDATE users SET handle = $1, modified_at = CURRENT_TIMESTAMP
+             WHERE id = $2 AND handle IS NULL
+             RETURNING handle`,
+            [requestedHandle, rows[0].id]
+          )
+          rows[0].handle = claim.rows[0]?.handle ?? rows[0].handle
+        }
+
+        await client.query('COMMIT')
+      } catch (error) {
+        await client.query('ROLLBACK')
+        const isUniqueViolation = typeof error === 'object' && error !== null &&
+          'code' in error && (error as { code?: string }).code === '23505'
+        if (isUniqueViolation) {
+          return NextResponse.json({
+            success: false,
+            message: 'That name was just taken. Please pick another one.',
+          }, { status: 409 })
+        }
+        throw error
+      }
+    }
 
     const user = {
       id: rows[0].id,
       subject: rows[0].name,
+      handle: rows[0].handle,
       worldIdSessionId: rows[0].world_id_session_id,
       worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
     }

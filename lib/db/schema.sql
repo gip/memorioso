@@ -2,6 +2,7 @@ CREATE TABLE users
 (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
+  handle VARCHAR(32) UNIQUE,
   world_id_session_id TEXT UNIQUE,
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),

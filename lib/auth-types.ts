@@ -1,6 +1,7 @@
 export type WorldIdSessionUser = {
   id: number
   subject: string
+  handle: string | null
   worldIdSessionId: string
   worldIdCredentialIdentifier: string | null
 }

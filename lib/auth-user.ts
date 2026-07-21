@@ -14,7 +14,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   try {
     const { rows } = await client.query(
-      `SELECT id, name, world_id_session_id, world_id_credential_identifier
+      `SELECT id, name, handle, world_id_session_id, world_id_credential_identifier
        FROM users
        WHERE id = $1 AND world_id_session_id = $2`,
       [session.userId, session.worldIdSessionId]
@@ -27,6 +27,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
     return {
       id: rows[0].id,
       subject: rows[0].name,
+      handle: rows[0].handle,
       worldIdSessionId: rows[0].world_id_session_id,
       worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
     }

@@ -10,8 +10,7 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import { Button } from '@/components/ui/button'
-
-const TEST_ACTION = 'memorioso-proof-test'
+import { WORLD_ID_PROOF_TEST_ACTION } from '@/lib/world-id/constants'
 
 type TestContext = {
   appId: `app_${string}`
@@ -70,7 +69,7 @@ export default function ProofTestPage() {
 
     let body: unknown
     try {
-      const response = await fetch('/api/worldid/rp-context', { cache: 'no-store' })
+      const response = await fetch('/api/debug/proof-test-context', { cache: 'no-store' })
       body = await response.json()
       if (!response.ok) {
         throw new Error('Could not fetch RP context')
@@ -100,7 +99,7 @@ export default function ProofTestPage() {
       <h2 className="text-2xl font-bold">World ID Proof Test</h2>
       <p className="mt-2 text-sm text-gray-500">
         Runs a one-shot IDKit request with the ProofOfHuman preset (no session), with legacy v3
-        fallback allowed, using action <code>{TEST_ACTION}</code>. Use this to check whether your
+        fallback allowed, using action <code>{WORLD_ID_PROOF_TEST_ACTION}</code>. Use this to check whether your
         World App account returns a v4 proof at all.
       </p>
 
@@ -137,7 +136,7 @@ export default function ProofTestPage() {
           open={isOpen}
           onOpenChange={setIsOpen}
           app_id={context.appId}
-          action={TEST_ACTION}
+          action={WORLD_ID_PROOF_TEST_ACTION}
           rp_context={context.rpContext}
           environment={context.environment}
           allow_legacy_proofs={true}

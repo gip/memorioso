@@ -26,6 +26,8 @@ type WorldIdLoginDialogProps = {
   onOpenChange: (open: boolean) => void
   onLogin: (handle: string) => Promise<void>
   onSignup: (handle: string) => Promise<void>
+  onContinue: () => Promise<void>
+  continueAs: string | null
   error: string | null
 }
 
@@ -34,6 +36,8 @@ export const WorldIdLoginDialog = ({
   onOpenChange,
   onLogin,
   onSignup,
+  onContinue,
+  continueAs,
   error,
 }: WorldIdLoginDialogProps) => {
   const [value, setValue] = useState('')
@@ -119,8 +123,28 @@ export const WorldIdLoginDialog = ({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {continueAs && (
+            <>
+              <Button
+                className="w-full"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setIsSubmitting(true)
+                  onContinue().catch(() => {
+                    // Errors are surfaced through the `error` prop.
+                  }).finally(() => setIsSubmitting(false))
+                }}
+              >
+                <LogIn className="h-4 w-4 mr-1.5" />
+                Continue as @{continueAs}
+              </Button>
+              <div className="text-center text-xs text-muted-foreground">
+                or use another name
+              </div>
+            </>
+          )}
           <Input
-            autoFocus
+            autoFocus={!continueAs}
             value={value}
             onChange={(event) => setValue(event.target.value)}
             placeholder="your-name"

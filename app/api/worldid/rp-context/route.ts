@@ -23,10 +23,29 @@ async function findSessionIdByHandle(handle: string): Promise<string | null> {
   }
 }
 
+async function findHandleBySessionId(sessionId: string): Promise<string | null> {
+  const client = await pool.connect()
+
+  try {
+    const { rows } = await client.query(
+      `SELECT handle FROM users WHERE world_id_session_id = $1`,
+      [sessionId]
+    )
+    return rows.length > 0 ? rows[0].handle : null
+  } finally {
+    client.release()
+  }
+}
+
 export async function GET(request: NextRequest) {
   const rawHandle = request.nextUrl.searchParams.get('handle')
   const cookieSessionId = request.cookies.get(WORLD_ID_SESSION_HINT_COOKIE)?.value
   let existingSessionId: string | null | undefined = cookieSessionId
+  let existingHandle: string | null = null
+
+  if (rawHandle === null && isWorldIdSessionId(cookieSessionId)) {
+    existingHandle = await findHandleBySessionId(cookieSessionId)
+  }
 
   if (rawHandle !== null) {
     const handle = normalizeUserHandle(rawHandle)
@@ -61,6 +80,7 @@ export async function GET(request: NextRequest) {
     environment: config.environment,
     rpContext,
     existingSessionId: isWorldIdSessionId(existingSessionId) ? existingSessionId : null,
+    existingHandle,
     allowedCredentials: WORLD_ID_ALLOWED_CREDENTIALS,
   })
   response.cookies.set(WORLD_ID_AUTH_NONCE_COOKIE, rpContext.nonce, {

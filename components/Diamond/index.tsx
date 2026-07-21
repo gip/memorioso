@@ -18,7 +18,6 @@ export const Diamond = ({ atBottom = true }) => {
     user,
     error: worldIdError,
     isWorldAppLoginPending,
-    worldAppLoginDiagnostic,
     signInWithWorldId,
     signOut,
   } = useWorldIdAuth()
@@ -68,9 +67,6 @@ export const Diamond = ({ atBottom = true }) => {
         {!authMessage && isWorldAppLoginPending && (
           <div className="max-w-56 break-words px-2 py-1.5 text-xs text-muted-foreground">
             Waiting for World App verification.
-            {worldAppLoginDiagnostic && (
-              <span className="block">{worldAppLoginDiagnostic}</span>
-            )}
           </div>
         )}
         {!user && (

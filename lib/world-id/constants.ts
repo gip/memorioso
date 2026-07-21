@@ -6,7 +6,6 @@ export const WORLD_ID_CREDENTIAL_POLICY = 'document_or_orb' as const
 export const DEFAULT_WORLD_ID_LOGIN_ACTION = 'memorioso-login-v1' as const
 export const DEFAULT_WORLD_ID_PUBLISH_ACTION = 'written-by-a-human-v4' as const
 export const DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION = 'register-agent-v1' as const
-export const WORLD_ID_PROOF_TEST_ACTION = 'memorioso-proof-test' as const
 export const WORLD_ID_AUTH_NONCE_COOKIE = 'memorioso_world_id_auth_nonce' as const
 export const WORLD_ID_SESSION_HINT_COOKIE = 'memorioso_world_id_session_hint' as const
 export const WORLD_ID_SESSION_HINT_MAX_AGE_SECONDS = 60 * 60 * 24 * 365

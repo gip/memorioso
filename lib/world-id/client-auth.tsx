@@ -33,7 +33,6 @@ type WorldIdAuthContextValue = {
   status: AuthStatus
   error: string | null
   isWorldAppLoginPending: boolean
-  worldAppLoginDiagnostic: string | null
   signInWithWorldId: () => Promise<void>
   signOut: () => Promise<void>
   refreshSession: () => Promise<void>
@@ -49,85 +48,11 @@ type ActiveAuthContext = {
 const WorldIdAuthContext = createContext<WorldIdAuthContextValue | null>(null)
 
 type WorldAppWindow = Window & {
-  IDKIT_DEBUG?: boolean
-  WorldApp?: {
-    world_app_version?: number
-    device_os?: string
-    supported_commands?: Array<{
-      name: string
-      supported_versions?: number[]
-    }>
-  }
-  Android?: {
-    postMessage?: (payload: string) => void
-  }
-  webkit?: {
-    messageHandlers?: {
-      minikit?: {
-        postMessage?: (payload: unknown) => void
-      }
-    }
-  }
+  WorldApp?: unknown
 }
 
 export function isInWorldApp(): boolean {
   return typeof window !== 'undefined' && Boolean((window as WorldAppWindow).WorldApp)
-}
-
-function getWorldAppVerifyVersions(): number[] | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const supportedCommands = (window as WorldAppWindow).WorldApp?.supported_commands
-  if (!Array.isArray(supportedCommands)) {
-    return null
-  }
-
-  return supportedCommands.find((command) => command.name === 'verify')?.supported_versions || null
-}
-
-function getWorldAppBridgeName(): string | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const worldAppWindow = window as WorldAppWindow
-  if (typeof worldAppWindow.webkit?.messageHandlers?.minikit?.postMessage === 'function') {
-    return 'ios'
-  }
-  if (typeof worldAppWindow.Android?.postMessage === 'function') {
-    return 'android'
-  }
-
-  return null
-}
-
-function getWorldAppDiagnostic(step?: string): string | null {
-  if (!isInWorldApp()) {
-    return step || null
-  }
-
-  const worldApp = (window as WorldAppWindow).WorldApp
-  const verifyVersions = getWorldAppVerifyVersions()
-  const verifyLabel = verifyVersions?.length ? verifyVersions.join(',') : 'missing'
-  const bridgeName = getWorldAppBridgeName() || 'missing'
-  const version = worldApp?.world_app_version ? `World App ${worldApp.world_app_version}` : 'World App'
-  const os = worldApp?.device_os ? ` on ${worldApp.device_os}` : ''
-
-  const diagnostic = `${version}${os}; verify=${verifyLabel}; bridge=${bridgeName}`
-  return step ? `${step}. ${diagnostic}` : diagnostic
-}
-
-function logWorldIdAuthStep(step: string, details?: Record<string, unknown>): void {
-  if (process.env.NODE_ENV === 'production') {
-    return
-  }
-
-  console.info('[world-id] login step', {
-    step,
-    ...details,
-  })
 }
 
 function createWorldIdLoginConstraints(): ConstraintNode {
@@ -199,7 +124,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null)
   const [isWorldAppLoginPending, setIsWorldAppLoginPending] = useState(false)
-  const [worldAppLoginDiagnostic, setWorldAppLoginDiagnostic] = useState<string | null>(null)
 
   const loginConstraints = useMemo<ConstraintNode>(() => createWorldIdLoginConstraints(), [])
 
@@ -231,15 +155,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     setIsOpen(false)
     setIsWorldAppLoginPending(isInWorldApp())
-    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Fetching RP context'))
-    if (typeof window !== 'undefined') {
-      (window as WorldAppWindow).IDKIT_DEBUG = process.env.NODE_ENV !== 'production'
-    }
-    logWorldIdAuthStep('start-widget-login', {
-      inWorldApp: isInWorldApp(),
-      bridge: getWorldAppBridgeName(),
-      verifyVersions: getWorldAppVerifyVersions(),
-    })
 
     let loginContext
     try {
@@ -248,7 +163,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       const message = error instanceof Error ? error.message : 'Could not start World ID login'
       setError(message)
       setIsWorldAppLoginPending(false)
-      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
       throw error
     }
 
@@ -256,7 +170,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       // No session hint on this browser: ask for a name so the account can be
       // found (log in) or created cross-device.
       setIsWorldAppLoginPending(false)
-      setWorldAppLoginDiagnostic(null)
       setPendingLogin(null)
       setIsLoginDialogOpen(true)
       return
@@ -269,17 +182,12 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       existingSessionId: loginContext.existingSessionId,
     })
     setPendingLogin(null)
-    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Opening IDKit session widget'))
-    logWorldIdAuthStep('open-session-widget', {
-      hasExistingSessionId: true,
-    })
     setIsOpen(true)
   }, [])
 
   const startHandleFlow = useCallback(async (handle: string, intent: PendingLogin['intent']) => {
     setError(null)
     setIsWorldAppLoginPending(isInWorldApp())
-    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Fetching RP context'))
 
     let loginContext
     try {
@@ -291,7 +199,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       const message = error instanceof Error ? error.message : 'Could not start World ID login'
       setError(message)
       setIsWorldAppLoginPending(false)
-      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
       throw error
     }
 
@@ -303,11 +210,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     })
     setPendingLogin({ handle, intent })
     setIsLoginDialogOpen(false)
-    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('Opening IDKit session widget'))
-    logWorldIdAuthStep('open-session-widget', {
-      intent,
-      hasExistingSessionId: intent === 'login',
-    })
     setIsOpen(true)
   }, [])
 
@@ -316,11 +218,9 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       const message = 'World ID login context is missing'
       setError(message)
       setIsWorldAppLoginPending(false)
-      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
       throw new Error(message)
     }
 
-    setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID proof received'))
     const response = await fetch('/api/worldid/verify', {
       method: 'POST',
       headers: {
@@ -338,7 +238,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       const message = body.success === false ? body.message : 'World ID login failed'
       setError(message)
       setIsWorldAppLoginPending(false)
-      setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
       throw new Error(message)
     }
 
@@ -353,7 +252,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setIsLoginDialogOpen(false)
     setPendingLogin(null)
     setIsWorldAppLoginPending(false)
-    setWorldAppLoginDiagnostic(null)
     await fetch('/api/auth/logout', {
       method: 'POST',
     })
@@ -366,11 +264,10 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     status,
     error,
     isWorldAppLoginPending,
-    worldAppLoginDiagnostic,
     signInWithWorldId,
     signOut,
     refreshSession,
-  }), [user, status, error, isWorldAppLoginPending, worldAppLoginDiagnostic, signInWithWorldId, signOut, refreshSession])
+  }), [user, status, error, isWorldAppLoginPending, signInWithWorldId, signOut, refreshSession])
 
   return (
     <WorldIdAuthContext.Provider value={value}>
@@ -405,13 +302,11 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
           handleVerify={handleVerify}
           onError={(errorCode) => {
             setIsWorldAppLoginPending(false)
-            setWorldAppLoginDiagnostic(getWorldAppDiagnostic('World ID login failed'))
             setError((current) => current || `World ID login failed: ${errorCode}`)
           }}
           onSuccess={() => {
             setError(null)
             setIsWorldAppLoginPending(false)
-            setWorldAppLoginDiagnostic(null)
             setIsOpen(false)
           }}
         />

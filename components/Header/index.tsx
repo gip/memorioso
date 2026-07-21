@@ -16,7 +16,6 @@ export const Header = () => {
     user,
     error: authError,
     isWorldAppLoginPending,
-    worldAppLoginDiagnostic,
     signInWithWorldId,
   } = useWorldIdAuth()
   const [signInError, setSignInError] = useState<string | null>(null)
@@ -99,9 +98,6 @@ export const Header = () => {
       {!user && !authMessage && isWorldAppLoginPending && (
         <div className="border-t px-4 py-2 text-center text-xs text-muted-foreground">
           Waiting for World App verification.
-          {worldAppLoginDiagnostic && (
-            <span className="block break-words">{worldAppLoginDiagnostic}</span>
-          )}
         </div>
       )}
     </header>

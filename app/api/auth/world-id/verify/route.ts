@@ -21,11 +21,6 @@ type VerifyRequestBody = {
   intent?: unknown
 }
 
-type VerifyDiagnosticContext = {
-  nonce: string
-  environment?: 'production' | 'staging'
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -36,48 +31,6 @@ function parseIdKitResult(payload: unknown): IDKitResult {
   }
 
   return payload as IDKitResult
-}
-
-function summarizeIdKitPayload(payload: unknown, context: VerifyDiagnosticContext) {
-  let result = payload
-  if (typeof payload === 'string') {
-    try {
-      result = JSON.parse(payload) as unknown
-    } catch {
-      return { payloadType: 'string', parseError: true }
-    }
-  }
-
-  if (!isRecord(result)) {
-    return { payloadType: typeof result }
-  }
-
-  const responses = Array.isArray(result.responses) ? result.responses : null
-
-  return {
-    protocolVersion: typeof result.protocol_version === 'string' ? result.protocol_version : null,
-    resultKind: typeof result.session_id === 'string'
-      ? 'session'
-      : typeof result.action === 'string'
-        ? 'uniqueness'
-        : 'unknown',
-    nonceMatches: result.nonce === context.nonce,
-    environmentMatches: context.environment ? result.environment === context.environment : null,
-    responseCount: responses?.length ?? null,
-    responses: responses?.map((response) => {
-      if (!isRecord(response)) {
-        return { payloadType: typeof response }
-      }
-
-      return {
-        identifier: typeof response.identifier === 'string' ? response.identifier : null,
-        hasSignalHash: typeof response.signal_hash === 'string',
-        proofKind: Array.isArray(response.proof) ? 'array' : typeof response.proof,
-        hasNullifier: typeof response.nullifier === 'string',
-        hasSessionNullifier: Array.isArray(response.session_nullifier),
-      }
-    }) ?? null,
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -113,11 +66,9 @@ export async function POST(request: NextRequest) {
   let worldIdSessionId
   let sessionNullifier
   let credentialIdentifier
-  let parsedResult: IDKitResult | null = null
   try {
     config = getWorldIdServerConfig()
-    parsedResult = parseIdKitResult(payload)
-    const result = parsedResult
+    const result = parseIdKitResult(payload)
 
     validatedResult = validateWorldIdSessionResult(result, {
       nonce,
@@ -131,18 +82,6 @@ export async function POST(request: NextRequest) {
     credentialIdentifier = credentialIdentifiers[0]
   } catch (error) {
     const message = error instanceof Error ? error.message : 'World ID login proof is invalid'
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[world-id] login proof rejected before verifier', {
-        message,
-        cookieNoncePresent: Boolean(cookieNonce),
-        nonceMatchesCookie: nonce === cookieNonce,
-        result: summarizeIdKitPayload(parsedResult ?? payload, {
-          nonce,
-          environment: config?.environment,
-        }),
-      })
-    }
-
     return NextResponse.json({
       success: false,
       message,

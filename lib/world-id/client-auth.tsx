@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import {
@@ -19,6 +20,7 @@ import {
 } from '@worldcoin/idkit'
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
 import { isWorldIdSessionId, WORLD_ID_LOGIN_CREDENTIALS } from '@/lib/world-id/constants'
+import { normalizeUserHandle } from '@/lib/handle'
 import { WorldIdLoginDialog } from '@/components/WorldIdLoginDialog'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
@@ -109,6 +111,15 @@ async function fetchLoginContext(handle?: string): Promise<WorldIdLoginContext> 
   return body
 }
 
+// The verify route only accepts the nonce from the most recent rp-context
+// response (it is stored in an httpOnly cookie), so a cached context stays
+// usable until another fetch replaces it or it nears expiry.
+const RP_CONTEXT_REUSE_MARGIN_MS = 60_000
+
+function isLoginContextFresh(context: WorldIdLoginContext): boolean {
+  return context.rpContext.expires_at * 1000 - Date.now() > RP_CONTEXT_REUSE_MARGIN_MS
+}
+
 export function useWorldIdAuth(): WorldIdAuthContextValue {
   const context = useContext(WorldIdAuthContext)
   if (!context) {
@@ -127,6 +138,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   const [hintHandle, setHintHandle] = useState<string | null>(null)
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null)
   const [isWorldAppLoginPending, setIsWorldAppLoginPending] = useState(false)
+  const cachedLoginContextRef = useRef<WorldIdLoginContext | null>(null)
 
   const loginConstraints = useMemo<ConstraintNode>(() => createWorldIdLoginConstraints(), [])
 
@@ -161,6 +173,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     let loginContext
     try {
       loginContext = await fetchLoginContext()
+      cachedLoginContextRef.current = loginContext
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not start World ID login'
       setError(message)
@@ -180,7 +193,11 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
 
     let loginContext
     try {
-      loginContext = await fetchLoginContext()
+      const cached = cachedLoginContextRef.current
+      loginContext = cached && cached.existingSessionId && isLoginContextFresh(cached)
+        ? cached
+        : await fetchLoginContext()
+      cachedLoginContextRef.current = loginContext
       if (!loginContext.existingSessionId) {
         throw new Error('No existing login on this browser')
       }
@@ -208,7 +225,16 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
 
     let loginContext
     try {
-      loginContext = await fetchLoginContext(intent === 'login' ? handle : undefined)
+      const cached = cachedLoginContextRef.current
+      const cachedMatchesIntent = cached && isLoginContextFresh(cached) && (
+        intent === 'signup' ||
+        (Boolean(cached.existingSessionId) && typeof cached.existingHandle === 'string' &&
+          normalizeUserHandle(cached.existingHandle) === normalizeUserHandle(handle))
+      )
+      loginContext = cachedMatchesIntent && cached
+        ? cached
+        : await fetchLoginContext(intent === 'login' ? handle : undefined)
+      cachedLoginContextRef.current = loginContext
       if (intent === 'login' && !loginContext.existingSessionId) {
         throw new Error('No World ID login is linked to that name')
       }
@@ -258,6 +284,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
       throw new Error(message)
     }
 
+    cachedLoginContextRef.current = null
     setPendingLogin(null)
     setUser(body.user)
     setStatus('authenticated')
@@ -265,6 +292,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     setError(null)
+    cachedLoginContextRef.current = null
     setIsOpen(false)
     setIsLoginDialogOpen(false)
     setPendingLogin(null)

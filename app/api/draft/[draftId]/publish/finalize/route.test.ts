@@ -169,4 +169,22 @@ describe('Libro publication finalize route', () => {
     expect(response.status).toBe(400)
     expect(dbMock.connect).not.toHaveBeenCalled()
   })
+
+  it('returns the original publication when finalization is retried', async () => {
+    dbMock.query.mockImplementation(async (query: string) => query.includes('SELECT signal_hash')
+      ? { rows: [{
+          signal_hash: signalHash,
+          transaction_hash: transactionHash,
+          finalized_at: new Date(),
+          publicationId: '42',
+        }] }
+      : { rows: [] })
+    const response = await PUT(request({
+      registrationId,
+      submissionMethod: 'memorioso_relayer',
+      transactionHash,
+    }), context())
+    expect(await response.json()).toEqual({ success: true, publicationId: '42' })
+    expect(serverMock.verifyLibroSignalRegistered).not.toHaveBeenCalled()
+  })
 })

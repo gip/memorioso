@@ -5,6 +5,7 @@ import {
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
   extractReadableText,
+  formatLibroTextTag,
   hashPublicationSignal,
   isApprovedLibroRegistry,
   isSimpleTextPublication,
@@ -161,8 +162,7 @@ export function getLibroSimpleBoundaryLabel(manifest: LibroEmbedManifestV1): str
 }
 
 export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
-  const text = extractReadableText(manifest.publication.publication_content.html)
-  return `${getLibroSimpleBoundaryLabel(manifest)}\n${text}\n=== End Libro ===`
+  return formatLibroTextTag(manifest)
 }
 
 export function buildLibroEmbedSnippet(manifest: LibroEmbedManifestV1): string {

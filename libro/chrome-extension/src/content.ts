@@ -1,4 +1,5 @@
 import type { LibroCandidate, LibroVerificationResult } from './shared'
+import { captureCurrentText, replaceCapture, type CaptureTarget } from './capture'
 
 type LibroTextTagV1 = {
   authorHandle: string
@@ -8,7 +9,7 @@ type LibroTextTagV1 = {
   bodyText: string
 }
 
-// Keep this standalone parser aligned with @libro/core; injected scripts cannot import Vite chunks.
+// Keep this lightweight parser aligned with @libro/core; the injected IIFE must stay self-contained.
 const LIBRO_TEXT_TAG_PATTERN = new RegExp(
   String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
   'g'
@@ -50,6 +51,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
 {
   type LibroContentState = {
     observers: MutationObserver[]
+    captures: Map<string, CaptureTarget>
   }
 
   const contentGlobal = globalThis as typeof globalThis & {
@@ -85,7 +87,10 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       if (resetBlockIds) node.removeAttribute(BLOCK_ATTRIBUTE)
     })
     contentGlobal.__libroVerifierContentState?.observers.forEach((observer) => observer.disconnect())
-    contentGlobal.__libroVerifierContentState = { observers: [] }
+    contentGlobal.__libroVerifierContentState = {
+      observers: [],
+      captures: contentGlobal.__libroVerifierContentState?.captures || new Map(),
+    }
   }
 
   function findManifestNodes(id: string): HTMLScriptElement[] {
@@ -332,15 +337,33 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
   }
 
   if (!contentGlobal.__libroVerifierContentState) {
-    contentGlobal.__libroVerifierContentState = { observers: [] }
+    contentGlobal.__libroVerifierContentState = { observers: [], captures: new Map() }
     chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-      const typed = message as { type?: string; results?: LibroVerificationResult[]; candidates?: LibroCandidate[] }
+      const typed = message as {
+        type?: string
+        results?: LibroVerificationResult[]
+        candidates?: LibroCandidate[]
+        operationId?: string
+        replacement?: string
+      }
       if (typed.type === 'LIBRO_SCAN_PAGE') {
         sendResponse({ candidates: scan() })
         return
       }
       if (typed.type === 'LIBRO_APPLY_RESULTS' && Array.isArray(typed.results) && Array.isArray(typed.candidates)) {
         sendResponse({ success: true, staleBlockIds: applyResults(typed.results, typed.candidates) })
+        return
+      }
+      if (typed.type === 'LIBRO_CAPTURE_TEXT') {
+        sendResponse(captureCurrentText(contentGlobal.__libroVerifierContentState!.captures))
+        return
+      }
+      if (typed.type === 'LIBRO_REPLACE_CAPTURE' && typeof typed.operationId === 'string' && typeof typed.replacement === 'string') {
+        sendResponse(replaceCapture(
+          contentGlobal.__libroVerifierContentState!.captures,
+          typed.operationId,
+          typed.replacement
+        ))
       }
     })
   }

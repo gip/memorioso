@@ -17,7 +17,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
-  const authenticatedUser = await getAuthenticatedUser()
+  const authenticatedUser = await getAuthenticatedUser(req)
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
   }
@@ -48,7 +48,7 @@ export async function PUT(
     transactionOpen = true
 
     const registrationResult = await client.query(
-      `SELECT transaction, chain_id, registry_address, transaction_hash, finalized_at
+      `SELECT transaction, chain_id, registry_address, transaction_hash, finalized_at, "publicationId"
        FROM libro_publish_registrations
        WHERE id = $1 AND "draftId" = $2 AND "userId" = $3
        FOR UPDATE`,
@@ -65,7 +65,14 @@ export async function PUT(
     if (registration.finalized_at) {
       await client.query('ROLLBACK')
       transactionOpen = false
-      return NextResponse.json({ success: false, message: 'Libro registration has already been finalized' }, { status: 400 })
+      if (registration.transaction_hash && registration.publicationId) {
+        return NextResponse.json({
+          success: true,
+          transactionHash: registration.transaction_hash,
+          publicationId: registration.publicationId,
+        })
+      }
+      return NextResponse.json({ success: false, message: 'Finalized Libro registration is incomplete' }, { status: 409 })
     }
 
     if (

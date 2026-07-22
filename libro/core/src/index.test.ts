@@ -4,6 +4,7 @@ import {
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
   extractReadableText,
+  formatLibroTextTag,
   hasMeaningfulPublicationBody,
   hashPublicationSignal,
   isSimpleTextPublication,
@@ -82,6 +83,16 @@ describe('Libro readable text', () => {
 })
 
 describe('Libro plain-text tags', () => {
+  it('formats the canonical portable tag with the full signal hash and manifest URL', () => {
+    const tag = formatLibroTextTag(manifest())
+    expect(tag).toBe([
+      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${manifest().registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      'Hello human world.',
+      '=== End Libro ===',
+    ].join('\n'))
+    expect(parseLibroTextTags(tag)).toHaveLength(1)
+  })
+
   it('parses a full verifiable tag', () => {
     const signalHash = manifest().registration.signal_hash
     const text = [

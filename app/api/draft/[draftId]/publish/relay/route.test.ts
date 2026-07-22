@@ -147,4 +147,34 @@ describe('Libro publication relay route', () => {
     expect(response.status).toBe(404)
     expect(relayMock.sendRelayedLibroRegistration).not.toHaveBeenCalled()
   })
+
+  it('returns the original publication when the registration is already finalized', async () => {
+    dbMock.query.mockImplementation(async (query: string) => query.includes('SELECT transaction')
+      ? { rows: [{
+          transaction,
+          chain_id: 480,
+          registry_address: '0x1111111111111111111111111111111111111111',
+          transaction_hash: transactionHash,
+          finalized_at: new Date(),
+          publicationId: '42',
+        }] }
+      : { rows: [] })
+    const response = await PUT(request(), context())
+    expect(await response.json()).toEqual({
+      success: true,
+      transactionHash,
+      publicationId: '42',
+    })
+    expect(relayMock.waitForRelayedLibroRegistration).not.toHaveBeenCalled()
+  })
+
+  it('keeps the registration retryable when the relayer fails', async () => {
+    relayMock.sendRelayedLibroRegistration.mockRejectedValueOnce(new Error('RPC unavailable'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const response = await PUT(request(), context())
+    consoleError.mockRestore()
+    expect(response.status).toBe(500)
+    expect(dbMock.query).toHaveBeenCalledWith('ROLLBACK')
+    expect(relayMock.waitForRelayedLibroRegistration).not.toHaveBeenCalled()
+  })
 })

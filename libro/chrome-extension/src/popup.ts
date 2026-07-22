@@ -3,6 +3,7 @@ import type { LibroVerificationResult, ScanResponse } from './shared'
 const summary = document.querySelector<HTMLElement>('#summary')
 const resultsNode = document.querySelector<HTMLElement>('#results')
 const rescan = document.querySelector<HTMLButtonElement>('#rescan')
+const sign = document.querySelector<HTMLButtonElement>('#sign')
 
 function shortHash(value?: string): string {
   return value ? `${value.slice(0, 8)}…${value.slice(-4)}` : ''
@@ -72,4 +73,19 @@ async function scan(): Promise<void> {
 }
 
 rescan?.addEventListener('click', scan)
+sign?.addEventListener('click', async () => {
+  sign.disabled = true
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'LIBRO_START_SIGNING' }) as { success?: boolean; message?: string }
+    if (!response?.success) throw new Error(response?.message || 'Could not open Libro signing')
+    window.close()
+  } catch (error) {
+    render({
+      success: false,
+      results: [],
+      message: error instanceof Error ? error.message : 'Could not open Libro signing',
+    })
+    sign.disabled = false
+  }
+})
 scan()

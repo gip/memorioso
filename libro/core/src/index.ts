@@ -177,6 +177,22 @@ export function extractReadableText(html: string): string {
   return normalizeReadableText(parts.join(''))
 }
 
+export function formatLibroTextTag(manifestValue: unknown): string {
+  const manifest = assertLibroManifestLocalIntegrity(manifestValue)
+  const { publication, registration } = manifest
+  const manifestUrl = manifest.source?.manifest_url
+  const boundary = [
+    '=== Libro',
+    'Signed by a human',
+    `@${publication.author_handle_libro}`,
+    publication.publication_date.slice(0, 10),
+    registration.signal_hash,
+    ...(manifestUrl ? [manifestUrl] : []),
+  ].join(' · ')
+  const text = extractReadableText(publication.publication_content.html)
+  return `${boundary} ===\n${text}\n=== End Libro ===`
+}
+
 export function hasMeaningfulPublicationBody(content: unknown): content is { html: string } {
   if (!content || typeof content !== 'object') return false
   const html = (content as { html?: unknown }).html

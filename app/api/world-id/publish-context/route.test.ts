@@ -126,4 +126,27 @@ describe('publish context route', () => {
     expect(firstPublication.world_id_action).toBe(firstBody.action)
     expect(firstParams[5]).toContain(`"world_id_action":"${firstBody.action}"`)
   })
+
+  it('accepts an empty title while keeping it in the signed payload', async () => {
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '', subtitle: '' }] }
+      return { rows: [] }
+    })
+
+    const response = await POST(request({ draftId: draftRow.id }))
+    expect(response.status).toBe(200)
+    const insert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO world_id_publish_challenges'))
+    expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":""')
+  })
+
+  it('rejects a publication body without readable text', async () => {
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '', content: { html: '<p><br></p>' } }] }
+      return { rows: [] }
+    })
+
+    const response = await POST(request({ draftId: draftRow.id }))
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: 'Publication body must contain readable text' })
+  })
 })

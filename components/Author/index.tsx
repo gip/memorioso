@@ -61,7 +61,7 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
     const isNameValid = editName.trim().length >= 3 && editName.trim().length <= 100
     return (<>
       <div className="w-[90%] mx-auto">
-        <div className="text-xs italic text-center text-gray-500">This author was created by a human on Memorioso. Every publication under this author is signed by a human being.<br />This is not a bot.</div>
+        <div className="text-xs italic text-center text-gray-500">This author was created by a human on Memorioso. Publications are labeled as direct human work or human-authorized agent work.<br />The author identity itself is human-controlled.</div>
       </div>
       <div className="w-[90%] mx-auto space-y-8 py-8">
         {isEditing ? (
@@ -141,7 +141,9 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
             <Link href={`/p/${publicationInfo.id}`} key={publicationInfo.id}>
               <div className="flex items-center gap-2">
                 <span>
-                  <span className="italic underline hover:text-blue-500">{publicationInfo.publication_title}</span>
+                  <span className="italic underline hover:text-blue-500">{publicationInfo.publication_title || 'Untitled'}</span>
+                  <br />
+                  <span className="text-xs text-blurple">{publicationInfo.authorship_label}</span>
                   <br />
                   <span className="text-xs">{new Date(publicationInfo.publication_date).toLocaleDateString('en-US', {
                     month: 'short',

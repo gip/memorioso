@@ -65,6 +65,7 @@ export type Author = {
     author_name_libro: string
     publication_title: string
     publication_subtitle: string
+    authorship_label: 'Signed by a human' | 'Human-authorized agent'
   }
   
   export type LegacyProof = {

@@ -95,6 +95,7 @@ vi.mock('@/lib/publish-validation', () => ({
 }))
 
 import { PUT } from './route'
+import { assertChallengeCanBeUsed } from '@/lib/publish-validation'
 
 function request(idkitResult: IDKitResult): NextRequest {
   return {
@@ -142,7 +143,21 @@ describe('publish prepare route', () => {
     })
     dbMock.query.mockImplementation(async (query: string) => {
       if (query.includes('INSERT INTO libro_publish_registrations')) {
-        return { rows: [{ id: 'fca16bc9-362c-4c58-9083-06a0370f6824' }] }
+        return { rows: [{
+          id: 'fca16bc9-362c-4c58-9083-06a0370f6824',
+          signal_hash: validationMock.challenge.signal_hash,
+          action_hash: '12345',
+          chain_id: 480,
+          registry_address: '0x1111111111111111111111111111111111111111',
+          transaction: {
+            chainId: 480,
+            transactions: [{
+              to: '0x1111111111111111111111111111111111111111',
+              data: '0x1234',
+              value: '0x0',
+            }],
+          },
+        }] }
       }
 
       return { rows: [] }
@@ -195,6 +210,41 @@ describe('publish prepare route', () => {
       success: false,
       message: 'World ID proof context does not match this publication',
     })
+    expect(proofMock.prepareLibroRegistration).not.toHaveBeenCalled()
+  })
+
+  it('returns the original registration on an idempotent retry', async () => {
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('SELECT id, signal_hash')) {
+        return { rows: [{
+          id: 'registration-existing',
+          signal_hash: validationMock.challenge.signal_hash,
+          action_hash: '12345',
+          chain_id: 480,
+          registry_address: '0x1111111111111111111111111111111111111111',
+          transaction: { chainId: 480, transactions: [] },
+          publicationId: '42',
+        }] }
+      }
+      return { rows: [] }
+    })
+
+    const response = await PUT(request(result('wrong-action-is-ignored-after-proof-was-accepted')), context(validationMock.challenge.draftId))
+    expect(await response.json()).toMatchObject({
+      success: true,
+      registrationId: 'registration-existing',
+      publicationId: '42',
+    })
+    expect(proofMock.prepareLibroRegistration).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stale publication challenge', async () => {
+    vi.mocked(assertChallengeCanBeUsed).mockImplementationOnce(() => {
+      throw new Error('Publish challenge has expired')
+    })
+    const response = await PUT(request(result()), context(validationMock.challenge.draftId))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ message: 'Publish challenge has expired' })
     expect(proofMock.prepareLibroRegistration).not.toHaveBeenCalled()
   })
 })

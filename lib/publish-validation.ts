@@ -9,6 +9,7 @@ import {
 import { isJsonEqual } from '@/lib/json'
 import type { JsonValue } from '@/lib/json'
 import type { LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
+import { hasMeaningfulPublicationBody } from '@libro/core'
 
 type PublishChallengeLookup = {
   challengeId: string
@@ -95,6 +96,10 @@ export function assertChallengeCanBeUsed(challenge: PublishChallengeRow, require
 export function assertDraftCanBePublished(draft: PublishDraftRow): void {
   if (draft.status !== 'editing') {
     throw new Error('Only editing drafts can be published')
+  }
+
+  if (!hasMeaningfulPublicationBody(draft.content)) {
+    throw new Error('Publication body must contain readable text')
   }
 }
 

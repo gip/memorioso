@@ -105,7 +105,7 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal FROM publications WHERE "authorId" = $1 ORDER BY id DESC LIMIT 21',
+      'SELECT id, signal, proof FROM publications WHERE "authorId" = $1 ORDER BY id DESC LIMIT 21',
       [authorId]
     )
 
@@ -116,7 +116,10 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
       publication_date: row.signal.publication_date,
       author_name_libro: row.signal.author_name_libro,
       publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle
+      publication_subtitle: row.signal.publication_subtitle,
+      authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
+        ? 'Human-authorized agent'
+        : 'Signed by a human',
     }))
   } finally {
     client.release()
@@ -127,7 +130,7 @@ export const getLatestPublications = cache(async (limit: number = 20): Promise<P
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1',
+      'SELECT id, signal, proof FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1',
       [limit]
     )
 
@@ -137,7 +140,10 @@ export const getLatestPublications = cache(async (limit: number = 20): Promise<P
       publication_date: row.signal.publication_date,
       author_name_libro: row.signal.author_name_libro,
       publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle
+      publication_subtitle: row.signal.publication_subtitle,
+      authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
+        ? 'Human-authorized agent'
+        : 'Signed by a human',
     }))
   } finally {
     client.release()

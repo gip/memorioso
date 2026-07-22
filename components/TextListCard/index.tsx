@@ -10,13 +10,14 @@ type TextListCardProps = {
   title: string
   subtitle?: string
   signed?: boolean
+  authorshipLabel?: string
   /** Trailing meta for signed items, e.g. "@caleb · 3 days ago" or "Caleb North · 2h ago". */
   metaText?: string
   href?: string
   onClick?: () => void
 }
 
-const CardBody = ({ title, subtitle, signed = true, metaText }: TextListCardProps) => (
+const CardBody = ({ title, subtitle, signed = true, metaText, authorshipLabel }: TextListCardProps) => (
   <div className="flex items-start gap-3">
     <div className="min-w-0 flex-1">
       <div className="spectral truncate text-[17px] font-semibold leading-tight text-foreground">
@@ -28,7 +29,7 @@ const CardBody = ({ title, subtitle, signed = true, metaText }: TextListCardProp
       <div className="mt-2 flex items-center gap-2">
         {signed ? (
           <>
-            <VerifiedChip />
+            <VerifiedChip label={authorshipLabel} />
             {metaText && (
               <>
                 <span className="text-xs text-zinc-400">·</span>

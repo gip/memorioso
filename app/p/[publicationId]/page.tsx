@@ -5,6 +5,8 @@ import { Publication } from '@/components/Publication'
 import { getProof, getPublication } from '@/lib/db/objects'
 import { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
+import { buildLibroEmbedManifest } from '@/lib/libro/embed'
+import type { LibroEmbedManifestV1 } from '@libro/core'
 
 type Params = Promise<{ publicationId: string }>
 type SearchParams = Promise<{ signed?: string }>
@@ -30,9 +32,9 @@ export const generateMetadata = async ({ params }: { params: Params }): Promise<
   const publication = await getCachedPublication(publicationId)
 
   return {
-    title: publication?.publication_title || 'Publication',
+    title: publication?.publication_title || 'Untitled publication',
     openGraph: {
-      title: publication?.publication_title || 'Publication',
+      title: publication?.publication_title || 'Untitled publication',
       url: `https://memoriozo.xyz/p/${publicationId}`,
     },
   }
@@ -44,6 +46,14 @@ const Page = async ({ params, searchParams }: { params: Params; searchParams: Se
   const { signed } = await searchParams
   const publication = await getCachedPublication(publicationId)
   const proof = await getCachedProof(publicationId)
+  let embedManifest: LibroEmbedManifestV1 | null = null
+  if (publication && proof) {
+    try {
+      embedManifest = buildLibroEmbedManifest(publication, proof, publicationId)
+    } catch {
+      embedManifest = null
+    }
+  }
 
   return (<>
     <Header />
@@ -54,6 +64,7 @@ const Page = async ({ params, searchParams }: { params: Params; searchParams: Se
           proof={proof}
           proofLink={`/p/${publicationId}/proof`}
           celebrate={signed === '1'}
+          embedManifest={embedManifest}
         />
       )}
     </Suspense>

@@ -115,6 +115,22 @@ describe('World ID publication signals', () => {
     expect(signal.author_id_libro).toBe(author.id)
     expect(signal.publication_title).toBe('A human note')
   })
+
+  it('keeps optional title fields present as normalized empty strings', () => {
+    const signal = createLibroPublicationV1({
+      author,
+      title: '   ',
+      subtitle: null,
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(signal.publication_title).toBe('')
+    expect(signal.publication_subtitle).toBe('')
+    expect(canonicalPublicationSignal(signal)).toContain('"publication_title":""')
+    expect(canonicalPublicationSignal(signal)).toContain('"publication_subtitle":""')
+  })
 })
 
 describe('Libro registration helpers', () => {
@@ -253,6 +269,17 @@ describe('Libro agent authorization helpers', () => {
         content: [],
       },
     })).toThrow('Publication content HTML is required')
+  })
+
+  it('accepts untitled agent documents but rejects empty readable bodies', () => {
+    expect(parseAgentPublicationPayload({ title: '', subtitle: '', content })).toMatchObject({
+      title: '',
+      subtitle: '',
+    })
+    expect(() => parseAgentPublicationPayload({
+      title: '',
+      content: { html: '<p><br></p>' },
+    })).toThrow('Publication body must contain readable text')
   })
 })
 

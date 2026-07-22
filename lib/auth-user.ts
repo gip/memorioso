@@ -1,10 +1,19 @@
 import { getAuthSessionPayload } from '@/lib/auth-session'
 import { pool } from '@/lib/db'
 import type { WorldIdSessionUser } from '@/lib/auth-types'
+import type { NextRequest } from 'next/server'
+import {
+  getExtensionSession,
+  hasAuthorizationHeader,
+} from '@/lib/extension-auth'
 
 export type AuthenticatedUser = WorldIdSessionUser
 
-export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+export async function getAuthenticatedUser(request?: NextRequest): Promise<AuthenticatedUser | null> {
+  if (request && hasAuthorizationHeader(request)) {
+    return (await getExtensionSession(request))?.user || null
+  }
+
   const session = await getAuthSessionPayload()
   if (!session) {
     return null

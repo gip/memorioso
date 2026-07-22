@@ -88,12 +88,38 @@ CREATE TABLE libro_publish_registrations (
     transaction JSONB NOT NULL,
     user_op_hash VARCHAR(255),
     transaction_hash VARCHAR(255),
+    "publicationId" BIGINT REFERENCES publications(id) ON DELETE SET NULL,
     finalized_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_libro_publish_registrations_draft_user
     ON libro_publish_registrations("draftId", "userId");
+
+CREATE TABLE libro_extension_auth_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    nonce VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_extension_auth_attempts_user
+    ON libro_extension_auth_attempts("userId", expires_at);
+
+CREATE TABLE libro_extension_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    last_used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_libro_extension_sessions_user
+    ON libro_extension_sessions("userId", expires_at);
 
 CREATE TABLE libro_agent_registrations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

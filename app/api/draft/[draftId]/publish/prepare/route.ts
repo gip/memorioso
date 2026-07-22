@@ -25,7 +25,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
-  const authenticatedUser = await getAuthenticatedUser()
+  const authenticatedUser = await getAuthenticatedUser(req)
 
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
@@ -68,6 +68,28 @@ export async function PUT(
 
     if (!challenge) {
       return await fail('Publish challenge not found', 404)
+    }
+
+    const existingRegistrationResult = await client.query(
+      `SELECT id, signal_hash, action_hash, chain_id, registry_address, transaction, "publicationId"
+       FROM libro_publish_registrations
+       WHERE "challengeId" = $1 AND "draftId" = $2 AND "userId" = $3`,
+      [challenge.id, draftId, authenticatedUser.id]
+    )
+    if (existingRegistrationResult.rows.length > 0) {
+      const existing = existingRegistrationResult.rows[0]
+      await client.query('COMMIT')
+      return NextResponse.json({
+        success: true,
+        registrationId: existing.id,
+        signalHash: existing.signal_hash,
+        actionHash: existing.action_hash,
+        chainId: existing.chain_id,
+        registryAddress: existing.registry_address,
+        transaction: existing.transaction,
+        publicationId: existing.publicationId || undefined,
+        publicationSchema: challenge.publication.publication_schema,
+      })
     }
 
     try {
@@ -132,19 +154,8 @@ export async function PUT(
         ("userId", "draftId", "challengeId", signal_hash, contract_signal_hash, action_hash, chain_id, registry_address, proof, transaction)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT ("challengeId")
-       DO UPDATE SET
-         signal_hash = EXCLUDED.signal_hash,
-         contract_signal_hash = EXCLUDED.contract_signal_hash,
-         action_hash = EXCLUDED.action_hash,
-         chain_id = EXCLUDED.chain_id,
-         registry_address = EXCLUDED.registry_address,
-         proof = EXCLUDED.proof,
-         transaction = EXCLUDED.transaction,
-         user_op_hash = NULL,
-         transaction_hash = NULL,
-         finalized_at = NULL,
-         created_at = CURRENT_TIMESTAMP
-       RETURNING id`,
+       DO UPDATE SET "challengeId" = libro_publish_registrations."challengeId"
+       RETURNING id, signal_hash, action_hash, chain_id, registry_address, transaction, "publicationId"`,
       [
         authenticatedUser.id,
         draftId,
@@ -161,14 +172,16 @@ export async function PUT(
 
     await client.query('COMMIT')
 
+    const registration = registrationResult.rows[0]
     return NextResponse.json({
       success: true,
-      registrationId: registrationResult.rows[0].id,
-      signalHash: preparedRegistration.signalHash,
-      actionHash: preparedRegistration.actionHash,
-      chainId: libroConfig.chainId,
-      registryAddress: libroConfig.registryAddress,
-      transaction: preparedRegistration.transaction,
+      registrationId: registration.id,
+      signalHash: registration.signal_hash,
+      actionHash: registration.action_hash,
+      chainId: registration.chain_id,
+      registryAddress: registration.registry_address,
+      transaction: registration.transaction,
+      publicationId: registration.publicationId || undefined,
       publicationSchema: storedPublication.publication_schema,
     })
   } catch (error) {

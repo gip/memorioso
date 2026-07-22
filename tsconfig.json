@@ -24,6 +24,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@libro/core": [
+        "./libro/core/src/index.ts"
       ]
     },
     "target": "ES2017"
@@ -36,6 +39,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "libro/chrome-extension"
   ]
 }

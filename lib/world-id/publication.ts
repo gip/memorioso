@@ -1,4 +1,10 @@
-import { hashSignal } from '@worldcoin/idkit/hashing'
+import {
+  canonicalizeJson,
+  canonicalStringify,
+  canonicalPublicationSignal as canonicalLibroSignal,
+  hashPublicationSignal as hashLibroSignal,
+  normalizeOptionalPublicationText,
+} from '@libro/core'
 import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
 import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
 import {
@@ -7,9 +13,6 @@ import {
   WORLD_ID_CREDENTIAL_POLICY,
   WORLD_ID_PROTOCOL_VERSION,
 } from './constants'
-
-type JsonPrimitive = string | number | boolean | null
-type JsonInput = JsonPrimitive | JsonInput[] | { [key: string]: JsonInput | undefined }
 
 export type PublicationDraftInput = {
   author: Pick<Author, 'id' | 'name' | 'handle' | 'bio'>
@@ -20,29 +23,7 @@ export type PublicationDraftInput = {
   action?: string
 }
 
-export function canonicalizeJson(input: JsonInput): JsonInput {
-  if (Array.isArray(input)) {
-    return input.map((item) => canonicalizeJson(item))
-  }
-
-  if (input !== null && typeof input === 'object') {
-    return Object.keys(input)
-      .sort()
-      .reduce<{ [key: string]: JsonInput }>((acc, key) => {
-        const value = input[key]
-        if (value !== undefined) {
-          acc[key] = canonicalizeJson(value)
-        }
-        return acc
-      }, {})
-  }
-
-  return input
-}
-
-export function canonicalStringify(input: JsonInput): string {
-  return JSON.stringify(canonicalizeJson(input))
-}
+export { canonicalizeJson, canonicalStringify }
 
 export function createPublicationV2({
   author,
@@ -62,9 +43,9 @@ export function createPublicationV2({
     author_name_libro: author.name,
     author_handle_libro: author.handle,
     author_bio_libro: author.bio || '',
-    publication_title: title,
+    publication_title: normalizeOptionalPublicationText(title),
     publication_content: content,
-    publication_subtitle: subtitle || '',
+    publication_subtitle: normalizeOptionalPublicationText(subtitle),
   }
 }
 
@@ -81,9 +62,9 @@ export function isLibroPublicationV1(publication: PublicationV2 | LibroPublicati
 }
 
 export function canonicalPublicationSignal(publication: PublicationV2 | LibroPublicationV1 | LibroAgentPublicationV1): string {
-  return canonicalStringify(publication as unknown as JsonInput)
+  return canonicalLibroSignal(publication as unknown as Record<string, unknown>)
 }
 
 export function hashPublicationSignal(signalText: string): string {
-  return hashSignal(signalText).toLowerCase()
+  return hashLibroSignal(signalText)
 }

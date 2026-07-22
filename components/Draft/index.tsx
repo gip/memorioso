@@ -45,6 +45,7 @@ import {
   sendLibroRegistrationTransaction,
 } from '@/lib/libro/client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
+import { hasMeaningfulPublicationBody } from '@libro/core'
 
 type DraftData = {
   id?: string
@@ -502,7 +503,8 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const hasText =
     (draft?.title?.trim()?.length ?? 0) > 0 ||
     (draft?.subtitle?.trim()?.length ?? 0) > 0 ||
-    (draft?.content?.html || '').replace(/<[^>]*>/g, '').trim().length > 0
+    hasMeaningfulPublicationBody(draft?.content)
+  const hasPublishableBody = hasMeaningfulPublicationBody(draft?.content)
 
   // Debounced autosave: no Save button, work is never lost.
   useEffect(() => {
@@ -579,7 +581,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setIsConfirmOpen(true)}
-            disabled={!hasText || isEditingDisabled || isPollingRegistration}
+            disabled={!hasPublishableBody || isEditingDisabled || isPollingRegistration}
           >
             Sign &amp; publish
           </Button>

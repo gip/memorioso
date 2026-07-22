@@ -40,3 +40,9 @@ Libro protocol assets live under `libro/` so they can be split into a separate r
 `LibroAgentRegistry` is the companion registry for human-authorized agent documents. A human principal first registers an agent address with World ID action `register-agent-v1`; later the agent signs document payloads with EIP-712 and any wallet or relayer can submit the registration transaction.
 
 Run `forge test` from `libro/contracts` to test the registry contract.
+
+## Libro website embeds
+
+Finalized direct-human publications expose `libro-embed-v1`: a `.libro-human-authored` content wrapper plus an adjacent `application/libro+json` manifest. Simple publications also display a portable plain-text boundary containing the full signal hash and public manifest URL. Publication pages include the declaration and offer a copyable, sanitized embed. The same public manifest is available at `/api/publications/{id}/libro-manifest`.
+
+The Chrome Manifest V3 verifier and inline signer live under `libro/chrome-extension`. Configure its exact API origin with `VITE_MEMORIOSO_APP_URL`, build it with `pnpm extension:build`, then load `libro/chrome-extension/dist` as an unpacked extension. It scans structured embeds and plain-text Libro tags, and its side panel can capture text, authenticate an existing Memorioso author, complete the normal World ID plus sponsored World Chain publishing flow, and safely return the portable tag to the source editor. Existing databases must apply `lib/db/migrations/006_libro_extension_signing.sql`.

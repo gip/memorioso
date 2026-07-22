@@ -24,7 +24,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
-  const authenticatedUser = await getAuthenticatedUser()
+  const authenticatedUser = await getAuthenticatedUser(req)
 
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
@@ -65,7 +65,7 @@ export async function PUT(
 
   try {
     const pendingResult = await client.query(
-      `SELECT signal_hash, transaction_hash
+      `SELECT signal_hash, transaction_hash, finalized_at, "publicationId"
        FROM libro_publish_registrations
        WHERE id = $1 AND "draftId" = $2 AND "userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
@@ -73,6 +73,13 @@ export async function PUT(
 
     if (pendingResult.rows.length === 0) {
       return NextResponse.json({ success: false, message: 'Libro registration not found' }, { status: 404 })
+    }
+
+    if (pendingResult.rows[0].finalized_at && pendingResult.rows[0].publicationId) {
+      return NextResponse.json({
+        success: true,
+        publicationId: pendingResult.rows[0].publicationId,
+      })
     }
 
     if (
@@ -114,7 +121,11 @@ export async function PUT(
 
     const registration = registrationResult.rows[0]
     if (registration.finalized_at) {
-      return await fail('Libro registration has already been finalized')
+      if (registration.publicationId) {
+        await client.query('COMMIT')
+        return NextResponse.json({ success: true, publicationId: registration.publicationId })
+      }
+      return await fail('Finalized Libro registration is incomplete', 409)
     }
 
     if (
@@ -207,9 +218,9 @@ export async function PUT(
 
     await client.query(
       `UPDATE libro_publish_registrations
-       SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), registrationId]
+       SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP, "publicationId" = $3
+       WHERE id = $4`,
+      [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), articleResult.rows[0].id, registrationId]
     )
 
     await client.query('COMMIT')

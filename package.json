@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "db:migrate": "node scripts/migrate-db.mjs",
     "libro:core:check": "pnpm --filter @libro/core check",
     "extension:build": "pnpm --filter @libro/chrome-extension build",
     "extension:test": "pnpm --filter @libro/chrome-extension test"

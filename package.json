@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/migrate-db.mjs",
     "libro:core:check": "pnpm --filter @libro/core check",
     "extension:build": "pnpm --filter @libro/chrome-extension build",
+    "extension:build:stage": "pnpm --filter @libro/chrome-extension build:stage",
     "extension:test": "pnpm --filter @libro/chrome-extension test"
   },
   "dependencies": {

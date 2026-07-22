@@ -21,6 +21,7 @@ node_modules/
 /libro/contracts/cache/
 /libro/contracts/broadcast/
 /libro/chrome-extension/dist/
+/libro/chrome-extension/dist-stage/
 
 # misc
 .DS_Store

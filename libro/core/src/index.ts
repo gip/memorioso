@@ -56,7 +56,16 @@ export type LibroEmbedManifestV1 = {
   source?: {
     publication_url: string
     proof_url: string
+    manifest_url?: string
   }
+}
+
+export type LibroTextTagV1 = {
+  authorHandle: string
+  publicationDate: string
+  signalHash: string
+  manifestUrl: string | null
+  bodyText: string
 }
 
 export const libroProofRegistryAbi = [
@@ -126,6 +135,38 @@ export function normalizeReadableText(value: string): string {
     .replace(/\u00a0/gu, ' ')
     .replace(/\s+/gu, ' ')
     .trim()
+}
+
+const LIBRO_TEXT_TAG_PATTERN = new RegExp(
+  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
+  'g'
+)
+
+export function parseLibroTextTags(value: string): LibroTextTagV1[] {
+  const normalized = value.replace(/\r\n?/g, '\n')
+  const tags: LibroTextTagV1[] = []
+  LIBRO_TEXT_TAG_PATTERN.lastIndex = 0
+
+  for (const match of normalized.matchAll(LIBRO_TEXT_TAG_PATTERN)) {
+    const bodyText = normalizeReadableText(match[5])
+    if (!bodyText) continue
+    tags.push({
+      authorHandle: match[1],
+      publicationDate: match[2],
+      signalHash: match[3].toLowerCase(),
+      manifestUrl: match[4] || null,
+      bodyText,
+    })
+  }
+
+  return tags
+}
+
+export function libroTextTagHashMatches(declaredHash: string, signalHash: string): boolean {
+  const declared = declaredHash.toLowerCase().replace('...', '…')
+  const expected = signalHash.toLowerCase()
+  if (/^0x[0-9a-f]{64}$/.test(declared)) return declared === expected
+  return declared === `${expected.slice(0, 8)}…${expected.slice(-4)}`
 }
 
 export function extractReadableText(html: string): string {
@@ -262,7 +303,14 @@ export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
     if (!isRecord(value.source)) throw new Error('source must be an object')
     const publicationUrl = requireString(value.source, 'publication_url')
     const proofUrl = requireString(value.source, 'proof_url')
-    for (const [field, url] of [['publication_url', publicationUrl], ['proof_url', proofUrl]] as const) {
+    const manifestUrl = value.source.manifest_url === undefined
+      ? undefined
+      : requireString(value.source, 'manifest_url')
+    for (const [field, url] of [
+      ['publication_url', publicationUrl],
+      ['proof_url', proofUrl],
+      ...(manifestUrl ? [['manifest_url', manifestUrl] as const] : []),
+    ] as const) {
       let parsed: URL
       try {
         parsed = new URL(url)
@@ -273,7 +321,11 @@ export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
         throw new Error(`${field} must use HTTPS`)
       }
     }
-    manifest.source = { publication_url: publicationUrl, proof_url: proofUrl }
+    manifest.source = {
+      publication_url: publicationUrl,
+      proof_url: proofUrl,
+      ...(manifestUrl ? { manifest_url: manifestUrl } : {}),
+    }
   }
 
   return manifest

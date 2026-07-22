@@ -44,8 +44,8 @@ function render(response: ScanResponse): void {
 
   const verified = response.results.filter((item) => item.status === 'verified').length
   summary.textContent = response.results.length === 0
-    ? 'No Libro human-authored blocks found.'
-    : `${verified} of ${response.results.length} Libro block${response.results.length === 1 ? '' : 's'} verified.`
+    ? 'No Libro human-authored declarations found.'
+    : `${verified} of ${response.results.length} Libro declaration${response.results.length === 1 ? '' : 's'} verified.`
   summary.className = `summary ${verified > 0 ? 'success' : ''}`
   response.results.forEach((item) => resultsNode.append(renderResult(item)))
 }

@@ -4,7 +4,13 @@
   "version": "0.1.0",
   "description": "Find and verify text registered as directly human-authored through Libro.",
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://worldchain-mainnet.g.alchemy.com/*"],
+  "host_permissions": [
+    "https://worldchain-mainnet.g.alchemy.com/*",
+    "https://memorioso.xyz/*",
+    "https://www.memorioso.xyz/*",
+    "https://*.vercel.app/*",
+    "http://localhost/*"
+  ],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"

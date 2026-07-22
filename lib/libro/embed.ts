@@ -111,6 +111,7 @@ export function buildLibroEmbedManifest(
     manifest.source = {
       publication_url: `${appUrl}/p/${publicationId}`,
       proof_url: `${appUrl}/p/${publicationId}/proof`,
+      manifest_url: `${appUrl}/api/publications/${publicationId}/libro-manifest`,
     }
   }
 
@@ -155,9 +156,13 @@ export function sanitizeLibroEmbedHtml(html: string): string {
 
 export function getLibroSimpleBoundaryLabel(manifest: LibroEmbedManifestV1): string {
   const { publication, registration } = manifest
-  const hash = registration.signal_hash
-  const shortHash = `${hash.slice(0, 8)}…${hash.slice(-4)}`
-  return `=== Libro · Signed by a human · @${publication.author_handle_libro} · ${publication.publication_date.slice(0, 10)} · ${shortHash} ===`
+  const manifestUrl = manifest.source?.manifest_url
+  return `=== Libro · Signed by a human · @${publication.author_handle_libro} · ${publication.publication_date.slice(0, 10)} · ${registration.signal_hash}${manifestUrl ? ` · ${manifestUrl}` : ''} ===`
+}
+
+export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
+  const text = extractReadableText(manifest.publication.publication_content.html)
+  return `${getLibroSimpleBoundaryLabel(manifest)}\n${text}\n=== End Libro ===`
 }
 
 export function buildLibroEmbedSnippet(manifest: LibroEmbedManifestV1): string {

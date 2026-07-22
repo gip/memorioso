@@ -12,7 +12,9 @@ import {
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_V1_REGISTRY_ADDRESS,
+  libroTextTagHashMatches,
   manifestElementId,
+  parseLibroTextTags,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
   type LibroPublicationV1Payload,
@@ -46,6 +48,11 @@ function manifest(): LibroEmbedManifestV1 {
       action_hash: actionHashToHex(publication.world_id_action),
       transaction_hash: `0x${'11'.repeat(32)}`,
     },
+    source: {
+      publication_url: 'https://memorioso.xyz/p/42',
+      proof_url: 'https://memorioso.xyz/p/42/proof',
+      manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
+    },
   }
 }
 
@@ -71,6 +78,33 @@ describe('Libro readable text', () => {
     expect(isSimpleTextPublication(publication)).toBe(true)
     expect(isSimpleTextPublication({ ...publication, publication_title: 'Title' })).toBe(false)
     expect(isSimpleTextPublication({ ...publication, publication_content: { html: '<p>One</p><p>Two</p>' } })).toBe(false)
+  })
+})
+
+describe('Libro plain-text tags', () => {
+  it('parses a full verifiable tag', () => {
+    const signalHash = manifest().registration.signal_hash
+    const text = [
+      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${signalHash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      'Hello human world.',
+      '=== End Libro ===',
+    ].join('\n')
+
+    expect(parseLibroTextTags(text)).toEqual([{
+      authorHandle: 'ada',
+      publicationDate: '2026-07-21',
+      signalHash,
+      manifestUrl: 'https://memorioso.xyz/api/publications/42/libro-manifest',
+      bodyText: 'Hello human world.',
+    }])
+  })
+
+  it('detects legacy shortened hashes without treating them as a different signal', () => {
+    const signalHash = manifest().registration.signal_hash
+    const shortHash = `${signalHash.slice(0, 8)}…${signalHash.slice(-4)}`
+    const text = `=== Libro · Signed by a human · @ada · 2026-07-21 · ${shortHash} ===\nHello\n=== End Libro ===`
+    expect(parseLibroTextTags(text)[0]).toMatchObject({ signalHash: shortHash, manifestUrl: null })
+    expect(libroTextTagHashMatches(shortHash, signalHash)).toBe(true)
   })
 })
 

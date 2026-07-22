@@ -43,16 +43,39 @@ function manifest(): LibroEmbedManifestV1 {
       action_hash: actionHashToHex(publication.world_id_action),
       transaction_hash: `0x${'11'.repeat(32)}`,
     },
+    source: {
+      publication_url: 'https://memorioso.xyz/p/42',
+      proof_url: 'https://memorioso.xyz/p/42/proof',
+      manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
+    },
   }
 }
 
 function candidate(value = manifest()): LibroCandidate {
   return {
     blockId: 'block-1',
+    kind: 'embed',
     innerHtml: '<div>Hello human</div><div>world.</div>',
+    snapshotHtml: '<div>Hello human</div><div>world.</div>',
     declaredHash: value.registration.signal_hash,
     manifestId: manifestElementId(value.registration.signal_hash),
     manifestText: JSON.stringify(value),
+  }
+}
+
+function textCandidate(value = manifest()): LibroCandidate {
+  return {
+    blockId: 'text-1',
+    kind: 'text',
+    innerHtml: 'Hello human world.',
+    readableText: 'Hello human world.',
+    snapshotHtml: 'Hello human world.',
+    declaredHash: value.registration.signal_hash,
+    manifestId: null,
+    manifestText: JSON.stringify(value),
+    manifestUrl: value.source?.manifest_url,
+    declaredAuthorHandle: 'ada',
+    declaredPublicationDate: '2026-07-21',
   }
 }
 
@@ -69,6 +92,20 @@ describe('extension candidate verification', () => {
     await expect(verifyCandidate({ ...candidate(), innerHtml: '<p>Changed</p>' })).resolves.toMatchObject({ status: 'text_mismatch' })
     await expect(verifyCandidate({ ...candidate(), declaredHash: `0x${'22'.repeat(32)}` })).resolves.toMatchObject({ status: 'invalid_manifest' })
     await expect(verifyCandidate({ ...candidate(), manifestId: 'libro-manifest-wrong' })).resolves.toMatchObject({ status: 'invalid_manifest' })
+  })
+
+  it('verifies a resolved plain-text tag and its declared metadata', async () => {
+    const value = manifest()
+    await expect(verifyCandidate(textCandidate(value), async () => value)).resolves.toMatchObject({ status: 'verified' })
+    await expect(verifyCandidate({ ...textCandidate(value), declaredAuthorHandle: 'grace' }, async () => value))
+      .resolves.toMatchObject({ status: 'invalid_manifest' })
+    await expect(verifyCandidate({ ...textCandidate(value), readableText: 'Changed' }, async () => value))
+      .resolves.toMatchObject({ status: 'text_mismatch' })
+  })
+
+  it('detects a plain-text tag whose manifest cannot be resolved', async () => {
+    await expect(verifyCandidate({ ...textCandidate(), manifestText: null }))
+      .resolves.toMatchObject({ status: 'manifest_missing' })
   })
 
   it('rejects malformed and unsupported manifests locally', async () => {

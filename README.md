@@ -43,6 +43,6 @@ Run `forge test` from `libro/contracts` to test the registry contract.
 
 ## Libro website embeds
 
-Finalized direct-human publications expose `libro-embed-v1`: a `.libro-human-authored` content wrapper plus an adjacent `application/libro+json` manifest. Publication pages include the declaration and offer a copyable, sanitized embed. The same public manifest is available at `/api/publications/{id}/libro-manifest`.
+Finalized direct-human publications expose `libro-embed-v1`: a `.libro-human-authored` content wrapper plus an adjacent `application/libro+json` manifest. Simple publications also display a portable plain-text boundary containing the full signal hash and public manifest URL. Publication pages include the declaration and offer a copyable, sanitized embed. The same public manifest is available at `/api/publications/{id}/libro-manifest`.
 
-The Chrome Manifest V3 verifier lives under `libro/chrome-extension`. Build it with `pnpm extension:build`, then load `libro/chrome-extension/dist` as an unpacked extension. It scans only after a toolbar click and checks readable text, canonical hashes, the approved registry, and the registration transaction independently on World Chain.
+The Chrome Manifest V3 verifier lives under `libro/chrome-extension`. Build it with `pnpm extension:build`, then load `libro/chrome-extension/dist` as an unpacked extension. It scans structured embeds and plain-text Libro tags only after a toolbar click, then checks readable text, canonical hashes, the approved registry, and the registration transaction independently on World Chain.

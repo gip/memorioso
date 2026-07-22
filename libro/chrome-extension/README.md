@@ -10,8 +10,10 @@ Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpack
 `libro/chrome-extension/dist`.
 
 The extension requests temporary access only after its toolbar icon is clicked. It scans the active
-top-level page for `.libro-human-authored` blocks and independently checks their inline manifest,
-readable text, canonical signal hash, approved registry, and registration transaction on World Chain.
+top-level page for `.libro-human-authored` blocks and delimited plain-text Libro tags. It independently
+checks their manifest, readable text, canonical signal hash, approved registry, and registration
+transaction on World Chain. Plain-text tags resolve their public manifest through the URL in the
+opening boundary; a legacy tag without a resolvable manifest is detected but not marked verified.
 
 The green state covers readable DOM text only. It does not authenticate styling, links, images,
 CSS-generated content, or a legal identity behind the signed author name.

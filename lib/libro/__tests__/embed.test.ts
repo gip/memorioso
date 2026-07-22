@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { actionHashToHex, canonicalPublicationSignal, hashPublicationSignal } from '@libro/core'
-import { buildLibroEmbedManifest, buildLibroEmbedSnippet, sanitizeLibroEmbedHtml } from '../embed'
+import { buildLibroEmbedManifest, buildLibroEmbedSnippet, buildLibroTextSnippet, sanitizeLibroEmbedHtml } from '../embed'
 import type { LibroPublicationV1, PublicationRecord, WorldIdProofV4 } from '@/types'
 
 const publication: LibroPublicationV1 = {
@@ -49,10 +49,24 @@ describe('Libro embed generation', () => {
     const snippet = buildLibroEmbedSnippet(manifest)
     expect(snippet).toContain('class="libro-human-authored"')
     expect(snippet).toContain('=== Libro · Signed by a human · @ada · 2026-07-21')
-    expect(snippet).toContain('type="application/libro+json"')
     expect(snippet).toContain(manifest.registration.signal_hash)
+    expect(snippet).toContain('type="application/libro+json"')
     expect(snippet).toContain(`data-libro-manifest="libro-manifest-${manifest.registration.signal_hash}"`)
     expect(snippet).toContain(`id="libro-manifest-${manifest.registration.signal_hash}"`)
+  })
+
+  it('builds a resolvable plain-text tag', () => {
+    const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
+    manifest.source = {
+      publication_url: 'https://memorioso.xyz/p/42',
+      proof_url: 'https://memorioso.xyz/p/42/proof',
+      manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
+    }
+    expect(buildLibroTextSnippet(manifest)).toBe([
+      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${manifest.registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      'Hello human.',
+      '=== End Libro ===',
+    ].join('\n'))
   })
 
   it('rejects stored publication tampering', () => {

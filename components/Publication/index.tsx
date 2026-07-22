@@ -19,6 +19,7 @@ import {
 } from '@libro/core'
 import {
   buildLibroEmbedSnippet,
+  buildLibroTextSnippet,
   getLibroSimpleBoundaryLabel,
   sanitizeLibroEmbedHtml,
 } from '@/lib/libro/embed'
@@ -48,6 +49,7 @@ export const Publication = ({
   const authorshipLabel = isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
+  const textSnippet = embedManifest ? buildLibroTextSnippet(embedManifest) : null
   const isSimpleEmbed = embedManifest ? isSimpleTextPublication(embedManifest.publication) : false
   const presentationContent = embedManifest ? sanitizeLibroEmbedHtml(content) : content
 
@@ -101,7 +103,7 @@ export const Publication = ({
         <span className="ml-0.5">/ {publication.author_name_libro}</span>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <VerifiedChip verifyHref={verifyHref} label={authorshipLabel} />
-          {embedSnippet && <CopyEmbedButton snippet={embedSnippet} />}
+          {embedSnippet && textSnippet && <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} />}
           <span className="text-zinc-400">·</span>
           <span>Signed {fmtDate(publication.publication_date)}</span>
           {credentialLabel && (

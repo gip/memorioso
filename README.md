@@ -24,6 +24,7 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 - `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`
 - `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`
 - `WORLD_ID_AGENT_REGISTRATION_ACTION=register-agent-v1`
+- `LIBRO_RELAYER_PRIVATE_KEY` for sponsored publication registration outside World App
 
 Use `.env.example` as the starting point for local configuration.
 
@@ -34,7 +35,7 @@ Libro protocol assets live under `libro/` so they can be split into a separate r
 - `libro/contracts` contains the Foundry project for `LibroProofRegistry`.
 - `libro/skill` contains the Libro protocol skill and reference.
 
-`LibroProofRegistry.register(...)` is permissionless: anyone can submit a valid registration transaction. Direct human publications use per-challenge World ID actions such as `written-by-a-human-v4-<challengeId>`, and the dynamic action hash is passed to the registry with the proof. Deploy the registry with the numeric `rpId` derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`. Memorioso uses MiniKit for World App gas sponsorship, not because the contract requires MiniKit.
+`LibroProofRegistry.register(...)` is permissionless: anyone can submit a valid registration transaction. Direct human publications use per-challenge World ID actions such as `written-by-a-human-v4-<challengeId>`, and the dynamic action hash is passed to the registry with the proof. Deploy the registry with the numeric `rpId` derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`. Inside World App, the user's World wallet submits through MiniKit. Outside World App, the server submits the same prepared transaction from the funded `LIBRO_RELAYER_PRIVATE_KEY` account and sponsors its gas.
 
 `LibroAgentRegistry` is the companion registry for human-authorized agent documents. A human principal first registers an agent address with World ID action `register-agent-v1`; later the agent signs document payloads with EIP-712 and any wallet or relayer can submit the registration transaction.
 

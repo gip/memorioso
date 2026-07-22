@@ -125,13 +125,14 @@ console.log({ registered, signalHash: expectedSignalHash });`
   return {
     code,
     content: `This document shows how to independently verify the Libro on-chain proof of human authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
-<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Anyone can call the registry with a valid proof; MiniKit is only a sponsored-gas path used by Memorioso.
+<br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Inside World App, the World wallet submits the transaction through MiniKit; elsewhere, Memorioso can sponsor the same permissionless registration through its relayer.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
+<br/>Submission: <strong>${registration.submission_method === 'memorioso_relayer' ? 'Memorioso sponsored relayer' : 'World wallet'}</strong>.
 <br/><br/>Chain ID: <strong>${registration.chain_id}</strong>.
 <br/>Registry: <code>${escapeHtml(registration.registry_address)}</code>.
 <br/>Signal hash: <code>${escapeHtml(registration.signal_hash)}</code>.
 <br/>Action hash: <code>${escapeHtml(registration.action_hash || 'unknown')}</code>.
-<br/>User operation: <code>${escapeHtml(registration.user_op_hash)}</code>.
+${registration.user_op_hash ? `<br/>User operation: <code>${escapeHtml(registration.user_op_hash)}</code>.` : ''}
 <br/>Transaction: <code>${escapeHtml(registration.transaction_hash)}</code>.
 <br/><br/><pre><code class="language-javascript">${codeToHtml(code)}</code></pre>`,
   }

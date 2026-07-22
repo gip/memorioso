@@ -15,6 +15,7 @@ import type { WorldIdProofV4 } from '@/types'
 
 type FinalizeRequest = {
   registrationId?: string
+  submissionMethod?: 'world_wallet' | 'memorioso_relayer'
   userOpHash?: string
   transactionHash?: string
 }
@@ -39,28 +40,32 @@ export async function PUT(
     }, { status: 500 })
   }
 
-  const { registrationId, userOpHash, transactionHash } = await req.json() as FinalizeRequest
+  const { registrationId, submissionMethod, userOpHash, transactionHash } = await req.json() as FinalizeRequest
   const { draftId } = await params
 
-  if (!registrationId || !userOpHash || !transactionHash) {
+  if (!registrationId || !submissionMethod || !transactionHash) {
     return NextResponse.json({
       success: false,
-      message: 'Registration, user operation, and transaction hash are required',
+      message: 'Registration, submission method, and transaction hash are required',
     }, { status: 400 })
   }
 
-  if (!isHex(userOpHash) || !isHex(transactionHash)) {
+  if (!isHex(transactionHash) || (submissionMethod === 'world_wallet' && (!userOpHash || !isHex(userOpHash)))) {
     return NextResponse.json({
       success: false,
-      message: 'User operation and transaction hash must be 0x-prefixed hex strings',
+      message: 'Required transaction identifiers must be 0x-prefixed hex strings',
     }, { status: 400 })
+  }
+
+  if (submissionMethod !== 'world_wallet' && submissionMethod !== 'memorioso_relayer') {
+    return NextResponse.json({ success: false, message: 'Invalid submission method' }, { status: 400 })
   }
 
   const client = await pool.connect()
 
   try {
     const pendingResult = await client.query(
-      `SELECT signal_hash
+      `SELECT signal_hash, transaction_hash
        FROM libro_publish_registrations
        WHERE id = $1 AND "draftId" = $2 AND "userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
@@ -68,6 +73,16 @@ export async function PUT(
 
     if (pendingResult.rows.length === 0) {
       return NextResponse.json({ success: false, message: 'Libro registration not found' }, { status: 404 })
+    }
+
+    if (
+      submissionMethod === 'memorioso_relayer' &&
+      pendingResult.rows[0].transaction_hash?.toLowerCase() !== transactionHash.toLowerCase()
+    ) {
+      return NextResponse.json({
+        success: false,
+        message: 'Sponsored transaction does not match the stored Libro registration',
+      }, { status: 400 })
     }
 
     const isRegistered = await verifyLibroSignalRegistered(pendingResult.rows[0].signal_hash, libroConfig)
@@ -151,11 +166,12 @@ export async function PUT(
       },
       libro_registration: {
         protocol_version: libroConfig.protocolVersion,
+        submission_method: submissionMethod,
         chain_id: libroConfig.chainId,
         registry_address: libroConfig.registryAddress,
         signal_hash: challenge.signal_hash,
         action_hash: registration.action_hash,
-        user_op_hash: userOpHash.toLowerCase(),
+        ...(userOpHash ? { user_op_hash: userOpHash.toLowerCase() } : {}),
         transaction_hash: transactionHash.toLowerCase(),
         registered_at: registeredAt,
       },
@@ -193,7 +209,7 @@ export async function PUT(
       `UPDATE libro_publish_registrations
        SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP
        WHERE id = $3`,
-      [userOpHash.toLowerCase(), transactionHash.toLowerCase(), registrationId]
+      [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), registrationId]
     )
 
     await client.query('COMMIT')

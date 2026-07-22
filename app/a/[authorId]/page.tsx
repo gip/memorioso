@@ -1,6 +1,7 @@
 import { Header } from '@/components/Header'
 import { Author } from '@/components/Author'
-import { type Author as AuthorType, type PublicationInfo, getAuthor, getPublicationInfoByAuthor, getAuthorByHandle } from '@/lib/db/objects'
+import { type Author as AuthorType, getAuthor, getPublicationInfoByAuthor, getAuthorByHandle } from '@/lib/db/objects'
+import { getAuthenticatedUser } from '@/lib/auth-user'
 import { notFound } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 
@@ -10,16 +11,6 @@ const Page = async ({ params }: { params: Promise<{ authorId: string }> }) => {
 
   if (!authorId) {
     notFound()
-  }
-
-  if (authorId === 'new') {
-    return (<>
-      <Header />
-      <div className="w-[96%] mx-auto space-y-4 py-4">
-        <Author create={true} author={null} publicationInfos={[]} />
-      </div>
-      <Footer />
-    </>)
   }
 
   let author: AuthorType | null = null
@@ -41,12 +32,16 @@ const Page = async ({ params }: { params: Promise<{ authorId: string }> }) => {
     notFound()
   }
 
-  const publicationInfos = await getPublicationInfoByAuthor(author.id)
+  const [publicationInfos, authenticatedUser] = await Promise.all([
+    getPublicationInfoByAuthor(author.id),
+    getAuthenticatedUser(),
+  ])
+  const self = Boolean(authenticatedUser && author.userId === authenticatedUser.id)
 
   return (<>
     <Header />
     <div className="w-[96%] mx-auto space-y-4 py-4">
-      <Author create={false} author={author} publicationInfos={publicationInfos} redirect={redirect} />
+      <Author author={author} publicationInfos={publicationInfos} redirect={redirect} self={self} />
     </div>
     <Footer />
   </>)

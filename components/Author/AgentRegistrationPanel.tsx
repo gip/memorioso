@@ -217,10 +217,7 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
 
   const constraints = context
     ? anyCredential(
-      CredentialRequest('proof_of_human', { signal: context.signal }),
-      CredentialRequest('selfie', { signal: context.signal }),
-      CredentialRequest('passport', { signal: context.signal }),
-      CredentialRequest('mnc', { signal: context.signal })
+      CredentialRequest('proof_of_human', { signal: context.signal })
     )
     : null
 

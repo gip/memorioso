@@ -118,7 +118,7 @@ function result(action = validationMock.challenge.action): IDKitResult {
     nonce: validationMock.challenge.nonce,
     environment: 'production',
     responses: [{
-      identifier: 'passport',
+      identifier: 'proof_of_human',
       signal_hash: validationMock.challenge.signal_hash,
       proof: ['1', '2', '3', '4', '5'],
       nullifier: '0xabc',

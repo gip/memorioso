@@ -67,7 +67,7 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     nonce: 'nonce123',
     environment: 'production',
     responses: [{
-      identifier: 'passport',
+      identifier: 'proof_of_human',
       signal_hash: signalHash,
       proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
       nullifier: '0xabc',
@@ -125,7 +125,7 @@ describe('Libro registration helpers', () => {
       action,
       nonce: '0x123',
       responses: [{
-        identifier: 'passport',
+        identifier: 'proof_of_human',
         signal_hash: signalHash,
         proof: ['1', '2', '3', '4', '5'],
         nullifier: '0xabc',
@@ -351,7 +351,7 @@ describe('publication version compatibility', () => {
 })
 
 describe('World ID v4 result validation', () => {
-  it('accepts v4 document-or-orb results bound to the signal hash', () => {
+  it('accepts v4 proof-of-human results bound to the signal hash', () => {
     const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
 
     expect(() => validateWorldIdV4Result(result(signalHash), {
@@ -360,6 +360,28 @@ describe('World ID v4 result validation', () => {
       environment: 'production',
       signalHash,
     })).not.toThrow()
+  })
+
+  it('rejects document credentials', () => {
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
+
+    for (const identifier of ['selfie', 'passport', 'mnc']) {
+      expect(() => validateWorldIdV4Result(result(signalHash, {
+        responses: [{
+          identifier,
+          signal_hash: signalHash,
+          proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+          nullifier: '0xabc',
+          issuer_schema_id: 9303,
+          expires_at_min: 1770000000,
+        }],
+      } as Partial<IDKitResult>), {
+        action: 'written-by-a-human-v4',
+        nonce: 'nonce123',
+        environment: 'production',
+        signalHash,
+      })).toThrow(`Unsupported World ID credential: ${identifier}`)
+    }
   })
 
   it('rejects legacy v3 results', () => {

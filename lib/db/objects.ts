@@ -20,7 +20,7 @@ export const getAuthor = cache(async (authorId: string): Promise<Author | null> 
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT a.id, a.name, a.bio, a.handle
+      `SELECT a.id, a.name, a.bio, a.handle, a."userId"
        FROM authors a
        WHERE a.id = $1`,
       [authorId]
@@ -36,7 +36,7 @@ export const getAuthorByHandle = cache(async (handle: string): Promise<Author | 
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT a.id, a.name, a.bio, a.handle
+      `SELECT a.id, a.name, a.bio, a.handle, a."userId"
        FROM authors a
        WHERE a.handle = $1`,
       [handle]

@@ -2,6 +2,7 @@ CREATE TABLE users
 (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
+  handle VARCHAR(32) UNIQUE,
   world_id_session_id TEXT UNIQUE,
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),
@@ -13,9 +14,10 @@ CREATE TABLE users
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- One author identity per user; created at signup from the user's handle.
 CREATE TABLE authors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "userId" INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     handle VARCHAR(32) NOT NULL UNIQUE,
     bio TEXT,

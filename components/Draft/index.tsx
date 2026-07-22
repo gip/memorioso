@@ -156,11 +156,6 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPickingAuthor, setIsPickingAuthor] = useState(false)
-  const [isCreatingAuthor, setIsCreatingAuthor] = useState(false)
-  const [newAuthorName, setNewAuthorName] = useState('')
-  const [newAuthorHandle, setNewAuthorHandle] = useState('')
-  const [authorSaving, setAuthorSaving] = useState(false)
-  const [authorError, setAuthorError] = useState<string | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
@@ -250,42 +245,6 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       setDraft((prev) => (prev && !prev.authorId ? { ...prev, authorId: authors[0].id } : prev))
     }
   }, [authors])
-
-  const resetAuthorForm = () => {
-    setIsCreatingAuthor(false)
-    setNewAuthorName('')
-    setNewAuthorHandle('')
-    setAuthorError(null)
-  }
-
-  const createAuthor = async () => {
-    const name = newAuthorName.trim()
-    const handle = newAuthorHandle.trim()
-    if (name.length < 3 || handle.length < 3) return
-    setAuthorSaving(true)
-    setAuthorError(null)
-    try {
-      const raw = await fetch('/api/author', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, handle }),
-      })
-      const response = await raw.json()
-      if (response.success && response.author?.id) {
-        const created = response.author as Author
-        setAuthors((prev) => [...prev, created])
-        setAuthorId(created.id)
-        resetAuthorForm()
-        setIsPickingAuthor(false)
-      } else {
-        setAuthorError(response.message || 'Could not create author')
-      }
-    } catch {
-      setAuthorError('Could not create author')
-    } finally {
-      setAuthorSaving(false)
-    }
-  }
 
   const handleSave = async () => {
     try {
@@ -608,7 +567,6 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           setIsConfirmOpen(open)
           if (!open) {
             setIsPickingAuthor(false)
-            resetAuthorForm()
           }
         }}
       >
@@ -630,59 +588,16 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
                   by <span className="font-medium text-foreground">{selectedAuthor.name}</span>
                   {' '}@{selectedAuthor.handle}
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setIsPickingAuthor(true)}>
-                  Change
-                </Button>
-              </div>
-            ) : isCreatingAuthor || authors.length === 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {authors.length === 0
-                    ? 'Create your author identity. This name appears on your publications.'
-                    : 'New author'}
-                </p>
-                {authorError && <p className="text-sm text-destructive">{authorError}</p>}
-                <Input
-                  autoFocus
-                  value={newAuthorName}
-                  onChange={(e) => setNewAuthorName(e.target.value.slice(0, 100))}
-                  placeholder="Name"
-                />
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-500">@</span>
-                  <Input
-                    value={newAuthorHandle}
-                    onChange={(e) =>
-                      setNewAuthorHandle(e.target.value.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 32))
-                    }
-                    placeholder="handle"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        createAuthor()
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  {authors.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={resetAuthorForm} disabled={authorSaving}>
-                      Back
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={createAuthor}
-                    disabled={
-                      authorSaving ||
-                      newAuthorName.trim().length < 3 ||
-                      newAuthorHandle.trim().length < 3
-                    }
-                  >
-                    {authorSaving ? 'Creating…' : 'Create author'}
+                {authors.length > 1 && (
+                  <Button variant="ghost" size="sm" onClick={() => setIsPickingAuthor(true)}>
+                    Change
                   </Button>
-                </div>
+                )}
               </div>
+            ) : authors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                This account has no author profile yet, so it cannot publish.
+              </p>
             ) : (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Publish as</p>
@@ -700,13 +615,6 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
                       {a.name}
                     </Button>
                   ))}
-                  <Button
-                    variant="outline"
-                    className="rounded-full h-10"
-                    onClick={() => setIsCreatingAuthor(true)}
-                  >
-                    + New author
-                  </Button>
                 </div>
               </div>
             )}

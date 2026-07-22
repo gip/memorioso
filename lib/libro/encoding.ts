@@ -1,4 +1,5 @@
-import { keccak256, toBytes, isHex, type Hex } from 'viem'
+import { actionHashToHex as coreActionHashToHex } from '@libro/core'
+import { isHex, type Hex } from 'viem'
 
 export const MAX_UINT64 = BigInt('18446744073709551615')
 export const MAX_UINT256 = (BigInt(1) << BigInt(256)) - BigInt(1)
@@ -56,12 +57,7 @@ export function rpIdToUint64(rpId: string): bigint {
 }
 
 export function actionHashToHex(action: string): Hex {
-  if (!action.trim()) {
-    throw new Error('World ID action is required')
-  }
-
-  const shifted = BigInt(keccak256(toBytes(action))) >> BigInt(8)
-  return `0x${shifted.toString(16).padStart(64, '0')}` as Hex
+  return coreActionHashToHex(action)
 }
 
 export function actionHashToUint256(action: string): bigint {

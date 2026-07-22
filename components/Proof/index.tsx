@@ -18,6 +18,9 @@ const escapeHtml = (value: string) => value
   .replace(/"/g, '&quot;')
 
 const codeToHtml = (code: string) => escapeHtml(code).replace(/\n/g, '<br/>')
+const publicationLabel = (publication: PublicationType) => publication.publication_title
+  ? `<i><u>${escapeHtml(publication.publication_title)}</u></i>`
+  : '<i>this untitled publication</i>'
 
 const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
 const signalText = JSON.stringify(signalJson);`
@@ -25,7 +28,7 @@ const signalText = JSON.stringify(signalJson);`
 function buildLegacyUnavailableDocument(publication: PublicationType) {
   return {
     code: '',
-    content: `Independent verification is not available for <i><u>${escapeHtml(publication.publication_title)}</u></i>.
+    content: `Independent verification is not available for ${publicationLabel(publication)}.
 <br/><br/>${escapeHtml(LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE)}`,
   }
 }
@@ -72,7 +75,7 @@ console.log(await verifyResponse.json());`
 
   return {
     code,
-    content: `This World ID 4.0 proof for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a> was stored before Libro on-chain registration was enabled.
+    content: `This World ID 4.0 proof for ${publicationLabel(publication)} by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a> was stored before Libro on-chain registration was enabled.
 <br/><br/><strong>Libro registration:</strong> not registered on-chain.
 <br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. World ID 4.0 does not send that content to the verifier directly; it hashes the signal into <i>responses[].signal_hash</i>. Independent verification must recompute that hash locally and confirm every returned credential response is bound to the same publication signal before calling World's v4 verifier.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
@@ -124,7 +127,7 @@ console.log({ registered, signalHash: expectedSignalHash });`
 
   return {
     code,
-    content: `This document shows how to independently verify the Libro on-chain proof of human authorship for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
+    content: `This document shows how to independently verify the Libro on-chain proof of human authorship for ${publicationLabel(publication)} by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
 <br/><br/>The signed signal is the exact canonical publication JSON stored below as <i>signalJson</i> and converted to <i>signalText</i> with <i>JSON.stringify</i>. Libro stores the signal hash on World Chain after the World ID 4.0 proof is verified by the registry contract. Inside World App, the World wallet submits the transaction through MiniKit; elsewhere, Memorioso can sponsor the same permissionless registration through its relayer.
 <br/><br/>Credential used: <strong>${escapeHtml(credentialLabel)}</strong>.
 <br/>Submission: <strong>${registration.submission_method === 'memorioso_relayer' ? 'Memorioso sponsored relayer' : 'World wallet'}</strong>.
@@ -219,7 +222,7 @@ console.log({ registered, signer, signalHash: expectedSignalHash });`
 
   return {
     code,
-    content: `This document shows how to independently verify the Libro proof for <i><u>${escapeHtml(publication.publication_title)}</u></i> by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
+    content: `This document shows how to independently verify the Libro proof for ${publicationLabel(publication)} by <a href="${process.env.NEXT_PUBLIC_APP_URL}/a/${publication.author_id_libro}">${escapeHtml(publication.author_name_libro)}</a>.
 <br/><br/>This is a <strong>human-authorized agent signature</strong>, not a direct human-authorship proof. A human principal registered the agent address with World ID, and the registered agent signed this exact publication signal.
 <br/><br/>Agent: <code>${escapeHtml(document.agent_address)}</code>.
 <br/>Agent registration: <code>${escapeHtml(registration.registration_hash)}</code>.

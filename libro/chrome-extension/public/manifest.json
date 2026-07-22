@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Libro Verifier",
+  "version": "0.1.0",
+  "description": "Find and verify text registered as directly human-authored through Libro.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://worldchain-mainnet.g.alchemy.com/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Scan this page with Libro",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

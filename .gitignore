@@ -3,7 +3,7 @@
 OLD
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -20,6 +20,7 @@ OLD
 /libro/contracts/out/
 /libro/contracts/cache/
 /libro/contracts/broadcast/
+/libro/chrome-extension/dist/
 
 # misc
 .DS_Store

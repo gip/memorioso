@@ -1,13 +1,19 @@
 import type { Abi } from 'viem'
+import {
+  LIBRO_PROTOCOL_VERSION as CORE_LIBRO_PROTOCOL_VERSION,
+  LIBRO_PUBLICATION_SCHEMA_V1 as CORE_LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_WORLD_CHAIN_ID as CORE_LIBRO_WORLD_CHAIN_ID,
+  LIBRO_WORLD_CHAIN_RPC_URL as CORE_LIBRO_WORLD_CHAIN_RPC_URL,
+} from '@libro/core'
 
-export const LIBRO_PROTOCOL_VERSION = 'libro-v1' as const
-export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
+export const LIBRO_PROTOCOL_VERSION = CORE_LIBRO_PROTOCOL_VERSION
+export const LIBRO_PUBLICATION_SCHEMA_V1 = CORE_LIBRO_PUBLICATION_SCHEMA_V1
 export const LIBRO_AGENT_PROTOCOL_VERSION = 'libro-agent-v1' as const
 export const LIBRO_AGENT_REGISTRATION_SCHEMA_V1 = 'libro-agent-registration-v1' as const
 export const LIBRO_AGENT_PUBLICATION_SCHEMA_V1 = 'libro-agent-publication-v1' as const
 export const LIBRO_AGENT_AUTHORSHIP_CLAIM = 'human_authorized_agent' as const
-export const LIBRO_WORLD_CHAIN_ID = 480 as const
-export const LIBRO_WORLD_CHAIN_RPC_URL = 'https://worldchain-mainnet.g.alchemy.com/public' as const
+export const LIBRO_WORLD_CHAIN_ID = CORE_LIBRO_WORLD_CHAIN_ID
+export const LIBRO_WORLD_CHAIN_RPC_URL = CORE_LIBRO_WORLD_CHAIN_RPC_URL
 
 export const libroProofRegistryAbi = [
   {

@@ -26,6 +26,7 @@ import {
 } from '../world-id/publication'
 import type { WorldIdV4UniquenessResult } from '../world-id/proof'
 import type { LibroAgentPublicationV1, PublicationContent } from '../../types'
+import { hasMeaningfulPublicationBody, normalizeOptionalPublicationText } from '@libro/core'
 
 export const LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE = BigInt(1)
 export const LIBRO_AGENT_REGISTRATION_TYPE =
@@ -284,9 +285,9 @@ export function createLibroAgentPublicationV1(input: PublicationDraftInput & {
     author_name_libro: input.author.name,
     author_handle_libro: input.author.handle,
     author_bio_libro: input.author.bio || '',
-    publication_title: input.title,
+    publication_title: normalizeOptionalPublicationText(input.title),
     publication_content: input.content,
-    publication_subtitle: input.subtitle || '',
+    publication_subtitle: normalizeOptionalPublicationText(input.subtitle),
     principal_author_hash: assertBytes32(input.principalAuthorHash, 'principal_author_hash'),
     agent_address: assertAddress(input.agentAddress, 'agent_address'),
     agent_registration_hash: assertBytes32(input.agentRegistrationHash, 'agent_registration_hash'),
@@ -391,15 +392,19 @@ export function parseAgentPublicationPayload(value: unknown): {
   const subtitle = typeof payload.subtitle === 'string' ? payload.subtitle : ''
   const content = payload.content as PublicationContent | undefined
 
-  if (title.length < 5) {
-    throw new Error('Title is too short')
-  }
-
   if (!content || typeof content !== 'object' || typeof content.html !== 'string') {
     throw new Error('Publication content HTML is required')
   }
 
-  return { title, subtitle, content }
+  if (!hasMeaningfulPublicationBody(content)) {
+    throw new Error('Publication body must contain readable text')
+  }
+
+  return {
+    title: normalizeOptionalPublicationText(title),
+    subtitle: normalizeOptionalPublicationText(subtitle),
+    content,
+  }
 }
 
 export function isAgentUniquenessResultWithResponses(result: IDKitResult): result is WorldIdV4UniquenessResult {

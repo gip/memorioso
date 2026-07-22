@@ -5,12 +5,13 @@ import { MemMark } from '@/components/MemMark'
 
 type VerifiedChipProps = {
   verifyHref?: string
+  label?: string
 }
 
-export const VerifiedChip = ({ verifyHref }: VerifiedChipProps) => (
+export const VerifiedChip = ({ verifyHref, label = 'Signed by a human' }: VerifiedChipProps) => (
   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blurple">
     <MemMark size={15} />
-    Signed by a human
+    {label}
     {verifyHref && (
       <>
         <span className="text-muted-foreground">·</span>

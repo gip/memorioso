@@ -59,6 +59,7 @@ export const LatestPublications = ({ limit = 4, className }: LatestPublicationsP
             href={`/p/${publication.id}`}
             title={publication.publication_title}
             subtitle={publication.publication_subtitle}
+            authorshipLabel={publication.authorship_label}
             metaText={`${publication.author_name_libro} · ${timeAgo(publication.publication_date)}`}
           />
         ))}

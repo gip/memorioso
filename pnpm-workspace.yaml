@@ -1,5 +1,7 @@
 packages:
   - "."
+  - "libro/core"
+  - "libro/chrome-extension"
 
 allowBuilds:
   sharp: true

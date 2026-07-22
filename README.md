@@ -28,6 +28,18 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 
 Use `.env.example` as the starting point for local configuration.
 
+## Database migrations
+
+Run all pending database migrations with:
+
+```sh
+pnpm db:migrate
+```
+
+The runner reads `DATABASE_URL` from the environment and, for local development, falls back to `.env.local`. It discovers numbered SQL files under `lib/db/migrations`, applies each pending migration in its own transaction, and records the filename and checksum in `memorioso_schema_migrations`. An advisory lock prevents concurrent deploys from running migrations at the same time.
+
+The first run against an existing database safely replays the current idempotent migrations and records them. After a migration has been recorded, do not edit or rename it; add a new numbered migration instead. New databases must first be initialized with `lib/db/schema.sql`.
+
 ## Libro on-chain registration
 
 Libro protocol assets live under `libro/` so they can be split into a separate repository later:

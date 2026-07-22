@@ -86,11 +86,12 @@ export type Author = {
     verify_response: JsonValue
     libro_registration?: {
       protocol_version: typeof LIBRO_PROTOCOL_VERSION
+      submission_method?: 'world_wallet' | 'memorioso_relayer'
       chain_id: number
       registry_address: string
       signal_hash: string
       action_hash: string
-      user_op_hash: string
+      user_op_hash?: string
       transaction_hash: string
       registered_at: string
     }

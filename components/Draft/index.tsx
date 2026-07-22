@@ -27,6 +27,7 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
+import { useMiniKit } from '@worldcoin/minikit-js/minikit-provider'
 import { createPublicClient, http } from 'viem'
 import { worldchain } from 'viem/chains'
 import { type Author } from '@/types'
@@ -39,7 +40,10 @@ import {
 } from "@/components/ui/alert"
 import { type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
-import { sendLibroRegistrationTransaction } from '@/lib/libro/client'
+import {
+  isNativeLibroTransactionAvailable,
+  sendLibroRegistrationTransaction,
+} from '@/lib/libro/client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 
 type DraftData = {
@@ -84,6 +88,16 @@ type FinalizePublishResponse =
       message?: string
     }
 
+type RelayPublishResponse =
+  | {
+      success: true
+      transactionHash: string
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
     <Alert variant="destructive">
@@ -99,7 +113,7 @@ const AlertDestructive = ({ message }: { message: string }) => {
 const PUBLISH_STEPS = [
   'Verify you are human',
   'Prepare registration',
-  'Confirm in World App',
+  'Submit registration',
   'Register on-chain',
   'Finalize publication',
 ]
@@ -159,6 +173,8 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
+  const { isInstalled: isMiniKitInstalled } = useMiniKit()
+  const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
   const publicClient = useMemo(() => createPublicClient({
     chain: worldchain,
     transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
@@ -382,13 +398,49 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         throw new Error(message)
       }
 
-      setPublishStep(2)
-      setPublishStatus('Confirming sponsored registration in World App')
-      const { userOpHash } = await sendLibroRegistrationTransaction(prepareResponse.transaction)
+      let submissionMethod: 'world_wallet' | 'memorioso_relayer'
+      let userOpHash: string | undefined
+      let transactionHash: string
 
-      setPublishStep(3)
-      setPublishStatus('Waiting for on-chain registration')
-      const { transactionHash } = await pollUserOperationReceipt(userOpHash)
+      if (isNativeLibroTransactionAvailable()) {
+        submissionMethod = 'world_wallet'
+        setPublishStep(2)
+        setPublishStatus('Waiting for approval from your World wallet')
+        const walletResult = await sendLibroRegistrationTransaction(prepareResponse.transaction)
+        userOpHash = walletResult.userOpHash
+
+        setPublishStep(3)
+        setPublishStatus('Waiting for World wallet registration')
+        const receipt = await pollUserOperationReceipt(userOpHash)
+        transactionHash = receipt.transactionHash
+      } else {
+        submissionMethod = 'memorioso_relayer'
+        setPublishStep(2)
+        setPublishStatus('Submitting a sponsored registration')
+        const relayRaw = await fetch(`/api/draft/${currentDraftId}/publish/relay`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ registrationId: prepareResponse.registrationId }),
+        })
+        const relayResponse = await relayRaw.json().catch(() => ({
+          success: false,
+          message: `Sponsored registration returned ${relayRaw.status}`,
+        })) as RelayPublishResponse
+
+        if (!relayRaw.ok || !relayResponse.success) {
+          throw new Error(
+            relayResponse.success
+              ? `Sponsored registration returned ${relayRaw.status}`
+              : relayResponse.message || 'Failed to submit sponsored registration'
+          )
+        }
+
+        transactionHash = relayResponse.transactionHash
+        setPublishStep(3)
+        setPublishStatus('Sponsored registration confirmed')
+      }
 
       setPublishStep(4)
       setPublishStatus('Finalizing publication')
@@ -399,6 +451,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         },
         body: JSON.stringify({
           registrationId: prepareResponse.registrationId,
+          submissionMethod,
           userOpHash,
           transactionHash,
         }),
@@ -617,6 +670,17 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
                   ))}
                 </div>
               </div>
+            )}
+            {isMiniKitInstalled === undefined ? (
+              <p className="text-sm text-muted-foreground">Checking World wallet availability…</p>
+            ) : canUseWorldWallet ? (
+              <p className="text-sm text-muted-foreground">
+                After World ID verification, your World wallet will ask you to approve the on-chain registration.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Memorioso will sponsor and submit the on-chain registration for you.
+              </p>
             )}
           </div>
           <SheetFooter>

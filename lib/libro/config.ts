@@ -1,4 +1,4 @@
-import { isAddress, type Address } from 'viem'
+import { isAddress, type Address, type Hex } from 'viem'
 import { DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION } from '@/lib/world-id/constants'
 import {
   LIBRO_AGENT_PROTOCOL_VERSION,
@@ -24,6 +24,10 @@ export type LibroAgentServerConfig = {
   action: string
   actionHash: bigint
   rpcUrl: string
+}
+
+export type LibroRelayerConfig = {
+  privateKey: Hex
 }
 
 function requireEnv(name: string): string {
@@ -74,5 +78,16 @@ export function getLibroAgentServerConfig(): LibroAgentServerConfig {
     action,
     actionHash: actionHashToUint256(action),
     rpcUrl: process.env.LIBRO_RPC_URL || LIBRO_WORLD_CHAIN_RPC_URL,
+  }
+}
+
+export function getLibroRelayerConfig(): LibroRelayerConfig {
+  const privateKey = requireEnv('LIBRO_RELAYER_PRIVATE_KEY')
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey) || /^0x0{64}$/.test(privateKey)) {
+    throw new Error('LIBRO_RELAYER_PRIVATE_KEY must be a valid non-zero 32-byte private key')
+  }
+
+  return {
+    privateKey: privateKey as Hex,
   }
 }

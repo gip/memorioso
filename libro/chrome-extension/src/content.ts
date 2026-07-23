@@ -11,7 +11,7 @@ type LibroTextTagV1 = {
 
 // Keep this lightweight parser aligned with @libro/core; the injected IIFE must stay self-contained.
 const LIBRO_TEXT_TAG_PATTERN = new RegExp(
-  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
+  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
   'g'
 )
 
@@ -142,9 +142,9 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       if (node.textContent?.includes('Libro')) {
         let element = node.parentElement
         while (element) {
-          if (element.closest(`[${BADGE_ATTRIBUTE}]`) || element.closest('.libro-human-authored')) break
+          if (element.closest(`[${BADGE_ATTRIBUTE}]`) || element.closest('.libro-human-signed')) break
           if (!element.matches('script, style, noscript, textarea, input, select, option') &&
-            !element.querySelector('.libro-human-authored') &&
+            !element.querySelector('.libro-human-signed') &&
             parseLibroTextTags(element.innerText || '').length > 0) {
             targets.add(element)
             break
@@ -188,13 +188,13 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
 
   function scan(): LibroCandidate[] {
     clearDecorations(true)
-    const embeds = Array.from(document.querySelectorAll<HTMLElement>('.libro-human-authored')).map((block, index): LibroCandidate => {
+    const embeds = Array.from(document.querySelectorAll<HTMLElement>('.libro-human-signed')).map((block, index): LibroCandidate => {
       const blockId = `${Date.now()}-${index}-${crypto.randomUUID()}`
       addBlockId(block, blockId)
       const manifestId = block.dataset.libroManifest || null
       const declaredHash = block.dataset.libroSignalHash || null
 
-      if (block.dataset.libroClaim !== 'human-authored') {
+      if (block.dataset.libroClaim !== 'human-signed') {
         return {
           blockId,
           kind: 'embed',
@@ -203,7 +203,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
           declaredHash,
           manifestId,
           manifestText: null,
-          error: 'The block does not declare the human-authored Libro claim',
+          error: 'The block does not declare the human-signed Libro claim',
         }
       }
 

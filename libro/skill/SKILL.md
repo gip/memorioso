@@ -1,6 +1,6 @@
 ---
 name: libro
-description: Use when building with the Libro protocol for human-authored document registration: canonical publication signals, World ID 4.0 proof mapping, MiniKit registration transactions, and on-chain verification through LibroProofRegistry.
+description: Use when building with the Libro protocol for human-signed document registration: canonical publication signals, World ID 4.0 proof mapping, MiniKit registration transactions, and on-chain verification through LibroProofRegistry.
 ---
 
 # Libro Protocol

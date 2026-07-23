@@ -7,7 +7,7 @@ import {
   hashPublicationSignal,
   manifestElementId,
   LIBRO_EMBED_SCHEMA_V1,
-  LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+  LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_V1_REGISTRY_ADDRESS,
@@ -22,7 +22,7 @@ function manifest(): LibroEmbedManifestV1 {
     libro_protocol_version: LIBRO_PROTOCOL_VERSION,
     world_id_protocol_version: '4.0' as const,
     world_id_action: 'written-by-a-human-v4-extension-test',
-    world_id_credential_policy: 'document_or_orb',
+    world_id_credential_policy: 'orb' as const,
     author_id_libro: 'author-1',
     publication_date: '2026-07-21T12:00:00.000Z',
     author_name_libro: 'Ada',
@@ -34,7 +34,7 @@ function manifest(): LibroEmbedManifestV1 {
   }
   return {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+    claim: LIBRO_HUMAN_SIGNED_CLAIM,
     publication,
     registration: {
       chain_id: 480,
@@ -75,7 +75,7 @@ function textCandidate(value = manifest()): LibroCandidate {
     manifestText: JSON.stringify(value),
     manifestUrl: value.source?.manifest_url,
     declaredAuthorHandle: 'ada',
-    declaredPublicationDate: '2026-07-21',
+    declaredPublicationDate: '2026-07-21T12:00Z',
   }
 }
 
@@ -99,6 +99,8 @@ describe('extension candidate verification', () => {
     await expect(verifyCandidate(textCandidate(value), async () => value)).resolves.toMatchObject({ status: 'verified' })
     await expect(verifyCandidate({ ...textCandidate(value), declaredAuthorHandle: 'grace' }, async () => value))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
+    await expect(verifyCandidate({ ...textCandidate(value), declaredPublicationDate: '2026-07-21T12:01Z' }, async () => value))
+      .resolves.toMatchObject({ status: 'invalid_manifest' })
     await expect(verifyCandidate({ ...textCandidate(value), readableText: 'Changed' }, async () => value))
       .resolves.toMatchObject({ status: 'text_mismatch' })
   })
@@ -113,6 +115,10 @@ describe('extension candidate verification', () => {
     const value = manifest()
     value.registration.registry_address = '0x1111111111111111111111111111111111111111'
     await expect(verifyCandidate(candidate(value))).resolves.toMatchObject({ status: 'unsupported_registry' })
+    await expect(verifyCandidate({
+      ...candidate(),
+      manifestText: JSON.stringify({ ...manifest(), claim: 'human-authored' }),
+    })).resolves.toMatchObject({ status: 'invalid_manifest' })
   })
 
   it('distinguishes absent registrations, receipt mismatches, and network failures', async () => {

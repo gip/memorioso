@@ -55,14 +55,31 @@ export const timeAgo = (date: Date | string | number): string => {
   return "just now"; // Fallback return
 }
 
+export type PublicationDateStyle = 'long' | 'short';
+
+type PublicationDateOptions = {
+  style?: PublicationDateStyle;
+  timeZone?: string;
+};
+
 /**
- * Formats a date as a long, human-readable publication date (e.g. "June 12, 2026").
- * @param date - Date to format (Date object, timestamp, or date string)
+ * Formats a publication timestamp with hours and minutes.
+ * Omitting timeZone uses the runtime's local timezone.
  */
-export const fmtDate = (date: Date | string | number): string => {
+export const fmtDate = (
+  date: Date | string | number,
+  { style = 'long', timeZone }: PublicationDateOptions = {}
+): string => {
   const parsed = new Date(date);
   if (isNaN(parsed.getTime())) {
     return '';
   }
-  return parsed.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return parsed.toLocaleString('en-US', {
+    month: style,
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
+  });
 }

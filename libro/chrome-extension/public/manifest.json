@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Libro Verifier",
   "version": "0.2.0",
-  "description": "Verify and sign human-authored text through Libro without leaving the page.",
+  "description": "Verify and sign human-signed text through Libro without leaving the page.",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage", "contextMenus", "clipboardWrite"],
   "host_permissions": [
     "https://worldchain-mainnet.g.alchemy.com/*",

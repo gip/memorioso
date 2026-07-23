@@ -13,7 +13,7 @@ const publication: LibroPublicationV1 = {
   libro_protocol_version: 'libro-v1',
   world_id_protocol_version: '4.0',
   world_id_action: 'written-by-a-human-v4-challenge',
-  world_id_credential_policy: 'document_or_orb',
+  world_id_credential_policy: 'orb',
   author_id_libro: 'author-1',
   publication_date: '2026-07-21T12:00:00.000Z',
   author_name_libro: 'Ada',
@@ -52,8 +52,10 @@ describe('Libro embed generation', () => {
   it('builds a self-contained simple text embed', () => {
     const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
     const snippet = buildLibroEmbedSnippet(manifest)
-    expect(snippet).toContain('class="libro-human-authored"')
-    expect(snippet).toContain('=== Libro · Signed by a human · @ada · 2026-07-21')
+    expect(manifest.claim).toBe('human-signed')
+    expect(snippet).toContain('class="libro-human-signed"')
+    expect(snippet).toContain('data-libro-claim="human-signed"')
+    expect(snippet).toContain('=== Libro · Signed by a human · @ada · 2026-07-21T12:00Z')
     expect(snippet).toContain(manifest.registration.signal_hash)
     expect(snippet).toContain('type="application/libro+json"')
     expect(snippet).toContain(`data-libro-manifest="libro-manifest-${manifest.registration.signal_hash}"`)
@@ -68,7 +70,7 @@ describe('Libro embed generation', () => {
       manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
     }
     expect(buildLibroTextSnippet(manifest)).toBe([
-      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${manifest.registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      `=== Libro · Signed by a human · @ada · 2026-07-21T12:00Z · ${manifest.registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
       'Hello human.',
       '=== End Libro ===',
     ].join('\n'))

@@ -95,7 +95,7 @@ describe('World ID publication signals', () => {
   it('does not put the actual credential result into the signed signal', () => {
     const signalText = canonicalPublicationSignal(publication())
 
-    expect(signalText).toContain('"world_id_credential_policy":"document_or_orb"')
+    expect(signalText).toContain('"world_id_credential_policy":"orb"')
     expect(signalText).not.toContain('credential_identifier')
     expect(signalText).not.toContain('passport')
   })
@@ -271,15 +271,22 @@ describe('Libro agent authorization helpers', () => {
     })).toThrow('Publication content HTML is required')
   })
 
-  it('accepts untitled agent documents but rejects empty readable bodies', () => {
+  it('accepts agent documents with either a title or readable content', () => {
     expect(parseAgentPublicationPayload({ title: '', subtitle: '', content })).toMatchObject({
       title: '',
       subtitle: '',
     })
-    expect(() => parseAgentPublicationPayload({
-      title: '',
+    expect(parseAgentPublicationPayload({
+      title: 'Title only',
       content: { html: '<p><br></p>' },
-    })).toThrow('Publication body must contain readable text')
+    })).toMatchObject({
+      title: 'Title only',
+      content: { html: '<p><br></p>' },
+    })
+    expect(() => parseAgentPublicationPayload({
+      title: '   ',
+      content: { html: '<p><br></p>' },
+    })).toThrow('Publication must include a title or readable content')
   })
 })
 

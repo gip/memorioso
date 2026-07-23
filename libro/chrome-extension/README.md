@@ -35,7 +35,7 @@ Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpack
 
 The extension requests temporary access only after its toolbar icon or **Sign with Libro** context
 menu is clicked. It scans the active
-top-level page for `.libro-human-authored` blocks and delimited plain-text Libro tags. It independently
+top-level page for `.libro-human-signed` blocks and delimited plain-text Libro tags. It independently
 checks their manifest, readable text, canonical signal hash, approved registry, and registration
 transaction on World Chain. Plain-text tags resolve their public manifest through the URL in the
 opening boundary; a legacy tag without a resolvable manifest is detected but not marked verified.

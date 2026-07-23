@@ -114,17 +114,24 @@ describe('publish context route', () => {
     expect(firstBody.action).toBe(`written-by-a-human-v4-${challengeIds.values[0]}`)
     expect(secondBody.action).toBe(`written-by-a-human-v4-${challengeIds.values[1]}`)
     expect(firstBody.action).not.toBe(secondBody.action)
+    expect(firstBody.credentialPolicy).toBe('orb')
+    expect(firstBody.allowedCredentials).toEqual(['proof_of_human'])
 
     const insertCalls = dbMock.query.mock.calls.filter(([query]) =>
       String(query).includes('INSERT INTO world_id_publish_challenges')
     )
     const firstParams = insertCalls[0][1] as unknown[]
-    const firstPublication = firstParams[7] as { world_id_action: string }
+    const firstPublication = firstParams[7] as {
+      world_id_action: string
+      world_id_credential_policy: string
+    }
 
     expect(firstParams[0]).toBe(challengeIds.values[0])
     expect(firstParams[3]).toBe(firstBody.action)
     expect(firstPublication.world_id_action).toBe(firstBody.action)
+    expect(firstPublication.world_id_credential_policy).toBe('orb')
     expect(firstParams[5]).toContain(`"world_id_action":"${firstBody.action}"`)
+    expect(firstParams[5]).toContain('"world_id_credential_policy":"orb"')
   })
 
   it('accepts an empty title while keeping it in the signed payload', async () => {
@@ -139,14 +146,30 @@ describe('publish context route', () => {
     expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":""')
   })
 
-  it('rejects a publication body without readable text', async () => {
+  it('accepts a title-only publication', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '', content: { html: '<p><br></p>' } }] }
+      if (query.includes('FROM drafts')) {
+        return { rows: [{ ...draftRow, title: 'Title only', content: { html: '<p><br></p>' } }] }
+      }
+      return { rows: [] }
+    })
+
+    const response = await POST(request({ draftId: draftRow.id }))
+    expect(response.status).toBe(200)
+    const insert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO world_id_publish_challenges'))
+    expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":"Title only"')
+  })
+
+  it('rejects a publication with an empty title and no readable content', async () => {
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '   ', content: { html: '<p><br></p>' } }] }
       return { rows: [] }
     })
 
     const response = await POST(request({ draftId: draftRow.id }))
     expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ message: 'Publication body must contain readable text' })
+    await expect(response.json()).resolves.toMatchObject({
+      message: 'Publication must include a title or readable content',
+    })
   })
 })

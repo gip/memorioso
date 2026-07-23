@@ -4,6 +4,7 @@ import {
   LibroUnsupportedRegistryError,
   assertLibroManifestLocalIntegrity,
   extractReadableText,
+  formatLibroPublicationMinute,
   isApprovedLibroRegistry,
   libroTextTagHashMatches,
   manifestElementId,
@@ -86,8 +87,8 @@ export async function verifyCandidate(
     if (candidate.declaredAuthorHandle !== manifest.publication.author_handle_libro) {
       return result(candidate, 'invalid_manifest', 'The text tag author does not match its signed manifest', manifest)
     }
-    if (candidate.declaredPublicationDate !== manifest.publication.publication_date.slice(0, 10)) {
-      return result(candidate, 'invalid_manifest', 'The text tag date does not match its signed manifest', manifest)
+    if (candidate.declaredPublicationDate !== formatLibroPublicationMinute(manifest.publication.publication_date)) {
+      return result(candidate, 'invalid_manifest', 'The text tag timestamp does not match its signed manifest', manifest)
     }
     if (candidate.manifestUrl) {
       const declaredManifestUrl = manifest.source?.manifest_url

@@ -9,6 +9,19 @@ function shortHash(value?: string): string {
   return value ? `${value.slice(0, 8)}…${value.slice(-4)}` : ''
 }
 
+function formatPublicationDate(value?: string): string {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function renderResult(item: LibroVerificationResult): HTMLElement {
   const card = document.createElement('article')
   card.className = `result ${item.status}`
@@ -23,7 +36,7 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
 
   const metadata = document.createElement('div')
   metadata.className = 'metadata'
-  const date = item.publicationDate?.slice(0, 10)
+  const date = formatPublicationDate(item.publicationDate)
   metadata.textContent = [item.authorHandle ? `@${item.authorHandle}` : null, date].filter(Boolean).join(' · ')
 
   const detail = document.createElement('p')
@@ -45,7 +58,7 @@ function render(response: ScanResponse): void {
 
   const verified = response.results.filter((item) => item.status === 'verified').length
   summary.textContent = response.results.length === 0
-    ? 'No Libro human-authored declarations found.'
+    ? 'No Libro human-signed declarations found.'
     : `${verified} of ${response.results.length} Libro declaration${response.results.length === 1 ? '' : 's'} verified.`
   summary.className = `summary ${verified > 0 ? 'success' : ''}`
   response.results.forEach((item) => resultsNode.append(renderResult(item)))

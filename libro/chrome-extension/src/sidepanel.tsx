@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   CredentialRequest,
-  IDKitRequestWidget,
-  IDKitSessionWidget,
   any as anyCredential,
   type CredentialType,
   type IDKitResult,
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
+import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
 type User = { id: string; subject: string; handle: string }
@@ -246,7 +245,7 @@ function App(): JSX.Element {
       </header>
 
       {authContext && loginConstraints && (
-        <IDKitSessionWidget
+        <WorldIdSessionDialog
           open={loginOpen}
           onOpenChange={setLoginOpen}
           app_id={authContext.appId}
@@ -256,12 +255,11 @@ function App(): JSX.Element {
           constraints={loginConstraints}
           polling={{ interval: 1000, timeout: 120_000 }}
           handleVerify={verifyLogin}
-          onSuccess={() => setLoginOpen(false)}
           onError={(code) => setError(`World ID login failed: ${code}`)}
         />
       )}
       {job && publicationConstraints && (
-        <IDKitRequestWidget
+        <WorldIdRequestDialog
           open={proofOpen}
           onOpenChange={setProofOpen}
           app_id={job.context.appId}
@@ -271,7 +269,6 @@ function App(): JSX.Element {
           constraints={publicationConstraints}
           allow_legacy_proofs={false}
           handleVerify={verifyPublication}
-          onSuccess={() => setProofOpen(false)}
           onError={(code) => setError(`World ID verification failed: ${code}`)}
         />
       )}

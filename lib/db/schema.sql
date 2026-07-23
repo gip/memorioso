@@ -98,11 +98,16 @@ CREATE INDEX idx_libro_publish_registrations_draft_user
 
 CREATE TABLE libro_extension_auth_attempts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    intent VARCHAR(16) NOT NULL DEFAULT 'login',
     nonce VARCHAR(255) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     consumed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (
+        (intent = 'login' AND "userId" IS NOT NULL)
+        OR (intent = 'signup' AND "userId" IS NULL)
+    )
 );
 
 CREATE INDEX idx_libro_extension_auth_attempts_user

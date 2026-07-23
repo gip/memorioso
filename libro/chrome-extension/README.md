@@ -44,15 +44,16 @@ opening boundary; a legacy tag without a resolvable manifest is detected but not
 
 Choose **Sign current text** in the popup or **Sign with Libro** from an editor's context menu. The
 side panel captures the current selection, then the whole focused `textarea` or `contenteditable`,
-and otherwise offers manual entry. Connect an existing Memorioso handle with World ID, review the
-normalized public text, and complete the publication proof. Memorioso sponsors the World Chain
-registration. The extension replaces an unchanged supported editor target with the portable Libro
-tag; if the page changed or the source is unsupported, it copies the tag instead.
+and otherwise offers manual entry. Connect an existing Memorioso handle or create a first author
+with a public name and optional bio, verify with World ID, review the normalized public text, and
+complete the publication proof. Memorioso sponsors the World Chain registration. The extension
+replaces an unchanged supported editor target with the portable Libro tag; if the page changed or
+the source is unsupported, it copies the tag instead.
 
 The bearer credential is stored only in `chrome.storage.local` and used only by the extension service
 worker. Proof-complete publish identifiers are persisted so relay and finalization can be resumed.
-Apply `lib/db/migrations/006_libro_extension_signing.sql` before using inline signing against an
-existing database.
+Apply the database migrations through `007_libro_extension_signup.sql` before using inline signing
+against an existing database.
 
 The green state covers readable DOM text only. It does not authenticate styling, links, images,
 CSS-generated content, or a legal identity behind the signed author name.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   CredentialRequest,
@@ -11,8 +11,9 @@ import {
 import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
-type User = { id: string; subject: string; handle: string }
+type User = { id: number; subject: string; handle: string }
 type Session = { user: User; expiresAt: string }
+type Author = { id: string; name: string; handle: string; bio: string | null }
 type Capture = {
   tabId: number
   operationId?: string
@@ -42,15 +43,33 @@ type SigningJob = {
   tag?: string
 }
 type AuthContext = {
+  intent: 'login' | 'signup'
   attemptId: string
   appId: `app_${string}`
   environment: 'production' | 'staging'
   rpContext: RpContext
-  existingSessionId: `session_${string}`
+  existingSessionId: `session_${string}` | null
   allowedCredentials: CredentialType[]
 }
+type HandleLookup =
+  | { status: 'idle' }
+  | { status: 'invalid' }
+  | { status: 'checking' }
+  | { status: 'exists'; handle: string; canLogin: boolean }
+  | { status: 'available'; handle: string }
+  | { status: 'error'; message: string }
+type SignupProfile = { handle: string; name: string; bio: string }
 type ExtensionResponse<T = Record<string, unknown>> = T & { success: boolean; message?: string }
 const API_ORIGIN = (import.meta.env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz').replace(/\/$/, '')
+const USER_HANDLE_PATTERN = /^[a-z0-9][a-z0-9_-]{2,31}$/
+
+export function normalizeHandle(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+export function isValidHandle(value: string): boolean {
+  return USER_HANDLE_PATTERN.test(value)
+}
 
 async function send<T>(message: Record<string, unknown>): Promise<T> {
   const response = await chrome.runtime.sendMessage(message) as ExtensionResponse<T>
@@ -58,19 +77,25 @@ async function send<T>(message: Record<string, unknown>): Promise<T> {
   return response as T
 }
 
-function App(): JSX.Element {
+export function App(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
   const [capture, setCapture] = useState<Capture | null>(null)
   const [text, setText] = useState('')
   const [job, setJob] = useState<SigningJob | null>(null)
   const [handle, setHandle] = useState('')
+  const [name, setName] = useState('')
+  const [bio, setBio] = useState('')
+  const [handleLookup, setHandleLookup] = useState<HandleLookup>({ status: 'idle' })
+  const [pendingProfile, setPendingProfile] = useState<SignupProfile | null>(null)
   const [authContext, setAuthContext] = useState<AuthContext | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [authNotice, setAuthNotice] = useState<string | null>(null)
   const [completion, setCompletion] = useState<{ inserted: boolean; publicationUrl: string } | null>(null)
+  const lookupSequence = useRef(0)
 
   useEffect(() => {
     send<{ session: Session | null; capture: Capture | null; job: SigningJob | null }>({ type: 'LIBRO_GET_SIGNING_STATE' })
@@ -93,6 +118,47 @@ function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    const normalized = normalizeHandle(handle)
+    const sequence = ++lookupSequence.current
+
+    if (!normalized) {
+      setHandleLookup({ status: 'idle' })
+      return
+    }
+    if (!isValidHandle(normalized)) {
+      setHandleLookup({ status: 'invalid' })
+      return
+    }
+
+    setHandleLookup({ status: 'checking' })
+    const timer = window.setTimeout(() => {
+      send<{
+        handle: string
+        valid: boolean
+        exists: boolean
+        canLogin: boolean
+      }>({ type: 'LIBRO_HANDLE_LOOKUP', handle: normalized })
+        .then((response) => {
+          if (sequence !== lookupSequence.current) return
+          if (!response.valid) {
+            setHandleLookup({ status: 'invalid' })
+          } else if (response.exists) {
+            setHandleLookup({ status: 'exists', handle: response.handle, canLogin: response.canLogin })
+          } else {
+            setHandleLookup({ status: 'available', handle: response.handle })
+          }
+        })
+        .catch(() => {
+          if (sequence === lookupSequence.current) {
+            setHandleLookup({ status: 'error', message: 'Could not check that handle. Try again.' })
+          }
+        })
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [handle])
+
+  useEffect(() => {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== 'local') return
       const nextCapture = changes.libroSigningCapture?.newValue as Capture | undefined
@@ -112,12 +178,33 @@ function App(): JSX.Element {
     ? CredentialRequest('proof_of_human', { signal: job.context.signalText })
     : null, [job])
 
-  async function beginLogin(event: FormEvent): Promise<void> {
+  async function beginAuth(event: FormEvent): Promise<void> {
     event.preventDefault()
+    const selection = handleLookup.status === 'exists' && handleLookup.canLogin
+      ? { intent: 'login' as const, handle: handleLookup.handle }
+      : handleLookup.status === 'available'
+        ? { intent: 'signup' as const, handle: handleLookup.handle }
+        : null
+    if (!selection) return
+
+    const profile = selection.intent === 'signup'
+      ? { handle: selection.handle, name: name.trim(), bio: bio.trim() }
+      : null
+    if (profile && (profile.name.length < 3 || profile.name.length > 100 || profile.bio.length > 2000)) {
+      setError('Name must be 3–100 characters and bio must be at most 2,000 characters.')
+      return
+    }
+
     setError(null)
-    setProgress('Connecting to Memorioso…')
+    setAuthNotice(null)
+    setProgress(selection.intent === 'signup' ? 'Preparing your new author…' : 'Connecting to Memorioso…')
     try {
-      const context = await send<AuthContext>({ type: 'LIBRO_AUTH_CONTEXT', handle })
+      const context = await send<AuthContext>({
+        type: 'LIBRO_AUTH_CONTEXT',
+        handle: selection.handle,
+        intent: selection.intent,
+      })
+      setPendingProfile(profile)
       setAuthContext(context)
       setLoginOpen(true)
     } catch (reason) {
@@ -127,18 +214,25 @@ function App(): JSX.Element {
     }
   }
 
-  async function verifyLogin(result: IDKitResultSession): Promise<void> {
+  async function verifyAuth(result: IDKitResultSession): Promise<void> {
     if (!authContext) throw new Error('The login attempt is missing')
-    setProgress('Verifying your Memorioso author…')
+    setProgress(authContext.intent === 'signup' ? 'Creating your Memorioso author…' : 'Verifying your Memorioso author…')
     try {
-      const restored = await send<Session>({
+      const restored = await send<Session & { author: Author; created: boolean }>({
         type: 'LIBRO_AUTH_VERIFY',
         attemptId: authContext.attemptId,
         idkitResult: result,
+        profile: pendingProfile,
       })
       setSession(restored)
+      if (authContext.intent === 'signup') {
+        setAuthNotice(restored.created
+          ? `Created @${restored.author.handle}. Your captured text is ready to review.`
+          : `This World ID already owns @${restored.author.handle}, so that author was connected instead.`)
+      }
       setLoginOpen(false)
       setAuthContext(null)
+      setPendingProfile(null)
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'World ID login failed'
       setError(message)
@@ -226,6 +320,7 @@ function App(): JSX.Element {
     setSession(null)
     setJob(null)
     setCompletion(null)
+    setAuthNotice(null)
   }
 
   async function cancel(): Promise<void> {
@@ -251,10 +346,10 @@ function App(): JSX.Element {
           app_id={authContext.appId}
           rp_context={authContext.rpContext}
           environment={authContext.environment}
-          existing_session_id={authContext.existingSessionId}
+          existing_session_id={authContext.existingSessionId || undefined}
           constraints={loginConstraints}
           polling={{ interval: 1000, timeout: 120_000 }}
-          handleVerify={verifyLogin}
+          handleVerify={verifyAuth}
           onError={(code) => setError(`World ID login failed: ${code}`)}
         />
       )}
@@ -274,18 +369,76 @@ function App(): JSX.Element {
       )}
 
       {error && <div className="notice error" role="alert">{error}</div>}
+      {authNotice && <div className="notice info" aria-live="polite">{authNotice}</div>}
       {progress && <div className="notice progress" aria-live="polite"><span className="spinner" />{progress}</div>}
 
       {!session ? (
         <section>
-          <h2>Connect your author</h2>
-          <p className="muted">Use an existing Memorioso handle. Your World ID session confirms it belongs to you.</p>
-          <form onSubmit={beginLogin}>
+          <h2>Connect or create your author</h2>
+          <p className="muted">Enter a handle to connect an existing author or create your first one.</p>
+          <form onSubmit={beginAuth}>
             <label htmlFor="handle">Memorioso handle</label>
-            <div className="handle"><span>@</span><input id="handle" value={handle} onChange={(event) => setHandle(event.target.value)} autoComplete="username" required /></div>
-            <button className="primary" disabled={Boolean(progress)}>Continue with World ID</button>
+            <div className="handle">
+              <span>@</span>
+              <input
+                id="handle"
+                value={handle}
+                onChange={(event) => setHandle(event.target.value)}
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+              />
+            </div>
+            <div className="lookup-status" aria-live="polite">
+              {handleLookup.status === 'checking' && 'Checking availability…'}
+              {handleLookup.status === 'invalid' && 'Handles are 3–32 characters: lowercase letters, numbers, - or _.'}
+              {handleLookup.status === 'exists' && handleLookup.canLogin && `@${handleLookup.handle} exists. World ID will confirm it belongs to you.`}
+              {handleLookup.status === 'exists' && !handleLookup.canLogin && `@${handleLookup.handle} is taken and cannot be used to log in.`}
+              {handleLookup.status === 'available' && `@${handleLookup.handle} is available.`}
+              {handleLookup.status === 'error' && handleLookup.message}
+            </div>
+            {handleLookup.status === 'available' && (
+              <div className="profile-fields">
+                <label htmlFor="name">Public name</label>
+                <input
+                  id="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  autoComplete="name"
+                  minLength={3}
+                  maxLength={100}
+                  placeholder="Your name"
+                  required
+                />
+                <div className="field-help">Required · 3–100 characters</div>
+                <label htmlFor="bio">Bio <span className="optional">(optional)</span></label>
+                <textarea
+                  id="bio"
+                  className="profile-bio"
+                  value={bio}
+                  onChange={(event) => setBio(event.target.value)}
+                  maxLength={2000}
+                  placeholder="What do you write about?"
+                />
+                <div className="counter">{bio.length.toLocaleString()} / 2,000</div>
+              </div>
+            )}
+            {handleLookup.status === 'exists' && handleLookup.canLogin && (
+              <button className="primary" disabled={Boolean(progress)}>
+                Continue as @{handleLookup.handle} with World ID
+              </button>
+            )}
+            {handleLookup.status === 'available' && (
+              <button
+                className="primary"
+                disabled={name.trim().length < 3 || name.trim().length > 100 || Boolean(progress)}
+              >
+                Create @{handleLookup.handle} with World ID
+              </button>
+            )}
           </form>
-          <a className="link" href={API_ORIGIN} target="_blank" rel="noreferrer">Create an author on Memorioso</a>
         </section>
       ) : completion && job?.tag ? (
         <section>
@@ -327,4 +480,7 @@ function App(): JSX.Element {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<App />)
+const rootElement = document.getElementById('root')
+if (rootElement) {
+  createRoot(rootElement).render(<App />)
+}

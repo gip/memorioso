@@ -224,22 +224,44 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       return { success: true, capture: await captureActiveText() }
     case 'LIBRO_GET_SIGNING_STATE':
       return { success: true, ...(await currentState()) }
+    case 'LIBRO_HANDLE_LOOKUP':
+      if (typeof message.handle !== 'string') throw new Error('A Memorioso handle is required')
+      return apiFetch(`/api/auth/handle?handle=${encodeURIComponent(message.handle)}`, {}, false)
     case 'LIBRO_AUTH_CONTEXT':
       return apiFetch('/api/extension/auth/context', {
         method: 'POST',
-        body: JSON.stringify({ handle: message.handle }),
+        body: JSON.stringify({ handle: message.handle, intent: message.intent }),
       }, false)
     case 'LIBRO_AUTH_VERIFY': {
-      const response = await apiFetch<{ token: string; user: unknown; expiresAt: string }>(
+      const response = await apiFetch<{
+        token: string
+        user: unknown
+        author: unknown
+        created: boolean
+        expiresAt: string
+      }>(
         '/api/extension/auth/verify',
-        { method: 'POST', body: JSON.stringify({ attemptId: message.attemptId, idkitResult: message.idkitResult }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            attemptId: message.attemptId,
+            idkitResult: message.idkitResult,
+            profile: message.profile,
+          }),
+        },
         false
       )
       await chrome.storage.local.set({
         [TOKEN_KEY]: response.token,
         [SESSION_KEY]: { user: response.user, expiresAt: response.expiresAt },
       })
-      return { success: true, user: response.user, expiresAt: response.expiresAt }
+      return {
+        success: true,
+        user: response.user,
+        author: response.author,
+        created: response.created,
+        expiresAt: response.expiresAt,
+      }
     }
     case 'LIBRO_AUTH_SESSION': {
       const response = await apiFetch<{ user: unknown; expiresAt: string }>('/api/extension/auth/session')

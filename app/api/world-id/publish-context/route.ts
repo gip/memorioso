@@ -6,7 +6,7 @@ import { createPublishAction, createRpContext, getWorldIdServerConfig } from '@/
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import type { PublicationContent } from '@/types'
-import { hasMeaningfulPublicationBody } from '@libro/core'
+import { hasPublishablePublication } from '@libro/core'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -62,8 +62,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: "Author is required" }, { status: 400 })
     }
 
-    if (!hasMeaningfulPublicationBody(draft.content)) {
-      return NextResponse.json({ success: false, message: "Publication body must contain readable text" }, { status: 400 })
+    if (!hasPublishablePublication(draft.title, draft.content)) {
+      return NextResponse.json({ success: false, message: "Publication must include a title or readable content" }, { status: 400 })
     }
 
     const challengeId = crypto.randomUUID()

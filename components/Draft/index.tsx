@@ -45,7 +45,7 @@ import {
   sendLibroRegistrationTransaction,
 } from '@/lib/libro/client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
-import { hasMeaningfulPublicationBody } from '@libro/core'
+import { hasMeaningfulPublicationBody, hasPublishablePublication } from '@libro/core'
 
 type DraftData = {
   id?: string
@@ -504,7 +504,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     (draft?.title?.trim()?.length ?? 0) > 0 ||
     (draft?.subtitle?.trim()?.length ?? 0) > 0 ||
     hasMeaningfulPublicationBody(draft?.content)
-  const hasPublishableBody = hasMeaningfulPublicationBody(draft?.content)
+  const canPublish = hasPublishablePublication(draft?.title, draft?.content)
 
   // Debounced autosave: no Save button, work is never lost.
   useEffect(() => {
@@ -577,11 +577,12 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
           {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
+          {!canPublish && <span>Add a title or some content to publish.</span>}
         </span>
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setIsConfirmOpen(true)}
-            disabled={!hasPublishableBody || isEditingDisabled || isPollingRegistration}
+            disabled={!canPublish || isEditingDisabled || isPollingRegistration}
           >
             Sign &amp; publish
           </Button>
@@ -629,7 +630,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           <SheetHeader>
             <SheetTitle>Sign &amp; publish</SheetTitle>
             <SheetDescription>
-              This permanently registers proof that a human authored this text. It can&apos;t be undone.
+              A publication needs a title or some content. Publishing permanently registers its human signature and can&apos;t be undone.
             </SheetDescription>
           </SheetHeader>
           <div className="py-4 space-y-3">

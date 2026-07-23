@@ -214,6 +214,10 @@ export function normalizeOptionalPublicationText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+export function hasPublishablePublication(title: unknown, content: unknown): boolean {
+  return normalizeOptionalPublicationText(title).length > 0 || hasMeaningfulPublicationBody(content)
+}
+
 export function canonicalizeJson(input: JsonInput): JsonInput {
   if (Array.isArray(input)) return input.map((item) => canonicalizeJson(item))
 
@@ -296,8 +300,8 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
   if (value.world_id_credential_policy !== 'orb') throw new Error('Unsupported World ID credential policy')
   formatLibroPublicationMinute(publicationDate)
 
-  if (!hasMeaningfulPublicationBody(value.publication_content)) {
-    throw new Error('Publication body must contain readable text')
+  if (!hasPublishablePublication(value.publication_title, value.publication_content)) {
+    throw new Error('Publication must include a title or readable content')
   }
 
   return value as LibroPublicationV1Payload

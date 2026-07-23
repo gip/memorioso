@@ -26,7 +26,7 @@ import {
 } from '../world-id/publication'
 import type { WorldIdV4UniquenessResult } from '../world-id/proof'
 import type { LibroAgentPublicationV1, PublicationContent } from '../../types'
-import { hasMeaningfulPublicationBody, normalizeOptionalPublicationText } from '@libro/core'
+import { hasPublishablePublication, normalizeOptionalPublicationText } from '@libro/core'
 
 export const LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE = BigInt(1)
 export const LIBRO_AGENT_REGISTRATION_TYPE =
@@ -396,8 +396,8 @@ export function parseAgentPublicationPayload(value: unknown): {
     throw new Error('Publication content HTML is required')
   }
 
-  if (!hasMeaningfulPublicationBody(content)) {
-    throw new Error('Publication body must contain readable text')
+  if (!hasPublishablePublication(title, content)) {
+    throw new Error('Publication must include a title or readable content')
   }
 
   return {

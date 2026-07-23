@@ -7,6 +7,7 @@ import {
   formatLibroTextTag,
   formatLibroPublicationMinute,
   hasMeaningfulPublicationBody,
+  hasPublishablePublication,
   hashPublicationSignal,
   isSimpleTextPublication,
   LIBRO_EMBED_SCHEMA_V1,
@@ -76,6 +77,12 @@ describe('Libro readable text', () => {
     '<img alt="words" src="data:image/png;base64,AA==">',
   ])('rejects a body with no readable text: %s', (html) => {
     expect(hasMeaningfulPublicationBody({ html })).toBe(false)
+  })
+
+  it('requires either a normalized title or readable body content', () => {
+    expect(hasPublishablePublication('A title', { html: '<p><br></p>' })).toBe(true)
+    expect(hasPublishablePublication('', { html: '<p>Readable body</p>' })).toBe(true)
+    expect(hasPublishablePublication('   ', { html: '<p><br></p>' })).toBe(false)
   })
 
   it('recognizes the one-paragraph simple profile', () => {
@@ -150,6 +157,19 @@ describe('Libro embed manifests', () => {
       ...manifest(),
       claim: 'human-authored',
     })).toThrow('human-signing claim')
+  })
+
+  it('accepts title-only publications but rejects an empty title and body', () => {
+    expect(parseLibroPublicationV1({
+      ...publication,
+      publication_title: 'Title only',
+      publication_content: { html: '<p><br></p>' },
+    }).publication_title).toBe('Title only')
+    expect(() => parseLibroPublicationV1({
+      ...publication,
+      publication_title: '   ',
+      publication_content: { html: '<p><br></p>' },
+    })).toThrow('title or readable content')
   })
 
   it('rejects publication and action tampering', () => {

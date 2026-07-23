@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { actionHashToHex, canonicalPublicationSignal, hashPublicationSignal } from '@libro/core'
+import {
+  LIBRO_V1_REGISTRY_ADDRESS,
+  actionHashToHex,
+  canonicalPublicationSignal,
+  hashPublicationSignal,
+} from '@libro/core'
 import { buildLibroEmbedManifest, buildLibroEmbedSnippet, buildLibroTextSnippet, sanitizeLibroEmbedHtml } from '../embed'
 import type { LibroPublicationV1, PublicationRecord, WorldIdProofV4 } from '@/types'
 
@@ -34,7 +39,7 @@ function proof(): WorldIdProofV4 {
     libro_registration: {
       protocol_version: 'libro-v1',
       chain_id: 480,
-      registry_address: '0x487A2F9B47569dBd75c3597dDD8AB6ceAc580940',
+      registry_address: LIBRO_V1_REGISTRY_ADDRESS,
       signal_hash: hashPublicationSignal(signalText),
       action_hash: BigInt(actionHashToHex(publication.world_id_action)).toString(),
       transaction_hash: `0x${'11'.repeat(32)}`,
@@ -88,6 +93,25 @@ describe('Libro embed generation', () => {
       { ...proof(), action: 'written-by-a-human-v4-other' },
       '42'
     )).toThrow('proof action')
+  })
+
+  it('reports the publication and approved registries being compared', () => {
+    const unsupportedRegistry = '0x1111111111111111111111111111111111111111'
+    const unsupportedProof = proof()
+    unsupportedProof.libro_registration = {
+      ...unsupportedProof.libro_registration!,
+      registry_address: unsupportedRegistry,
+    }
+
+    expect(() => buildLibroEmbedManifest(
+      { ...publication, version: '3' } as PublicationRecord,
+      unsupportedProof,
+      '42'
+    )).toThrow(
+      `Publication uses an unsupported Libro registry: ` +
+      `publication registry (chain_id=480, registry_address=${unsupportedRegistry}) does not match ` +
+      `approved registry (chain_id=480, registry_address=${LIBRO_V1_REGISTRY_ADDRESS})`
+    )
   })
 
   it('sanitizes executable presentation markup', () => {

@@ -1,15 +1,30 @@
 # Libro Chrome Extension
 
-Set the Memorioso origin used by the extension build (the default is production):
+The production build uses `https://www.memorioso.xyz`:
+
+```sh
+pnpm extension:build
+```
+
+The stage build uses `https://worldlibro.vercel.app` and writes a separate unpacked extension:
+
+```sh
+pnpm extension:build:stage
+```
+
+Load `libro/chrome-extension/dist-stage` in `chrome://extensions`. Chrome labels this build
+**Libro Verifier (Stage)** so it can be distinguished from the production build.
+
+To override the Memorioso origin for either mode, create a local environment file:
 
 ```sh
 cp libro/chrome-extension/.env.example libro/chrome-extension/.env.local
 ```
 
-`VITE_MEMORIOSO_APP_URL` is compiled into the service worker and its exact origin is written to the
-generated manifest host permissions.
+The override is compiled into the service worker and its exact origin is written to the generated
+manifest host permissions. Local environment files are not committed.
 
-Build the unpacked Manifest V3 extension from the repository root:
+Build the unpacked production Manifest V3 extension from the repository root:
 
 ```sh
 pnpm extension:build

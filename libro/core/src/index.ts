@@ -21,7 +21,7 @@ export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_AUTHORSHIP_CLAIM = 'human-authored' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
 export const LIBRO_WORLD_CHAIN_RPC_URL = 'https://worldchain-mainnet.g.alchemy.com/public' as const
-export const LIBRO_V1_REGISTRY_ADDRESS = '0x487A2F9B47569dBd75c3597dDD8AB6ceAc580940' as const
+export const LIBRO_V1_REGISTRY_ADDRESS = '0x53Fc90aB234E85dD610212753e71e7296053038c' as const
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonInput = JsonPrimitive | JsonInput[] | { [key: string]: JsonInput | undefined }

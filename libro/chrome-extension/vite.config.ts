@@ -2,19 +2,30 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 
-function extensionManifest(apiOrigin: string): Plugin {
+const PRODUCTION_API_ORIGIN = 'https://www.memorioso.xyz'
+const STAGE_API_ORIGIN = 'https://worldlibro.vercel.app'
+
+function extensionManifest(apiOrigin: string, outputDirectory: string, stage: boolean): Plugin {
   return {
     name: 'libro-extension-manifest',
     async closeBundle() {
       const source = resolve(import.meta.dirname, 'public/manifest.json')
-      const output = resolve(import.meta.dirname, 'dist/manifest.json')
-      const manifest = JSON.parse(await readFile(source, 'utf8')) as { host_permissions: string[] }
+      const output = resolve(outputDirectory, 'manifest.json')
+      const manifest = JSON.parse(await readFile(source, 'utf8')) as {
+        name: string
+        description: string
+        host_permissions: string[]
+      }
       const origin = new URL(apiOrigin).origin
       manifest.host_permissions = [
         'https://worldchain-mainnet.g.alchemy.com/*',
         'https://bridge.worldcoin.org/*',
         `${origin}/*`,
       ]
+      if (stage) {
+        manifest.name = `${manifest.name} (Stage)`
+        manifest.description = `${manifest.description} Stage API: ${origin}.`
+      }
       await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`)
     },
   }
@@ -22,13 +33,18 @@ function extensionManifest(apiOrigin: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
-  const apiOrigin = env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz'
+  const stage = mode === 'stage'
+  const apiOrigin = env.VITE_MEMORIOSO_APP_URL || (stage ? STAGE_API_ORIGIN : PRODUCTION_API_ORIGIN)
+  const outputDirectory = resolve(import.meta.dirname, stage ? 'dist-stage' : 'dist')
   return {
     root: import.meta.dirname,
     publicDir: resolve(import.meta.dirname, 'public'),
-    plugins: [extensionManifest(apiOrigin)],
+    define: {
+      'import.meta.env.VITE_MEMORIOSO_APP_URL': JSON.stringify(apiOrigin),
+    },
+    plugins: [extensionManifest(apiOrigin, outputDirectory, stage)],
     build: {
-      outDir: resolve(import.meta.dirname, 'dist'),
+      outDir: outputDirectory,
       emptyOutDir: true,
       rollupOptions: {
         input: {

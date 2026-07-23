@@ -2,6 +2,8 @@ import sanitizeHtml from 'sanitize-html'
 import {
   LIBRO_EMBED_SCHEMA_V1,
   LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+  LIBRO_V1_REGISTRY_ADDRESS,
+  LIBRO_WORLD_CHAIN_ID,
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
   extractReadableText,
@@ -124,7 +126,12 @@ export function buildLibroEmbedManifest(
   }
 
   if (!isApprovedLibroRegistry(validated.registration.chain_id, validated.registration.registry_address)) {
-    throw new LibroEmbedUnavailableError('Publication uses an unsupported Libro registry')
+    throw new LibroEmbedUnavailableError(
+      `Publication uses an unsupported Libro registry: ` +
+      `publication registry (chain_id=${validated.registration.chain_id}, ` +
+      `registry_address=${validated.registration.registry_address}) does not match ` +
+      `approved registry (chain_id=${LIBRO_WORLD_CHAIN_ID}, registry_address=${LIBRO_V1_REGISTRY_ADDRESS})`
+    )
   }
 
   return validated

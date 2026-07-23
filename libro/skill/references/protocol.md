@@ -6,6 +6,8 @@ The signed signal is the canonical JSON string of the publication payload. Keys 
 
 The signal hash is the World ID `hashSignal(signalText)` field-element hash. This value must match every `responses[].signal_hash` in the IDKit result and is passed to the registry as `uint256 signalHash`.
 
+Direct Libro publications require `world_id_credential_policy: "orb"` and reject broader or document-based policies.
+
 `publication_title` and `publication_subtitle` are always present strings but may be empty. Producers normalize absent or whitespace-only values to `""`; they do not omit these fields or encode them as `null`. `publication_content.html` must produce non-empty readable text after HTML parsing, entity decoding, Unicode NFC normalization, and whitespace collapsing. Scripts, styles, templates, images, and other non-text media do not count as body text.
 
 ## World ID 4.0 Mapping

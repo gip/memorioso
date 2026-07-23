@@ -95,7 +95,7 @@ describe('World ID publication signals', () => {
   it('does not put the actual credential result into the signed signal', () => {
     const signalText = canonicalPublicationSignal(publication())
 
-    expect(signalText).toContain('"world_id_credential_policy":"document_or_orb"')
+    expect(signalText).toContain('"world_id_credential_policy":"orb"')
     expect(signalText).not.toContain('credential_identifier')
     expect(signalText).not.toContain('passport')
   })

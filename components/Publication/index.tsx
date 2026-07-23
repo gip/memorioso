@@ -10,7 +10,7 @@ import { MemMark } from '@/components/MemMark'
 import { HumanSeal } from '@/components/HumanSeal'
 import { VerifiedChip } from '@/components/VerifiedChip'
 import { Divider } from '@/components/Divider'
-import { fmtDate } from '@/lib/time'
+import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import {
   isSimpleTextPublication,
   manifestElementId,
@@ -55,8 +55,8 @@ export const Publication = ({
 
   const publicationBody = embedManifest && manifestId ? (
     <div
-      className="libro-human-authored publication-prose spectral text-[19px] leading-[1.72] text-zinc-900"
-      data-libro-claim="human-authored"
+      className="libro-human-signed publication-prose spectral text-[19px] leading-[1.72] text-zinc-900"
+      data-libro-claim="human-signed"
       data-libro-manifest={manifestId}
       data-libro-signal-hash={embedManifest.registration.signal_hash}
       dangerouslySetInnerHTML={{ __html: presentationContent }}
@@ -105,7 +105,7 @@ export const Publication = ({
           <VerifiedChip verifyHref={verifyHref} label={authorshipLabel} />
           {embedSnippet && textSnippet && <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} />}
           <span className="text-zinc-400">·</span>
-          <span>Signed {fmtDate(publication.publication_date)}</span>
+          <span>Signed <PublicationTimestamp date={publication.publication_date} /></span>
           {credentialLabel && (
             <>
               <span className="text-zinc-400">·</span>

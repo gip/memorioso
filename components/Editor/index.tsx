@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import NextLink from 'next/link'
 import { usePathname } from 'next/navigation'
+import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -475,11 +476,7 @@ export default function Editor({
                 </div>
                 {publicationDate && (
                   <span className="text-gray-500">
-                    Signed and published on <strong>{new Date(publicationDate).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric', 
-                      year: 'numeric'
-                    })}</strong>. Proof of human authorship can be <NextLink href={`${pathname}/proof`} className="text-blurple hover:underline">verified</NextLink> independently.
+                    Signed and published on <strong><PublicationTimestamp date={publicationDate} style="short" /></strong>. Proof of human authorship can be <NextLink href={`${pathname}/proof`} className="text-blurple hover:underline">verified</NextLink> independently.
                   </span>
                 )}
               </div>

@@ -5,16 +5,19 @@ import {
   canonicalPublicationSignal,
   extractReadableText,
   formatLibroTextTag,
+  formatLibroPublicationMinute,
   hasMeaningfulPublicationBody,
   hashPublicationSignal,
   isSimpleTextPublication,
   LIBRO_EMBED_SCHEMA_V1,
-  LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+  LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_V1_REGISTRY_ADDRESS,
   libroTextTagHashMatches,
   manifestElementId,
+  parseLibroEmbedManifest,
+  parseLibroPublicationV1,
   parseLibroTextTags,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
@@ -26,7 +29,7 @@ const publication: LibroPublicationV1Payload = {
   libro_protocol_version: LIBRO_PROTOCOL_VERSION,
   world_id_protocol_version: '4.0',
   world_id_action: 'written-by-a-human-v4-abc',
-  world_id_credential_policy: 'document_or_orb',
+  world_id_credential_policy: 'orb',
   author_id_libro: 'author-1',
   publication_date: '2026-07-21T12:00:00.000Z',
   author_name_libro: 'Ada',
@@ -40,7 +43,7 @@ const publication: LibroPublicationV1Payload = {
 function manifest(): LibroEmbedManifestV1 {
   return {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+    claim: LIBRO_HUMAN_SIGNED_CLAIM,
     publication,
     registration: {
       chain_id: 480,
@@ -86,7 +89,7 @@ describe('Libro plain-text tags', () => {
   it('formats the canonical portable tag with the full signal hash and manifest URL', () => {
     const tag = formatLibroTextTag(manifest())
     expect(tag).toBe([
-      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${manifest().registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      `=== Libro · Signed by a human · @ada · 2026-07-21T12:00Z · ${manifest().registration.signal_hash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
       'Hello human world.',
       '=== End Libro ===',
     ].join('\n'))
@@ -96,14 +99,14 @@ describe('Libro plain-text tags', () => {
   it('parses a full verifiable tag', () => {
     const signalHash = manifest().registration.signal_hash
     const text = [
-      `=== Libro · Signed by a human · @ada · 2026-07-21 · ${signalHash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
+      `=== Libro · Signed by a human · @ada · 2026-07-21T12:00Z · ${signalHash} · https://memorioso.xyz/api/publications/42/libro-manifest ===`,
       'Hello human world.',
       '=== End Libro ===',
     ].join('\n')
 
     expect(parseLibroTextTags(text)).toEqual([{
       authorHandle: 'ada',
-      publicationDate: '2026-07-21',
+      publicationDate: '2026-07-21T12:00Z',
       signalHash,
       manifestUrl: 'https://memorioso.xyz/api/publications/42/libro-manifest',
       bodyText: 'Hello human world.',
@@ -113,9 +116,21 @@ describe('Libro plain-text tags', () => {
   it('detects legacy shortened hashes without treating them as a different signal', () => {
     const signalHash = manifest().registration.signal_hash
     const shortHash = `${signalHash.slice(0, 8)}…${signalHash.slice(-4)}`
-    const text = `=== Libro · Signed by a human · @ada · 2026-07-21 · ${shortHash} ===\nHello\n=== End Libro ===`
+    const text = `=== Libro · Signed by a human · @ada · 2026-07-21T12:00Z · ${shortHash} ===\nHello\n=== End Libro ===`
     expect(parseLibroTextTags(text)[0]).toMatchObject({ signalHash: shortHash, manifestUrl: null })
     expect(libroTextTagHashMatches(shortHash, signalHash)).toBe(true)
+  })
+
+  it('normalizes signed publication timestamps to UTC minute precision', () => {
+    expect(formatLibroPublicationMinute('2026-07-21T05:34:59-07:00')).toBe('2026-07-21T12:34Z')
+    expect(() => formatLibroPublicationMinute('2026-07-21T12:34')).toThrow('timezone')
+    expect(() => formatLibroPublicationMinute('not-a-dateZ')).toThrow('valid timestamp')
+  })
+
+  it('does not parse legacy date-only boundaries', () => {
+    const signalHash = manifest().registration.signal_hash
+    const text = `=== Libro · Signed by a human · @ada · 2026-07-21 · ${signalHash} ===\nHello\n=== End Libro ===`
+    expect(parseLibroTextTags(text)).toEqual([])
   })
 })
 
@@ -124,6 +139,17 @@ describe('Libro embed manifests', () => {
     expect(assertLibroManifestLocalIntegrity(manifest())).toEqual(manifest())
     expect(manifestElementId(manifest().registration.signal_hash))
       .toBe(`libro-manifest-${manifest().registration.signal_hash}`)
+  })
+
+  it('requires the orb policy and human-signed claim', () => {
+    expect(() => parseLibroPublicationV1({
+      ...publication,
+      world_id_credential_policy: 'document_or_orb',
+    })).toThrow('credential policy')
+    expect(() => parseLibroEmbedManifest({
+      ...manifest(),
+      claim: 'human-authored',
+    })).toThrow('human-signing claim')
   })
 
   it('rejects publication and action tampering', () => {

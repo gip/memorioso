@@ -18,7 +18,7 @@ import { worldchain } from 'viem/chains'
 export const LIBRO_PROTOCOL_VERSION = 'libro-v1' as const
 export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
 export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
-export const LIBRO_HUMAN_AUTHORSHIP_CLAIM = 'human-authored' as const
+export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
 export const LIBRO_WORLD_CHAIN_RPC_URL = 'https://worldchain-mainnet.g.alchemy.com/public' as const
 export const LIBRO_V1_REGISTRY_ADDRESS = '0x53Fc90aB234E85dD610212753e71e7296053038c' as const
@@ -31,7 +31,7 @@ export type LibroPublicationV1Payload = {
   libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
   world_id_protocol_version: '4.0'
   world_id_action: string
-  world_id_credential_policy: string
+  world_id_credential_policy: 'orb'
   author_id_libro: string
   publication_date: string
   author_name_libro: string
@@ -44,7 +44,7 @@ export type LibroPublicationV1Payload = {
 
 export type LibroEmbedManifestV1 = {
   schema: typeof LIBRO_EMBED_SCHEMA_V1
-  claim: typeof LIBRO_HUMAN_AUTHORSHIP_CLAIM
+  claim: typeof LIBRO_HUMAN_SIGNED_CLAIM
   publication: LibroPublicationV1Payload
   registration: {
     chain_id: typeof LIBRO_WORLD_CHAIN_ID
@@ -138,7 +138,7 @@ export function normalizeReadableText(value: string): string {
 }
 
 const LIBRO_TEXT_TAG_PATTERN = new RegExp(
-  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
+  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
   'g'
 )
 
@@ -177,6 +177,17 @@ export function extractReadableText(html: string): string {
   return normalizeReadableText(parts.join(''))
 }
 
+export function formatLibroPublicationMinute(value: string): string {
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) {
+    throw new Error('publication_date must be an ISO 8601 timestamp with a timezone')
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('publication_date must be a valid timestamp')
+  }
+  return `${parsed.toISOString().slice(0, 16)}Z`
+}
+
 export function formatLibroTextTag(manifestValue: unknown): string {
   const manifest = assertLibroManifestLocalIntegrity(manifestValue)
   const { publication, registration } = manifest
@@ -185,7 +196,7 @@ export function formatLibroTextTag(manifestValue: unknown): string {
     '=== Libro',
     'Signed by a human',
     `@${publication.author_handle_libro}`,
-    publication.publication_date.slice(0, 10),
+    formatLibroPublicationMinute(publication.publication_date),
     registration.signal_hash,
     ...(manifestUrl ? [manifestUrl] : []),
   ].join(' · ')
@@ -277,10 +288,13 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
   }
 
   for (const field of [
-    'world_id_action', 'world_id_credential_policy', 'author_id_libro', 'publication_date',
+    'world_id_action', 'author_id_libro',
     'author_name_libro', 'author_handle_libro', 'author_bio_libro', 'publication_title',
     'publication_subtitle',
   ]) requireString(value, field)
+  const publicationDate = requireString(value, 'publication_date')
+  if (value.world_id_credential_policy !== 'orb') throw new Error('Unsupported World ID credential policy')
+  formatLibroPublicationMinute(publicationDate)
 
   if (!hasMeaningfulPublicationBody(value.publication_content)) {
     throw new Error('Publication body must contain readable text')
@@ -292,7 +306,7 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
 export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
   if (!isRecord(value)) throw new Error('Manifest must be an object')
   if (value.schema !== LIBRO_EMBED_SCHEMA_V1) throw new Error('Unsupported embed schema')
-  if (value.claim !== LIBRO_HUMAN_AUTHORSHIP_CLAIM) throw new Error('Unsupported authorship claim')
+  if (value.claim !== LIBRO_HUMAN_SIGNED_CLAIM) throw new Error('Unsupported human-signing claim')
 
   const publication = parseLibroPublicationV1(value.publication)
   if (!isRecord(value.registration)) throw new Error('registration must be an object')
@@ -304,7 +318,7 @@ export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
 
   const manifest: LibroEmbedManifestV1 = {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+    claim: LIBRO_HUMAN_SIGNED_CLAIM,
     publication,
     registration: {
       chain_id: LIBRO_WORLD_CHAIN_ID,

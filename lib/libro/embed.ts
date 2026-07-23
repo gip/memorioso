@@ -1,12 +1,13 @@
 import sanitizeHtml from 'sanitize-html'
 import {
   LIBRO_EMBED_SCHEMA_V1,
-  LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+  LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_V1_REGISTRY_ADDRESS,
   LIBRO_WORLD_CHAIN_ID,
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
   extractReadableText,
+  formatLibroPublicationMinute,
   formatLibroTextTag,
   hashPublicationSignal,
   isApprovedLibroRegistry,
@@ -98,7 +99,7 @@ export function buildLibroEmbedManifest(
   }
   const manifest: LibroEmbedManifestV1 = {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_AUTHORSHIP_CLAIM,
+    claim: LIBRO_HUMAN_SIGNED_CLAIM,
     publication: signedPublication,
     registration: {
       chain_id: registration.chain_id as 480,
@@ -165,7 +166,7 @@ export function sanitizeLibroEmbedHtml(html: string): string {
 export function getLibroSimpleBoundaryLabel(manifest: LibroEmbedManifestV1): string {
   const { publication, registration } = manifest
   const manifestUrl = manifest.source?.manifest_url
-  return `=== Libro · Signed by a human · @${publication.author_handle_libro} · ${publication.publication_date.slice(0, 10)} · ${registration.signal_hash}${manifestUrl ? ` · ${manifestUrl}` : ''} ===`
+  return `=== Libro · Signed by a human · @${publication.author_handle_libro} · ${formatLibroPublicationMinute(publication.publication_date)} · ${registration.signal_hash}${manifestUrl ? ` · ${manifestUrl}` : ''} ===`
 }
 
 export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
@@ -175,7 +176,7 @@ export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
 export function buildLibroEmbedSnippet(manifest: LibroEmbedManifestV1): string {
   const id = manifestElementId(manifest.registration.signal_hash)
   const content = sanitizeLibroEmbedHtml(manifest.publication.publication_content.html)
-  const body = `<div class="libro-human-authored" data-libro-claim="human-authored" data-libro-manifest="${id}" data-libro-signal-hash="${manifest.registration.signal_hash}">\n${content}\n</div>`
+  const body = `<div class="libro-human-signed" data-libro-claim="human-signed" data-libro-manifest="${id}" data-libro-signal-hash="${manifest.registration.signal_hash}">\n${content}\n</div>`
   const presentation = isSimpleTextPublication(manifest.publication)
     ? `<div class="libro-simple">\n<div class="libro-boundary">${escapeHtml(getLibroSimpleBoundaryLabel(manifest))}</div>\n${body}\n<div class="libro-boundary">=== End Libro ===</div>\n</div>`
     : body

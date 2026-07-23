@@ -62,6 +62,8 @@ describe('inline signature creation', () => {
       draftId: 'draft-1',
       normalizedText: 'Café & <human> second line',
       author: { handle: 'ada' },
+      credentialPolicy: 'orb',
+      allowedCredentials: ['proof_of_human'],
     })
 
     const draftInsert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO drafts'))!
@@ -72,6 +74,7 @@ describe('inline signature creation', () => {
     expect(signalText).toBe(canonicalPublicationSignal(publication))
     expect(publication).toMatchObject({
       publication_schema: 'libro-publication-v1',
+      world_id_credential_policy: 'orb',
       author_id_libro: 'author-1',
       author_handle_libro: 'ada',
       publication_title: '',

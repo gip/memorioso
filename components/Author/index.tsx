@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/objects'
 import Link from 'next/link'
 import { AgentRegistrationPanel } from './AgentRegistrationPanel'
+import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 
 export const Author = ({ author, publicationInfos, redirect = null, self = false }: { author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null, self?: boolean }) => {
   const router = useRouter()
@@ -145,11 +146,11 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
                   <br />
                   <span className="text-xs text-blurple">{publicationInfo.authorship_label}</span>
                   <br />
-                  <span className="text-xs">{new Date(publicationInfo.publication_date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}</span>
+                  <PublicationTimestamp
+                    className="text-xs"
+                    date={publicationInfo.publication_date}
+                    style="short"
+                  />
                 </span>
               </div>
             </Link>

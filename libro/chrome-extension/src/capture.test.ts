@@ -101,4 +101,55 @@ describe('inline text capture and replacement', () => {
       message: expect.stringContaining('enter text manually'),
     })
   })
+
+  it('captures a textarea selection after the editor lost focus to the panel', () => {
+    const editor = document.createElement('textarea')
+    editor.value = 'One human sentence here.'
+    document.body.append(editor)
+    editor.focus()
+    editor.setSelectionRange(4, 18)
+    editor.blur()
+
+    const capture = captureCurrentText(captures)
+    expect(capture).toMatchObject({ success: true, text: 'human sentence', canReplace: true })
+    expect(replaceCapture(captures, capture.operationId!, '[signed]')).toEqual({ success: true })
+    expect(editor.value).toBe('One [signed] here.')
+  })
+
+  it('captures the editor inside an open shadow root', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    const editor = document.createElement('div')
+    editor.setAttribute('contenteditable', 'true')
+    editor.textContent = 'Composed in a shadow editor'
+    shadow.append(editor)
+    editor.focus()
+
+    const capture = captureCurrentText(captures)
+    expect(capture).toMatchObject({ success: true, text: 'Composed in a shadow editor', canReplace: true })
+  })
+
+  it('resolves the context menu selection when the page reports nothing', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    const editor = document.createElement('textarea')
+    editor.value = 'Prefix. The signed sentence. Suffix.'
+    shadow.append(editor)
+
+    const capture = captureCurrentText(captures, document, window, { hintText: 'The signed sentence.' })
+    expect(capture).toMatchObject({ success: true, text: 'The signed sentence.', canReplace: true })
+    expect(replaceCapture(captures, capture.operationId!, '[signed]')).toEqual({ success: true })
+    expect(editor.value).toBe('Prefix. [signed] Suffix.')
+  })
+
+  it('keeps the context menu selection even when it cannot be located on the page', () => {
+    const capture = captureCurrentText(captures, document, window, { hintText: 'Text from another frame' })
+    expect(capture).toMatchObject({
+      success: true,
+      text: 'Text from another frame',
+      canReplace: false,
+    })
+  })
 })

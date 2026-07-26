@@ -114,11 +114,11 @@ async function scanActiveTab(): Promise<ScanResponse> {
   }
 }
 
-async function captureActiveText(requestedTabId?: number): Promise<StoredCapture> {
+async function captureActiveText(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   try {
     await ensureContentScript(tabId)
-    const result = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_CAPTURE_TEXT' }) as {
+    const result = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_CAPTURE_TEXT', hintText }) as {
       success?: boolean
       operationId?: string
       text?: string
@@ -137,7 +137,8 @@ async function captureActiveText(requestedTabId?: number): Promise<StoredCapture
   } catch (error) {
     const capture: StoredCapture = {
       tabId,
-      text: '',
+      // A page the content script cannot reach still hands over the context-menu selection.
+      text: hintText || '',
       canReplace: false,
       message: error instanceof Error ? error.message : 'Text could not be captured from this page',
     }
@@ -146,10 +147,10 @@ async function captureActiveText(requestedTabId?: number): Promise<StoredCapture
   }
 }
 
-async function openSigningPanel(requestedTabId?: number): Promise<StoredCapture> {
+async function openSigningPanel(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   const opening = chrome.sidePanel.open({ tabId })
-  const capture = await captureActiveText(tabId)
+  const capture = await captureActiveText(tabId, hintText)
   await opening
   return capture
 }
@@ -382,8 +383,10 @@ chrome.runtime.onInstalled.addListener(() => {
   })).catch(() => undefined)
 })
 
-chrome.contextMenus.onClicked.addListener((_info, tab) => {
-  if (typeof tab?.id === 'number') openSigningPanel(tab.id).catch(() => undefined)
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (typeof tab?.id !== 'number') return
+  const hintText = typeof info.selectionText === 'string' ? info.selectionText : undefined
+  openSigningPanel(tab.id, hintText).catch(() => undefined)
 })
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {

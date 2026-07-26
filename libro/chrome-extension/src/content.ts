@@ -345,6 +345,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         candidates?: LibroCandidate[]
         operationId?: string
         replacement?: string
+        hintText?: string
       }
       if (typed.type === 'LIBRO_SCAN_PAGE') {
         sendResponse({ candidates: scan() })
@@ -355,7 +356,12 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         return
       }
       if (typed.type === 'LIBRO_CAPTURE_TEXT') {
-        sendResponse(captureCurrentText(contentGlobal.__libroVerifierContentState!.captures))
+        sendResponse(captureCurrentText(
+          contentGlobal.__libroVerifierContentState!.captures,
+          document,
+          window,
+          { hintText: typeof typed.hintText === 'string' ? typed.hintText : undefined }
+        ))
         return
       }
       if (typed.type === 'LIBRO_REPLACE_CAPTURE' && typeof typed.operationId === 'string' && typeof typed.replacement === 'string') {

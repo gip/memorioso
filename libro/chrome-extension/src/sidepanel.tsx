@@ -95,7 +95,15 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [authNotice, setAuthNotice] = useState<string | null>(null)
   const [completion, setCompletion] = useState<{ inserted: boolean; publicationUrl: string } | null>(null)
+  const [pageLinked, setPageLinked] = useState(false)
   const lookupSequence = useRef(0)
+  // The page keeps pushing edits, so remember what it last sent and what the panel shows.
+  const pageTextRef = useRef('')
+  const textRef = useRef('')
+  const jobRef = useRef<SigningJob | null>(null)
+
+  useEffect(() => { textRef.current = text }, [text])
+  useEffect(() => { jobRef.current = job }, [job])
 
   useEffect(() => {
     send<{ session: Session | null; capture: Capture | null; job: SigningJob | null }>({ type: 'LIBRO_GET_SIGNING_STATE' })
@@ -103,6 +111,8 @@ export function App(): JSX.Element {
         setSession(state.session)
         setCapture(state.capture)
         setText(state.capture?.text || state.job?.normalizedText || '')
+        pageTextRef.current = state.capture?.text || ''
+        setPageLinked(Boolean(state.capture?.canReplace && state.capture.text && !state.job))
         setJob(state.job)
         if (state.session) {
           try {
@@ -162,10 +172,14 @@ export function App(): JSX.Element {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== 'local') return
       const nextCapture = changes.libroSigningCapture?.newValue as Capture | undefined
-      if (nextCapture) {
-        setCapture(nextCapture)
-        setText(nextCapture.text)
-      }
+      if (!nextCapture) return
+      setCapture(nextCapture)
+      // Text edited here, or already bound to a proof, outranks whatever the page reports.
+      const editedHere = textRef.current.trim() !== '' && textRef.current !== pageTextRef.current
+      if (jobRef.current || editedHere) return
+      pageTextRef.current = nextCapture.text
+      setText(nextCapture.text)
+      setPageLinked(Boolean(nextCapture.canReplace && nextCapture.text))
     }
     chrome.storage.onChanged.addListener(handleStorageChange)
     return () => chrome.storage.onChanged.removeListener(handleStorageChange)
@@ -248,6 +262,8 @@ export function App(): JSX.Element {
       const response = await send<{ capture: Capture }>({ type: 'LIBRO_CAPTURE_ACTIVE_TEXT' })
       setCapture(response.capture)
       setText(response.capture.text)
+      pageTextRef.current = response.capture.text
+      setPageLinked(Boolean(response.capture.canReplace && response.capture.text))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not capture text')
     }
@@ -456,8 +472,17 @@ export function App(): JSX.Element {
           <h2>{job ? 'Finish signing' : 'Review text'}</h2>
           {!job && <>
             <p className="muted">The normalized text below becomes a public Memorioso publication and an irreversible World Chain registration.</p>
-            <textarea value={text} onChange={(event) => setText(event.target.value)} maxLength={12_000} placeholder="Enter the text you wrote…" />
+            <textarea
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value)
+                setPageLinked(event.target.value === pageTextRef.current)
+              }}
+              maxLength={12_000}
+              placeholder="Enter the text you wrote…"
+            />
             <div className="counter">{text.length.toLocaleString()} / 10,000 normalized characters</div>
+            {pageLinked && <p className="hint">Following the editor on the page. Editing here stops the sync.</p>}
             {capture?.message && !capture.text && <p className="hint">{capture.message}</p>}
             <button className="primary" onClick={startSigning} disabled={!text.trim() || Boolean(progress)}>Review World ID proof</button>
             <button onClick={refreshCapture}>Capture from page again</button>

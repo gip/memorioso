@@ -46,7 +46,12 @@ Choose **Sign current text** in the popup or **Sign with Libro** from an editor'
 side panel captures the current selection, then the whole focused `textarea` or `contenteditable`,
 and otherwise offers manual entry. Capture reaches editors inside open shadow roots, reads the
 selection offsets a field keeps after it loses focus to the panel, and falls back to the selection
-Chrome reports with the context menu click. Editors inside an iframe are not captured. Connect an existing Memorioso handle or create a first author
+Chrome reports with the context menu click. Editors inside an iframe are not captured.
+
+While the panel is reviewing text, later edits of the captured editor flow back into it: a capture
+that covered the whole field follows every edit, and a captured selection stays anchored to its
+region as the surrounding text changes. Typing in the panel takes over and stops the sync, and the
+text freezes for good once the signing request binds it to a World ID challenge. Connect an existing Memorioso handle or create a first author
 with a public name and optional bio, verify with World ID, review the normalized public text, and
 complete the publication proof. Memorioso sponsors the World Chain registration. The extension
 replaces an unchanged supported editor target with the portable Libro tag; if the page changed or

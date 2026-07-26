@@ -1,7 +1,11 @@
+// 'whole' follows every later edit of the field; 'selection' keeps tracking the captured region.
+export type CaptureScope = 'whole' | 'selection'
+
 export type CaptureTarget =
   | {
       kind: 'textarea'
       element: HTMLTextAreaElement | HTMLInputElement
+      scope: CaptureScope
       start: number
       end: number
       originalValue: string
@@ -10,6 +14,7 @@ export type CaptureTarget =
   | {
       kind: 'contenteditable'
       element: HTMLElement
+      scope: CaptureScope
       range: Range
       text: string
     }
@@ -134,6 +139,14 @@ function editableTargets(documentRef: Document): HTMLElement[] {
   ))
 }
 
+function scopeFor(text: string, whole: string): CaptureScope {
+  return normalizeHint(text) === normalizeHint(whole) ? 'whole' : 'selection'
+}
+
+function readableText(element: HTMLElement): string {
+  return element.innerText || element.textContent || ''
+}
+
 function fieldTarget(element: HTMLTextAreaElement | HTMLInputElement): CaptureTarget | null {
   const start = element.selectionStart ?? 0
   const selectedEnd = element.selectionEnd ?? start
@@ -142,24 +155,32 @@ function fieldTarget(element: HTMLTextAreaElement | HTMLInputElement): CaptureTa
   const effectiveStart = selectedEnd > start ? start : 0
   const text = element.value.slice(effectiveStart, end)
   if (!text.trim()) return null
-  return { kind: 'textarea', element, start: effectiveStart, end, originalValue: element.value, text }
+  return {
+    kind: 'textarea',
+    element,
+    scope: scopeFor(text, element.value),
+    start: effectiveStart,
+    end,
+    originalValue: element.value,
+    text,
+  }
 }
 
 function rangeTarget(range: Range, windowRef: BrowserWindow): CaptureTarget {
   const text = range.toString()
   const editable = editableAncestor(range.commonAncestorContainer, windowRef)
   if (editable && editable.contains(range.startContainer) && editable.contains(range.endContainer)) {
-    return { kind: 'contenteditable', element: editable, range, text }
+    return { kind: 'contenteditable', element: editable, scope: scopeFor(text, readableText(editable)), range, text }
   }
   return { kind: 'selection', text }
 }
 
 function wholeEditableTarget(element: HTMLElement, documentRef: Document): CaptureTarget | null {
-  const text = element.innerText || element.textContent || ''
+  const text = readableText(element)
   if (!text.trim()) return null
   const range = documentRef.createRange()
   range.selectNodeContents(element)
-  return { kind: 'contenteditable', element, range, text }
+  return { kind: 'contenteditable', element, scope: 'whole', range, text }
 }
 
 function rangeForText(host: HTMLElement, needle: string, documentRef: Document): Range | null {
@@ -204,6 +225,7 @@ function hintTargets(hint: string, documentRef: Document, windowRef: BrowserWind
       targets.push({
         kind: 'textarea',
         element,
+        scope: scopeFor(hint, value),
         start: index,
         end: index + hint.length,
         originalValue: value,
@@ -212,16 +234,25 @@ function hintTargets(hint: string, documentRef: Document, windowRef: BrowserWind
       continue
     }
     if (normalizeHint(value) === normalized) {
-      targets.push({ kind: 'textarea', element, start: 0, end: value.length, originalValue: value, text: value })
+      targets.push({
+        kind: 'textarea',
+        element,
+        scope: 'whole',
+        start: 0,
+        end: value.length,
+        originalValue: value,
+        text: value,
+      })
     }
   }
 
   for (const element of editableTargets(documentRef)) {
-    const readable = element.innerText || element.textContent || ''
+    const readable = readableText(element)
     if (!readable) continue
     const range = rangeForText(element, hint, documentRef)
     if (range) {
-      targets.push({ kind: 'contenteditable', element, range, text: range.toString() })
+      const text = range.toString()
+      targets.push({ kind: 'contenteditable', element, scope: scopeFor(text, readable), range, text })
       continue
     }
     if (normalizeHint(readable) === normalized) {
@@ -286,6 +317,97 @@ export function captureCurrentText(
   return {
     success: false,
     message: 'Select text or focus a textarea or contenteditable editor, or enter text manually.',
+  }
+}
+
+// Follow the captured region through later edits without re-reading the whole page.
+function adjustRegion(
+  previous: string,
+  next: string,
+  start: number,
+  end: number
+): { start: number; end: number } {
+  const shared = Math.min(previous.length, next.length)
+  let prefix = 0
+  while (prefix < shared && previous[prefix] === next[prefix]) prefix += 1
+  let suffix = 0
+  while (suffix < shared - prefix &&
+    previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix += 1
+
+  const removedEnd = previous.length - suffix
+  const inserted = next.length - suffix - prefix
+  const delta = next.length - previous.length
+  const clamp = (value: number): number => Math.min(Math.max(value, 0), next.length)
+
+  if (removedEnd <= start) return { start: clamp(start + delta), end: clamp(end + delta) }
+  if (prefix >= end) return { start: clamp(start), end: clamp(end) }
+  return { start: clamp(Math.min(start, prefix)), end: clamp(Math.max(prefix + inserted, end + delta)) }
+}
+
+// Re-read the captured target after the page changed. Returns null when nothing moved.
+export function resyncCapture(
+  captures: Map<string, CaptureTarget>,
+  operationId: string,
+  documentRef: Document = document
+): CaptureResponse | null {
+  const target = captures.get(operationId)
+  if (!target || target.kind === 'selection' || !target.element.isConnected) return null
+
+  if (target.kind === 'textarea') {
+    const value = target.element.value
+    if (value === target.originalValue) return null
+    const region = target.scope === 'whole'
+      ? { start: 0, end: value.length }
+      : adjustRegion(target.originalValue, value, target.start, target.end)
+    target.start = region.start
+    target.end = region.end
+    target.originalValue = value
+    target.text = value.slice(region.start, region.end)
+  } else {
+    if (target.scope === 'whole') {
+      const range = documentRef.createRange()
+      range.selectNodeContents(target.element)
+      target.range = range
+    }
+    // A live Range already follows edits inside a captured selection.
+    const text = target.scope === 'whole' ? readableText(target.element) : target.range.toString()
+    if (text === target.text) return null
+    target.text = text
+  }
+
+  return { success: true, operationId, text: target.text, canReplace: true }
+}
+
+export type CaptureWatcher = { stop: () => void }
+
+export function watchCapture(
+  captures: Map<string, CaptureTarget>,
+  operationId: string,
+  onUpdate: (update: CaptureResponse) => void,
+  documentRef: Document = document,
+  windowRef: BrowserWindow = window
+): CaptureWatcher {
+  const target = captures.get(operationId)
+  if (!target || target.kind === 'selection') return { stop: () => undefined }
+
+  const element = target.element
+  let timer = 0
+  const flush = (): void => {
+    timer = 0
+    const update = resyncCapture(captures, operationId, documentRef)
+    if (update) onUpdate(update)
+  }
+  const schedule = (): void => {
+    windowRef.clearTimeout(timer)
+    timer = windowRef.setTimeout(flush, 250)
+  }
+
+  element.addEventListener('input', schedule)
+  return {
+    stop: () => {
+      windowRef.clearTimeout(timer)
+      element.removeEventListener('input', schedule)
+    },
   }
 }
 

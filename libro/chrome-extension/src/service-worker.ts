@@ -147,6 +147,17 @@ async function captureActiveText(requestedTabId?: number, hintText?: string): Pr
   }
 }
 
+// The page pushes edits of the captured editor until a signing request binds the text to a proof.
+async function applyCaptureUpdate(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
+  if (typeof tabId !== 'number' || typeof update.operationId !== 'string' || typeof update.text !== 'string') return
+  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY])
+  if (stored[JOB_KEY]) return
+  const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
+  if (!capture || capture.tabId !== tabId || capture.operationId !== update.operationId) return
+  if (capture.text === update.text) return
+  await chrome.storage.local.set({ [CAPTURE_KEY]: { ...capture, text: update.text } })
+}
+
 async function openSigningPanel(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   const opening = chrome.sidePanel.open({ tabId })
@@ -389,8 +400,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   openSigningPanel(tab.id, hintText).catch(() => undefined)
 })
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const typed = message as Record<string, unknown>
+  if (typed.type === 'LIBRO_CAPTURE_UPDATE') {
+    applyCaptureUpdate(sender.tab?.id, typed).catch(() => undefined)
+    return
+  }
   if (typed.type === 'LIBRO_RESULT_STALE') {
     chrome.action.setBadgeBackgroundColor({ color: '#b45309' }).catch(() => undefined)
     chrome.action.setBadgeText({ text: '?' }).catch(() => undefined)

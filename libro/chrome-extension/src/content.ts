@@ -1,5 +1,11 @@
 import type { LibroCandidate, LibroVerificationResult } from './shared'
-import { captureCurrentText, replaceCapture, type CaptureTarget } from './capture'
+import {
+  captureCurrentText,
+  replaceCapture,
+  watchCapture,
+  type CaptureTarget,
+  type CaptureWatcher,
+} from './capture'
 
 type LibroTextTagV1 = {
   authorHandle: string
@@ -52,6 +58,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
   type LibroContentState = {
     observers: MutationObserver[]
     captures: Map<string, CaptureTarget>
+    watcher?: CaptureWatcher
   }
 
   const contentGlobal = globalThis as typeof globalThis & {
@@ -90,6 +97,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     contentGlobal.__libroVerifierContentState = {
       observers: [],
       captures: contentGlobal.__libroVerifierContentState?.captures || new Map(),
+      watcher: contentGlobal.__libroVerifierContentState?.watcher,
     }
   }
 
@@ -356,20 +364,29 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         return
       }
       if (typed.type === 'LIBRO_CAPTURE_TEXT') {
-        sendResponse(captureCurrentText(
-          contentGlobal.__libroVerifierContentState!.captures,
+        const state = contentGlobal.__libroVerifierContentState!
+        state.watcher?.stop()
+        state.watcher = undefined
+        const capture = captureCurrentText(
+          state.captures,
           document,
           window,
           { hintText: typeof typed.hintText === 'string' ? typed.hintText : undefined }
-        ))
+        )
+        if (capture.success && capture.operationId && capture.canReplace) {
+          // Mirror later edits of the same editor into the side panel.
+          state.watcher = watchCapture(state.captures, capture.operationId, (update) => {
+            chrome.runtime.sendMessage({ type: 'LIBRO_CAPTURE_UPDATE', ...update }).catch(() => undefined)
+          })
+        }
+        sendResponse(capture)
         return
       }
       if (typed.type === 'LIBRO_REPLACE_CAPTURE' && typeof typed.operationId === 'string' && typeof typed.replacement === 'string') {
-        sendResponse(replaceCapture(
-          contentGlobal.__libroVerifierContentState!.captures,
-          typed.operationId,
-          typed.replacement
-        ))
+        const state = contentGlobal.__libroVerifierContentState!
+        state.watcher?.stop()
+        state.watcher = undefined
+        sendResponse(replaceCapture(state.captures, typed.operationId, typed.replacement))
       }
     })
   }

@@ -3,6 +3,9 @@ import {
   captureCurrentText,
   replaceCapture,
   watchCapture,
+  watchPageCaptures,
+  type AutoCaptureController,
+  type CaptureResponse,
   type CaptureTarget,
   type CaptureWatcher,
 } from './capture'
@@ -59,6 +62,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     observers: MutationObserver[]
     captures: Map<string, CaptureTarget>
     watcher?: CaptureWatcher
+    autoWatcher?: AutoCaptureController
+    operationId?: string
   }
 
   const contentGlobal = globalThis as typeof globalThis & {
@@ -93,11 +98,14 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       node.classList.remove(...STATE_CLASSES)
       if (resetBlockIds) node.removeAttribute(BLOCK_ATTRIBUTE)
     })
-    contentGlobal.__libroVerifierContentState?.observers.forEach((observer) => observer.disconnect())
+    const previous = contentGlobal.__libroVerifierContentState
+    previous?.observers.forEach((observer) => observer.disconnect())
     contentGlobal.__libroVerifierContentState = {
       observers: [],
-      captures: contentGlobal.__libroVerifierContentState?.captures || new Map(),
-      watcher: contentGlobal.__libroVerifierContentState?.watcher,
+      captures: previous?.captures || new Map(),
+      watcher: previous?.watcher,
+      autoWatcher: previous?.autoWatcher,
+      operationId: previous?.operationId,
     }
   }
 
@@ -344,6 +352,41 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     return staleBlockIds
   }
 
+  // Mirroring edits of the captured editor is part of following, so it lives and dies with it.
+  // Without following, the panel holds the snapshot it captured until it captures again.
+  function syncElementWatcher(state: LibroContentState): void {
+    state.watcher?.stop()
+    state.watcher = undefined
+    if (!state.autoWatcher || !state.operationId) return
+    state.watcher = watchCapture(state.captures, state.operationId, (update) => {
+      chrome.runtime.sendMessage({ type: 'LIBRO_CAPTURE_UPDATE', ...update }).catch(() => undefined)
+    })
+  }
+
+  function adoptCapture(state: LibroContentState, capture: CaptureResponse): void {
+    state.operationId = capture.success ? capture.operationId : undefined
+    syncElementWatcher(state)
+  }
+
+  function setAutoCapture(state: LibroContentState, enabled: boolean): void {
+    state.autoWatcher?.stop()
+    state.autoWatcher = undefined
+    if (enabled) {
+      state.autoWatcher = watchPageCaptures(
+        state.captures,
+        () => state.operationId,
+        (capture) => {
+          adoptCapture(state, capture)
+          chrome.runtime.sendMessage({ type: 'LIBRO_AUTO_CAPTURE', ...capture }).catch(() => undefined)
+        }
+      )
+    }
+    // Picks up the capture the panel already holds, or drops it when following is turned off.
+    syncElementWatcher(state)
+    // Sync to whatever is focused right now instead of waiting for the next page event.
+    state.autoWatcher?.flush()
+  }
+
   if (!contentGlobal.__libroVerifierContentState) {
     contentGlobal.__libroVerifierContentState = { observers: [], captures: new Map() }
     chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
@@ -354,6 +397,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         operationId?: string
         replacement?: string
         hintText?: string
+        enabled?: boolean
       }
       if (typed.type === 'LIBRO_SCAN_PAGE') {
         sendResponse({ candidates: scan() })
@@ -365,27 +409,29 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       }
       if (typed.type === 'LIBRO_CAPTURE_TEXT') {
         const state = contentGlobal.__libroVerifierContentState!
-        state.watcher?.stop()
-        state.watcher = undefined
         const capture = captureCurrentText(
           state.captures,
           document,
           window,
           { hintText: typeof typed.hintText === 'string' ? typed.hintText : undefined }
         )
-        if (capture.success && capture.operationId && capture.canReplace) {
-          // Mirror later edits of the same editor into the side panel.
-          state.watcher = watchCapture(state.captures, capture.operationId, (update) => {
-            chrome.runtime.sendMessage({ type: 'LIBRO_CAPTURE_UPDATE', ...update }).catch(() => undefined)
-          })
-        }
+        // Mirror later edits of the same editor into the side panel.
+        adoptCapture(state, capture)
         sendResponse(capture)
+        return
+      }
+      if (typed.type === 'LIBRO_SET_AUTO_CAPTURE') {
+        const state = contentGlobal.__libroVerifierContentState!
+        setAutoCapture(state, typed.enabled === true)
+        sendResponse({ success: true })
         return
       }
       if (typed.type === 'LIBRO_REPLACE_CAPTURE' && typeof typed.operationId === 'string' && typeof typed.replacement === 'string') {
         const state = contentGlobal.__libroVerifierContentState!
         state.watcher?.stop()
         state.watcher = undefined
+        // Auto mode stays armed; the service worker suppresses pushes until the job is cleared.
+        state.operationId = undefined
         sendResponse(replaceCapture(state.captures, typed.operationId, typed.replacement))
       }
     })

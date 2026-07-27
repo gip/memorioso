@@ -48,14 +48,26 @@ and otherwise offers manual entry. Capture reaches editors inside open shadow ro
 selection offsets a field keeps after it loses focus to the panel, and falls back to the selection
 Chrome reports with the context menu click. Editors inside an iframe are not captured.
 
-While the panel is reviewing text, later edits of the captured editor flow back into it: a capture
-that covered the whole field follows every edit, and a captured selection stays anchored to its
-region as the surrounding text changes. Typing in the panel takes over and stops the sync, and the
-text freezes for good once the signing request binds it to a World ID challenge. Connect an existing Memorioso handle or create a first author
-with a public name and optional bio, verify with World ID, review the normalized public text, and
-complete the publication proof. Memorioso sponsors the World Chain registration. The extension
-replaces an unchanged supported editor target with the portable Libro tag; if the page changed or
-the source is unsupported, it copies the tag instead.
+**Follow this page automatically** is on by default and is the only thing that lets the page reach
+the panel after the first capture. While it is on, the panel tracks the page: focus a different
+editor or make a new selection and it re-captures, and later edits of the editor it already holds
+flow back into it — a capture that covered the whole field follows every edit, and a captured
+selection stays anchored to its region as the surrounding text changes. Typing inside that editor
+is an edit, not a move, so the anchoring survives it. An edit in the panel pauses following instead
+of being overwritten; **Resume following** re-syncs to the page. The text freezes for good once the
+signing request binds it to a World ID challenge.
+
+Turning following off makes the capture a snapshot that nothing on the page changes until you
+capture again. That choice is remembered, but following itself is not: it is armed for one tab and
+one open panel, riding the same temporary access grant as a manual capture, so the panel re-arms it
+each time it opens and it ends when that tab navigates or closes, or when the panel is closed. The
+panel says which of those happened and the capture button re-arms it.
+
+Connect an existing Memorioso handle or create a first author with a public name and optional bio,
+verify with World ID, review the normalized public text, and complete the publication proof.
+Memorioso sponsors the World Chain registration. The extension replaces an unchanged supported
+editor target with the portable Libro tag; if the page changed or the source is unsupported, it
+copies the tag instead.
 
 The bearer credential is stored only in `chrome.storage.local` and used only by the extension service
 worker. Proof-complete publish identifiers are persisted so relay and finalization can be resumed.

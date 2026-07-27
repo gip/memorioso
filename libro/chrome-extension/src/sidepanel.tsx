@@ -21,6 +21,11 @@ type Capture = {
   canReplace: boolean
   message?: string
 }
+type AutoCapture = {
+  enabled: boolean
+  tabId: number
+  reason?: 'navigated' | 'closed'
+}
 type SigningContext = {
   appId: `app_${string}`
   action: string
@@ -95,25 +100,46 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [authNotice, setAuthNotice] = useState<string | null>(null)
   const [completion, setCompletion] = useState<{ inserted: boolean; publicationUrl: string } | null>(null)
-  const [pageLinked, setPageLinked] = useState(false)
+  const [following, setFollowing] = useState(false)
+  const [followPaused, setFollowPaused] = useState(false)
+  const [followStopped, setFollowStopped] = useState<AutoCapture['reason'] | null>(null)
   const lookupSequence = useRef(0)
   // The page keeps pushing edits, so remember what it last sent and what the panel shows.
   const pageTextRef = useRef('')
   const textRef = useRef('')
   const jobRef = useRef<SigningJob | null>(null)
+  const followingRef = useRef(false)
 
   useEffect(() => { textRef.current = text }, [text])
   useEffect(() => { jobRef.current = job }, [job])
+  useEffect(() => { followingRef.current = following }, [following])
+
+  // Closing the panel drops this port, which is how the service worker stops the page from following.
+  useEffect(() => {
+    const port = chrome.runtime.connect?.({ name: 'libro-side-panel' })
+    return () => port?.disconnect()
+  }, [])
 
   useEffect(() => {
-    send<{ session: Session | null; capture: Capture | null; job: SigningJob | null }>({ type: 'LIBRO_GET_SIGNING_STATE' })
+    send<{
+      session: Session | null
+      capture: Capture | null
+      job: SigningJob | null
+      autoCapture: AutoCapture | null
+      followPages: boolean
+    }>({ type: 'LIBRO_GET_SIGNING_STATE' })
       .then(async (state) => {
         setSession(state.session)
         setCapture(state.capture)
         setText(state.capture?.text || state.job?.normalizedText || '')
         pageTextRef.current = state.capture?.text || ''
-        setPageLinked(Boolean(state.capture?.canReplace && state.capture.text && !state.job))
+        setFollowing(Boolean(state.autoCapture?.enabled) || state.followPages)
         setJob(state.job)
+        // Following is armed per panel, so a remembered preference has to arm it again on open.
+        if (state.followPages && !state.autoCapture?.enabled) {
+          send({ type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true })
+            .catch(() => setFollowing(false))
+        }
         if (state.session) {
           try {
             const restored = await send<Session>({ type: 'LIBRO_AUTH_SESSION' })
@@ -171,15 +197,24 @@ export function App(): JSX.Element {
   useEffect(() => {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== 'local') return
+      if (changes.libroAutoCapture) {
+        const auto = changes.libroAutoCapture.newValue as AutoCapture | undefined
+        setFollowing(Boolean(auto?.enabled))
+        setFollowStopped(auto?.enabled ? null : auto?.reason || null)
+        if (!auto?.enabled) setFollowPaused(false)
+      }
       const nextCapture = changes.libroSigningCapture?.newValue as Capture | undefined
       if (!nextCapture) return
       setCapture(nextCapture)
       // Text edited here, or already bound to a proof, outranks whatever the page reports.
       const editedHere = textRef.current.trim() !== '' && textRef.current !== pageTextRef.current
-      if (jobRef.current || editedHere) return
+      if (jobRef.current) return
+      if (editedHere) {
+        if (followingRef.current) setFollowPaused(true)
+        return
+      }
       pageTextRef.current = nextCapture.text
       setText(nextCapture.text)
-      setPageLinked(Boolean(nextCapture.canReplace && nextCapture.text))
     }
     chrome.storage.onChanged.addListener(handleStorageChange)
     return () => chrome.storage.onChanged.removeListener(handleStorageChange)
@@ -263,9 +298,22 @@ export function App(): JSX.Element {
       setCapture(response.capture)
       setText(response.capture.text)
       pageTextRef.current = response.capture.text
-      setPageLinked(Boolean(response.capture.canReplace && response.capture.text))
+      setFollowPaused(false)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not capture text')
+    }
+  }
+
+  async function toggleFollowing(enabled: boolean): Promise<void> {
+    setError(null)
+    setFollowPaused(false)
+    setFollowStopped(null)
+    setFollowing(enabled)
+    try {
+      await send({ type: 'LIBRO_SET_AUTO_CAPTURE', enabled, remember: true })
+    } catch (reason) {
+      setFollowing(false)
+      setError(reason instanceof Error ? reason.message : 'Could not follow this page')
     }
   }
 
@@ -474,18 +522,37 @@ export function App(): JSX.Element {
             <p className="muted">The normalized text below becomes a public Memorioso publication and an irreversible World Chain registration.</p>
             <textarea
               value={text}
-              onChange={(event) => {
-                setText(event.target.value)
-                setPageLinked(event.target.value === pageTextRef.current)
-              }}
+              onChange={(event) => setText(event.target.value)}
               maxLength={12_000}
               placeholder="Enter the text you wrote…"
             />
             <div className="counter">{text.length.toLocaleString()} / 10,000 normalized characters</div>
-            {pageLinked && <p className="hint">Following the editor on the page. Editing here stops the sync.</p>}
+            {following && !followPaused && (
+              <p className="hint">Following this page. Moving to another editor or selecting new text updates this.</p>
+            )}
+            {following && followPaused && (
+              <p className="hint">
+                Following paused because you edited here.{' '}
+                <button className="text-button" onClick={refreshCapture}>Resume following</button>
+              </p>
+            )}
+            {!following && followStopped && (
+              <p className="hint">
+                Following stopped because the page {followStopped === 'closed' ? 'closed' : 'navigated'}.
+                Capture again to restart it.
+              </p>
+            )}
             {capture?.message && !capture.text && <p className="hint">{capture.message}</p>}
             <button className="primary" onClick={startSigning} disabled={!text.trim() || Boolean(progress)}>Review World ID proof</button>
             <button onClick={refreshCapture}>Capture from page again</button>
+            <label className="follow-toggle">
+              <input
+                type="checkbox"
+                checked={following}
+                onChange={(event) => toggleFollowing(event.target.checked)}
+              />
+              Follow this page automatically
+            </label>
           </>}
           {job?.stage === 'proof' && <>
             <p className="muted">Ready to prove that <strong>@{job.author.handle}</strong> wrote this text.</p>

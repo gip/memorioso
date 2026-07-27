@@ -25,6 +25,9 @@ button:disabled { cursor: wait; opacity: .55; }
 .link { display: inline-block; margin-top: 13px; color: #4f46e5; }
 .account { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #e4e4e7; padding-bottom: 12px; font-size: 12px; }
 .text-button { width: auto; margin: 0; border: 0; padding: 3px; color: #71717a; }
+.hint .text-button { display: inline; padding: 0; color: #4f46e5; font: inherit; font-weight: 700; text-decoration: underline; }
+.follow-toggle { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; color: #71717a; font-weight: 400; }
+.follow-toggle input { width: auto; margin: 0; padding: 0; }
 .counter { margin-top: 4px; color: #71717a; font-size: 11px; text-align: right; }
 .notice { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; border-radius: 9px; padding: 10px 12px; }
 .notice.error { background: #fee2e2; color: #991b1b; }

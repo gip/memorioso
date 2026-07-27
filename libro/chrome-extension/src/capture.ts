@@ -32,6 +32,9 @@ export type CaptureOptions = {
   // Chrome resolves the context-menu selection itself, so it survives shadow roots and the focus
   // change that opening the side panel causes. It is a hint, not a source of truth.
   hintText?: string
+  // 'auto' runs on every page event, so it stays on the cheap paths and skips the recovery sweeps
+  // that only matter when the panel stole focus from the page.
+  mode?: 'manual' | 'auto'
 }
 
 type BrowserWindow = Window & typeof globalThis
@@ -87,6 +90,14 @@ function staticRangeToRange(candidate: StaticRange | Range, documentRef: Documen
   } catch {
     return null
   }
+}
+
+// The plain document selection, without the shadow-root walk that the full reader pays for.
+function lightSelectionRanges(windowRef: BrowserWindow): Range[] {
+  const selection = windowRef.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return []
+  const range = selection.getRangeAt(0).cloneRange()
+  return range.toString().length > 0 ? [range] : []
 }
 
 // A selection inside a shadow root is not readable through document.getSelection() alone.
@@ -275,12 +286,12 @@ function rememberCapture(captures: Map<string, CaptureTarget>, target: CaptureTa
   }
 }
 
-export function captureCurrentText(
-  captures: Map<string, CaptureTarget>,
+export function resolveCaptureTarget(
   documentRef: Document = document,
   windowRef: BrowserWindow = window,
   options: CaptureOptions = {}
-): CaptureResponse {
+): CaptureTarget | null {
+  const auto = options.mode === 'auto'
   const hint = options.hintText || ''
   const normalizedHint = normalizeHint(hint)
   const candidates: CaptureTarget[] = []
@@ -290,10 +301,20 @@ export function captureCurrentText(
 
   const active = deepActiveElement(documentRef)
   if (isTextField(active, windowRef)) add(fieldTarget(active))
-  for (const range of selectionRanges(documentRef, windowRef)) add(rangeTarget(range, windowRef))
+  const ranges = auto ? lightSelectionRanges(windowRef) : selectionRanges(documentRef, windowRef)
+  for (const range of ranges) add(rangeTarget(range, windowRef))
   if (active instanceof windowRef.HTMLElement && active.isContentEditable) {
     add(wholeEditableTarget(active, documentRef))
   }
+
+  // The page still has focus while auto mode runs, so the hint and blurred-field recovery sweeps
+  // cannot contribute anything the cheap reads missed.
+  if (auto) {
+    if (candidates.length > 0) return candidates[0]
+    for (const range of selectionRanges(documentRef, windowRef)) add(rangeTarget(range, windowRef))
+    return candidates[0] || null
+  }
+
   if (normalizedHint) hintTargets(hint, documentRef, windowRef).forEach(add)
   // A field that lost focus to the side panel still reports the offsets the user selected.
   for (const element of fieldTargets(documentRef, windowRef)) {
@@ -309,15 +330,26 @@ export function captureCurrentText(
       return text === normalizedHint || text.includes(normalizedHint) || normalizedHint.includes(text)
     })
     // The hint alone still beats an empty panel, even when nothing on the page can be replaced.
-    return rememberCapture(captures, matching || { kind: 'selection', text: hint })
+    return matching || { kind: 'selection', text: hint }
   }
 
-  if (candidates.length > 0) return rememberCapture(captures, candidates[0])
+  return candidates[0] || null
+}
 
-  return {
-    success: false,
-    message: 'Select text or focus a textarea or contenteditable editor, or enter text manually.',
+export function captureCurrentText(
+  captures: Map<string, CaptureTarget>,
+  documentRef: Document = document,
+  windowRef: BrowserWindow = window,
+  options: CaptureOptions = {}
+): CaptureResponse {
+  const target = resolveCaptureTarget(documentRef, windowRef, options)
+  if (!target) {
+    return {
+      success: false,
+      message: 'Select text or focus a textarea or contenteditable editor, or enter text manually.',
+    }
   }
+  return rememberCapture(captures, target)
 }
 
 // Follow the captured region through later edits without re-reading the whole page.
@@ -378,6 +410,8 @@ export function resyncCapture(
   return { success: true, operationId, text: target.text, canReplace: true }
 }
 
+const SYNC_DELAY_MS = 250
+
 export type CaptureWatcher = { stop: () => void }
 
 export function watchCapture(
@@ -399,7 +433,7 @@ export function watchCapture(
   }
   const schedule = (): void => {
     windowRef.clearTimeout(timer)
-    timer = windowRef.setTimeout(flush, 250)
+    timer = windowRef.setTimeout(flush, SYNC_DELAY_MS)
   }
 
   element.addEventListener('input', schedule)
@@ -407,6 +441,60 @@ export function watchCapture(
     stop: () => {
       windowRef.clearTimeout(timer)
       element.removeEventListener('input', schedule)
+    },
+  }
+}
+
+export type AutoCaptureController = { stop: () => void; flush: () => void }
+
+const AUTO_CAPTURE_EVENTS = ['focusin', 'selectionchange', 'keyup', 'mouseup'] as const
+
+// Decide whether a freshly resolved target replaces the one the panel already holds. Edits inside
+// the current target are left to watchCapture, which keeps a selection anchored to its region.
+export function supersedesCapture(next: CaptureTarget, current: CaptureTarget | undefined): boolean {
+  if (!current) return true
+  if (current.kind === 'selection' || next.kind === 'selection') return next.text !== current.text
+  if (next.element !== current.element) return true
+  // Typing collapses the selection, so the whole field resolves again; that is an edit, not a move.
+  if (next.scope === 'whole') return false
+  return next.text !== current.text
+}
+
+// Follow the user around the page: a different editor or a new selection replaces the capture.
+export function watchPageCaptures(
+  captures: Map<string, CaptureTarget>,
+  currentOperationId: () => string | undefined,
+  onCapture: (capture: CaptureResponse) => void,
+  documentRef: Document = document,
+  windowRef: BrowserWindow = window
+): AutoCaptureController {
+  let timer = 0
+
+  const flush = (): void => {
+    windowRef.clearTimeout(timer)
+    timer = 0
+    const target = resolveCaptureTarget(documentRef, windowRef, { mode: 'auto' })
+    if (!target || !target.text.trim()) return
+    const previousId = currentOperationId()
+    const previous = previousId ? captures.get(previousId) : undefined
+    if (!supersedesCapture(target, previous)) return
+    if (previousId) captures.delete(previousId)
+    onCapture(rememberCapture(captures, target))
+  }
+
+  const schedule = (): void => {
+    windowRef.clearTimeout(timer)
+    timer = windowRef.setTimeout(flush, SYNC_DELAY_MS)
+  }
+
+  // Capture phase so keyboard and pointer selections inside open shadow roots are still observed.
+  for (const name of AUTO_CAPTURE_EVENTS) documentRef.addEventListener(name, schedule, true)
+
+  return {
+    flush,
+    stop: () => {
+      windowRef.clearTimeout(timer)
+      for (const name of AUTO_CAPTURE_EVENTS) documentRef.removeEventListener(name, schedule, true)
     },
   }
 }

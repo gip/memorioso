@@ -26,9 +26,12 @@ const rpContext = {
   signature: '0xsigned',
 }
 
+type StorageListener = (changes: Record<string, { newValue?: unknown }>, areaName: string) => void
+
 let root: Root
 let container: HTMLDivElement
 let runtimeMock: ReturnType<typeof vi.fn>
+let storageListeners: StorageListener[]
 
 async function renderApp(): Promise<void> {
   container = document.createElement('div')
@@ -61,6 +64,7 @@ async function finishHandleLookup(): Promise<void> {
 beforeEach(() => {
   vi.useFakeTimers()
   dialogState.sessionProps = null
+  storageListeners = []
   runtimeMock = vi.fn(async (message: Record<string, unknown>) => {
     if (message.type === 'LIBRO_GET_SIGNING_STATE') {
       return {
@@ -68,6 +72,8 @@ beforeEach(() => {
         session: null,
         capture: { tabId: 4, text: 'Captured essay', canReplace: true },
         job: null,
+        autoCapture: null,
+        followPages: false,
       }
     }
     throw new Error(`Unexpected extension message: ${String(message.type)}`)
@@ -76,7 +82,7 @@ beforeEach(() => {
     runtime: { sendMessage: runtimeMock },
     storage: {
       onChanged: {
-        addListener: vi.fn(),
+        addListener: vi.fn((listener: StorageListener) => storageListeners.push(listener)),
         removeListener: vi.fn(),
       },
     },
@@ -251,5 +257,96 @@ describe('extension author onboarding', () => {
     expect(container.textContent).toContain('already owns @ada')
     expect(container.textContent).toContain('Connected as @ada')
     expect(container.querySelector<HTMLTextAreaElement>('section textarea')?.value).toBe('Captured essay')
+  })
+})
+
+describe('automatic page following', () => {
+  const session = {
+    user: { id: 7, subject: 'world-id-session:ada', handle: 'ada' },
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  }
+
+  function pushStorageChange(changes: Record<string, { newValue?: unknown }>): Promise<void> {
+    return act(async () => {
+      storageListeners.forEach((listener) => listener(changes, 'local'))
+    })
+  }
+
+  function mockState(followPages: boolean): void {
+    runtimeMock.mockImplementation(async (message: Record<string, unknown>) => {
+      if (message.type === 'LIBRO_GET_SIGNING_STATE') {
+        return {
+          success: true,
+          session,
+          capture: { tabId: 4, operationId: 'op-1', text: 'Captured essay', canReplace: true },
+          job: null,
+          autoCapture: null,
+          followPages,
+        }
+      }
+      if (message.type === 'LIBRO_AUTH_SESSION') return { success: true, ...session }
+      if (message.type === 'LIBRO_SET_AUTO_CAPTURE') {
+        return { success: true, autoCapture: { enabled: message.enabled, tabId: 4 } }
+      }
+      throw new Error(`Unexpected extension message: ${String(message.type)}`)
+    })
+  }
+
+  function toggle(): HTMLInputElement {
+    return container.querySelector<HTMLInputElement>('.follow-toggle input')!
+  }
+
+  it('arms the remembered preference on open, then pauses on a local edit and reports a navigation', async () => {
+    mockState(true)
+    await renderApp()
+    await act(async () => { await Promise.resolve() })
+
+    expect(container.textContent).toContain('Review text')
+    // Following is armed per panel, so opening it has to re-arm what the preference remembered.
+    expect(runtimeMock).toHaveBeenCalledWith({ type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true })
+    expect(toggle().checked).toBe(true)
+    expect(container.textContent).toContain('Following this page.')
+
+    await pushStorageChange({
+      libroSigningCapture: {
+        newValue: { tabId: 4, operationId: 'op-2', text: 'From another editor', canReplace: true },
+      },
+    })
+    expect(container.querySelector<HTMLTextAreaElement>('section textarea')?.value).toBe('From another editor')
+
+    await changeInput('section textarea', 'Rewritten by hand')
+    await pushStorageChange({
+      libroSigningCapture: {
+        newValue: { tabId: 4, operationId: 'op-3', text: 'From a third editor', canReplace: true },
+      },
+    })
+
+    // The panel edit outranks the page, and the pause is visible rather than silent.
+    expect(container.querySelector<HTMLTextAreaElement>('section textarea')?.value).toBe('Rewritten by hand')
+    expect(container.textContent).toContain('Following paused because you edited here.')
+
+    await pushStorageChange({
+      libroAutoCapture: { newValue: { enabled: false, tabId: 4, reason: 'navigated' } },
+    })
+    expect(container.textContent).toContain('Following stopped because the page navigated.')
+    expect(toggle().checked).toBe(false)
+  })
+
+  it('leaves following off when the preference was turned off, and remembers turning it back on', async () => {
+    mockState(false)
+    await renderApp()
+    await act(async () => { await Promise.resolve() })
+
+    expect(toggle().checked).toBe(false)
+    expect(container.textContent).not.toContain('Following this page.')
+    expect(runtimeMock).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'LIBRO_SET_AUTO_CAPTURE' }))
+
+    await act(async () => {
+      toggle().click()
+      await Promise.resolve()
+    })
+
+    expect(runtimeMock).toHaveBeenCalledWith({ type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true, remember: true })
+    expect(container.textContent).toContain('Following this page.')
   })
 })

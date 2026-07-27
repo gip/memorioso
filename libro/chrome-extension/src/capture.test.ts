@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   captureCurrentText,
   replaceCapture,
   resyncCapture,
   watchCapture,
+  watchPageCaptures,
+  type CaptureResponse,
   type CaptureTarget,
 } from './capture'
 
@@ -227,5 +229,118 @@ describe('inline text capture and replacement', () => {
       text: 'Text from another frame',
       canReplace: false,
     })
+  })
+})
+
+describe('automatic capture following the page', () => {
+  let captures: Map<string, CaptureTarget>
+  let updates: CaptureResponse[]
+  let current: string | undefined
+
+  function follow(): { stop: () => void; flush: () => void } {
+    return watchPageCaptures(captures, () => current, (update) => {
+      current = update.operationId
+      updates.push(update)
+    })
+  }
+
+  function pageEvent(): void {
+    document.dispatchEvent(new Event('selectionchange'))
+    vi.advanceTimersByTime(300)
+  }
+
+  beforeEach(() => {
+    document.body.replaceChildren()
+    window.getSelection()?.removeAllRanges()
+    captures = new Map()
+    updates = []
+    current = undefined
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('adopts a different editor and forgets the superseded capture', () => {
+    const first = document.createElement('textarea')
+    first.value = 'The first note.'
+    const second = document.createElement('textarea')
+    second.value = 'The second note.'
+    document.body.append(first, second)
+
+    first.focus()
+    const capture = captureCurrentText(captures)
+    current = capture.operationId
+    const watcher = follow()
+
+    second.focus()
+    pageEvent()
+
+    expect(updates).toMatchObject([{ success: true, text: 'The second note.', canReplace: true }])
+    expect(captures.has(capture.operationId!)).toBe(false)
+    expect(captures.size).toBe(1)
+    watcher.stop()
+  })
+
+  it('leaves an edit inside the captured selection to the element watcher', () => {
+    const editor = document.createElement('textarea')
+    editor.value = 'Intro. The signed part. Outro.'
+    document.body.append(editor)
+    editor.focus()
+    editor.setSelectionRange(7, 23)
+
+    const capture = captureCurrentText(captures)
+    expect(capture.text).toBe('The signed part.')
+    current = capture.operationId
+    const watcher = follow()
+
+    // Typing collapses the selection, which would otherwise resolve as the whole field.
+    editor.value = 'Intro. The signed and edited part. Outro.'
+    editor.setSelectionRange(33, 33)
+    pageEvent()
+
+    expect(updates).toEqual([])
+    watcher.stop()
+  })
+
+  it('narrows to a new selection inside the editor it already holds', () => {
+    const editor = document.createElement('textarea')
+    editor.value = 'One human sentence here.'
+    document.body.append(editor)
+    editor.focus()
+
+    const capture = captureCurrentText(captures)
+    expect(capture.text).toBe('One human sentence here.')
+    current = capture.operationId
+    const watcher = follow()
+
+    editor.setSelectionRange(4, 18)
+    pageEvent()
+    expect(updates).toMatchObject([{ text: 'human sentence', canReplace: true }])
+
+    // A second identical resolution is not a move, so it does not push again.
+    pageEvent()
+    expect(updates).toHaveLength(1)
+    watcher.stop()
+  })
+
+  it('syncs on demand and stops reporting once it is turned off', () => {
+    const editor = document.createElement('textarea')
+    editor.value = 'A focused note.'
+    document.body.append(editor)
+    editor.focus()
+
+    const watcher = follow()
+    watcher.flush()
+    expect(updates).toMatchObject([{ text: 'A focused note.' }])
+
+    watcher.stop()
+    const other = document.createElement('textarea')
+    other.value = 'Ignored after stopping.'
+    document.body.append(other)
+    other.focus()
+    pageEvent()
+    expect(updates).toHaveLength(1)
   })
 })

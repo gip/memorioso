@@ -8,6 +8,8 @@ const TOKEN_KEY = 'libroExtensionToken'
 const SESSION_KEY = 'libroExtensionSession'
 const CAPTURE_KEY = 'libroSigningCapture'
 const JOB_KEY = 'libroSigningJob'
+const AUTO_KEY = 'libroAutoCapture'
+const FOLLOW_KEY = 'libroFollowPages'
 
 type StoredCapture = {
   tabId: number
@@ -15,6 +17,13 @@ type StoredCapture = {
   text: string
   canReplace: boolean
   message?: string
+}
+
+// Auto capture is armed for one tab: the activeTab grant it rides on does not survive navigation.
+type AutoCaptureState = {
+  enabled: boolean
+  tabId: number
+  reason?: 'navigated' | 'closed'
 }
 
 type SigningJob = {
@@ -158,6 +167,61 @@ async function applyCaptureUpdate(tabId: number | undefined, update: Record<stri
   await chrome.storage.local.set({ [CAPTURE_KEY]: { ...capture, text: update.text } })
 }
 
+// Auto mode resolves a whole new target, so this replaces the capture instead of patching its text.
+async function applyAutoCapture(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
+  if (typeof tabId !== 'number' || typeof update.text !== 'string' || !update.text.trim()) return
+  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY, AUTO_KEY])
+  if (stored[JOB_KEY]) return
+  const auto = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (!auto?.enabled || auto.tabId !== tabId) return
+  const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
+  if (capture && capture.operationId === update.operationId && capture.text === update.text) return
+  await chrome.storage.local.set({
+    [CAPTURE_KEY]: {
+      tabId,
+      operationId: typeof update.operationId === 'string' ? update.operationId : undefined,
+      text: update.text,
+      canReplace: update.canReplace === true,
+    } satisfies StoredCapture,
+  })
+}
+
+// The preference is sticky and defaults to on; the armed state above is per tab and per panel.
+async function followPreference(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(FOLLOW_KEY)
+  return stored[FOLLOW_KEY] !== false
+}
+
+async function setAutoCapture(enabled: boolean, remember = false): Promise<AutoCaptureState> {
+  const stored = await chrome.storage.local.get(AUTO_KEY)
+  const previous = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (remember) await chrome.storage.local.set({ [FOLLOW_KEY]: enabled })
+  if (!enabled) {
+    if (typeof previous?.tabId === 'number') {
+      await chrome.tabs.sendMessage(previous.tabId, { type: 'LIBRO_SET_AUTO_CAPTURE', enabled: false })
+        .catch(() => undefined)
+    }
+    const next: AutoCaptureState = { enabled: false, tabId: previous?.tabId ?? -1 }
+    await chrome.storage.local.set({ [AUTO_KEY]: next })
+    return next
+  }
+
+  const tabId = await activeTabId()
+  await ensureContentScript(tabId)
+  const next: AutoCaptureState = { enabled: true, tabId }
+  // Store before arming so the immediate flush the content script sends is not dropped.
+  await chrome.storage.local.set({ [AUTO_KEY]: next })
+  await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true })
+  return next
+}
+
+async function disarmAutoCapture(tabId: number, reason: AutoCaptureState['reason']): Promise<void> {
+  const stored = await chrome.storage.local.get(AUTO_KEY)
+  const auto = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (!auto?.enabled || auto.tabId !== tabId) return
+  await chrome.storage.local.set({ [AUTO_KEY]: { enabled: false, tabId, reason } satisfies AutoCaptureState })
+}
+
 async function openSigningPanel(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   const opening = chrome.sidePanel.open({ tabId })
@@ -192,7 +256,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, authenticated =
 }
 
 async function currentState(): Promise<Record<string, unknown>> {
-  const stored = await chrome.storage.local.get([SESSION_KEY, CAPTURE_KEY, JOB_KEY])
+  const stored = await chrome.storage.local.get([SESSION_KEY, CAPTURE_KEY, JOB_KEY, AUTO_KEY])
   let job = stored[JOB_KEY] as SigningJob | undefined
   if (job && typeof stored[SESSION_KEY] === 'object') {
     try {
@@ -222,6 +286,8 @@ async function currentState(): Promise<Record<string, unknown>> {
     session: stored[SESSION_KEY] || null,
     capture: stored[CAPTURE_KEY] || null,
     job: job || null,
+    autoCapture: stored[AUTO_KEY] || null,
+    followPages: await followPreference(),
     apiOrigin: API_ORIGIN,
   }
 }
@@ -234,6 +300,11 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       return { success: true, capture: await openSigningPanel() }
     case 'LIBRO_CAPTURE_ACTIVE_TEXT':
       return { success: true, capture: await captureActiveText() }
+    case 'LIBRO_SET_AUTO_CAPTURE':
+      return {
+        success: true,
+        autoCapture: await setAutoCapture(message.enabled === true, message.remember === true),
+      }
     case 'LIBRO_GET_SIGNING_STATE':
       return { success: true, ...(await currentState()) }
     case 'LIBRO_HANDLE_LOOKUP':
@@ -400,10 +471,32 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   openSigningPanel(tab.id, hintText).catch(() => undefined)
 })
 
+// Following exists to feed the open panel, so closing the panel must stop the page from reporting.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'libro-side-panel') return
+  port.onDisconnect.addListener(() => {
+    setAutoCapture(false).catch(() => undefined)
+  })
+})
+
+// The activeTab grant and the injected listeners both end at navigation, so following ends with them.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== 'loading') return
+  disarmAutoCapture(tabId, 'navigated').catch(() => undefined)
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  disarmAutoCapture(tabId, 'closed').catch(() => undefined)
+})
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const typed = message as Record<string, unknown>
   if (typed.type === 'LIBRO_CAPTURE_UPDATE') {
     applyCaptureUpdate(sender.tab?.id, typed).catch(() => undefined)
+    return
+  }
+  if (typed.type === 'LIBRO_AUTO_CAPTURE') {
+    applyAutoCapture(sender.tab?.id, typed).catch(() => undefined)
     return
   }
   if (typed.type === 'LIBRO_RESULT_STALE') {

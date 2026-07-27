@@ -7,7 +7,7 @@
 body { margin: 0; width: 360px; }
 main { padding: 16px; }
 header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: #4f46e5; color: white; font: 700 18px/1 Georgia, serif; }
+.mark { width: 34px; height: 34px; border-radius: 50%; }
 h1 { margin: 0; font-size: 17px; }
 header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .summary { border-radius: 8px; background: #e4e4e7; padding: 10px 12px; font-weight: 600; }

@@ -20,10 +20,10 @@ vi.mock('@/lib/world-id/server', () => ({
 
 import { POST } from './route'
 
-function request(handle: string): NextRequest {
+function request(handle: string, intent?: 'login' | 'signup'): NextRequest {
   return new NextRequest('https://memorioso.xyz/api/extension/auth/context', {
     method: 'POST',
-    body: JSON.stringify({ handle }),
+    body: JSON.stringify({ handle, intent }),
   })
 }
 
@@ -50,5 +50,29 @@ describe('extension login context', () => {
     })
     expect(dbMock.query.mock.calls[0][1]).toEqual(['ada'])
     expect(dbMock.query.mock.calls[1][0]).toContain('INSERT INTO libro_extension_auth_attempts')
+    expect(dbMock.query.mock.calls[1][1].slice(1, 3)).toEqual([7, 'login'])
+  })
+
+  it('creates a signup attempt without a user for an available normalized handle', async () => {
+    dbMock.query
+      .mockResolvedValueOnce({ rows: [{ taken: false }] })
+      .mockResolvedValueOnce({ rows: [] })
+
+    const response = await POST(request(' New_Writer ', 'signup'))
+    expect(await response.json()).toMatchObject({
+      success: true,
+      intent: 'signup',
+      existingSessionId: null,
+      rpContext: { nonce: 'nonce-1' },
+    })
+    expect(dbMock.query.mock.calls[0][1]).toEqual(['new_writer'])
+    expect(dbMock.query.mock.calls[1][1].slice(1, 3)).toEqual([null, 'signup'])
+  })
+
+  it('rejects a taken handle without creating a signup attempt', async () => {
+    dbMock.query.mockResolvedValueOnce({ rows: [{ taken: true }] })
+    const response = await POST(request('ada', 'signup'))
+    expect(response.status).toBe(409)
+    expect(dbMock.query).toHaveBeenCalledOnce()
   })
 })

@@ -8,6 +8,8 @@ const TOKEN_KEY = 'libroExtensionToken'
 const SESSION_KEY = 'libroExtensionSession'
 const CAPTURE_KEY = 'libroSigningCapture'
 const JOB_KEY = 'libroSigningJob'
+const AUTO_KEY = 'libroAutoCapture'
+const FOLLOW_KEY = 'libroFollowPages'
 
 type StoredCapture = {
   tabId: number
@@ -15,6 +17,13 @@ type StoredCapture = {
   text: string
   canReplace: boolean
   message?: string
+}
+
+// Auto capture is armed for one tab: the activeTab grant it rides on does not survive navigation.
+type AutoCaptureState = {
+  enabled: boolean
+  tabId: number
+  reason?: 'navigated' | 'closed'
 }
 
 type SigningJob = {
@@ -114,11 +123,11 @@ async function scanActiveTab(): Promise<ScanResponse> {
   }
 }
 
-async function captureActiveText(requestedTabId?: number): Promise<StoredCapture> {
+async function captureActiveText(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   try {
     await ensureContentScript(tabId)
-    const result = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_CAPTURE_TEXT' }) as {
+    const result = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_CAPTURE_TEXT', hintText }) as {
       success?: boolean
       operationId?: string
       text?: string
@@ -137,7 +146,8 @@ async function captureActiveText(requestedTabId?: number): Promise<StoredCapture
   } catch (error) {
     const capture: StoredCapture = {
       tabId,
-      text: '',
+      // A page the content script cannot reach still hands over the context-menu selection.
+      text: hintText || '',
       canReplace: false,
       message: error instanceof Error ? error.message : 'Text could not be captured from this page',
     }
@@ -146,10 +156,78 @@ async function captureActiveText(requestedTabId?: number): Promise<StoredCapture
   }
 }
 
-async function openSigningPanel(requestedTabId?: number): Promise<StoredCapture> {
+// The page pushes edits of the captured editor until a signing request binds the text to a proof.
+async function applyCaptureUpdate(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
+  if (typeof tabId !== 'number' || typeof update.operationId !== 'string' || typeof update.text !== 'string') return
+  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY])
+  if (stored[JOB_KEY]) return
+  const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
+  if (!capture || capture.tabId !== tabId || capture.operationId !== update.operationId) return
+  if (capture.text === update.text) return
+  await chrome.storage.local.set({ [CAPTURE_KEY]: { ...capture, text: update.text } })
+}
+
+// Auto mode resolves a whole new target, so this replaces the capture instead of patching its text.
+async function applyAutoCapture(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
+  if (typeof tabId !== 'number' || typeof update.text !== 'string' || !update.text.trim()) return
+  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY, AUTO_KEY])
+  if (stored[JOB_KEY]) return
+  const auto = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (!auto?.enabled || auto.tabId !== tabId) return
+  const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
+  if (capture && capture.operationId === update.operationId && capture.text === update.text) return
+  await chrome.storage.local.set({
+    [CAPTURE_KEY]: {
+      tabId,
+      operationId: typeof update.operationId === 'string' ? update.operationId : undefined,
+      text: update.text,
+      canReplace: update.canReplace === true,
+    } satisfies StoredCapture,
+  })
+}
+
+// The preference is sticky and defaults to on; the armed state above is per tab and per panel.
+async function followPreference(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(FOLLOW_KEY)
+  return stored[FOLLOW_KEY] !== false
+}
+
+async function setAutoCapture(enabled: boolean, remember = false): Promise<AutoCaptureState> {
+  const stored = await chrome.storage.local.get(AUTO_KEY)
+  const previous = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (remember) await chrome.storage.local.set({ [FOLLOW_KEY]: enabled })
+  if (!enabled) {
+    if (typeof previous?.tabId === 'number') {
+      await chrome.tabs.sendMessage(previous.tabId, { type: 'LIBRO_SET_AUTO_CAPTURE', enabled: false })
+        .catch(() => undefined)
+    }
+    const next: AutoCaptureState = { enabled: false, tabId: previous?.tabId ?? -1 }
+    await chrome.storage.local.set({ [AUTO_KEY]: next })
+    return next
+  }
+
+  const tabId = await activeTabId()
+  await ensureContentScript(tabId)
+  const next: AutoCaptureState = { enabled: true, tabId }
+  // Store before arming so the immediate flush the content script sends is not dropped.
+  await chrome.storage.local.set({ [AUTO_KEY]: next })
+  await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true })
+  return next
+}
+
+async function disarmAutoCapture(tabId: number, reason: AutoCaptureState['reason']): Promise<void> {
+  const stored = await chrome.storage.local.get(AUTO_KEY)
+  const auto = stored[AUTO_KEY] as AutoCaptureState | undefined
+  if (!auto?.enabled || auto.tabId !== tabId) return
+  await chrome.storage.local.set({ [AUTO_KEY]: { enabled: false, tabId, reason } satisfies AutoCaptureState })
+}
+
+// sidePanel.open() is only allowed inside a user gesture, which a message from the popup no longer
+// carries. The popup opens the panel itself and says so here; the context menu still holds a gesture.
+async function openSigningPanel(requestedTabId?: number, hintText?: string, alreadyOpen = false): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
-  const opening = chrome.sidePanel.open({ tabId })
-  const capture = await captureActiveText(tabId)
+  const opening = alreadyOpen ? Promise.resolve() : chrome.sidePanel.open({ tabId })
+  const capture = await captureActiveText(tabId, hintText)
   await opening
   return capture
 }
@@ -180,7 +258,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, authenticated =
 }
 
 async function currentState(): Promise<Record<string, unknown>> {
-  const stored = await chrome.storage.local.get([SESSION_KEY, CAPTURE_KEY, JOB_KEY])
+  const stored = await chrome.storage.local.get([SESSION_KEY, CAPTURE_KEY, JOB_KEY, AUTO_KEY])
   let job = stored[JOB_KEY] as SigningJob | undefined
   if (job && typeof stored[SESSION_KEY] === 'object') {
     try {
@@ -210,6 +288,8 @@ async function currentState(): Promise<Record<string, unknown>> {
     session: stored[SESSION_KEY] || null,
     capture: stored[CAPTURE_KEY] || null,
     job: job || null,
+    autoCapture: stored[AUTO_KEY] || null,
+    followPages: await followPreference(),
     apiOrigin: API_ORIGIN,
   }
 }
@@ -219,27 +299,61 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     case 'LIBRO_SCAN_ACTIVE_TAB':
       return scanActiveTab()
     case 'LIBRO_START_SIGNING':
-      return { success: true, capture: await openSigningPanel() }
+      return {
+        success: true,
+        capture: await openSigningPanel(
+          typeof message.tabId === 'number' ? message.tabId : undefined,
+          undefined,
+          message.panelOpened === true,
+        ),
+      }
     case 'LIBRO_CAPTURE_ACTIVE_TEXT':
       return { success: true, capture: await captureActiveText() }
+    case 'LIBRO_SET_AUTO_CAPTURE':
+      return {
+        success: true,
+        autoCapture: await setAutoCapture(message.enabled === true, message.remember === true),
+      }
     case 'LIBRO_GET_SIGNING_STATE':
       return { success: true, ...(await currentState()) }
+    case 'LIBRO_HANDLE_LOOKUP':
+      if (typeof message.handle !== 'string') throw new Error('A Memorioso handle is required')
+      return apiFetch(`/api/auth/handle?handle=${encodeURIComponent(message.handle)}`, {}, false)
     case 'LIBRO_AUTH_CONTEXT':
       return apiFetch('/api/extension/auth/context', {
         method: 'POST',
-        body: JSON.stringify({ handle: message.handle }),
+        body: JSON.stringify({ handle: message.handle, intent: message.intent }),
       }, false)
     case 'LIBRO_AUTH_VERIFY': {
-      const response = await apiFetch<{ token: string; user: unknown; expiresAt: string }>(
+      const response = await apiFetch<{
+        token: string
+        user: unknown
+        author: unknown
+        created: boolean
+        expiresAt: string
+      }>(
         '/api/extension/auth/verify',
-        { method: 'POST', body: JSON.stringify({ attemptId: message.attemptId, idkitResult: message.idkitResult }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            attemptId: message.attemptId,
+            idkitResult: message.idkitResult,
+            profile: message.profile,
+          }),
+        },
         false
       )
       await chrome.storage.local.set({
         [TOKEN_KEY]: response.token,
         [SESSION_KEY]: { user: response.user, expiresAt: response.expiresAt },
       })
-      return { success: true, user: response.user, expiresAt: response.expiresAt }
+      return {
+        success: true,
+        user: response.user,
+        author: response.author,
+        created: response.created,
+        expiresAt: response.expiresAt,
+      }
     }
     case 'LIBRO_AUTH_SESSION': {
       const response = await apiFetch<{ user: unknown; expiresAt: string }>('/api/extension/auth/session')
@@ -360,12 +474,40 @@ chrome.runtime.onInstalled.addListener(() => {
   })).catch(() => undefined)
 })
 
-chrome.contextMenus.onClicked.addListener((_info, tab) => {
-  if (typeof tab?.id === 'number') openSigningPanel(tab.id).catch(() => undefined)
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (typeof tab?.id !== 'number') return
+  const hintText = typeof info.selectionText === 'string' ? info.selectionText : undefined
+  openSigningPanel(tab.id, hintText).catch(() => undefined)
 })
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+// Following exists to feed the open panel, so closing the panel must stop the page from reporting.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'libro-side-panel') return
+  port.onDisconnect.addListener(() => {
+    setAutoCapture(false).catch(() => undefined)
+  })
+})
+
+// The activeTab grant and the injected listeners both end at navigation, so following ends with them.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== 'loading') return
+  disarmAutoCapture(tabId, 'navigated').catch(() => undefined)
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  disarmAutoCapture(tabId, 'closed').catch(() => undefined)
+})
+
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const typed = message as Record<string, unknown>
+  if (typed.type === 'LIBRO_CAPTURE_UPDATE') {
+    applyCaptureUpdate(sender.tab?.id, typed).catch(() => undefined)
+    return
+  }
+  if (typed.type === 'LIBRO_AUTO_CAPTURE') {
+    applyAutoCapture(sender.tab?.id, typed).catch(() => undefined)
+    return
+  }
   if (typed.type === 'LIBRO_RESULT_STALE') {
     chrome.action.setBadgeBackgroundColor({ color: '#b45309' }).catch(() => undefined)
     chrome.action.setBadgeText({ text: '?' }).catch(() => undefined)

@@ -5,6 +5,7 @@ describe('database migration runner', () => {
   it('discovers migrations in numeric order without requiring consecutive versions', () => {
     expect(
       parseMigrationFileNames([
+        '007_libro_extension_signup.sql',
         '006_libro_extension_signing.sql',
         'README.md',
         '001_world_id_4.sql',
@@ -14,6 +15,7 @@ describe('database migration runner', () => {
       { fileName: '001_world_id_4.sql', version: 1 },
       { fileName: '005_libro_publish_action_hash.sql', version: 5 },
       { fileName: '006_libro_extension_signing.sql', version: 6 },
+      { fileName: '007_libro_extension_signup.sql', version: 7 },
     ])
   })
 

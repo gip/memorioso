@@ -399,7 +399,7 @@ export function App(): JSX.Element {
   return (
     <main>
       <header>
-        <div className="mark">L</div>
+        <img className="mark" src="/icon.png" alt="" />
         <div><h1>Sign with Libro</h1><p>Human authorship, without leaving this page</p></div>
       </header>
 

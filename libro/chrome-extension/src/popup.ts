@@ -5,6 +5,19 @@ const resultsNode = document.querySelector<HTMLElement>('#results')
 const rescan = document.querySelector<HTMLButtonElement>('#rescan')
 const sign = document.querySelector<HTMLButtonElement>('#sign')
 
+// sidePanel.open() only runs inside the user gesture that triggered it, and neither the hop to
+// the service worker nor an await inside the handler preserves one. So the popup opens the panel
+// itself, and the tab id is resolved up front because the click handler cannot await for it.
+let signingTabId: number | null = null
+if (sign) sign.disabled = true
+chrome.tabs.query({ active: true, currentWindow: true })
+  .then(([tab]) => {
+    if (typeof tab?.id !== 'number') return
+    signingTabId = tab.id
+    if (sign) sign.disabled = false
+  })
+  .catch(() => undefined)
+
 function shortHash(value?: string): string {
   return value ? `${value.slice(0, 8)}…${value.slice(-4)}` : ''
 }
@@ -87,9 +100,18 @@ async function scan(): Promise<void> {
 
 rescan?.addEventListener('click', scan)
 sign?.addEventListener('click', async () => {
+  const tabId = signingTabId
+  if (tabId === null) return
+  // First statement in the handler: anything awaited before this consumes the gesture.
+  const opening = chrome.sidePanel.open({ tabId })
   sign.disabled = true
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'LIBRO_START_SIGNING' }) as { success?: boolean; message?: string }
+    await opening
+    const response = await chrome.runtime.sendMessage({
+      type: 'LIBRO_START_SIGNING',
+      tabId,
+      panelOpened: true,
+    }) as { success?: boolean; message?: string }
     if (!response?.success) throw new Error(response?.message || 'Could not open Libro signing')
     window.close()
   } catch (error) {

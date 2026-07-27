@@ -222,9 +222,11 @@ async function disarmAutoCapture(tabId: number, reason: AutoCaptureState['reason
   await chrome.storage.local.set({ [AUTO_KEY]: { enabled: false, tabId, reason } satisfies AutoCaptureState })
 }
 
-async function openSigningPanel(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
+// sidePanel.open() is only allowed inside a user gesture, which a message from the popup no longer
+// carries. The popup opens the panel itself and says so here; the context menu still holds a gesture.
+async function openSigningPanel(requestedTabId?: number, hintText?: string, alreadyOpen = false): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
-  const opening = chrome.sidePanel.open({ tabId })
+  const opening = alreadyOpen ? Promise.resolve() : chrome.sidePanel.open({ tabId })
   const capture = await captureActiveText(tabId, hintText)
   await opening
   return capture
@@ -297,7 +299,14 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     case 'LIBRO_SCAN_ACTIVE_TAB':
       return scanActiveTab()
     case 'LIBRO_START_SIGNING':
-      return { success: true, capture: await openSigningPanel() }
+      return {
+        success: true,
+        capture: await openSigningPanel(
+          typeof message.tabId === 'number' ? message.tabId : undefined,
+          undefined,
+          message.panelOpened === true,
+        ),
+      }
     case 'LIBRO_CAPTURE_ACTIVE_TEXT':
       return { success: true, capture: await captureActiveText() }
     case 'LIBRO_SET_AUTO_CAPTURE':

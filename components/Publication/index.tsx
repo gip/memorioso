@@ -12,7 +12,6 @@ import { VerifiedChip } from '@/components/VerifiedChip'
 import { Divider } from '@/components/Divider'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import {
-  isSimpleTextPublication,
   manifestElementId,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
@@ -20,7 +19,6 @@ import {
 import {
   buildLibroEmbedSnippet,
   buildLibroTextSnippet,
-  getLibroSimpleBoundaryLabel,
   sanitizeLibroEmbedHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
@@ -50,7 +48,6 @@ export const Publication = ({
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
   const textSnippet = embedManifest ? buildLibroTextSnippet(embedManifest) : null
-  const isSimpleEmbed = embedManifest ? isSimpleTextPublication(embedManifest.publication) : false
   const presentationContent = embedManifest ? sanitizeLibroEmbedHtml(content) : content
 
   const publicationBody = embedManifest && manifestId ? (
@@ -117,15 +114,7 @@ export const Publication = ({
 
       <div className="my-6 h-px bg-zinc-100" />
 
-      {isSimpleEmbed && embedManifest ? (
-        <div className="libro-simple rounded-md border border-zinc-200 bg-zinc-50/60 px-4 py-3">
-          <div className="libro-boundary mb-3 break-words font-mono text-xs text-zinc-500">
-            {getLibroSimpleBoundaryLabel(embedManifest)}
-          </div>
-          {publicationBody}
-          <div className="libro-boundary mt-3 font-mono text-xs text-zinc-500">=== End Libro ===</div>
-        </div>
-      ) : publicationBody}
+      {publicationBody}
 
       {embedManifest && manifestId && (
         <script

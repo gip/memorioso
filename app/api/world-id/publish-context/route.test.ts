@@ -53,7 +53,7 @@ vi.mock('@/lib/libro/config', () => ({
     chainId: 480,
     registryAddress: '0x1111111111111111111111111111111111111111',
     rpId: BigInt(1),
-    rpcUrl: 'https://worldchain-mainnet.g.alchemy.com/public',
+    rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
   }),
 }))
 

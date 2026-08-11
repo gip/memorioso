@@ -1,10 +1,10 @@
 import { isAddress, type Address, type Hex } from 'viem'
 import { DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION } from '@/lib/world-id/constants'
+import { parseLibroRpcUrls } from '@libro/core'
 import {
   LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_WORLD_CHAIN_ID,
-  LIBRO_WORLD_CHAIN_RPC_URL,
 } from './contract'
 import { actionHashToUint256, rpIdToUint64 } from './encoding'
 
@@ -13,7 +13,8 @@ export type LibroServerConfig = {
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
   rpId: bigint
-  rpcUrl: string
+  /** Every configured endpoint; clients fail over between them. */
+  rpcUrls: string[]
 }
 
 export type LibroAgentServerConfig = {
@@ -23,7 +24,8 @@ export type LibroAgentServerConfig = {
   rpId: bigint
   action: string
   actionHash: bigint
-  rpcUrl: string
+  /** Every configured endpoint; clients fail over between them. */
+  rpcUrls: string[]
 }
 
 export type LibroRelayerConfig = {
@@ -63,7 +65,7 @@ export function getLibroServerConfig(): LibroServerConfig {
     chainId: getLibroChainId(),
     registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
-    rpcUrl: process.env.LIBRO_RPC_URL || LIBRO_WORLD_CHAIN_RPC_URL,
+    rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }
 }
 
@@ -77,7 +79,7 @@ export function getLibroAgentServerConfig(): LibroAgentServerConfig {
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
     action,
     actionHash: actionHashToUint256(action),
-    rpcUrl: process.env.LIBRO_RPC_URL || LIBRO_WORLD_CHAIN_RPC_URL,
+    rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }
 }
 

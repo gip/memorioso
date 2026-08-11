@@ -1,4 +1,5 @@
-import { formatLibroTextTag } from '@libro/core'
+import { formatLibroTextTag, verifyLibroManifestOnChain } from '@libro/core'
+import { enabledLibroRpcUrls } from './rpc-settings'
 import { verifyCandidate } from './verifier'
 import type { LibroCandidate, LibroVerificationResult, ScanResponse } from './shared'
 
@@ -99,7 +100,11 @@ async function scanActiveTab(): Promise<ScanResponse> {
     const scanResult = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_SCAN_PAGE' }) as { candidates?: LibroCandidate[] }
     const discoveredCandidates = Array.isArray(scanResult?.candidates) ? scanResult.candidates : []
     const candidates = await Promise.all(discoveredCandidates.map(resolveTextManifest))
-    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(candidate)))
+    const rpcUrls = await enabledLibroRpcUrls()
+    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(
+      candidate,
+      (manifest) => verifyLibroManifestOnChain(manifest, rpcUrls)
+    )))
     const applied = await chrome.tabs.sendMessage(tabId, {
       type: 'LIBRO_APPLY_RESULTS',
       results,

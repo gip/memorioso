@@ -17,6 +17,15 @@ import {
 import { verifyCandidate } from './verifier'
 import type { LibroCandidate } from './shared'
 
+/** Stub for one endpoint confirming the registration. */
+function confirmed(value: LibroEmbedManifestV1, label = 'worldchain-mainnet.gateway.tenderly.co') {
+  return async () => ({
+    manifest: value,
+    outcomes: [{ rpcUrl: `https://${label}`, label, status: 'verified' as const, detail: 'Registered in block 1' }],
+    verifiedBy: [label],
+  })
+}
+
 function manifest(): LibroEmbedManifestV1 {
   const publication = {
     publication_schema: LIBRO_PUBLICATION_SCHEMA_V1,
@@ -83,7 +92,7 @@ function textCandidate(value = manifest()): LibroCandidate {
 describe('extension candidate verification', () => {
   it('accepts equivalent readable text with different markup', async () => {
     const value = manifest()
-    await expect(verifyCandidate(candidate(value), async () => value)).resolves.toMatchObject({
+    await expect(verifyCandidate(candidate(value), confirmed(value))).resolves.toMatchObject({
       status: 'verified',
       authorHandle: 'ada',
     })
@@ -97,12 +106,12 @@ describe('extension candidate verification', () => {
 
   it('verifies a resolved plain-text tag and its declared metadata', async () => {
     const value = manifest()
-    await expect(verifyCandidate(textCandidate(value), async () => value)).resolves.toMatchObject({ status: 'verified' })
-    await expect(verifyCandidate({ ...textCandidate(value), declaredAuthorHandle: 'grace' }, async () => value))
+    await expect(verifyCandidate(textCandidate(value), confirmed(value))).resolves.toMatchObject({ status: 'verified' })
+    await expect(verifyCandidate({ ...textCandidate(value), declaredAuthorHandle: 'grace' }, confirmed(value)))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
-    await expect(verifyCandidate({ ...textCandidate(value), declaredPublicationDate: '2026-07-21T12:01Z' }, async () => value))
+    await expect(verifyCandidate({ ...textCandidate(value), declaredPublicationDate: '2026-07-21T12:01Z' }, confirmed(value)))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
-    await expect(verifyCandidate({ ...textCandidate(value), readableText: 'Changed' }, async () => value))
+    await expect(verifyCandidate({ ...textCandidate(value), readableText: 'Changed' }, confirmed(value)))
       .resolves.toMatchObject({ status: 'text_mismatch' })
   })
 
@@ -131,6 +140,37 @@ describe('extension candidate verification', () => {
       .resolves.toMatchObject({ status: 'registration_unconfirmed' })
     await expect(verifyCandidate(candidate(), async () => { throw new Error('offline') }))
       .resolves.toMatchObject({ status: 'network_unavailable' })
+  })
+
+  it('names the endpoints that confirmed a registration', async () => {
+    const value = manifest()
+    const result = await verifyCandidate(candidate(value), async () => ({
+      manifest: value,
+      outcomes: [
+        { rpcUrl: 'https://a.example', label: 'a.example', status: 'verified' as const, detail: 'Registered in block 7' },
+        { rpcUrl: 'https://b.example', label: 'b.example', status: 'unconfirmed' as const, detail: 'Registration transaction was not found on chain' },
+      ],
+      verifiedBy: ['a.example'],
+    }))
+    expect(result.status).toBe('verified')
+    expect(result.verifiedBy).toEqual(['a.example'])
+    expect(result.detail).toContain('confirmed by a.example')
+    // The endpoint that could not answer is still reported rather than hidden behind the verdict.
+    expect(result.sources).toHaveLength(2)
+  })
+
+  it('shows which endpoints failed when none could confirm', async () => {
+    const outcomes = [
+      { rpcUrl: 'https://a.example', label: 'a.example', status: 'unconfirmed' as const, detail: 'Registration transaction was not found on chain' },
+      { rpcUrl: 'https://b.example', label: 'b.example', status: 'unavailable' as const, detail: 'HTTP request failed' },
+    ]
+    const result = await verifyCandidate(candidate(), async () => {
+      throw new LibroRegistrationUnconfirmedError('no receipt', outcomes)
+    })
+    expect(result.status).toBe('registration_unconfirmed')
+    expect(result.detail).toContain('unconfirmed: a.example')
+    expect(result.detail).toContain('unavailable: b.example')
+    expect(result.verifiedBy).toBeUndefined()
   })
 
   it('reports the underlying cause instead of swallowing unclassified failures', async () => {

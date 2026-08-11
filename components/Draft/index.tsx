@@ -28,8 +28,6 @@ import {
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
 import { useMiniKit } from '@worldcoin/minikit-js/minikit-provider'
-import { createPublicClient, http } from 'viem'
-import { worldchain } from 'viem/chains'
 import { type Author } from '@/types'
 import Editor from '@/components/Editor'
 import { AlertCircle } from "lucide-react"
@@ -45,7 +43,7 @@ import {
   sendLibroRegistrationTransaction,
 } from '@/lib/libro/client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
-import { hasMeaningfulPublicationBody, hasPublishablePublication } from '@libro/core'
+import { createLibroPublicClient, hasMeaningfulPublicationBody, hasPublishablePublication } from '@libro/core'
 
 type DraftData = {
   id?: string
@@ -176,10 +174,10 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const { status, signInWithWorldId } = useWorldIdAuth()
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
-  const publicClient = useMemo(() => createPublicClient({
-    chain: worldchain,
-    transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
-  }), [])
+  const publicClient = useMemo(
+    () => createLibroPublicClient(process.env.NEXT_PUBLIC_LIBRO_RPC_URL),
+    []
+  )
   const { poll: pollUserOperationReceipt, isLoading: isPollingRegistration } = useUserOperationReceipt({
     client: publicClient,
   })

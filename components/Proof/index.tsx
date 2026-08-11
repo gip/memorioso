@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { MemMark } from '@/components/MemMark'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import { Proof as ProofType, PublicationRecord as PublicationType } from '@/lib/db/objects'
+import { LIBRO_WORLD_CHAIN_RPC_URLS } from '@libro/core'
 import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 import {
   isLegacyPublication,
@@ -137,7 +138,7 @@ function buildLibroView(
   }
 ): ProofView {
   const registration = proof.libro_registration
-  const code = `const { createPublicClient, http } = require('viem');
+  const code = `const { createPublicClient, fallback, http } = require('viem');
 const { worldchain } = require('viem/chains');
 const { hashSignal } = require('@worldcoin/idkit/hashing');
 
@@ -160,7 +161,9 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 
 const client = createPublicClient({
   chain: worldchain,
-  transport: http('https://worldchain-mainnet.g.alchemy.com/public'),
+  transport: fallback([
+${LIBRO_WORLD_CHAIN_RPC_URLS.map((url) => `    http(${JSON.stringify(url)}),`).join('\n')}
+  ]),
 });
 
 const registered = await client.readContract({
@@ -213,7 +216,7 @@ function buildAgentView(
 ): ProofView {
   const registration = proof.agent_registration
   const document = proof.agent_document_signature
-  const code = `const { createPublicClient, http, recoverTypedDataAddress } = require('viem');
+  const code = `const { createPublicClient, fallback, http, recoverTypedDataAddress } = require('viem');
 const { worldchain } = require('viem/chains');
 const { hashSignal } = require('@worldcoin/idkit/hashing');
 
@@ -270,7 +273,9 @@ if (signer.toLowerCase() !== expectedAgent.toLowerCase()) {
 
 const client = createPublicClient({
   chain: worldchain,
-  transport: http('https://worldchain-mainnet.g.alchemy.com/public'),
+  transport: fallback([
+${LIBRO_WORLD_CHAIN_RPC_URLS.map((url) => `    http(${JSON.stringify(url)}),`).join('\n')}
+  ]),
 });
 
 const registered = await client.readContract({

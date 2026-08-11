@@ -40,6 +40,17 @@ checks their manifest, readable text, canonical signal hash, approved registry, 
 transaction on World Chain. Plain-text tags resolve their public manifest through the URL in the
 opening boundary; a legacy tag without a resolvable manifest is detected but not marked verified.
 
+## World Chain endpoints
+
+Registration is checked against every enabled endpoint in parallel, and the popup names the ones
+that confirmed each block. One endpoint producing the registration event is enough; endpoints that
+prune old transactions cannot confirm older publications on their own, which is why more than one
+is queried.
+
+Open **World Chain endpoints** in the popup (or the extension's options page) to disable a built-in
+endpoint or add your own. Added endpoints must be `https`, and Chrome asks for permission to contact
+the host when you add one.
+
 ## Inline signing
 
 Choose **Sign current text** in the popup or **Sign with Libro** from an editor's context menu. The

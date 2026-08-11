@@ -3,6 +3,7 @@ import { parseDocument } from 'htmlparser2'
 import type { AnyNode, Element } from 'domhandler'
 import {
   createPublicClient,
+  fallback,
   http,
   isAddress,
   isHex,
@@ -21,7 +22,19 @@ export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
 export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
-export const LIBRO_WORLD_CHAIN_RPC_URL = 'https://worldchain-mainnet.g.alchemy.com/public' as const
+/**
+ * Ordered World Chain endpoints. Verification queries all of them, so the list is a quorum
+ * rather than a preference: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction
+ * index after ~10k blocks (~6 hours) and answers `eth_getTransactionReceipt` with null for
+ * anything older, which is indistinguishable from an unregistered publication when it is the
+ * only endpoint asked.
+ */
+export const LIBRO_WORLD_CHAIN_RPC_URLS = [
+  'https://worldchain-mainnet.gateway.tenderly.co',
+  'https://480.rpc.thirdweb.com',
+  'https://worldchain-mainnet.g.alchemy.com/public',
+] as const
+export const LIBRO_WORLD_CHAIN_RPC_URL = LIBRO_WORLD_CHAIN_RPC_URLS[0]
 export const LIBRO_V1_REGISTRY_ADDRESS = '0x53Fc90aB234E85dD610212753e71e7296053038c' as const
 
 export type JsonPrimitive = string | number | boolean | null
@@ -370,11 +383,22 @@ export function isApprovedLibroRegistry(chainId: number, address: string): boole
   return chainId === LIBRO_WORLD_CHAIN_ID && address.toLowerCase() === LIBRO_V1_REGISTRY_ADDRESS.toLowerCase()
 }
 
-export class LibroUnsupportedRegistryError extends Error {}
-export class LibroNotRegisteredError extends Error {}
-export class LibroRegistrationMismatchError extends Error {}
+/** Carries what every queried endpoint reported, so callers can show the split rather than one verdict. */
+export class LibroChainVerificationError extends Error {
+  readonly outcomes: LibroRpcOutcome[]
+
+  constructor(message: string, outcomes: LibroRpcOutcome[] = []) {
+    super(message)
+    this.outcomes = outcomes
+  }
+}
+export class LibroUnsupportedRegistryError extends LibroChainVerificationError {}
+export class LibroNotRegisteredError extends LibroChainVerificationError {}
+export class LibroRegistrationMismatchError extends LibroChainVerificationError {}
 /** The signal is registered, but the transaction the manifest cites cannot be found on chain. */
-export class LibroRegistrationUnconfirmedError extends Error {}
+export class LibroRegistrationUnconfirmedError extends LibroChainVerificationError {}
+/** No endpoint could be reached, so the registration is unknown rather than wrong. */
+export class LibroChainUnavailableError extends LibroChainVerificationError {}
 
 export function assertLibroManifestLocalIntegrity(value: unknown): LibroEmbedManifestV1 {
   const manifest = parseLibroEmbedManifest(value)
@@ -414,35 +438,89 @@ export function isSimpleTextPublication(publication: LibroPublicationV1Payload):
   return !hasImage && extractReadableText(publication.publication_content.html).length > 0
 }
 
-export async function verifyLibroManifestOnChain(
-  manifestValue: unknown,
-  rpcUrl: string = LIBRO_WORLD_CHAIN_RPC_URL
-): Promise<LibroEmbedManifestV1> {
-  const manifest = assertLibroManifestLocalIntegrity(manifestValue)
-  if (!isApprovedLibroRegistry(manifest.registration.chain_id, manifest.registration.registry_address)) {
-    throw new LibroUnsupportedRegistryError('Libro registry is not approved')
-  }
+/** Accepts a single URL or a comma-separated list, so one env var can hold the whole quorum. */
+export function parseLibroRpcUrls(value?: string | readonly string[] | null): string[] {
+  const candidates = typeof value === 'string' ? value.split(',') : value ?? []
+  const urls = candidates.map((url) => url.trim()).filter(Boolean)
+  return urls.length > 0 ? urls : [...LIBRO_WORLD_CHAIN_RPC_URLS]
+}
 
-  const client = createPublicClient({ chain: worldchain, transport: http(rpcUrl) })
-  const registered = await client.readContract({
-    address: manifest.registration.registry_address,
-    abi: libroProofRegistryAbi,
-    functionName: 'verify',
-    args: [BigInt(manifest.registration.signal_hash)],
+/** Host, for showing a reader which endpoints answered without pasting full URLs into the UI. */
+export function libroRpcLabel(rpcUrl: string): string {
+  try {
+    return new URL(rpcUrl).host
+  } catch {
+    return rpcUrl
+  }
+}
+
+/**
+ * Client that fails over between endpoints. Note this only covers transport failures — an RPC
+ * that answers `null` has succeeded as far as the transport is concerned, so lookups that treat
+ * an empty answer as meaningful must ask every endpoint themselves.
+ */
+export function createLibroPublicClient(rpcUrls?: string | readonly string[] | null) {
+  const urls = parseLibroRpcUrls(rpcUrls)
+  return createPublicClient({
+    chain: worldchain,
+    transport: fallback(urls.map((url) => http(url))),
   })
-  if (!registered) throw new LibroNotRegisteredError('Signal is not registered')
+}
+
+export type LibroRpcStatus = 'verified' | 'not_registered' | 'mismatch' | 'unconfirmed' | 'unavailable'
+
+export type LibroRpcOutcome = {
+  rpcUrl: string
+  label: string
+  status: LibroRpcStatus
+  detail: string
+}
+
+export type LibroChainVerification = {
+  manifest: LibroEmbedManifestV1
+  outcomes: LibroRpcOutcome[]
+  /** Labels of the endpoints that confirmed the registration, in the order they were configured. */
+  verifiedBy: string[]
+}
+
+function describeChainError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  const headline = message.split('\n', 1)[0].trim()
+  return headline || (error instanceof Error ? error.name : 'unknown error')
+}
+
+async function verifyLibroManifestAtRpc(
+  manifest: LibroEmbedManifestV1,
+  rpcUrl: string
+): Promise<LibroRpcOutcome> {
+  const outcome = (status: LibroRpcStatus, detail: string): LibroRpcOutcome =>
+    ({ rpcUrl, label: libroRpcLabel(rpcUrl), status, detail })
+  const client = createPublicClient({ chain: worldchain, transport: http(rpcUrl) })
+
+  let registered: boolean
+  try {
+    registered = await client.readContract({
+      address: manifest.registration.registry_address,
+      abi: libroProofRegistryAbi,
+      functionName: 'verify',
+      args: [BigInt(manifest.registration.signal_hash)],
+    })
+  } catch (error) {
+    return outcome('unavailable', describeChainError(error))
+  }
+  if (!registered) return outcome('not_registered', 'Signal is not registered')
 
   let receipt
   try {
     receipt = await client.getTransactionReceipt({ hash: manifest.registration.transaction_hash })
   } catch (error) {
     if (error instanceof TransactionReceiptNotFoundError) {
-      throw new LibroRegistrationUnconfirmedError('Registration transaction was not found on chain')
+      return outcome('unconfirmed', 'Registration transaction was not found on chain')
     }
-    throw error
+    return outcome('unavailable', describeChainError(error))
   }
   if (receipt.status !== 'success') {
-    throw new LibroRegistrationMismatchError('Registration transaction was not successful')
+    return outcome('mismatch', 'Registration transaction was not successful')
   }
 
   const events = parseEventLogs({
@@ -456,7 +534,42 @@ export async function verifyLibroManifestOnChain(
     event.args.signalHash === BigInt(manifest.registration.signal_hash) &&
     event.args.actionHash === BigInt(manifest.registration.action_hash)
   )
-  if (!matchingEvent) throw new LibroRegistrationMismatchError('Registration event does not match the manifest')
+  if (!matchingEvent) return outcome('mismatch', 'Registration event does not match the manifest')
 
-  return manifest
+  return outcome('verified', `Registered in block ${receipt.blockNumber}`)
+}
+
+/**
+ * Asks every configured endpoint at once. One endpoint producing the registration event is proof
+ * enough; the rest are reported so a reader can see who confirmed and who could not answer.
+ */
+export async function verifyLibroManifestOnChain(
+  manifestValue: unknown,
+  rpcUrls: string | readonly string[] = LIBRO_WORLD_CHAIN_RPC_URLS
+): Promise<LibroChainVerification> {
+  const manifest = assertLibroManifestLocalIntegrity(manifestValue)
+  if (!isApprovedLibroRegistry(manifest.registration.chain_id, manifest.registration.registry_address)) {
+    throw new LibroUnsupportedRegistryError('Libro registry is not approved')
+  }
+
+  const urls = parseLibroRpcUrls(rpcUrls)
+  const outcomes = await Promise.all(urls.map((url) => verifyLibroManifestAtRpc(manifest, url)))
+  const verifiedBy = outcomes.filter((item) => item.status === 'verified').map((item) => item.label)
+  if (verifiedBy.length > 0) return { manifest, outcomes, verifiedBy }
+
+  const detailFor = (status: LibroRpcStatus): string =>
+    outcomes.find((item) => item.status === status)?.detail ?? 'Verification failed'
+
+  // Ranked by how much the answer tells us: a contradiction outranks an absence, which outranks
+  // an endpoint that simply could not answer.
+  if (outcomes.some((item) => item.status === 'mismatch')) {
+    throw new LibroRegistrationMismatchError(detailFor('mismatch'), outcomes)
+  }
+  if (outcomes.some((item) => item.status === 'not_registered')) {
+    throw new LibroNotRegisteredError(detailFor('not_registered'), outcomes)
+  }
+  if (outcomes.some((item) => item.status === 'unconfirmed')) {
+    throw new LibroRegistrationUnconfirmedError(detailFor('unconfirmed'), outcomes)
+  }
+  throw new LibroChainUnavailableError(detailFor('unavailable'), outcomes)
 }

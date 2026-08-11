@@ -40,7 +40,8 @@ The app expects these environment variables in local and deployed environments:
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`,
   `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`, and optional
   `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
-  for Libro on-chain registration.
+  for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
+  and default to `LIBRO_WORLD_CHAIN_RPC_URLS` in `libro/core`.
 - `WORLD_ID_AGENT_REGISTRATION_ACTION` for the agent registration proof action, defaulting to `register-agent-v1`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
@@ -95,6 +96,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Direct human publications use `LibroProofRegistry` with a per-challenge action hash passed to the registry at registration time.
 - Human-authorized agent documents use `LibroAgentRegistry`: a human registers an agent address with World ID action `register-agent-v1`, then the agent signs document payloads with EIP-712. Keep this proof class semantically separate from direct human authorship.
 - Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address. Derive the constructor `rpId` from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`.
+- On-chain verification queries every configured endpoint in parallel and treats one matching `SignalRegistered` event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
 
 ## Frontend Notes
 

@@ -5,11 +5,18 @@
   "description": "Verify and sign human-signed text through Libro without leaving the page.",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage", "contextMenus", "clipboardWrite"],
   "host_permissions": [
+    "https://worldchain-mainnet.gateway.tenderly.co/*",
+    "https://480.rpc.thirdweb.com/*",
     "https://worldchain-mainnet.g.alchemy.com/*",
     "https://bridge.worldcoin.org/*",
     "https://www.memorioso.xyz/*",
     "http://localhost/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"

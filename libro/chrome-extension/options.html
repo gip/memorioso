@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Libro Verifier — RPC endpoints</title>
+    <link rel="stylesheet" href="/src/options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img class="mark" src="/icon.png" alt="" />
+        <div>
+          <h1>World Chain endpoints</h1>
+          <p>Every enabled endpoint is queried in parallel when a page is verified.</p>
+        </div>
+      </header>
+
+      <p class="note">
+        One endpoint producing the registration event is enough to verify a block. Endpoints that
+        prune old transactions cannot confirm older publications on their own, which is why more
+        than one is queried.
+      </p>
+
+      <ul id="endpoints" class="endpoints"></ul>
+
+      <form id="add" class="add">
+        <label for="url">Add an endpoint</label>
+        <div class="row">
+          <input id="url" name="url" type="url" placeholder="https://worldchain-rpc.example.com" required />
+          <button type="submit">Add</button>
+        </div>
+        <p id="message" class="message" aria-live="polite"></p>
+      </form>
+
+      <button id="reset" class="reset" type="button">Restore built-in endpoints</button>
+
+      <footer>
+        Added endpoints need permission to be contacted; Chrome will ask when you add one. Custom
+        endpoints must serve World Chain (chain id 480) and support eth_getTransactionReceipt.
+      </footer>
+    </main>
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

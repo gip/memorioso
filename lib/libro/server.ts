@@ -1,5 +1,4 @@
-import { createPublicClient, http } from 'viem'
-import { worldchain } from 'viem/chains'
+import { createLibroPublicClient } from '@libro/core'
 import {
   getLibroAgentServerConfig,
   getLibroServerConfig,
@@ -13,10 +12,7 @@ export async function verifyLibroSignalRegistered(
   signalHash: string,
   config: LibroServerConfig = getLibroServerConfig()
 ): Promise<boolean> {
-  const client = createPublicClient({
-    chain: worldchain,
-    transport: http(config.rpcUrl),
-  })
+  const client = createLibroPublicClient(config.rpcUrls)
 
   return client.readContract({
     address: config.registryAddress,
@@ -30,10 +26,7 @@ export async function verifyLibroAgentRegistered(
   registrationHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createPublicClient({
-    chain: worldchain,
-    transport: http(config.rpcUrl),
-  })
+  const client = createLibroPublicClient(config.rpcUrls)
 
   return client.readContract({
     address: config.registryAddress,
@@ -47,10 +40,7 @@ export async function verifyLibroAgentDocumentRegistered(
   documentSignalHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createPublicClient({
-    chain: worldchain,
-    transport: http(config.rpcUrl),
-  })
+  const client = createLibroPublicClient(config.rpcUrls)
 
   return client.readContract({
     address: config.registryAddress,

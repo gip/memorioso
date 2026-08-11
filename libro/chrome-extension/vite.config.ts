@@ -18,6 +18,8 @@ function extensionManifest(apiOrigin: string, outputDirectory: string, stage: bo
       }
       const origin = new URL(apiOrigin).origin
       manifest.host_permissions = [
+        'https://worldchain-mainnet.gateway.tenderly.co/*',
+        'https://480.rpc.thirdweb.com/*',
         'https://worldchain-mainnet.g.alchemy.com/*',
         'https://bridge.worldcoin.org/*',
         `${origin}/*`,
@@ -50,6 +52,7 @@ export default defineConfig(({ mode }) => {
         input: {
           popup: resolve(import.meta.dirname, 'popup.html'),
           sidepanel: resolve(import.meta.dirname, 'sidepanel.html'),
+          options: resolve(import.meta.dirname, 'options.html'),
           'service-worker': resolve(import.meta.dirname, 'src/service-worker.ts'),
         },
         output: {

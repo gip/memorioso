@@ -1,6 +1,8 @@
-import { formatLibroTextTag, verifyLibroManifestOnChain } from '@libro/core'
+import { formatLibroTextTag } from '@libro/core'
+import { autoScanPreference, hasAutoScanPermission, setAutoScan, syncAutoScan } from './auto-scan'
 import { enabledLibroRpcUrls } from './rpc-settings'
 import { verifyCandidate } from './verifier'
+import { clearLibroVerificationCache, createCachedChainVerifier } from './verification-cache'
 import type { LibroCandidate, LibroVerificationResult, ScanResponse } from './shared'
 
 const MAX_MANIFEST_BYTES = 1_000_000
@@ -80,31 +82,34 @@ async function activeTabId(): Promise<number> {
   return tab.id
 }
 
-function setToolbarBadge(results: LibroVerificationResult[]): void {
+// Scoped to the tab it describes: automatic scanning verifies background tabs too, and a global
+// badge would let whichever tab finished last speak for the one the reader is looking at.
+function setToolbarBadge(tabId: number, results: LibroVerificationResult[]): void {
   const verified = results.filter((item) => item.status === 'verified').length
   const hasProblems = results.some((item) => !['verified', 'registration_unconfirmed', 'network_unavailable'].includes(item.status))
   const text = verified > 0 ? String(verified) : hasProblems ? '!' : results.length === 0 ? '0' : '?'
   const color = verified > 0 ? '#15803d' : hasProblems ? '#b91c1c' : '#71717a'
-  chrome.action.setBadgeBackgroundColor({ color }).catch(() => undefined)
-  chrome.action.setBadgeText({ text }).catch(() => undefined)
+  chrome.action.setBadgeBackgroundColor({ color, tabId }).catch(() => undefined)
+  chrome.action.setBadgeText({ text, tabId }).catch(() => undefined)
 }
 
 async function ensureContentScript(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
 }
 
-async function scanActiveTab(): Promise<ScanResponse> {
+// A manual rescan arriving while an automatic scan is mid-flight joins it rather than starting a
+// second pass over the same DOM, which would race the first one's decorations.
+const scansInFlight = new Map<number, Promise<ScanResponse>>()
+
+async function runScan(tabId: number, inject: boolean): Promise<ScanResponse> {
   try {
-    const tabId = await activeTabId()
-    await ensureContentScript(tabId)
+    if (inject) await ensureContentScript(tabId)
     const scanResult = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_SCAN_PAGE' }) as { candidates?: LibroCandidate[] }
     const discoveredCandidates = Array.isArray(scanResult?.candidates) ? scanResult.candidates : []
     const candidates = await Promise.all(discoveredCandidates.map(resolveTextManifest))
     const rpcUrls = await enabledLibroRpcUrls()
-    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(
-      candidate,
-      (manifest) => verifyLibroManifestOnChain(manifest, rpcUrls)
-    )))
+    const verifyChain = createCachedChainVerifier(rpcUrls)
+    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(candidate, verifyChain)))
     const applied = await chrome.tabs.sendMessage(tabId, {
       type: 'LIBRO_APPLY_RESULTS',
       results,
@@ -116,16 +121,49 @@ async function scanActiveTab(): Promise<ScanResponse> {
         ? { ...result, status: 'stale', label: 'Changed — rescan', detail: 'The page changed while verification was running' }
         : result)
     }
-    setToolbarBadge(results)
+    setToolbarBadge(tabId, results)
     return { success: true, results }
   } catch (error) {
-    chrome.action.setBadgeText({ text: '' }).catch(() => undefined)
+    chrome.action.setBadgeText({ text: '', tabId }).catch(() => undefined)
     return {
       success: false,
       results: [],
       message: error instanceof Error ? error.message : 'This page cannot be scanned',
     }
   }
+}
+
+function scanTab(tabId: number, inject: boolean): Promise<ScanResponse> {
+  const existing = scansInFlight.get(tabId)
+  if (existing) return existing
+  const pending = runScan(tabId, inject).finally(() => {
+    scansInFlight.delete(tabId)
+  })
+  scansInFlight.set(tabId, pending)
+  return pending
+}
+
+async function scanActiveTab(): Promise<ScanResponse> {
+  try {
+    return await scanTab(await activeTabId(), true)
+  } catch (error) {
+    return {
+      success: false,
+      results: [],
+      message: error instanceof Error ? error.message : 'This page cannot be scanned',
+    }
+  }
+}
+
+/**
+ * A page that passed the content script's cheap pre-filter is offering itself for verification.
+ * The offer is only taken up when automatic scanning is on; otherwise the reader's click is still
+ * what decides that this page gets looked at and that its manifest URL gets fetched.
+ */
+async function scanAnnouncedPage(tabId: number | undefined): Promise<void> {
+  if (typeof tabId !== 'number') return
+  if (!(await autoScanPreference())) return
+  await scanTab(tabId, false)
 }
 
 async function captureActiveText(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
@@ -303,6 +341,18 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
   switch (message.type) {
     case 'LIBRO_SCAN_ACTIVE_TAB':
       return scanActiveTab()
+    case 'LIBRO_GET_AUTO_SCAN': {
+      const [preferred, granted] = await Promise.all([autoScanPreference(), hasAutoScanPermission()])
+      return { success: true, enabled: preferred && granted, granted }
+    }
+    case 'LIBRO_SET_AUTO_SCAN': {
+      // Permission must already have been requested inside the options page gesture; Chrome
+      // rejects a request made from here, so this only reconciles what that answer allows.
+      const enabled = await setAutoScan(message.enabled === true)
+      // Turning it off should not leave a record of which signed documents were read behind it.
+      if (!enabled) await clearLibroVerificationCache()
+      return { success: true, enabled }
+    }
     case 'LIBRO_START_SIGNING':
       return {
         success: true,
@@ -477,6 +527,21 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Sign with Libro',
     contexts: ['selection', 'editable'],
   })).catch(() => undefined)
+  syncAutoScan().catch(() => undefined)
+})
+
+chrome.runtime.onStartup.addListener(() => {
+  syncAutoScan().catch(() => undefined)
+})
+
+// Host permission can be revoked from chrome://extensions without the extension being asked, so
+// the registered script and the preference are reconciled whenever the grant changes.
+chrome.permissions.onRemoved.addListener(() => {
+  syncAutoScan().catch(() => undefined)
+})
+
+chrome.permissions.onAdded.addListener(() => {
+  syncAutoScan().catch(() => undefined)
 })
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -513,9 +578,15 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     applyAutoCapture(sender.tab?.id, typed).catch(() => undefined)
     return
   }
+  if (typed.type === 'LIBRO_PAGE_MAY_HAVE_LIBRO') {
+    scanAnnouncedPage(sender.tab?.id).catch(() => undefined)
+    return
+  }
   if (typed.type === 'LIBRO_RESULT_STALE') {
-    chrome.action.setBadgeBackgroundColor({ color: '#b45309' }).catch(() => undefined)
-    chrome.action.setBadgeText({ text: '?' }).catch(() => undefined)
+    const tabId = sender.tab?.id
+    if (typeof tabId !== 'number') return
+    chrome.action.setBadgeBackgroundColor({ color: '#b45309', tabId }).catch(() => undefined)
+    chrome.action.setBadgeText({ text: '?', tabId }).catch(() => undefined)
     return
   }
   if (typeof typed.type === 'string' && typed.type.startsWith('LIBRO_')) {

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Libro Verifier — RPC endpoints</title>
+    <title>Libro Verifier — settings</title>
     <link rel="stylesheet" href="/src/options.css" />
   </head>
   <body>
@@ -11,11 +11,31 @@
       <header>
         <img class="mark" src="/icon.png" alt="" />
         <div>
-          <h1>World Chain endpoints</h1>
-          <p>Every enabled endpoint is queried in parallel when a page is verified.</p>
+          <h1>Libro Verifier settings</h1>
+          <p>How pages are verified, and which World Chain endpoints confirm them.</p>
         </div>
       </header>
 
+      <section class="section">
+        <h2>Automatic verification</h2>
+        <label class="switch" for="auto-scan">
+          <input id="auto-scan" type="checkbox" />
+          <span>
+            <strong>Verify every page as it loads</strong>
+            <span class="hint">Otherwise pages are verified only when you open the Libro popup.</span>
+          </span>
+        </label>
+        <p id="auto-message" class="message" aria-live="polite"></p>
+        <p class="note">
+          Chrome will ask to let the extension read every https page. Verification then runs on page
+          load, so a page you visit can cause the extension to fetch the manifest it names and to ask
+          your World Chain endpoints about the signals it claims. Confirmed registrations are cached
+          so the same document is not looked up twice; turning this off clears that cache and hands
+          the permission back.
+        </p>
+      </section>
+
+      <h2>World Chain endpoints</h2>
       <p class="note">
         One endpoint producing the registration event is enough to verify a block. Endpoints that
         prune old transactions cannot confirm older publications on their own, which is why more

@@ -10,7 +10,18 @@ header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .mark { width: 38px; height: 38px; border-radius: 50%; }
 h1 { margin: 0; font-size: 19px; }
 header p { margin: 2px 0 0; color: #71717a; font-size: 12px; }
+h2 { margin: 0 0 8px; font-size: 14px; }
 .note { margin: 0 0 16px; color: #52525b; font-size: 12px; }
+
+.section {
+  border: 1px solid #d4d4d8; border-radius: 8px; background: white;
+  padding: 14px 16px; margin-bottom: 22px;
+}
+.section .note { margin: 8px 0 0; }
+.switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.switch input[type="checkbox"] { width: 16px; height: 16px; margin: 2px 0 0; cursor: pointer; }
+.switch strong { display: block; font-size: 13px; }
+.switch .hint { display: block; color: #71717a; font-size: 12px; }
 
 .endpoints { display: grid; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
 .endpoint {

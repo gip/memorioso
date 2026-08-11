@@ -318,8 +318,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       addBadge(block, {
         ...result,
         status: 'stale',
-        label: 'Changed — rescan',
-        detail: 'The page changed after verification',
+        label: 'Changed',
+        detail: 'The page changed after verification. Reopen the Libro popup to check it again.',
       })
       chrome.runtime.sendMessage({ type: 'LIBRO_RESULT_STALE' }).catch(() => undefined)
     })
@@ -353,8 +353,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         ? {
             ...result,
             status: 'stale',
-            label: 'Changed — rescan',
-            detail: 'The page changed while verification was running',
+            label: 'Changed',
+            detail: 'The page changed while verification was running. Reopen the Libro popup to check it again.',
           }
         : result
       if (changedDuringVerification) staleBlockIds.push(result.blockId)

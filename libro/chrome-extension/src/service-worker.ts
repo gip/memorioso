@@ -118,7 +118,12 @@ async function runScan(tabId: number, inject: boolean): Promise<ScanResponse> {
     const staleBlockIds = new Set(applied?.staleBlockIds || [])
     if (staleBlockIds.size > 0) {
       results = results.map((result) => staleBlockIds.has(result.blockId)
-        ? { ...result, status: 'stale', label: 'Changed — rescan', detail: 'The page changed while verification was running' }
+        ? {
+            ...result,
+            status: 'stale',
+            label: 'Changed',
+            detail: 'The page changed while verification was running. Reopen the Libro popup to check it again.',
+          }
         : result)
     }
     setToolbarBadge(tabId, results)

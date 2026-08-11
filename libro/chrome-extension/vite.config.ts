@@ -48,6 +48,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: outputDirectory,
       emptyOutDir: true,
+      // Chrome supports modulepreload natively, so the polyfill chunk and its
+      // preload links are dead weight and warn on chrome-extension:// pages.
+      modulePreload: false,
       rollupOptions: {
         input: {
           popup: resolve(import.meta.dirname, 'popup.html'),

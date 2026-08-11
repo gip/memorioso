@@ -1,6 +1,7 @@
 import {
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
+  LibroRegistrationUnconfirmedError,
   LibroUnsupportedRegistryError,
   assertLibroManifestLocalIntegrity,
   extractReadableText,
@@ -23,8 +24,17 @@ const LABELS = {
   manifest_missing: 'Manifest missing',
   unsupported_registry: 'Unsupported registry',
   not_registered: 'Not registered',
+  registration_unconfirmed: 'Registration unconfirmed',
   network_unavailable: 'Network unavailable',
 } as const
+
+/** viem errors carry multi-line docs footers; keep only the headline for the badge tooltip. */
+function summarizeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  const headline = message.split('\n', 1)[0].trim()
+  if (!headline) return error instanceof Error ? error.name : 'unknown error'
+  return headline.length > 140 ? `${headline.slice(0, 139)}…` : headline
+}
 
 function urlsMatch(left: string, right: string): boolean {
   try {
@@ -123,6 +133,27 @@ export async function verifyCandidate(
     if (error instanceof LibroRegistrationMismatchError) {
       return result(candidate, 'invalid_manifest', error.message, manifest)
     }
-    return result(candidate, 'network_unavailable', 'World Chain could not be reached; verification is unknown', manifest)
+    if (error instanceof LibroRegistrationUnconfirmedError) {
+      return result(
+        candidate,
+        'registration_unconfirmed',
+        'The signal is registered, but World Chain has no record of the transaction this manifest cites',
+        manifest
+      )
+    }
+    // Everything else lands here, so surface the cause rather than reporting every
+    // unclassified failure as an unreachable network.
+    console.warn('[libro] on-chain verification failed', {
+      blockId: candidate.blockId,
+      signalHash: manifest.registration.signal_hash,
+      transactionHash: manifest.registration.transaction_hash,
+      error,
+    })
+    return result(
+      candidate,
+      'network_unavailable',
+      `World Chain could not be reached; verification is unknown (${summarizeError(error)})`,
+      manifest
+    )
   }
 }

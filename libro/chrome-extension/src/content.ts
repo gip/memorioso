@@ -1,4 +1,4 @@
-import type { LibroCandidate, LibroVerificationResult } from './shared'
+import { isIndeterminateStatus, type LibroCandidate, type LibroVerificationResult } from './shared'
 import {
   captureCurrentText,
   replaceCapture,
@@ -265,8 +265,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
 
   function stateClass(status: LibroVerificationResult['status']): string {
     if (status === 'verified') return 'libro-extension-verified'
-    if (status === 'network_unavailable' || status === 'manifest_missing') return 'libro-extension-unknown'
     if (status === 'stale') return 'libro-extension-stale'
+    if (isIndeterminateStatus(status)) return 'libro-extension-unknown'
     return 'libro-extension-warning'
   }
 
@@ -285,7 +285,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     const badge = document.createElement('span')
     badge.className = result.status === 'verified'
       ? 'verified'
-      : result.status === 'network_unavailable' || result.status === 'manifest_missing' || result.status === 'stale'
+      : isIndeterminateStatus(result.status)
         ? 'unknown'
         : 'warning'
     badge.textContent = `Libro · ${result.label}`

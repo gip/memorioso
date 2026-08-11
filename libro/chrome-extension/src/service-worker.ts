@@ -81,7 +81,7 @@ async function activeTabId(): Promise<number> {
 
 function setToolbarBadge(results: LibroVerificationResult[]): void {
   const verified = results.filter((item) => item.status === 'verified').length
-  const hasProblems = results.some((item) => !['verified', 'network_unavailable'].includes(item.status))
+  const hasProblems = results.some((item) => !['verified', 'registration_unconfirmed', 'network_unavailable'].includes(item.status))
   const text = verified > 0 ? String(verified) : hasProblems ? '!' : results.length === 0 ? '0' : '?'
   const color = verified > 0 ? '#15803d' : hasProblems ? '#b91c1c' : '#71717a'
   chrome.action.setBadgeBackgroundColor({ color }).catch(() => undefined)

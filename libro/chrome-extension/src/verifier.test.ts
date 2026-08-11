@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
+  LibroRegistrationUnconfirmedError,
   actionHashToHex,
   canonicalPublicationSignal,
   hashPublicationSignal,
@@ -126,7 +127,18 @@ describe('extension candidate verification', () => {
       .resolves.toMatchObject({ status: 'not_registered' })
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationMismatchError('wrong receipt') }))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
+    await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationUnconfirmedError('no receipt') }))
+      .resolves.toMatchObject({ status: 'registration_unconfirmed' })
     await expect(verifyCandidate(candidate(), async () => { throw new Error('offline') }))
       .resolves.toMatchObject({ status: 'network_unavailable' })
+  })
+
+  it('reports the underlying cause instead of swallowing unclassified failures', async () => {
+    const result = await verifyCandidate(candidate(), async () => {
+      throw new Error('HTTP request failed: 429 Too Many Requests\nDocs: https://viem.sh\nVersion: viem@2')
+    })
+    expect(result.status).toBe('network_unavailable')
+    expect(result.detail).toContain('429 Too Many Requests')
+    expect(result.detail).not.toContain('Docs:')
   })
 })

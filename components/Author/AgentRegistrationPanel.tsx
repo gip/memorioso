@@ -9,8 +9,7 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
-import { createPublicClient, http } from 'viem'
-import { worldchain } from 'viem/chains'
+import { createLibroPublicClient } from '@libro/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -70,10 +69,10 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
-  const publicClient = useMemo(() => createPublicClient({
-    chain: worldchain,
-    transport: http(process.env.NEXT_PUBLIC_LIBRO_RPC_URL || 'https://worldchain-mainnet.g.alchemy.com/public'),
-  }), [])
+  const publicClient = useMemo(
+    () => createLibroPublicClient(process.env.NEXT_PUBLIC_LIBRO_RPC_URL),
+    []
+  )
   const { poll: pollUserOperationReceipt } = useUserOperationReceipt({ client: publicClient })
 
   const loadRegistrations = useCallback(async () => {

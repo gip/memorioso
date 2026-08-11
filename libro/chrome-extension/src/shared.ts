@@ -39,6 +39,13 @@ export function isIndeterminateStatus(status: LibroVerificationStatus): boolean 
   return INDETERMINATE_STATUSES.has(status)
 }
 
+/** What one World Chain endpoint reported, so the panel can show the whole quorum. */
+export type LibroVerificationSource = {
+  label: string
+  status: 'verified' | 'not_registered' | 'mismatch' | 'unconfirmed' | 'unavailable'
+  detail: string
+}
+
 export type LibroVerificationResult = {
   blockId: string
   status: LibroVerificationStatus
@@ -47,6 +54,8 @@ export type LibroVerificationResult = {
   authorHandle?: string
   publicationDate?: string
   signalHash?: string
+  sources?: LibroVerificationSource[]
+  verifiedBy?: string[]
 }
 
 export type ScanResponse = {

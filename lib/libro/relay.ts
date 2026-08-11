@@ -1,6 +1,7 @@
-import { createPublicClient, createWalletClient, http, type Hex } from 'viem'
+import { createWalletClient, fallback, http, type Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { worldchain } from 'viem/chains'
+import { createLibroPublicClient } from '@libro/core'
 import type { LibroServerConfig, LibroRelayerConfig } from './config'
 import type { LibroRegistrationTransaction } from './proof'
 
@@ -29,7 +30,7 @@ export async function sendRelayedLibroRegistration(
   const walletClient = createWalletClient({
     account,
     chain: worldchain,
-    transport: http(config.rpcUrl),
+    transport: fallback(config.rpcUrls.map((url) => http(url))),
   })
   const call = transaction.transactions[0]
 
@@ -46,10 +47,7 @@ export async function waitForRelayedLibroRegistration(
   transactionHash: Hex,
   config: LibroServerConfig
 ): Promise<void> {
-  const publicClient = createPublicClient({
-    chain: worldchain,
-    transport: http(config.rpcUrl),
-  })
+  const publicClient = createLibroPublicClient(config.rpcUrls)
   const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash })
 
   if (receipt.status !== 'success') {

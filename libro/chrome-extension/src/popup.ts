@@ -1,9 +1,12 @@
-import type { LibroVerificationResult, ScanResponse } from './shared'
+import type { LibroVerificationResult, LibroVerificationSource, ScanResponse } from './shared'
 
 const summary = document.querySelector<HTMLElement>('#summary')
 const resultsNode = document.querySelector<HTMLElement>('#results')
 const rescan = document.querySelector<HTMLButtonElement>('#rescan')
 const sign = document.querySelector<HTMLButtonElement>('#sign')
+const endpoints = document.querySelector<HTMLButtonElement>('#endpoints')
+
+endpoints?.addEventListener('click', () => chrome.runtime.openOptionsPage())
 
 // sidePanel.open() only runs inside the user gesture that triggered it, and neither the hop to
 // the service worker nor an await inside the handler preserves one. So the popup opens the panel
@@ -57,7 +60,33 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
   card.append(heading)
   if (metadata.textContent) card.append(metadata)
   card.append(detail)
+  if (item.sources?.length) card.append(renderSources(item.sources))
   return card
+}
+
+const SOURCE_LABELS: Record<LibroVerificationSource['status'], string> = {
+  verified: 'confirmed',
+  not_registered: 'not registered',
+  mismatch: 'contradicted',
+  unconfirmed: 'no transaction record',
+  unavailable: 'unreachable',
+}
+
+function renderSources(sources: LibroVerificationSource[]): HTMLElement {
+  const list = document.createElement('ul')
+  list.className = 'sources'
+  sources.forEach((source) => {
+    const item = document.createElement('li')
+    item.className = `source ${source.status}`
+    item.title = source.detail
+    const host = document.createElement('span')
+    host.textContent = source.label
+    const verdict = document.createElement('em')
+    verdict.textContent = SOURCE_LABELS[source.status]
+    item.append(host, verdict)
+    list.append(item)
+  })
+  return list
 }
 
 function render(response: ScanResponse): void {

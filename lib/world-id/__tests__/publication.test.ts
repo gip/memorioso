@@ -159,7 +159,7 @@ describe('Libro registration helpers', () => {
       chainId: LIBRO_WORLD_CHAIN_ID,
       registryAddress: '0x1111111111111111111111111111111111111111',
       rpId: BigInt(1),
-      rpcUrl: 'https://worldchain-mainnet.g.alchemy.com/public',
+      rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
     })
     const decoded = decodeFunctionData({
       abi: libroProofRegistryAbi,

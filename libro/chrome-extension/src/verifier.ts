@@ -1,4 +1,5 @@
 import {
+  LibroChainVerificationError,
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
   LibroRegistrationUnconfirmedError,
@@ -11,11 +12,12 @@ import {
   manifestElementId,
   normalizeReadableText,
   verifyLibroManifestOnChain,
+  type LibroChainVerification,
   type LibroEmbedManifestV1,
 } from '@libro/core'
-import type { LibroCandidate, LibroVerificationResult } from './shared'
+import type { LibroCandidate, LibroVerificationResult, LibroVerificationSource } from './shared'
 
-type ChainVerifier = (manifest: LibroEmbedManifestV1) => Promise<LibroEmbedManifestV1>
+type ChainVerifier = (manifest: LibroEmbedManifestV1) => Promise<LibroChainVerification>
 
 const LABELS = {
   verified: 'Verified',
@@ -48,8 +50,10 @@ function result(
   candidate: LibroCandidate,
   status: keyof typeof LABELS,
   detail: string,
-  manifest?: LibroEmbedManifestV1
+  manifest?: LibroEmbedManifestV1,
+  sources?: LibroVerificationSource[]
 ): LibroVerificationResult {
+  const verifiedBy = sources?.filter((source) => source.status === 'verified').map((source) => source.label)
   return {
     blockId: candidate.blockId,
     status,
@@ -60,7 +64,23 @@ function result(
       publicationDate: manifest.publication.publication_date,
       signalHash: manifest.registration.signal_hash,
     } : {}),
+    ...(sources?.length ? { sources } : {}),
+    ...(verifiedBy?.length ? { verifiedBy } : {}),
   }
+}
+
+function sourcesFrom(error: unknown): LibroVerificationSource[] | undefined {
+  if (!(error instanceof LibroChainVerificationError) || error.outcomes.length === 0) return undefined
+  return error.outcomes.map(({ label, status, detail }) => ({ label, status, detail }))
+}
+
+function summarizeSources(sources: LibroVerificationSource[] | undefined): string {
+  if (!sources?.length) return ''
+  const grouped = new Map<string, string[]>()
+  for (const source of sources) {
+    grouped.set(source.status, [...(grouped.get(source.status) ?? []), source.label])
+  }
+  return ` (${[...grouped].map(([status, labels]) => `${status}: ${labels.join(', ')}`).join('; ')})`
 }
 
 export async function verifyCandidate(
@@ -121,24 +141,34 @@ export async function verifyCandidate(
   }
 
   try {
-    await verifyChain(manifest)
-    return result(candidate, 'verified', 'Readable text and the on-chain Libro registration match', manifest)
+    const verification = await verifyChain(manifest)
+    const sources = verification.outcomes.map(({ label, status, detail }) => ({ label, status, detail }))
+    return result(
+      candidate,
+      'verified',
+      `Readable text and the on-chain Libro registration match, confirmed by ${verification.verifiedBy.join(', ')}`,
+      manifest,
+      sources
+    )
   } catch (error) {
+    const sources = sourcesFrom(error)
     if (error instanceof LibroUnsupportedRegistryError) {
-      return result(candidate, 'unsupported_registry', error.message, manifest)
+      return result(candidate, 'unsupported_registry', error.message, manifest, sources)
     }
     if (error instanceof LibroNotRegisteredError) {
-      return result(candidate, 'not_registered', error.message, manifest)
+      return result(candidate, 'not_registered', error.message + summarizeSources(sources), manifest, sources)
     }
     if (error instanceof LibroRegistrationMismatchError) {
-      return result(candidate, 'invalid_manifest', error.message, manifest)
+      return result(candidate, 'invalid_manifest', error.message + summarizeSources(sources), manifest, sources)
     }
     if (error instanceof LibroRegistrationUnconfirmedError) {
       return result(
         candidate,
         'registration_unconfirmed',
-        'The signal is registered, but World Chain has no record of the transaction this manifest cites',
-        manifest
+        'The signal is registered, but no World Chain endpoint has a record of the transaction this manifest cites' +
+          summarizeSources(sources),
+        manifest,
+        sources
       )
     }
     // Everything else lands here, so surface the cause rather than reporting every
@@ -153,7 +183,8 @@ export async function verifyCandidate(
       candidate,
       'network_unavailable',
       `World Chain could not be reached; verification is unknown (${summarizeError(error)})`,
-      manifest
+      manifest,
+      sources
     )
   }
 }

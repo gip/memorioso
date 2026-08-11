@@ -22,6 +22,12 @@ header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .result-heading code { color: #71717a; font-size: 11px; }
 .metadata { margin-top: 2px; color: #4f46e5; font-size: 12px; }
 .result p { margin: 5px 0 0; color: #52525b; font-size: 12px; }
+.sources { display: grid; gap: 2px; margin: 7px 0 0; padding: 6px 0 0; border-top: 1px solid #f4f4f5; list-style: none; }
+.source { display: flex; justify-content: space-between; gap: 8px; color: #71717a; font-size: 11px; }
+.source em { font-style: normal; }
+.source.verified em { color: #166534; }
+.source.unconfirmed em, .source.unavailable em { color: #b45309; }
+.source.not_registered em, .source.mismatch em { color: #991b1b; }
 button { width: 100%; margin-top: 12px; border: 1px solid #d4d4d8; border-radius: 8px; background: white; padding: 8px; cursor: pointer; font-weight: 600; }
 button:hover { background: #f4f4f5; }
 button:disabled { cursor: wait; opacity: .6; }

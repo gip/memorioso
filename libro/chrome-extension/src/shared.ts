@@ -20,8 +20,24 @@ export type LibroVerificationStatus =
   | 'manifest_missing'
   | 'unsupported_registry'
   | 'not_registered'
+  | 'registration_unconfirmed'
   | 'network_unavailable'
   | 'stale'
+
+/**
+ * Statuses that mean "we could not decide", as opposed to "this block is wrong".
+ * These render amber rather than red.
+ */
+const INDETERMINATE_STATUSES: ReadonlySet<LibroVerificationStatus> = new Set([
+  'manifest_missing',
+  'registration_unconfirmed',
+  'network_unavailable',
+  'stale',
+])
+
+export function isIndeterminateStatus(status: LibroVerificationStatus): boolean {
+  return INDETERMINATE_STATUSES.has(status)
+}
 
 export type LibroVerificationResult = {
   blockId: string

@@ -16,8 +16,8 @@ header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .results { display: grid; gap: 8px; margin-top: 10px; }
 .result { border: 1px solid #d4d4d8; border-left-width: 4px; border-radius: 8px; background: white; padding: 9px 10px; }
 .result.verified { border-left-color: #16a34a; }
-.result.network_unavailable, .result.stale { border-left-color: #d97706; }
-.result:not(.verified):not(.network_unavailable):not(.stale) { border-left-color: #dc2626; }
+.result.network_unavailable, .result.registration_unconfirmed, .result.stale { border-left-color: #d97706; }
+.result:not(.verified):not(.network_unavailable):not(.registration_unconfirmed):not(.stale) { border-left-color: #dc2626; }
 .result-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .result-heading code { color: #71717a; font-size: 11px; }
 .metadata { margin-top: 2px; color: #4f46e5; font-size: 12px; }

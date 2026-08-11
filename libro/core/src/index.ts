@@ -9,6 +9,7 @@ import {
   keccak256,
   parseEventLogs,
   toBytes,
+  TransactionReceiptNotFoundError,
   type Abi,
   type Address,
   type Hex,
@@ -372,6 +373,8 @@ export function isApprovedLibroRegistry(chainId: number, address: string): boole
 export class LibroUnsupportedRegistryError extends Error {}
 export class LibroNotRegisteredError extends Error {}
 export class LibroRegistrationMismatchError extends Error {}
+/** The signal is registered, but the transaction the manifest cites cannot be found on chain. */
+export class LibroRegistrationUnconfirmedError extends Error {}
 
 export function assertLibroManifestLocalIntegrity(value: unknown): LibroEmbedManifestV1 {
   const manifest = parseLibroEmbedManifest(value)
@@ -429,7 +432,15 @@ export async function verifyLibroManifestOnChain(
   })
   if (!registered) throw new LibroNotRegisteredError('Signal is not registered')
 
-  const receipt = await client.getTransactionReceipt({ hash: manifest.registration.transaction_hash })
+  let receipt
+  try {
+    receipt = await client.getTransactionReceipt({ hash: manifest.registration.transaction_hash })
+  } catch (error) {
+    if (error instanceof TransactionReceiptNotFoundError) {
+      throw new LibroRegistrationUnconfirmedError('Registration transaction was not found on chain')
+    }
+    throw error
+  }
   if (receipt.status !== 'success') {
     throw new LibroRegistrationMismatchError('Registration transaction was not successful')
   }

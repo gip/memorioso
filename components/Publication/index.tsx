@@ -46,7 +46,6 @@ export const Publication = ({
     : null
   const verifyHref = !isLegacy ? proofLink : undefined
   const isAgentAuthored = isLibroAgentProof(proof)
-  const authorshipLabel = isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'
   const authorHref = `/a/${publication.author_handle_libro || publication.author_id_libro}`
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
@@ -83,9 +82,11 @@ export const Publication = ({
           ) : (
             <HumanSeal size={116} />
           )}
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-blurple">
-            {authorshipLabel}
-          </p>
+          {isAgentAuthored && (
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-blurple">
+              Human-authorized agent
+            </p>
+          )}
           {celebrate && (
             <p className="mt-1 text-xs text-muted-foreground">Signed and published just now</p>
           )}

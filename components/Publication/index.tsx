@@ -102,8 +102,8 @@ export const Publication = ({
         <div className="mx-auto mt-8 h-px w-12 bg-zinc-200" />
 
         <h1 className={title
-          ? 'spectral mx-auto mt-8 max-w-2xl text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
-          : 'mx-auto mt-8 line-clamp-2 max-w-2xl text-[19px] font-normal leading-relaxed text-foreground'
+          ? 'spectral mx-auto mt-8 line-clamp-2 max-w-2xl text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
+          : 'mx-auto mt-8 line-clamp-2 max-w-2xl text-[17px] font-normal leading-relaxed text-foreground'
         }>
           {titleOrExcerpt}
         </h1>

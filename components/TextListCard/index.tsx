@@ -22,11 +22,11 @@ const CardBody = ({ title, excerpt, subtitle, signed = true, metaText, authorshi
   <div className="flex items-start gap-3">
     <div className="min-w-0 flex-1">
       {title.trim() ? (
-        <div className="spectral truncate text-[17px] font-semibold leading-tight text-foreground">
+        <div className="spectral line-clamp-2 text-[17px] font-semibold leading-tight text-foreground">
           {title}
         </div>
       ) : (
-        <div className="line-clamp-2 text-[17px] font-normal leading-snug text-foreground">
+        <div className="line-clamp-2 text-[14px] font-normal leading-snug text-foreground">
           {excerpt}
         </div>
       )}

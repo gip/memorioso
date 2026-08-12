@@ -143,9 +143,11 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
               <div className="flex items-center gap-2">
                 <span>
                   {publicationInfo.publication_title.trim() ? (
-                    <span className="italic underline hover:text-blue-500">{publicationInfo.publication_title}</span>
+                    <span className="line-clamp-2 italic underline hover:text-blue-500">
+                      {publicationInfo.publication_title}
+                    </span>
                   ) : (
-                    <span className="line-clamp-2 font-normal leading-snug hover:text-blue-500">
+                    <span className="line-clamp-2 text-sm font-normal leading-snug hover:text-blue-500">
                       {publicationInfo.publication_excerpt}
                     </span>
                   )}

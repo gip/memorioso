@@ -11,6 +11,7 @@ import {
 } from './security'
 import { verifyCandidate } from './verifier'
 import { clearLibroVerificationCache, createCachedChainVerifier } from './verification-cache'
+import { retryWithBackoff } from './retry'
 import { isIndeterminateStatus, type LibroCandidate, type LibroVerificationResult, type ScanResponse } from './shared'
 
 const API_ORIGIN = (import.meta.env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz').replace(/\/$/, '')
@@ -54,6 +55,29 @@ type SigningJob = {
   transactionHash?: string
   publicationId?: string
   tag?: string
+}
+
+class MemoriosoApiError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly retryable: boolean
+
+  constructor(message: string, status: number, code?: string, retryable = false) {
+    super(message)
+    this.name = 'MemoriosoApiError'
+    this.status = status
+    this.code = code
+    this.retryable = retryable
+  }
+}
+
+function isRetryableFinalizeFailure(error: unknown): boolean {
+  if (error instanceof MemoriosoApiError) {
+    return error.code === 'FINALIZE_RETRYABLE' && error.retryable
+  }
+  return error instanceof TypeError || (
+    error instanceof DOMException && error.name === 'AbortError'
+  )
 }
 
 function normalizedSigningJob(value: unknown): SigningJob | undefined {
@@ -392,12 +416,21 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, authenticated =
     cache: 'no-store',
     credentials: 'omit',
   })
-  const body = await response.json().catch(() => ({})) as T & { message?: string }
+  const body = await response.json().catch(() => ({})) as T & {
+    message?: string
+    code?: string
+    retryable?: boolean
+  }
   if (!response.ok) {
     if (response.status === 401 && authenticated) {
       await chrome.storage.local.remove([TOKEN_KEY, SESSION_KEY])
     }
-    throw new Error(body.message || `Memorioso returned HTTP ${response.status}`)
+    throw new MemoriosoApiError(
+      body.message || `Memorioso returned HTTP ${response.status}`,
+      response.status,
+      body.code,
+      body.retryable === true
+    )
   }
   return body
 }
@@ -590,14 +623,20 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
         finalized = job
       } else {
         if (!job.registrationId || !job.transactionHash) throw new Error('The Libro registration has not been relayed')
-        const response = await apiFetch<{ publicationId: string }>(`/api/draft/${job.draftId}/publish/finalize`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            registrationId: job.registrationId,
-            submissionMethod: 'memorioso_relayer',
-            transactionHash: job.transactionHash,
-          }),
+        const finalizePath = `/api/draft/${job.draftId}/publish/finalize`
+        const finalizeBody = JSON.stringify({
+          registrationId: job.registrationId,
+          submissionMethod: 'memorioso_relayer',
+          transactionHash: job.transactionHash,
         })
+        const response = await retryWithBackoff(
+          (signal) => apiFetch<{ publicationId: string }>(finalizePath, {
+            method: 'PUT',
+            body: finalizeBody,
+            signal,
+          }),
+          { shouldRetry: isRetryableFinalizeFailure }
+        )
         finalized = { ...job, stage: 'finalized', publicationId: response.publicationId }
         await saveSigningJob(finalized)
       }

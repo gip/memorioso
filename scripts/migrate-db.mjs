@@ -99,7 +99,7 @@ async function loadMigrations() {
 }
 
 function loadLocalEnvironment() {
-  if (process.env.DATABASE_URL) {
+  if (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL) {
     return
   }
 
@@ -109,12 +109,12 @@ function loadLocalEnvironment() {
   }
 }
 
-function getDatabaseConnectionString() {
-  loadLocalEnvironment()
-
-  const databaseUrl = process.env.DATABASE_URL
+export function selectMigrationDatabaseUrl(environment = process.env) {
+  const databaseUrl = environment.DATABASE_URL_UNPOOLED || environment.DATABASE_URL
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required (or add it to .env.local for local development).')
+    throw new Error(
+      'DATABASE_URL_UNPOOLED or DATABASE_URL is required (or add one to .env.local for local development).',
+    )
   }
 
   try {
@@ -129,6 +129,11 @@ function getDatabaseConnectionString() {
   } catch {
     return databaseUrl
   }
+}
+
+function getDatabaseConnectionString() {
+  loadLocalEnvironment()
+  return selectMigrationDatabaseUrl()
 }
 
 async function ensureMigrationTable(client) {

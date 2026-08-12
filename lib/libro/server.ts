@@ -15,6 +15,11 @@ import {
 import { libroAgentRegistryAbi, libroProofRegistryAbi } from './contract'
 import { hexToUint256 } from './encoding'
 
+const SERVER_RPC_OPTIONS = {
+  timeoutMs: 5_000,
+  retryCount: 0,
+} as const
+
 export type LibroRegistrationTransactionReference = {
   transactionHash: string
   signalHash: string
@@ -29,7 +34,7 @@ export async function verifyLibroSignalRegistered(
   signalHash: string,
   config: LibroServerConfig = getLibroServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,
@@ -59,7 +64,12 @@ export async function verifyLibroRegistrationTransaction(
   }
 
   const outcomes = await Promise.all(config.rpcUrls.map(async (rpcUrl) => {
-    const client = createPublicClient({ transport: http(rpcUrl) })
+    const client = createPublicClient({
+      transport: http(rpcUrl, {
+        timeout: SERVER_RPC_OPTIONS.timeoutMs,
+        retryCount: SERVER_RPC_OPTIONS.retryCount,
+      }),
+    })
     try {
       const chainId = await client.getChainId()
       if (chainId !== LIBRO_WORLD_CHAIN_ID) {
@@ -91,7 +101,7 @@ export async function verifyLibroAgentRegistered(
   registrationHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,
@@ -105,7 +115,7 @@ export async function verifyLibroAgentDocumentRegistered(
   documentSignalHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,

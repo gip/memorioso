@@ -1,4 +1,4 @@
-// The proof-of-human seal — a circular "Signed by a human" badge built around
+// The Libro human-authorship seal — a circular "Signed by a human" badge built around
 // the 〄 mark. Used to celebrate a freshly signed publication.
 
 import { MemMark } from '@/components/MemMark'
@@ -18,7 +18,7 @@ export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: Hu
 
   return (
     <div
-      aria-label="Signed by a human — Proof of humanity"
+      aria-label="Signed by a human — Libro — Orb"
       className="relative shrink-0"
       role="img"
       style={{ width: size, height: size }}
@@ -31,7 +31,6 @@ export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: Hu
           />
         </defs>
         <circle cx={r} cy={r} r={r - 1} fill="none" stroke={BLURPLE_LINE} strokeWidth="1" />
-        <circle cx={r} cy={r} r={r - size * 0.085} fill="none" stroke={BLURPLE_LINE} strokeWidth="1" />
         {label && (
           <text
             fontSize={size * 0.092}
@@ -42,7 +41,7 @@ export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: Hu
             style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" }}
           >
             <textPath href={`#${id}`} startOffset="0%">
-              · Signed by a human · Proof of humanity&nbsp;
+              · Signed by a human · Libro · Orb&nbsp;
             </textPath>
           </text>
         )}

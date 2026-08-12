@@ -1,6 +1,12 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
+import {
+  cleanupExpiredExtensionData,
+  enforceExtensionAuthContextRateLimit,
+  ExtensionRateLimitError,
+  getExtensionRequestIpHash,
+} from '@/lib/extension-auth'
 import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { isWorldIdSessionId, WORLD_ID_ALLOWED_CREDENTIALS } from '@/lib/world-id/constants'
@@ -16,6 +22,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!isValidUserHandle(handle)) {
     return NextResponse.json({ success: false, message: 'A valid Memorioso handle is required' }, { status: 400 })
+  }
+
+  let requestIpHash: string | null
+  try {
+    requestIpHash = getExtensionRequestIpHash(request)
+    await cleanupExpiredExtensionData()
+    await enforceExtensionAuthContextRateLimit(handle, requestIpHash)
+  } catch (error) {
+    if (error instanceof ExtensionRateLimitError) {
+      return NextResponse.json({ success: false, message: error.message }, {
+        status: 429,
+        headers: { 'Retry-After': '600' },
+      })
+    }
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Extension abuse controls are unavailable',
+    }, { status: 500 })
   }
 
   let config
@@ -65,9 +89,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const rpContext = createRpContext(config)
   const attemptId = randomUUID()
   await pool.query(
-    `INSERT INTO libro_extension_auth_attempts (id, "userId", intent, nonce, expires_at)
-     VALUES ($1, $2, $3, $4, to_timestamp($5))`,
-    [attemptId, userId, intent, rpContext.nonce, rpContext.expires_at]
+    `INSERT INTO libro_extension_auth_attempts
+       (id, "userId", intent, requested_handle, request_ip_hash, nonce, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7))`,
+    [attemptId, userId, intent, handle, requestIpHash, rpContext.nonce, rpContext.expires_at]
   )
 
   return NextResponse.json({

@@ -2,6 +2,8 @@
   "manifest_version": 3,
   "name": "Libro Verifier",
   "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "incognito": "not_allowed",
   "description": "Verify and sign human-signed text through Libro without leaving the page.",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage", "contextMenus", "clipboardWrite"],
   "host_permissions": [

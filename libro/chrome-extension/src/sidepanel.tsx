@@ -8,6 +8,7 @@ import {
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
+import { LIBRO_INLINE_TEXT_MAX_LENGTH, normalizeReadableText } from '@libro/core'
 import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
@@ -35,12 +36,13 @@ type SigningContext = {
   [key: string]: unknown
 }
 type SigningJob = {
+  version: 1
   draftId: string
   signingId: string
   challengeId: string
-  normalizedText: string
-  author: { id: string; name: string; handle: string }
-  context: SigningContext
+  normalizedText?: string
+  author?: { id: string; name: string; handle: string }
+  context?: SigningContext
   stage: 'proof' | 'prepared' | 'relayed' | 'finalized'
   registrationId?: string
   transactionHash?: string
@@ -196,13 +198,13 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
-      if (areaName !== 'local') return
-      if (changes.libroAutoCapture) {
+      if (areaName === 'local' && changes.libroAutoCapture) {
         const auto = changes.libroAutoCapture.newValue as AutoCapture | undefined
         setFollowing(Boolean(auto?.enabled))
         setFollowStopped(auto?.enabled ? null : auto?.reason || null)
         if (!auto?.enabled) setFollowPaused(false)
       }
+      if (areaName !== 'session') return
       const nextCapture = changes.libroSigningCapture?.newValue as Capture | undefined
       if (!nextCapture) return
       setCapture(nextCapture)
@@ -223,9 +225,10 @@ export function App(): JSX.Element {
   const loginConstraints = useMemo(() => authContext
     ? anyCredential(...authContext.allowedCredentials.map((credential) => CredentialRequest(credential)))
     : null, [authContext])
-  const publicationConstraints = useMemo(() => job
+  const publicationConstraints = useMemo(() => job?.stage === 'proof' && job.context
     ? CredentialRequest('proof_of_human', { signal: job.context.signalText })
     : null, [job])
+  const normalizedTextLength = useMemo(() => normalizeReadableText(text).length, [text])
 
   async function beginAuth(event: FormEvent): Promise<void> {
     event.preventDefault()
@@ -324,7 +327,7 @@ export function App(): JSX.Element {
     try {
       const response = await send<{ job: SigningJob }>({ type: 'LIBRO_CREATE_SIGNATURE', text })
       setJob(response.job)
-      setText(response.job.normalizedText)
+      setText(response.job.normalizedText || text)
       setProofOpen(true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not create the signing request')
@@ -417,7 +420,7 @@ export function App(): JSX.Element {
           onError={(code) => setError(`World ID login failed: ${code}`)}
         />
       )}
-      {job && publicationConstraints && (
+      {job?.stage === 'proof' && job.context && publicationConstraints && (
         <WorldIdRequestDialog
           open={proofOpen}
           onOpenChange={setProofOpen}
@@ -523,10 +526,11 @@ export function App(): JSX.Element {
             <textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
-              maxLength={12_000}
               placeholder="Enter the text you wrote…"
             />
-            <div className="counter">{text.length.toLocaleString()} / 10,000 normalized characters</div>
+            <div className="counter">
+              {normalizedTextLength.toLocaleString()} / {LIBRO_INLINE_TEXT_MAX_LENGTH.toLocaleString()} normalized characters
+            </div>
             {following && !followPaused && (
               <p className="hint">Following this page. Moving to another editor or selecting new text updates this.</p>
             )}
@@ -543,7 +547,13 @@ export function App(): JSX.Element {
               </p>
             )}
             {capture?.message && !capture.text && <p className="hint">{capture.message}</p>}
-            <button className="primary" onClick={startSigning} disabled={!text.trim() || Boolean(progress)}>Review World ID proof</button>
+            <button
+              className="primary"
+              onClick={startSigning}
+              disabled={normalizedTextLength === 0 || normalizedTextLength > LIBRO_INLINE_TEXT_MAX_LENGTH || Boolean(progress)}
+            >
+              Review World ID proof
+            </button>
             <button onClick={refreshCapture}>Capture from page again</button>
             <label className="follow-toggle">
               <input
@@ -555,7 +565,7 @@ export function App(): JSX.Element {
             </label>
           </>}
           {job?.stage === 'proof' && <>
-            <p className="muted">Ready to prove that <strong>@{job.author.handle}</strong> wrote this text.</p>
+            <p className="muted">Ready to prove that <strong>@{job.author?.handle}</strong> wrote this text.</p>
             <blockquote>{job.normalizedText}</blockquote>
             <button className="primary" onClick={() => setProofOpen(true)} disabled={Boolean(progress)}>Continue with World ID</button>
             <button className="quiet" onClick={cancel}>Cancel signing</button>

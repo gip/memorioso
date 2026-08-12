@@ -39,13 +39,16 @@ top-level page for `.libro-human-signed` blocks and delimited plain-text Libro t
 checks their manifest, readable text, canonical signal hash, approved registry, and registration
 transaction on World Chain. Plain-text tags resolve their public manifest through the URL in the
 opening boundary; a legacy tag without a resolvable manifest is detected but not marked verified.
+The configured Memorioso API origin is trusted automatically. Any other manifest origin must be
+approved explicitly under **Manifest origins** in the extension options before it is fetched.
 
 ## World Chain endpoints
 
-Registration is checked against every enabled endpoint in parallel, and the popup names the ones
-that confirmed each block. One endpoint producing the registration event is enough; endpoints that
-prune old transactions cannot confirm older publications on their own, which is why more than one
-is queried.
+Registration is checked against every enabled World Chain endpoint in parallel, and the popup names
+the ones that confirmed each block. A matching receipt is shown as pending until it is at or below
+that endpoint's finalized head. One endpoint producing a finalized registration event is enough;
+endpoints that prune old transactions cannot confirm older publications on their own, which is why
+more than one is queried.
 
 Open **World Chain endpoints** in the popup (or the extension's options page) to disable a built-in
 endpoint or add your own. Added endpoints must be `https`, and Chrome asks for permission to contact
@@ -80,9 +83,11 @@ Memorioso sponsors the World Chain registration. The extension replaces an uncha
 editor target with the portable Libro tag; if the page changed or the source is unsupported, it
 copies the tag instead.
 
-The bearer credential is stored only in `chrome.storage.local` and used only by the extension service
-worker. Proof-complete publish identifiers are persisted so relay and finalization can be resumed.
-Apply the database migrations through `007_libro_extension_signup.sql` before using inline signing
+The bearer credential is stored only in trusted `chrome.storage.local` and used only by extension
+pages and the service worker. Captured text and pre-proof jobs use ephemeral session storage.
+Proof-complete publish identifiers are persisted so relay and finalization can be resumed without
+retaining the captured text or proof context. Incognito execution is disabled.
+Apply the database migrations through `008_libro_extension_hardening.sql` before using inline signing
 against an existing database.
 
 The green state covers readable DOM text only. It does not authenticate styling, links, images,

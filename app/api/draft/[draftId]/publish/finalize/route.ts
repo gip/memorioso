@@ -3,7 +3,10 @@ import { isHex } from 'viem'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroServerConfig } from '@/lib/libro/config'
-import { verifyLibroSignalRegistered } from '@/lib/libro/server'
+import {
+  LibroRegistrationReceiptMismatchError,
+  verifyLibroRegistrationTransaction,
+} from '@/lib/libro/server'
 import {
   assertChallengeCanBeUsed,
   assertDraftCanBePublished,
@@ -50,7 +53,8 @@ export async function PUT(
     }, { status: 400 })
   }
 
-  if (!isHex(transactionHash) || (submissionMethod === 'world_wallet' && (!userOpHash || !isHex(userOpHash)))) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(transactionHash) ||
+      (submissionMethod === 'world_wallet' && (!userOpHash || !isHex(userOpHash)))) {
     return NextResponse.json({
       success: false,
       message: 'Required transaction identifiers must be 0x-prefixed hex strings',
@@ -65,7 +69,7 @@ export async function PUT(
 
   try {
     const pendingResult = await client.query(
-      `SELECT signal_hash, transaction_hash, finalized_at, "publicationId"
+      `SELECT signal_hash, action_hash, chain_id, registry_address, transaction_hash, finalized_at, "publicationId"
        FROM libro_publish_registrations
        WHERE id = $1 AND "draftId" = $2 AND "userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
@@ -92,7 +96,32 @@ export async function PUT(
       }, { status: 400 })
     }
 
-    const isRegistered = await verifyLibroSignalRegistered(pendingResult.rows[0].signal_hash, libroConfig)
+    if (
+      pendingResult.rows[0].chain_id !== libroConfig.chainId ||
+      pendingResult.rows[0].registry_address.toLowerCase() !== libroConfig.registryAddress.toLowerCase()
+    ) {
+      return NextResponse.json({
+        success: false,
+        message: 'Libro registration configuration changed after preparation',
+      }, { status: 400 })
+    }
+
+    let isRegistered
+    try {
+      isRegistered = await verifyLibroRegistrationTransaction({
+        transactionHash,
+        signalHash: pendingResult.rows[0].signal_hash,
+        actionHash: pendingResult.rows[0].action_hash,
+        registryAddress: pendingResult.rows[0].registry_address,
+      }, libroConfig)
+    } catch (error) {
+      return NextResponse.json({
+        success: false,
+        message: error instanceof LibroRegistrationReceiptMismatchError
+          ? error.message
+          : 'World Chain could not confirm the Libro registration transaction',
+      }, { status: error instanceof LibroRegistrationReceiptMismatchError ? 400 : 502 })
+    }
     if (!isRegistered) {
       return NextResponse.json({
         success: false,

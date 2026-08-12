@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LibroChainUnavailableError,
   LibroNotRegisteredError,
+  LibroRegistrationPendingFinalityError,
   actionHashToHex,
   canonicalPublicationSignal,
   hashPublicationSignal,
@@ -69,6 +70,7 @@ function manifest(transactionHash = `0x${'11'.repeat(32)}`): LibroEmbedManifestV
 }
 
 const LABEL = 'worldchain-mainnet.gateway.tenderly.co'
+const RPC_URLS = ['https://rpc.example']
 
 function verification(value: LibroEmbedManifestV1): LibroChainVerification {
   return {
@@ -82,11 +84,11 @@ describe('libro verification cache', () => {
   it('queries the chain once and serves the confirmation from storage after that', async () => {
     const value = manifest()
     const verify = vi.fn(async () => verification(value))
-    const first = createCachedChainVerifier(['https://rpc.example'], verify)
+    const first = createCachedChainVerifier(RPC_URLS, verify)
 
     await expect(first(value)).resolves.toMatchObject({ verifiedBy: [LABEL] })
     // A fresh verifier proves the hit came from storage rather than the in-flight map.
-    const second = createCachedChainVerifier(['https://rpc.example'], verify)
+    const second = createCachedChainVerifier(RPC_URLS, verify)
     await expect(second(value)).resolves.toMatchObject({ verifiedBy: [LABEL] })
     expect(verify).toHaveBeenCalledTimes(1)
   })
@@ -94,10 +96,10 @@ describe('libro verification cache', () => {
   it('returns the caller manifest on a hit rather than anything it stored', async () => {
     const value = manifest()
     const verify = vi.fn(async () => verification(value))
-    await createCachedChainVerifier(['https://rpc.example'], verify)(value)
+    await createCachedChainVerifier(RPC_URLS, verify)(value)
 
     const live = manifest()
-    const result = await createCachedChainVerifier(['https://rpc.example'], verify)(live)
+    const result = await createCachedChainVerifier(RPC_URLS, verify)(live)
     expect(result.manifest).toBe(live)
     expect(JSON.stringify(store[VERIFICATION_CACHE_KEY])).not.toContain('publication_content')
   })
@@ -110,9 +112,9 @@ describe('libro verification cache', () => {
       ])
     })
 
-    await expect(createCachedChainVerifier(['https://rpc.example'], verify)(value))
+    await expect(createCachedChainVerifier(RPC_URLS, verify)(value))
       .rejects.toBeInstanceOf(LibroNotRegisteredError)
-    await expect(createCachedChainVerifier(['https://rpc.example'], verify)(value))
+    await expect(createCachedChainVerifier(RPC_URLS, verify)(value))
       .rejects.toThrow('No endpoint has this signal')
     expect(verify).toHaveBeenCalledTimes(1)
   })
@@ -122,9 +124,21 @@ describe('libro verification cache', () => {
     const verify = vi.fn()
       .mockRejectedValueOnce(new LibroChainUnavailableError('World Chain could not be reached', []))
       .mockResolvedValueOnce(verification(value))
-    const verifier = createCachedChainVerifier(['https://rpc.example'], verify)
+    const verifier = createCachedChainVerifier(RPC_URLS, verify)
 
     await expect(verifier(value)).rejects.toBeInstanceOf(LibroChainUnavailableError)
+    await expect(verifier(value)).resolves.toMatchObject({ verifiedBy: [LABEL] })
+    expect(verify).toHaveBeenCalledTimes(2)
+  })
+
+  it('never caches a mined registration before it reaches finality', async () => {
+    const value = manifest()
+    const verify = vi.fn()
+      .mockRejectedValueOnce(new LibroRegistrationPendingFinalityError('Pending finality', []))
+      .mockResolvedValueOnce(verification(value))
+    const verifier = createCachedChainVerifier(RPC_URLS, verify)
+
+    await expect(verifier(value)).rejects.toBeInstanceOf(LibroRegistrationPendingFinalityError)
     await expect(verifier(value)).resolves.toMatchObject({ verifiedBy: [LABEL] })
     expect(verify).toHaveBeenCalledTimes(2)
   })
@@ -132,7 +146,7 @@ describe('libro verification cache', () => {
   it('collapses concurrent verification of the same manifest into one chain query', async () => {
     const value = manifest()
     const verify = vi.fn(async () => verification(value))
-    const verifier = createCachedChainVerifier(['https://rpc.example'], verify)
+    const verifier = createCachedChainVerifier(RPC_URLS, verify)
 
     const results = await Promise.all([verifier(value), verifier(value), verifier(value)])
     expect(results).toHaveLength(3)
@@ -142,19 +156,29 @@ describe('libro verification cache', () => {
   it('keys on the cited transaction, so the same signal through another transaction is re-checked', async () => {
     const first = manifest()
     const second = manifest(`0x${'22'.repeat(32)}`)
-    expect(libroVerificationCacheKey(first)).not.toBe(libroVerificationCacheKey(second))
+    expect(libroVerificationCacheKey(first, RPC_URLS)).not.toBe(libroVerificationCacheKey(second, RPC_URLS))
 
     const verify = vi.fn(async (value: LibroEmbedManifestV1) => verification(value))
-    const verifier = createCachedChainVerifier(['https://rpc.example'], verify)
+    const verifier = createCachedChainVerifier(RPC_URLS, verify)
     await verifier(first)
     await verifier(second)
     expect(verify).toHaveBeenCalledTimes(2)
   })
 
+  it('does not reuse a confirmation after the trusted endpoint set changes', async () => {
+    const value = manifest()
+    const verify = vi.fn(async () => verification(value))
+    await createCachedChainVerifier(['https://first.example'], verify)(value)
+    await createCachedChainVerifier(['https://second.example'], verify)(value)
+    expect(verify).toHaveBeenCalledTimes(2)
+    expect(libroVerificationCacheKey(value, ['https://first.example']))
+      .not.toBe(libroVerificationCacheKey(value, ['https://second.example']))
+  })
+
   it('ignores entries that have expired and discards malformed ones', async () => {
     const value = manifest()
     store[VERIFICATION_CACHE_KEY] = {
-      [libroVerificationCacheKey(value)]: {
+      [libroVerificationCacheKey(value, RPC_URLS)]: {
         status: 'verified',
         outcomes: [],
         verifiedBy: ['stale-endpoint'],
@@ -164,7 +188,7 @@ describe('libro verification cache', () => {
     }
     const verify = vi.fn(async () => verification(value))
 
-    await expect(createCachedChainVerifier(['https://rpc.example'], verify)(value))
+    await expect(createCachedChainVerifier(RPC_URLS, verify)(value))
       .resolves.toMatchObject({ verifiedBy: [LABEL] })
     expect(verify).toHaveBeenCalledTimes(1)
     expect(store[VERIFICATION_CACHE_KEY]).not.toHaveProperty('junk-key')
@@ -172,7 +196,7 @@ describe('libro verification cache', () => {
 
   it('clears everything it stored', async () => {
     const value = manifest()
-    await createCachedChainVerifier(['https://rpc.example'], async () => verification(value))(value)
+    await createCachedChainVerifier(RPC_URLS, async () => verification(value))(value)
     expect(store[VERIFICATION_CACHE_KEY]).toBeDefined()
 
     await clearLibroVerificationCache()

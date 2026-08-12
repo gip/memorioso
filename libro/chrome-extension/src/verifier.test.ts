@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
+  LibroRegistrationPendingFinalityError,
   LibroRegistrationUnconfirmedError,
   actionHashToHex,
   canonicalPublicationSignal,
@@ -136,6 +137,8 @@ describe('extension candidate verification', () => {
       .resolves.toMatchObject({ status: 'not_registered' })
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationMismatchError('wrong receipt') }))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
+    await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationPendingFinalityError('unsafe block') }))
+      .resolves.toMatchObject({ status: 'pending_finality' })
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationUnconfirmedError('no receipt') }))
       .resolves.toMatchObject({ status: 'registration_unconfirmed' })
     await expect(verifyCandidate(candidate(), async () => { throw new Error('offline') }))

@@ -50,11 +50,12 @@ export class WorldIdAuthorAuthError extends Error {
   }
 }
 
-type WorldIdAuthorAuthInput = {
+export type WorldIdAuthorAuthInput = {
   idkitResult: unknown
   nonce: string
   intent: WorldIdAuthorAuthIntent
   profile?: unknown
+  expectedHandle?: string
   expectedUserId?: number
   expectedWorldIdSessionId?: string
 }
@@ -357,6 +358,13 @@ export async function verifyAndCreateOrConnectAuthor<TTransport = undefined>(
   const profile = input.intent === 'signup'
     ? normalizeWorldIdAuthorProfile(input.profile)
     : null
+  if (profile && input.expectedHandle && profile.handle !== normalizeUserHandle(input.expectedHandle)) {
+    throw new WorldIdAuthorAuthError(
+      'The signup handle does not match the requested extension handle',
+      400,
+      'HANDLE_MISMATCH',
+    )
+  }
   const identity = await verifyIdentity(input)
   const client = await pool.connect()
   let transactionOpen = false

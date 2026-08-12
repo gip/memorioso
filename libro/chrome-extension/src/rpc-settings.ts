@@ -55,7 +55,10 @@ export async function loadLibroRpcEndpoints(): Promise<LibroRpcEndpoint[]> {
   const endpoints = Array.isArray(saved) ? saved.filter(isEndpoint) : []
   const seen = new Set(endpoints.map((endpoint) => endpoint.url))
   const missingDefaults = defaultLibroRpcEndpoints().filter((endpoint) => !seen.has(endpoint.url))
-  return [...endpoints, ...missingDefaults]
+  const combined = [...endpoints, ...missingDefaults]
+  if (combined.some((endpoint) => endpoint.enabled)) return combined
+  // Repair legacy or synced settings created before the UI prevented disabling the final endpoint.
+  return combined.map((endpoint, index) => index === 0 ? { ...endpoint, enabled: true } : endpoint)
 }
 
 export async function saveLibroRpcEndpoints(endpoints: LibroRpcEndpoint[]): Promise<void> {
@@ -63,11 +66,10 @@ export async function saveLibroRpcEndpoints(endpoints: LibroRpcEndpoint[]): Prom
 }
 
 /**
- * Endpoints verification should query. Disabling everything would silently stop verification, so
- * an empty selection falls back to the built-in list rather than reporting every block unknown.
+ * Endpoints verification should query. `loadLibroRpcEndpoints` repairs a legacy all-off selection
+ * to exactly one endpoint rather than silently re-enabling the entire built-in quorum.
  */
 export async function enabledLibroRpcUrls(): Promise<string[]> {
   const endpoints = await loadLibroRpcEndpoints()
-  const enabled = endpoints.filter((endpoint) => endpoint.enabled).map((endpoint) => endpoint.url)
-  return enabled.length > 0 ? enabled : [...LIBRO_WORLD_CHAIN_RPC_URLS]
+  return endpoints.filter((endpoint) => endpoint.enabled).map((endpoint) => endpoint.url)
 }

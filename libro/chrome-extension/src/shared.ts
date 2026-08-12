@@ -20,6 +20,7 @@ export type LibroVerificationStatus =
   | 'manifest_missing'
   | 'unsupported_registry'
   | 'not_registered'
+  | 'pending_finality'
   | 'registration_unconfirmed'
   | 'network_unavailable'
   | 'stale'
@@ -30,6 +31,7 @@ export type LibroVerificationStatus =
  */
 const INDETERMINATE_STATUSES: ReadonlySet<LibroVerificationStatus> = new Set([
   'manifest_missing',
+  'pending_finality',
   'registration_unconfirmed',
   'network_unavailable',
   'stale',
@@ -42,7 +44,7 @@ export function isIndeterminateStatus(status: LibroVerificationStatus): boolean 
 /** What one World Chain endpoint reported, so the panel can show the whole quorum. */
 export type LibroVerificationSource = {
   label: string
-  status: 'verified' | 'not_registered' | 'mismatch' | 'unconfirmed' | 'unavailable'
+  status: 'verified' | 'pending_finality' | 'not_registered' | 'mismatch' | 'unconfirmed' | 'unavailable'
   detail: string
 }
 

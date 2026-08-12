@@ -17,7 +17,12 @@ export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: Hu
   const pathR = r - (label ? size * 0.135 : 0)
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div
+      aria-label="Signed by a human — Proof of humanity"
+      className="relative shrink-0"
+      role="img"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
         <defs>
           <path

@@ -12,12 +12,13 @@ h1 { margin: 0; font-size: 17px; }
 header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .summary { border-radius: 8px; background: #e4e4e7; padding: 10px 12px; font-weight: 600; }
 .summary.success { background: #dcfce7; color: #166534; }
+.summary.indeterminate { background: #fef3c7; color: #92400e; }
 .summary.error { background: #fee2e2; color: #991b1b; }
 .results { display: grid; gap: 8px; margin-top: 10px; }
 .result { border: 1px solid #d4d4d8; border-left-width: 4px; border-radius: 8px; background: white; padding: 9px 10px; }
 .result.verified { border-left-color: #16a34a; }
-.result.network_unavailable, .result.registration_unconfirmed, .result.stale { border-left-color: #d97706; }
-.result:not(.verified):not(.network_unavailable):not(.registration_unconfirmed):not(.stale) { border-left-color: #dc2626; }
+.result.indeterminate { border-left-color: #d97706; }
+.result:not(.verified):not(.indeterminate) { border-left-color: #dc2626; }
 .result-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .result-heading code { color: #71717a; font-size: 11px; }
 .metadata { margin-top: 2px; color: #4f46e5; font-size: 12px; }
@@ -27,7 +28,7 @@ header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .source { display: flex; justify-content: space-between; gap: 8px; color: #71717a; font-size: 11px; }
 .source em { font-style: normal; }
 .source.verified em { color: #166534; }
-.source.unconfirmed em, .source.unavailable em { color: #b45309; }
+.source.pending_finality em, .source.unconfirmed em, .source.unavailable em { color: #b45309; }
 .source.not_registered em, .source.mismatch em { color: #991b1b; }
 button { width: 100%; margin-top: 12px; border: 1px solid #d4d4d8; border-radius: 8px; background: white; padding: 8px; cursor: pointer; font-weight: 600; }
 button:hover { background: #f4f4f5; }

@@ -14,6 +14,7 @@ import {
   type Abi,
   type Address,
   type Hex,
+  type TransactionReceipt,
 } from 'viem'
 import { worldchain } from 'viem/chains'
 
@@ -22,6 +23,7 @@ export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
 export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
+export const LIBRO_INLINE_TEXT_MAX_LENGTH = 10_000 as const
 /**
  * Ordered World Chain endpoints. Verification queries all of them, so the list is a quorum
  * rather than a preference: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction
@@ -395,6 +397,8 @@ export class LibroChainVerificationError extends Error {
 export class LibroUnsupportedRegistryError extends LibroChainVerificationError {}
 export class LibroNotRegisteredError extends LibroChainVerificationError {}
 export class LibroRegistrationMismatchError extends LibroChainVerificationError {}
+/** The exact registration exists, but its L2 block has not inherited Ethereum finality yet. */
+export class LibroRegistrationPendingFinalityError extends LibroChainVerificationError {}
 /** The signal is registered, but the transaction the manifest cites cannot be found on chain. */
 export class LibroRegistrationUnconfirmedError extends LibroChainVerificationError {}
 /** No endpoint could be reached, so the registration is unknown rather than wrong. */
@@ -478,7 +482,13 @@ export function createLibroPublicClient(
   })
 }
 
-export type LibroRpcStatus = 'verified' | 'not_registered' | 'mismatch' | 'unconfirmed' | 'unavailable'
+export type LibroRpcStatus =
+  | 'verified'
+  | 'pending_finality'
+  | 'not_registered'
+  | 'mismatch'
+  | 'unconfirmed'
+  | 'unavailable'
 
 export type LibroRpcOutcome = {
   rpcUrl: string
@@ -494,6 +504,30 @@ export type LibroChainVerification = {
   verifiedBy: string[]
 }
 
+export type LibroRegistrationReference = LibroEmbedManifestV1['registration']
+
+/** Validates that one successful receipt emitted the exact registry event cited by a manifest. */
+export function assertLibroRegistrationReceipt(
+  registration: LibroRegistrationReference,
+  receipt: TransactionReceipt
+): void {
+  if (receipt.status !== 'success') {
+    throw new Error('Registration transaction was not successful')
+  }
+  const events = parseEventLogs({
+    abi: libroProofRegistryAbi,
+    eventName: 'SignalRegistered',
+    logs: receipt.logs,
+    strict: true,
+  })
+  const matchingEvent = events.some((event) =>
+    event.address.toLowerCase() === registration.registry_address.toLowerCase() &&
+    event.args.signalHash === BigInt(registration.signal_hash) &&
+    event.args.actionHash === BigInt(registration.action_hash)
+  )
+  if (!matchingEvent) throw new Error('Registration event does not match the manifest')
+}
+
 function describeChainError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
   const headline = message.split('\n', 1)[0].trim()
@@ -507,6 +541,15 @@ async function verifyLibroManifestAtRpc(
   const outcome = (status: LibroRpcStatus, detail: string): LibroRpcOutcome =>
     ({ rpcUrl, label: libroRpcLabel(rpcUrl), status, detail })
   const client = createPublicClient({ chain: worldchain, transport: http(rpcUrl) })
+
+  try {
+    const chainId = await client.getChainId()
+    if (chainId !== LIBRO_WORLD_CHAIN_ID) {
+      return outcome('mismatch', `RPC reports chain id ${chainId}, expected ${LIBRO_WORLD_CHAIN_ID}`)
+    }
+  } catch (error) {
+    return outcome('unavailable', describeChainError(error))
+  }
 
   let registered: boolean
   try {
@@ -530,22 +573,24 @@ async function verifyLibroManifestAtRpc(
     }
     return outcome('unavailable', describeChainError(error))
   }
-  if (receipt.status !== 'success') {
-    return outcome('mismatch', 'Registration transaction was not successful')
+  try {
+    assertLibroRegistrationReceipt(manifest.registration, receipt)
+  } catch (error) {
+    return outcome('mismatch', error instanceof Error ? error.message : 'Registration receipt does not match the manifest')
   }
 
-  const events = parseEventLogs({
-    abi: libroProofRegistryAbi,
-    eventName: 'SignalRegistered',
-    logs: receipt.logs,
-    strict: true,
-  })
-  const matchingEvent = events.some((event) =>
-    event.address.toLowerCase() === manifest.registration.registry_address.toLowerCase() &&
-    event.args.signalHash === BigInt(manifest.registration.signal_hash) &&
-    event.args.actionHash === BigInt(manifest.registration.action_hash)
-  )
-  if (!matchingEvent) return outcome('mismatch', 'Registration event does not match the manifest')
+  let finalizedBlock
+  try {
+    finalizedBlock = await client.getBlock({ blockTag: 'finalized' })
+  } catch (error) {
+    return outcome('unavailable', describeChainError(error))
+  }
+  if (receipt.blockNumber > finalizedBlock.number) {
+    return outcome(
+      'pending_finality',
+      `Registered in block ${receipt.blockNumber}; finalized head is ${finalizedBlock.number}`
+    )
+  }
 
   return outcome('verified', `Registered in block ${receipt.blockNumber}`)
 }
@@ -575,6 +620,9 @@ export async function verifyLibroManifestOnChain(
   // an endpoint that simply could not answer.
   if (outcomes.some((item) => item.status === 'mismatch')) {
     throw new LibroRegistrationMismatchError(detailFor('mismatch'), outcomes)
+  }
+  if (outcomes.some((item) => item.status === 'pending_finality')) {
+    throw new LibroRegistrationPendingFinalityError(detailFor('pending_finality'), outcomes)
   }
   if (outcomes.some((item) => item.status === 'not_registered')) {
     throw new LibroNotRegisteredError(detailFor('not_registered'), outcomes)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
-import { getExtensionSession, revokeExtensionSession } from '@/lib/extension-auth'
+import { getExtensionSession, revokeExtensionSessionAndCancelDrafts } from '@/lib/extension-auth'
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const session = await getExtensionSession(request)
@@ -27,6 +27,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
-  const revoked = await revokeExtensionSession(request)
-  return NextResponse.json({ success: true, revoked })
+  const result = await revokeExtensionSessionAndCancelDrafts(request)
+  return NextResponse.json({ success: true, ...result })
 }

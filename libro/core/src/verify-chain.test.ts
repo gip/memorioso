@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { keccak256, toBytes, toHex, TransactionReceiptNotFoundError } from 'viem'
 
 type EndpointBehaviour = {
+  chainId?: number
   registered?: boolean
   receipt?: 'match' | 'wrong-signal' | 'reverted' | 'missing'
+  finalizedBlock?: bigint
   failWith?: string
 }
 
@@ -19,6 +21,11 @@ vi.mock('viem', async () => {
       const url = transport.__url
       const behaviour = () => behaviours.get(url) ?? {}
       return {
+        async getChainId() {
+          const { chainId = 480, failWith } = behaviour()
+          if (failWith) throw new Error(failWith)
+          return chainId
+        },
         async readContract() {
           queried.push(url)
           const { failWith, registered = true } = behaviour()
@@ -42,6 +49,11 @@ vi.mock('viem', async () => {
             }],
           }
         },
+        async getBlock() {
+          const { finalizedBlock = 32887703n, failWith } = behaviour()
+          if (failWith) throw new Error(failWith)
+          return { number: finalizedBlock }
+        },
       }
     },
   }
@@ -50,6 +62,7 @@ vi.mock('viem', async () => {
 const {
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
+  LibroRegistrationPendingFinalityError,
   LibroRegistrationUnconfirmedError,
   LibroChainUnavailableError,
   actionHashToHex,
@@ -153,6 +166,24 @@ describe('Libro on-chain verification across endpoints', () => {
     const urls = configure({ [PRUNED]: { failWith: 'HTTP request failed: 429' }, [FRESH]: { receipt: 'match' } })
     const verification = await verifyLibroManifestOnChain(manifest(), urls)
     expect(verification.verifiedBy).toEqual(['fresh.example'])
+  })
+
+  it('reports a matching receipt as pending until its block is finalized', async () => {
+    const urls = configure({ [FRESH]: { receipt: 'match', finalizedBlock: 32887702n } })
+    await expect(verifyLibroManifestOnChain(manifest(), urls))
+      .rejects.toBeInstanceOf(LibroRegistrationPendingFinalityError)
+    await expect(verifyLibroManifestOnChain(manifest(), urls)).rejects.toMatchObject({
+      outcomes: [{ status: 'pending_finality' }],
+    })
+  })
+
+  it('rejects an endpoint that serves a different chain', async () => {
+    const urls = configure({ [FRESH]: { chainId: 1 } })
+    await expect(verifyLibroManifestOnChain(manifest(), urls))
+      .rejects.toBeInstanceOf(LibroRegistrationMismatchError)
+    await expect(verifyLibroManifestOnChain(manifest(), urls)).rejects.toMatchObject({
+      outcomes: [{ status: 'mismatch', detail: expect.stringContaining('chain id 1') }],
+    })
   })
 
   it('ranks a contradiction above an absence', async () => {

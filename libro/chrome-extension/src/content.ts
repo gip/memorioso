@@ -1,4 +1,5 @@
 import { isIndeterminateStatus, type LibroCandidate, type LibroVerificationResult } from './shared'
+import { mutationMayAffectLibro } from './auto-discovery'
 import {
   captureCurrentText,
   replaceCapture,
@@ -63,6 +64,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     captures: Map<string, CaptureTarget>
     watcher?: CaptureWatcher
     autoWatcher?: AutoCaptureController
+    discoveryObserver?: MutationObserver
     operationId?: string
   }
 
@@ -105,6 +107,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       captures: previous?.captures || new Map(),
       watcher: previous?.watcher,
       autoWatcher: previous?.autoWatcher,
+      discoveryObserver: previous?.discoveryObserver,
       operationId: previous?.operationId,
     }
   }
@@ -449,6 +452,20 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         sendResponse(replaceCapture(state.captures, typed.operationId, typed.replacement))
       }
     })
+
+    let discoveryTimer = 0
+    const discoveryObserver = new MutationObserver((mutations) => {
+      if (!mutationMayAffectLibro(mutations)) return
+      window.clearTimeout(discoveryTimer)
+      discoveryTimer = window.setTimeout(() => {
+        chrome.runtime.sendMessage({
+          type: 'LIBRO_PAGE_MAY_HAVE_LIBRO',
+          mayContainLibro: pageMayContainLibro(),
+        }).catch(() => undefined)
+      }, 400)
+    })
+    discoveryObserver.observe(document.documentElement, { childList: true, characterData: true, subtree: true })
+    contentGlobal.__libroVerifierContentState.discoveryObserver = discoveryObserver
 
     // Registered injection has no caller waiting on a scan, so a page that might hold something
     // announces itself and the service worker decides whether automatic verification is on. Sent

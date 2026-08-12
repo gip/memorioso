@@ -1,5 +1,11 @@
 import { AUTO_SCAN_ORIGINS } from './auto-scan'
 import {
+  loadApprovedManifestOrigins,
+  manifestOriginPattern,
+  normalizeManifestOrigin,
+  saveApprovedManifestOrigins,
+} from './manifest-access'
+import {
   defaultLibroRpcEndpoints,
   isDefaultLibroRpcUrl,
   libroRpcHost,
@@ -9,6 +15,9 @@ import {
   saveLibroRpcEndpoints,
   type LibroRpcEndpoint,
 } from './rpc-settings'
+import { clearLibroVerificationCache } from './verification-cache'
+
+const API_ORIGIN = new URL(import.meta.env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz').origin
 
 const list = document.querySelector<HTMLElement>('#endpoints')
 const form = document.querySelector<HTMLFormElement>('#add')
@@ -17,8 +26,14 @@ const message = document.querySelector<HTMLElement>('#message')
 const reset = document.querySelector<HTMLButtonElement>('#reset')
 const autoScan = document.querySelector<HTMLInputElement>('#auto-scan')
 const autoMessage = document.querySelector<HTMLElement>('#auto-message')
+const manifestList = document.querySelector<HTMLElement>('#manifest-origins')
+const manifestForm = document.querySelector<HTMLFormElement>('#add-manifest-origin')
+const manifestInput = document.querySelector<HTMLInputElement>('#manifest-origin')
+const manifestMessage = document.querySelector<HTMLElement>('#manifest-message')
+const apiOrigin = document.querySelector<HTMLElement>('#api-origin')
 
 let endpoints: LibroRpcEndpoint[] = []
+let manifestOrigins: string[] = []
 
 function say(text: string, ok = false): void {
   if (!message) return
@@ -34,7 +49,23 @@ function sayAuto(text: string, ok = false): void {
 
 async function persist(): Promise<void> {
   await saveLibroRpcEndpoints(endpoints)
+  await clearLibroVerificationCache()
   render()
+}
+
+function sayManifest(text: string, ok = false): void {
+  if (!manifestMessage) return
+  manifestMessage.textContent = text
+  manifestMessage.className = ok ? 'message success' : 'message'
+}
+
+function originUsedByCustomRpc(origin: string): boolean {
+  return endpoints.some((endpoint) => !isDefaultLibroRpcUrl(endpoint.url) && new URL(endpoint.url).origin === origin)
+}
+
+async function removeOriginPermissionIfUnused(origin: string): Promise<void> {
+  if (manifestOrigins.includes(origin) || originUsedByCustomRpc(origin)) return
+  await chrome.permissions.remove({ origins: [manifestOriginPattern(origin)] }).catch(() => undefined)
 }
 
 function renderEndpoint(endpoint: LibroRpcEndpoint): HTMLElement {
@@ -46,10 +77,14 @@ function renderEndpoint(endpoint: LibroRpcEndpoint): HTMLElement {
   toggle.checked = endpoint.enabled
   toggle.id = `toggle-${endpoint.url}`
   toggle.addEventListener('change', async () => {
+    if (!toggle.checked && endpoint.enabled && endpoints.filter((item) => item.enabled).length === 1) {
+      toggle.checked = true
+      say('Keep at least one World Chain endpoint enabled.')
+      return
+    }
     endpoints = endpoints.map((item) => item.url === endpoint.url ? { ...item, enabled: toggle.checked } : item)
-    const enabled = endpoints.filter((item) => item.enabled).length
     await persist()
-    say(enabled === 0 ? 'All endpoints are off, so the built-in list is used instead.' : '', enabled > 0)
+    say('', true)
   })
 
   const label = document.createElement('label')
@@ -77,10 +112,13 @@ function renderEndpoint(endpoint: LibroRpcEndpoint): HTMLElement {
   remove.textContent = 'Remove'
   remove.style.marginLeft = 'auto'
   remove.addEventListener('click', async () => {
+    if (endpoint.enabled && endpoints.filter((item) => item.enabled).length === 1) {
+      say('Keep at least one World Chain endpoint enabled.')
+      return
+    }
     endpoints = endpoints.filter((item) => item.url !== endpoint.url)
     await persist()
-    // Best effort: the origin may still be granted for another endpoint on the same host.
-    await chrome.permissions.remove({ origins: [libroRpcOriginPattern(endpoint.url)] }).catch(() => undefined)
+    await removeOriginPermissionIfUnused(new URL(endpoint.url).origin)
     say(`Removed ${libroRpcHost(endpoint.url)}.`, true)
   })
   item.append(remove)
@@ -122,9 +160,67 @@ form?.addEventListener('submit', async (event) => {
 })
 
 reset?.addEventListener('click', async () => {
+  const customOrigins = [...new Set(endpoints
+    .filter((endpoint) => !isDefaultLibroRpcUrl(endpoint.url))
+    .map((endpoint) => new URL(endpoint.url).origin))]
   endpoints = defaultLibroRpcEndpoints()
   await persist()
+  await Promise.all(customOrigins.map(removeOriginPermissionIfUnused))
   say('Restored the built-in endpoints.', true)
+})
+
+function renderManifestOrigins(): void {
+  if (!manifestList) return
+  manifestList.replaceChildren(...manifestOrigins.map((origin) => {
+    const item = document.createElement('li')
+    item.className = 'endpoint'
+    const label = document.createElement('span')
+    label.className = 'url'
+    label.textContent = origin
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.textContent = 'Remove'
+    remove.style.marginLeft = 'auto'
+    remove.addEventListener('click', async () => {
+      manifestOrigins = manifestOrigins.filter((candidate) => candidate !== origin)
+      await saveApprovedManifestOrigins(manifestOrigins)
+      renderManifestOrigins()
+      await removeOriginPermissionIfUnused(origin)
+      sayManifest(`Removed ${origin}.`, true)
+    })
+    item.append(label, remove)
+    return item
+  }))
+}
+
+manifestForm?.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  if (!manifestInput) return
+  let origin: string
+  try {
+    origin = normalizeManifestOrigin(manifestInput.value)
+  } catch (error) {
+    sayManifest(error instanceof Error ? error.message : 'That origin could not be added')
+    return
+  }
+  if (origin === API_ORIGIN) {
+    sayManifest('The Memorioso API origin is already trusted.')
+    return
+  }
+  if (manifestOrigins.includes(origin)) {
+    sayManifest('That manifest origin is already allowed.')
+    return
+  }
+  const granted = await chrome.permissions.request({ origins: [manifestOriginPattern(origin)] }).catch(() => false)
+  if (!granted) {
+    sayManifest('Permission to contact that origin was declined.')
+    return
+  }
+  manifestOrigins = [...manifestOrigins, origin].sort()
+  await saveApprovedManifestOrigins(manifestOrigins)
+  renderManifestOrigins()
+  manifestInput.value = ''
+  sayManifest(`Allowed manifests from ${origin}.`, true)
 })
 
 autoScan?.addEventListener('change', async () => {
@@ -167,9 +263,13 @@ chrome.runtime.sendMessage({ type: 'LIBRO_GET_AUTO_SCAN' })
   })
   .catch(() => sayAuto('The automatic verification setting could not be read'))
 
-loadLibroRpcEndpoints()
-  .then((loaded) => {
-    endpoints = loaded
+if (apiOrigin) apiOrigin.textContent = `Trusted by default: ${API_ORIGIN}`
+
+Promise.all([loadLibroRpcEndpoints(), loadApprovedManifestOrigins()])
+  .then(([loadedEndpoints, loadedManifestOrigins]) => {
+    endpoints = loadedEndpoints
+    manifestOrigins = loadedManifestOrigins
     render()
+    renderManifestOrigins()
   })
-  .catch(() => say('Saved endpoints could not be read'))
+  .catch(() => say('Saved verification settings could not be read'))

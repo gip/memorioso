@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import {
   createExtensionToken,
+  cleanupExpiredExtensionData,
   EXTENSION_SESSION_MAX_AGE_SECONDS,
+  EXTENSION_AUTH_VERIFY_LIMIT,
   hashExtensionToken,
 } from '@/lib/extension-auth'
 import {
@@ -23,11 +25,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, message: 'Login attempt and World ID result are required' }, { status: 400 })
   }
 
+  try {
+    await cleanupExpiredExtensionData()
+  } catch {
+    return NextResponse.json({
+      success: false,
+      message: 'Extension abuse controls are unavailable',
+    }, { status: 500 })
+  }
   const attemptResult = await pool.query(
     `SELECT
        a.id,
        a."userId",
        a.intent,
+       a.requested_handle,
+       a.verification_attempts,
        a.nonce,
        a.expires_at,
        a.consumed_at,
@@ -45,6 +57,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (attempt.consumed_at || new Date(attempt.expires_at) <= new Date()) {
     return NextResponse.json({ success: false, message: 'Extension login attempt has expired or was already used' }, { status: 400 })
   }
+  if (Number(attempt.verification_attempts || 0) >= EXTENSION_AUTH_VERIFY_LIMIT) {
+    return NextResponse.json({
+      success: false,
+      message: 'Too many verification attempts. Start a new extension login.',
+    }, { status: 429, headers: { 'Retry-After': '600' } })
+  }
+
+  const incremented = await pool.query(
+    `UPDATE libro_extension_auth_attempts
+     SET verification_attempts = verification_attempts + 1
+     WHERE id = $1
+       AND consumed_at IS NULL
+       AND expires_at > CURRENT_TIMESTAMP
+       AND verification_attempts < $2
+     RETURNING id`,
+    [attempt.id, EXTENSION_AUTH_VERIFY_LIMIT]
+  )
+  if (incremented.rows.length === 0) {
+    return NextResponse.json({
+      success: false,
+      message: 'Too many verification attempts or the login attempt expired.',
+    }, { status: 429, headers: { 'Retry-After': '600' } })
+  }
 
   const intent: WorldIdAuthorAuthIntent = attempt.intent === 'signup' ? 'signup' : 'login'
   const token = createExtensionToken()
@@ -57,6 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       nonce: attempt.nonce,
       intent,
       profile: body.profile,
+      expectedHandle: intent === 'signup' ? attempt.requested_handle : undefined,
       expectedUserId: intent === 'login' ? attempt.userId : undefined,
       expectedWorldIdSessionId: intent === 'login'
         ? attempt.world_id_session_id

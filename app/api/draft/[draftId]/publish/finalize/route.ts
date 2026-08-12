@@ -9,7 +9,10 @@ import {
 } from '@/lib/db/resilience'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroServerConfig } from '@/lib/libro/config'
-import { verifyLibroSignalRegistered } from '@/lib/libro/server'
+import {
+  LibroRegistrationReceiptMismatchError,
+  verifyLibroRegistrationTransaction,
+} from '@/lib/libro/server'
 import {
   assertChallengeCanBeUsed,
   assertDraftCanBePublished,
@@ -116,7 +119,8 @@ export async function PUT(
     }, { status: 400 })
   }
 
-  if (!isHex(transactionHash) || (submissionMethod === 'world_wallet' && (!userOpHash || !isHex(userOpHash)))) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(transactionHash) ||
+      (submissionMethod === 'world_wallet' && (!userOpHash || !isHex(userOpHash)))) {
     return NextResponse.json({
       success: false,
       message: 'Required transaction identifiers must be 0x-prefixed hex strings',
@@ -133,6 +137,9 @@ export async function PUT(
     const pendingResult = await pool.query(
       `SELECT
          r.signal_hash,
+         r.action_hash,
+         r.chain_id,
+         r.registry_address,
          r.transaction_hash,
          r.finalized_at,
          r."publicationId",
@@ -171,8 +178,34 @@ export async function PUT(
       }, { status: 400 })
     }
 
+    if (
+      pending.chain_id !== libroConfig.chainId ||
+      pending.registry_address.toLowerCase() !== libroConfig.registryAddress.toLowerCase()
+    ) {
+      return NextResponse.json({
+        success: false,
+        message: 'Libro registration configuration changed after preparation',
+      }, { status: 400 })
+    }
+
     stage = 'chain_verify'
-    const isRegistered = await verifyLibroSignalRegistered(pending.signal_hash, libroConfig)
+    let isRegistered
+    try {
+      isRegistered = await verifyLibroRegistrationTransaction({
+        transactionHash,
+        signalHash: pending.signal_hash,
+        actionHash: pending.action_hash,
+        registryAddress: pending.registry_address,
+      }, libroConfig)
+    } catch (error) {
+      if (error instanceof LibroRegistrationReceiptMismatchError) {
+        return NextResponse.json({
+          success: false,
+          message: error.message,
+        }, { status: 400 })
+      }
+      throw error
+    }
     if (!isRegistered) {
       return NextResponse.json({
         success: false,

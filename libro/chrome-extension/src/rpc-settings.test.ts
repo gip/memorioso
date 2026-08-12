@@ -49,9 +49,9 @@ describe('extension RPC settings', () => {
     await expect(enabledLibroRpcUrls()).resolves.toEqual([LIBRO_WORLD_CHAIN_RPC_URLS[0]])
   })
 
-  it('falls back to the built-in list when everything is disabled', async () => {
+  it('repairs a legacy all-disabled selection without silently enabling every endpoint', async () => {
     await saveLibroRpcEndpoints(LIBRO_WORLD_CHAIN_RPC_URLS.map((url) => ({ url, enabled: false })))
-    await expect(enabledLibroRpcUrls()).resolves.toEqual([...LIBRO_WORLD_CHAIN_RPC_URLS])
+    await expect(enabledLibroRpcUrls()).resolves.toEqual([LIBRO_WORLD_CHAIN_RPC_URLS[0]])
   })
 
   it('discards malformed stored entries', async () => {

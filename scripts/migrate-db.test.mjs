@@ -66,7 +66,7 @@ describe('database migration runner', () => {
 
   it('ships the one-finalized-registration partial unique index in migration and schema', async () => {
     const [migration, schema] = await Promise.all([
-      readFile(new URL('../lib/db/migrations/008_one_finalized_publication_per_draft.sql', import.meta.url), 'utf8'),
+      readFile(new URL('../lib/db/migrations/009_one_finalized_publication_per_draft.sql', import.meta.url), 'utf8'),
       readFile(new URL('../lib/db/schema.sql', import.meta.url), 'utf8'),
     ])
 

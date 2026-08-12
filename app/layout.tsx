@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   description: 'A protocol to protect and preserve human-created texts, stories, novels, publications, articles, and pictures.',
   icons: {
     icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
   },
   openGraph: {
     title: 'Memorioso',

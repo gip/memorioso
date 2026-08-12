@@ -148,6 +148,19 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
     }
   }
 
+  /**
+   * Pre-filter so automatic scanning can run on every page without paying for a full scan on the
+   * overwhelming majority that hold nothing. The selector match costs one tree query, and
+   * `textContent` reads the DOM without forcing the layout that `innerText` below does.
+   *
+   * This can only be more permissive than the scan it guards: embeds carry the class, and a text
+   * tag always contains the literal "Libro" that `textScanTargets` already keys on.
+   */
+  function pageMayContainLibro(): boolean {
+    if (document.querySelector('.libro-human-signed, script[type="application/libro+json"]')) return true
+    return document.documentElement?.textContent?.includes('Libro') === true
+  }
+
   function textScanTargets(): HTMLElement[] {
     const body = document.body
     if (!body) return []
@@ -204,6 +217,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
 
   function scan(): LibroCandidate[] {
     clearDecorations(true)
+    if (!pageMayContainLibro()) return []
     const embeds = Array.from(document.querySelectorAll<HTMLElement>('.libro-human-signed')).map((block, index): LibroCandidate => {
       const blockId = `${Date.now()}-${index}-${crypto.randomUUID()}`
       addBlockId(block, blockId)
@@ -304,8 +318,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       addBadge(block, {
         ...result,
         status: 'stale',
-        label: 'Changed — rescan',
-        detail: 'The page changed after verification',
+        label: 'Changed',
+        detail: 'The page changed after verification. Reopen the Libro popup to check it again.',
       })
       chrome.runtime.sendMessage({ type: 'LIBRO_RESULT_STALE' }).catch(() => undefined)
     })
@@ -339,8 +353,8 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         ? {
             ...result,
             status: 'stale',
-            label: 'Changed — rescan',
-            detail: 'The page changed while verification was running',
+            label: 'Changed',
+            detail: 'The page changed while verification was running. Reopen the Libro popup to check it again.',
           }
         : result
       if (changedDuringVerification) staleBlockIds.push(result.blockId)
@@ -435,5 +449,12 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
         sendResponse(replaceCapture(state.captures, typed.operationId, typed.replacement))
       }
     })
+
+    // Registered injection has no caller waiting on a scan, so a page that might hold something
+    // announces itself and the service worker decides whether automatic verification is on. Sent
+    // only on first initialization, so re-injecting over an existing content script stays silent.
+    if (pageMayContainLibro()) {
+      chrome.runtime.sendMessage({ type: 'LIBRO_PAGE_MAY_HAVE_LIBRO' }).catch(() => undefined)
+    }
   }
 }

@@ -1,3 +1,4 @@
+import { AUTO_SCAN_ORIGINS } from './auto-scan'
 import {
   defaultLibroRpcEndpoints,
   isDefaultLibroRpcUrl,
@@ -14,6 +15,8 @@ const form = document.querySelector<HTMLFormElement>('#add')
 const input = document.querySelector<HTMLInputElement>('#url')
 const message = document.querySelector<HTMLElement>('#message')
 const reset = document.querySelector<HTMLButtonElement>('#reset')
+const autoScan = document.querySelector<HTMLInputElement>('#auto-scan')
+const autoMessage = document.querySelector<HTMLElement>('#auto-message')
 
 let endpoints: LibroRpcEndpoint[] = []
 
@@ -21,6 +24,12 @@ function say(text: string, ok = false): void {
   if (!message) return
   message.textContent = text
   message.className = ok ? 'message success' : 'message'
+}
+
+function sayAuto(text: string, ok = false): void {
+  if (!autoMessage) return
+  autoMessage.textContent = text
+  autoMessage.className = ok ? 'message success' : 'message'
 }
 
 async function persist(): Promise<void> {
@@ -117,6 +126,46 @@ reset?.addEventListener('click', async () => {
   await persist()
   say('Restored the built-in endpoints.', true)
 })
+
+autoScan?.addEventListener('change', async () => {
+  const wanted = autoScan.checked
+  // Must run inside the change gesture: Chrome rejects permission requests made after an await.
+  const granted = wanted
+    ? await chrome.permissions.request({ origins: AUTO_SCAN_ORIGINS }).catch(() => false)
+    : false
+
+  if (wanted && !granted) {
+    autoScan.checked = false
+    sayAuto('Permission to read pages was declined, so automatic verification stays off')
+    return
+  }
+
+  const response = await chrome.runtime.sendMessage({
+    type: 'LIBRO_SET_AUTO_SCAN',
+    enabled: wanted,
+  }).catch(() => null) as { enabled?: boolean } | null
+  const enabled = response?.enabled === true
+  autoScan.checked = enabled
+
+  if (!wanted) {
+    // The registered script is already gone; holding a grant this broad past its purpose is not.
+    await chrome.permissions.remove({ origins: AUTO_SCAN_ORIGINS }).catch(() => undefined)
+  }
+  sayAuto(
+    enabled
+      ? 'Every page you open is verified as it loads.'
+      : wanted
+        ? 'Automatic verification could not be turned on'
+        : 'Pages are verified only when you open the Libro popup.',
+    enabled || !wanted
+  )
+})
+
+chrome.runtime.sendMessage({ type: 'LIBRO_GET_AUTO_SCAN' })
+  .then((response: { enabled?: boolean } | undefined) => {
+    if (autoScan) autoScan.checked = response?.enabled === true
+  })
+  .catch(() => sayAuto('The automatic verification setting could not be read'))
 
 loadLibroRpcEndpoints()
   .then((loaded) => {

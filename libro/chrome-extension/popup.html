@@ -9,19 +9,17 @@
   <body>
     <main>
       <header>
-        <img class="mark" src="/icon.png" alt="" />
+        <img class="mark" src="/icon-128.png" alt="" />
         <div>
           <h1>Libro Verifier</h1>
           <p>Human-authored text on this page</p>
         </div>
+        <button id="settings" class="icon-button" type="button" title="Settings" aria-label="Settings">⚙</button>
       </header>
 
       <div id="summary" class="summary" aria-live="polite">Scanning this page…</div>
       <div id="results" class="results"></div>
       <button id="sign" class="primary" type="button">Sign current text</button>
-      <button id="rescan" type="button">Scan again</button>
-
-      <button id="endpoints" type="button">World Chain endpoints</button>
 
       <footer>
         Verifies readable DOM text and its World Chain registration. Styling, links, images,

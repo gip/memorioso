@@ -2,11 +2,10 @@ import type { LibroVerificationResult, LibroVerificationSource, ScanResponse } f
 
 const summary = document.querySelector<HTMLElement>('#summary')
 const resultsNode = document.querySelector<HTMLElement>('#results')
-const rescan = document.querySelector<HTMLButtonElement>('#rescan')
 const sign = document.querySelector<HTMLButtonElement>('#sign')
-const endpoints = document.querySelector<HTMLButtonElement>('#endpoints')
+const settings = document.querySelector<HTMLButtonElement>('#settings')
 
-endpoints?.addEventListener('click', () => chrome.runtime.openOptionsPage())
+settings?.addEventListener('click', () => chrome.runtime.openOptionsPage())
 
 // sidePanel.open() only runs inside the user gesture that triggered it, and neither the hop to
 // the service worker nor an await inside the handler preserves one. So the popup opens the panel
@@ -56,11 +55,13 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
   metadata.textContent = [item.authorHandle ? `@${item.authorHandle}` : null, date].filter(Boolean).join(' · ')
 
   const detail = document.createElement('p')
-  detail.textContent = item.detail
+  // A verified block needs no explanation: the endpoint roll-call only matters when something failed.
+  if (item.status === 'verified') detail.className = 'confirmed'
+  detail.textContent = item.status === 'verified' ? 'Confirmed' : item.detail
   card.append(heading)
   if (metadata.textContent) card.append(metadata)
   card.append(detail)
-  if (item.sources?.length) card.append(renderSources(item.sources))
+  if (item.status !== 'verified' && item.sources?.length) card.append(renderSources(item.sources))
   return card
 }
 
@@ -68,7 +69,7 @@ const SOURCE_LABELS: Record<LibroVerificationSource['status'], string> = {
   verified: 'confirmed',
   not_registered: 'not registered',
   mismatch: 'contradicted',
-  unconfirmed: 'no transaction record',
+  unconfirmed: 'not confirmed',
   unavailable: 'unreachable',
 }
 
@@ -112,7 +113,6 @@ async function scan(): Promise<void> {
     summary.className = 'summary'
     resultsNode.replaceChildren()
   }
-  rescan?.setAttribute('disabled', 'true')
   try {
     const response = await chrome.runtime.sendMessage({ type: 'LIBRO_SCAN_ACTIVE_TAB' }) as ScanResponse
     render(response)
@@ -122,12 +122,9 @@ async function scan(): Promise<void> {
       results: [],
       message: error instanceof Error ? error.message : 'The extension service is unavailable.',
     })
-  } finally {
-    rescan?.removeAttribute('disabled')
   }
 }
 
-rescan?.addEventListener('click', scan)
 sign?.addEventListener('click', async () => {
   const tabId = signingTabId
   if (tabId === null) return

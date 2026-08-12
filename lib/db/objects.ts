@@ -1,6 +1,7 @@
 import { pool } from './index'
 import { cache } from 'react'
 import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
+import { extractReadableText } from '@libro/core'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
@@ -117,6 +118,7 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
       author_name_libro: row.signal.author_name_libro,
       publication_title: row.signal.publication_title,
       publication_subtitle: row.signal.publication_subtitle,
+      publication_excerpt: extractReadableText(row.signal.publication_content.html),
       authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
         ? 'Human-authorized agent'
         : 'Signed by a human',
@@ -141,6 +143,7 @@ export const getLatestPublications = cache(async (limit: number = 20): Promise<P
       author_name_libro: row.signal.author_name_libro,
       publication_title: row.signal.publication_title,
       publication_subtitle: row.signal.publication_subtitle,
+      publication_excerpt: extractReadableText(row.signal.publication_content.html),
       authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
         ? 'Human-authorized agent'
         : 'Signed by a human',

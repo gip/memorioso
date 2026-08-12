@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { MemMark } from '@/components/MemMark'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import { Proof as ProofType, PublicationRecord as PublicationType } from '@/lib/db/objects'
-import { LIBRO_WORLD_CHAIN_RPC_URLS } from '@libro/core'
+import { extractReadableText, LIBRO_WORLD_CHAIN_RPC_URLS } from '@libro/core'
 import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 import {
   isLegacyPublication,
@@ -374,7 +374,8 @@ export const Proof = ({
     ? buildWorldIdView(publication, proof)
     : buildUnavailableView(publication)
 
-  const title = publication.publication_title || 'Untitled publication'
+  const publicationTitle = publication.publication_title.trim()
+  const title = publicationTitle || extractReadableText(publication.publication_content.html)
 
   return (
     <article className="mx-auto max-w-2xl px-5 pb-16 pt-4">
@@ -394,7 +395,10 @@ export const Proof = ({
           <div className="flex items-baseline gap-4 py-2.5">
             <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Publication</dt>
             <dd className="min-w-0 text-[13.5px]">
-              <Link href={`/p/${publicationId}`} className="text-blurple hover:underline">
+              <Link
+                href={`/p/${publicationId}`}
+                className={`line-clamp-2 font-normal text-blurple hover:underline ${publicationTitle ? '' : 'text-xs'}`}
+              >
                 {title}
               </Link>
             </dd>

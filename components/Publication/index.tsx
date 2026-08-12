@@ -11,6 +11,7 @@ import { MemMark } from '@/components/MemMark'
 import { HumanSeal } from '@/components/HumanSeal'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import {
+  extractReadableText,
   manifestElementId,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
@@ -36,6 +37,8 @@ export const Publication = ({
   embedManifest?: LibroEmbedManifestV1 | null
 }) => {
   const content = publication.publication_content.html
+  const title = publication.publication_title.trim()
+  const titleOrExcerpt = title || extractReadableText(content)
   const isLegacy = isLegacyPublication(publication)
   const credentialIdentifier = getCredentialIdentifierForPublication(publication, proof)
   const credentialLabel = credentialIdentifier
@@ -43,7 +46,6 @@ export const Publication = ({
     : null
   const verifyHref = !isLegacy ? proofLink : undefined
   const isAgentAuthored = isLibroAgentProof(proof)
-  const authorshipLabel = isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'
   const authorHref = `/a/${publication.author_handle_libro || publication.author_id_libro}`
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
@@ -80,9 +82,11 @@ export const Publication = ({
           ) : (
             <HumanSeal size={116} />
           )}
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-blurple">
-            {authorshipLabel}
-          </p>
+          {isAgentAuthored && (
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-blurple">
+              Human-authorized agent
+            </p>
+          )}
           {celebrate && (
             <p className="mt-1 text-xs text-muted-foreground">Signed and published just now</p>
           )}
@@ -98,8 +102,11 @@ export const Publication = ({
 
         <div className="mx-auto mt-8 h-px w-12 bg-zinc-200" />
 
-        <h1 className="spectral mx-auto mt-8 max-w-2xl text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground">
-          {publication.publication_title || 'Untitled publication'}
+        <h1 className={title
+          ? 'spectral mx-auto mt-8 line-clamp-2 max-w-2xl text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
+          : 'mx-auto mt-8 line-clamp-2 max-w-2xl text-[17px] font-normal leading-relaxed text-foreground'
+        }>
+          {titleOrExcerpt}
         </h1>
         {publication.publication_subtitle && (
           <p className="spectral mx-auto mt-3 max-w-xl text-pretty text-[19px] leading-snug text-muted-foreground sm:text-[21px]">

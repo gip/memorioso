@@ -28,7 +28,8 @@ header p { margin: 1px 0 0; color: #71717a; font-size: 12px; }
 .source { display: flex; justify-content: space-between; gap: 8px; color: #71717a; font-size: 11px; }
 .source em { font-style: normal; }
 .source.verified em { color: #166534; }
-.source.pending_finality em, .source.unconfirmed em, .source.unavailable em { color: #b45309; }
+.source.pending_finality em { color: #166534; }
+.source.unconfirmed em, .source.unavailable em { color: #b45309; }
 .source.not_registered em, .source.mismatch em { color: #991b1b; }
 button { width: 100%; margin-top: 12px; border: 1px solid #d4d4d8; border-radius: 8px; background: white; padding: 8px; cursor: pointer; font-weight: 600; }
 button:hover { background: #f4f4f5; }

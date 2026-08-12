@@ -27,7 +27,7 @@ const LABELS = {
   manifest_missing: 'Manifest missing',
   unsupported_registry: 'Unsupported registry',
   not_registered: 'Not registered',
-  pending_finality: 'Pending finality',
+  pending_finality: 'Verified · Pending Finality',
   registration_unconfirmed: 'Registration unconfirmed',
   network_unavailable: 'Network unavailable',
 } as const

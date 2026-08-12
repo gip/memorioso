@@ -44,7 +44,8 @@ function formatPublicationDate(value?: string): string {
 
 function renderResult(item: LibroVerificationResult): HTMLElement {
   const card = document.createElement('article')
-  card.className = `result ${item.status}${isIndeterminateStatus(item.status) ? ' indeterminate' : ''}`
+  const isVerifiedPresentation = item.status === 'verified' || item.status === 'pending_finality'
+  card.className = `result ${item.status}${isVerifiedPresentation ? ' verified' : isIndeterminateStatus(item.status) ? ' indeterminate' : ''}`
 
   const heading = document.createElement('div')
   heading.className = 'result-heading'
@@ -61,7 +62,7 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
 
   const detail = document.createElement('p')
   // A verified block needs no explanation: the endpoint roll-call only matters when something failed.
-  if (item.status === 'verified') detail.className = 'confirmed'
+  if (isVerifiedPresentation) detail.className = 'confirmed'
   detail.textContent = item.status === 'verified' ? 'Confirmed' : item.detail
   card.append(heading)
   if (metadata.textContent) card.append(metadata)
@@ -72,7 +73,7 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
 
 const SOURCE_LABELS: Record<LibroVerificationSource['status'], string> = {
   verified: 'confirmed',
-  pending_finality: 'pending finality',
+  pending_finality: 'verified · pending finality',
   not_registered: 'not registered',
   mismatch: 'contradicted',
   unconfirmed: 'not confirmed',
@@ -105,7 +106,9 @@ function render(response: ScanResponse): void {
     return
   }
 
-  const verified = response.results.filter((item) => item.status === 'verified').length
+  const verified = response.results.filter((item) =>
+    item.status === 'verified' || item.status === 'pending_finality'
+  ).length
   summary.textContent = response.results.length === 0
     ? 'No Libro human-signed declarations found.'
     : `${verified} of ${response.results.length} Libro declaration${response.results.length === 1 ? '' : 's'} verified.`

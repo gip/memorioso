@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbMock = vi.hoisted(() => ({
   connect: vi.fn(),
-  query: vi.fn(),
+  poolQuery: vi.fn(),
+  clientQuery: vi.fn(),
   release: vi.fn(),
 }))
 
@@ -24,7 +25,7 @@ const validationMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/db', () => ({
-  pool: { connect: dbMock.connect },
+  pool: { connect: dbMock.connect, query: dbMock.poolQuery },
 }))
 
 vi.mock('@/lib/auth-user', () => ({
@@ -51,6 +52,7 @@ const registrationId = 'fca16bc9-362c-4c58-9083-06a0370f6824'
 const challengeId = '03b18435-96c5-46e6-91c5-cd4ac1abb197'
 const signalHash = `0x${'11'.repeat(32)}`
 const transactionHash = `0x${'ab'.repeat(32)}`
+const publicationId = '09c61e45-887d-42e5-81b3-bb545a061e4e'
 
 function request(body: Record<string, unknown>): NextRequest {
   return { json: async () => body } as unknown as NextRequest
@@ -60,16 +62,58 @@ function context() {
   return { params: Promise.resolve({ draftId }) }
 }
 
+function finalizeRequest() {
+  return request({
+    registrationId,
+    submissionMethod: 'memorioso_relayer',
+    transactionHash,
+  })
+}
+
+function pendingRegistration() {
+  return {
+    signal_hash: signalHash,
+    transaction_hash: transactionHash,
+    finalized_at: null,
+    publicationId: null,
+    existing_publication_id: null,
+  }
+}
+
+function lockedRegistration() {
+  return {
+    challengeId,
+    signal_hash: signalHash,
+    action_hash: '12345',
+    chain_id: 480,
+    registry_address: '0x1111111111111111111111111111111111111111',
+    proof: {
+      protocol_version: '4.0',
+      action: `written-by-a-human-v4-${challengeId}`,
+      nonce: '0x123',
+      signal_text: '{"publication_title":"A human note"}',
+      signal_hash: signalHash,
+      credential_identifier: 'proof_of_human',
+      credential_identifiers: ['proof_of_human'],
+      idkit_result: {},
+      verify_response: {},
+    },
+    finalized_at: null,
+  }
+}
+
 describe('Libro publication finalize route', () => {
   beforeEach(() => {
     dbMock.connect.mockReset()
-    dbMock.query.mockReset()
+    dbMock.poolQuery.mockReset()
+    dbMock.clientQuery.mockReset()
     dbMock.release.mockReset()
     authMock.getAuthenticatedUser.mockReset()
     serverMock.verifyLibroSignalRegistered.mockReset()
     Object.values(validationMock).forEach((mock) => mock.mockReset())
 
-    dbMock.connect.mockResolvedValue({ query: dbMock.query, release: dbMock.release })
+    dbMock.connect.mockResolvedValue({ query: dbMock.clientQuery, release: dbMock.release })
+    dbMock.poolQuery.mockResolvedValue({ rows: [pendingRegistration()] })
     authMock.getAuthenticatedUser.mockResolvedValue({ id: 7 })
     serverMock.verifyLibroSignalRegistered.mockResolvedValue(true)
     validationMock.getLockedPublishChallenge.mockResolvedValue({
@@ -88,55 +132,32 @@ describe('Libro publication finalize route', () => {
       publication_subtitle: 'On signatures',
       publication_date: '2026-07-21T12:00:00.000Z',
     })
-    dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('SELECT signal_hash')) {
-        return { rows: [{ signal_hash: signalHash, transaction_hash: transactionHash }] }
-      }
+    dbMock.clientQuery.mockImplementation(async (query: string) => {
       if (query.includes('SELECT *') && query.includes('libro_publish_registrations')) {
-        return {
-          rows: [{
-            challengeId,
-            signal_hash: signalHash,
-            action_hash: '12345',
-            chain_id: 480,
-            registry_address: '0x1111111111111111111111111111111111111111',
-            proof: {
-              protocol_version: '4.0',
-              action: `written-by-a-human-v4-${challengeId}`,
-              nonce: '0x123',
-              signal_text: '{"publication_title":"A human note"}',
-              signal_hash: signalHash,
-              credential_identifier: 'proof_of_human',
-              credential_identifiers: ['proof_of_human'],
-              idkit_result: {},
-              verify_response: {},
-            },
-            finalized_at: null,
-          }],
-        }
+        return { rows: [lockedRegistration()] }
       }
       if (query.includes('INSERT INTO publications')) {
-        return { rows: [{ id: '09c61e45-887d-42e5-81b3-bb545a061e4e' }] }
+        return { rows: [{ id: publicationId }] }
       }
       return { rows: [] }
     })
   })
 
-  it('finalizes a backend-sponsored registration without a user operation hash', async () => {
-    const response = await PUT(request({
-      registrationId,
-      submissionMethod: 'memorioso_relayer',
-      transactionHash,
-    }), context())
+  it('releases the lookup connection before chain verification and finalizes successfully', async () => {
+    serverMock.verifyLibroSignalRegistered.mockImplementation(async () => {
+      expect(dbMock.poolQuery).toHaveBeenCalledTimes(1)
+      expect(dbMock.connect).not.toHaveBeenCalled()
+      return true
+    })
+
+    const response = await PUT(finalizeRequest(), context())
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body).toEqual({
-      success: true,
-      publicationId: '09c61e45-887d-42e5-81b3-bb545a061e4e',
-    })
+    expect(body).toEqual({ success: true, publicationId })
+    expect(dbMock.clientQuery).toHaveBeenCalledWith(expect.stringContaining("SET LOCAL lock_timeout = '3s'"))
 
-    const publicationInsert = dbMock.query.mock.calls.find(([query]) =>
+    const publicationInsert = dbMock.clientQuery.mock.calls.find(([query]) =>
       String(query).includes('INSERT INTO publications')
     )
     expect(publicationInsert?.[1][2]).toMatchObject({
@@ -167,24 +188,79 @@ describe('Libro publication finalize route', () => {
     }), context())
 
     expect(response.status).toBe(400)
+    expect(dbMock.poolQuery).not.toHaveBeenCalled()
+  })
+
+  it('returns the original publication when the same registration is retried', async () => {
+    dbMock.poolQuery.mockResolvedValue({
+      rows: [{ ...pendingRegistration(), finalized_at: new Date(), publicationId: '42' }],
+    })
+
+    const response = await PUT(finalizeRequest(), context())
+
+    expect(await response.json()).toEqual({ success: true, publicationId: '42' })
+    expect(serverMock.verifyLibroSignalRegistered).not.toHaveBeenCalled()
+  })
+
+  it('converges when a different registration already finalized the draft', async () => {
+    dbMock.poolQuery.mockResolvedValue({
+      rows: [{ ...pendingRegistration(), existing_publication_id: '43' }],
+    })
+
+    const response = await PUT(finalizeRequest(), context())
+
+    expect(await response.json()).toEqual({ success: true, publicationId: '43' })
+    expect(serverMock.verifyLibroSignalRegistered).not.toHaveBeenCalled()
     expect(dbMock.connect).not.toHaveBeenCalled()
   })
 
-  it('returns the original publication when finalization is retried', async () => {
-    dbMock.query.mockImplementation(async (query: string) => query.includes('SELECT signal_hash')
-      ? { rows: [{
-          signal_hash: signalHash,
-          transaction_hash: transactionHash,
-          finalized_at: new Date(),
-          publicationId: '42',
-        }] }
-      : { rows: [] })
-    const response = await PUT(request({
-      registrationId,
-      submissionMethod: 'memorioso_relayer',
-      transactionHash,
-    }), context())
-    expect(await response.json()).toEqual({ success: true, publicationId: '42' })
+  it('returns a retryable 503 for a bounded lock timeout and safely rolls back', async () => {
+    dbMock.clientQuery.mockImplementation(async (query: string) => {
+      if (query.includes('SELECT *') && query.includes('libro_publish_registrations')) {
+        throw Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+      }
+      return { rows: [] }
+    })
+
+    const response = await PUT(finalizeRequest(), context())
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Retry-After')).toBe('1')
+    expect(body).toEqual({
+      success: false,
+      code: 'FINALIZE_RETRYABLE',
+      retryable: true,
+      message: 'Publication finalization is temporarily busy. Please retry.',
+    })
+    expect(dbMock.clientQuery).toHaveBeenCalledWith('ROLLBACK')
+    expect(dbMock.release).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a retryable 503 when the initial pool query times out', async () => {
+    dbMock.poolQuery.mockRejectedValue(
+      Object.assign(new Error('Query read timeout'), { code: '57014' })
+    )
+
+    const response = await PUT(finalizeRequest(), context())
+
+    expect(response.status).toBe(503)
+    expect(dbMock.connect).not.toHaveBeenCalled()
     expect(serverMock.verifyLibroSignalRegistered).not.toHaveBeenCalled()
+  })
+
+  it('returns a retryable 503 when authentication cannot reach Postgres', async () => {
+    authMock.getAuthenticatedUser.mockRejectedValue(
+      Object.assign(new Error('getaddrinfo ENOTFOUND db'), { code: 'ENOTFOUND' })
+    )
+
+    const response = await PUT(finalizeRequest(), context())
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      code: 'FINALIZE_RETRYABLE',
+      retryable: true,
+    })
+    expect(dbMock.poolQuery).not.toHaveBeenCalled()
   })
 })

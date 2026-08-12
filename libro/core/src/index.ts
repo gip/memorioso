@@ -459,11 +459,22 @@ export function libroRpcLabel(rpcUrl: string): string {
  * that answers `null` has succeeded as far as the transport is concerned, so lookups that treat
  * an empty answer as meaningful must ask every endpoint themselves.
  */
-export function createLibroPublicClient(rpcUrls?: string | readonly string[] | null) {
+export type LibroPublicClientOptions = {
+  timeoutMs?: number
+  retryCount?: number
+}
+
+export function createLibroPublicClient(
+  rpcUrls?: string | readonly string[] | null,
+  options: LibroPublicClientOptions = {}
+) {
   const urls = parseLibroRpcUrls(rpcUrls)
   return createPublicClient({
     chain: worldchain,
-    transport: fallback(urls.map((url) => http(url))),
+    transport: fallback(urls.map((url) => http(url, {
+      ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
+      ...(options.retryCount === undefined ? {} : { retryCount: options.retryCount }),
+    }))),
   })
 }
 

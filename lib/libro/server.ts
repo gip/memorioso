@@ -8,11 +8,16 @@ import {
 import { libroAgentRegistryAbi, libroProofRegistryAbi } from './contract'
 import { hexToUint256 } from './encoding'
 
+const SERVER_RPC_OPTIONS = {
+  timeoutMs: 5_000,
+  retryCount: 0,
+} as const
+
 export async function verifyLibroSignalRegistered(
   signalHash: string,
   config: LibroServerConfig = getLibroServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,
@@ -26,7 +31,7 @@ export async function verifyLibroAgentRegistered(
   registrationHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,
@@ -40,7 +45,7 @@ export async function verifyLibroAgentDocumentRegistered(
   documentSignalHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig()
 ): Promise<boolean> {
-  const client = createLibroPublicClient(config.rpcUrls)
+  const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,

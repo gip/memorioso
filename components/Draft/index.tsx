@@ -42,6 +42,11 @@ import {
   isNativeLibroTransactionAvailable,
   sendLibroRegistrationTransaction,
 } from '@/lib/libro/client'
+import {
+  FinalizePublicationError,
+  finalizePublicationWithRetry,
+  type FinalizePublishPayload,
+} from '@/lib/libro/finalize-client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 import { createLibroPublicClient, hasMeaningfulPublicationBody, hasPublishablePublication } from '@libro/core'
 
@@ -77,16 +82,6 @@ type PreparePublishResponse =
       error?: string
     }
 
-type FinalizePublishResponse =
-  | {
-      success: true
-      publicationId: string
-    }
-  | {
-      success: false
-      message?: string
-    }
-
 type RelayPublishResponse =
   | {
       success: true
@@ -96,6 +91,11 @@ type RelayPublishResponse =
       success: false
       message?: string
     }
+
+type PendingFinalize = {
+  draftId: string
+  payload: FinalizePublishPayload
+}
 
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
@@ -169,6 +169,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPickingAuthor, setIsPickingAuthor] = useState(false)
+  const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
@@ -358,6 +359,45 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     }
   }
 
+  const completeFinalization = useCallback(async (pending: PendingFinalize): Promise<boolean> => {
+    setPendingFinalize(pending)
+    setError(null)
+    setPublishStep(4)
+    setPublishStatus('Finalizing publication')
+    setIsEditingDisabled(true)
+
+    try {
+      const response = await finalizePublicationWithRetry(
+        `/api/draft/${pending.draftId}/publish/finalize`,
+        pending.payload
+      )
+      setPendingFinalize(null)
+      setPublishStatus(null)
+      publishHostVerifyError.current = null
+      router.push(`/p/${response.publicationId}?signed=1`)
+      return true
+    } catch (reason) {
+      if (reason instanceof FinalizePublicationError && reason.retryable) {
+        const message = 'Your on-chain registration is confirmed, but publication finalization is temporarily busy. Resume finalization to try again.'
+        publishHostVerifyError.current = message
+        setError(message)
+        setPublishStatus(null)
+        setPublishStep(null)
+        setIsEditingDisabled(true)
+        return false
+      }
+
+      const message = reason instanceof Error ? reason.message : 'Failed to finalize publication'
+      setPendingFinalize(null)
+      publishHostVerifyError.current = message
+      setError(message)
+      setPublishStatus(null)
+      setPublishStep(null)
+      setIsEditingDisabled(false)
+      throw reason
+    }
+  }, [router])
+
   const handleWorldIdResult = async (idkitResult: IDKitResult) => {
     if (!publishContext || !currentDraftId) {
       throw new Error('Publish challenge is missing')
@@ -441,36 +481,23 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         setPublishStatus('Sponsored registration confirmed')
       }
 
-      setPublishStep(4)
-      setPublishStatus('Finalizing publication')
-      const finalizeRaw = await fetch(`/api/draft/${currentDraftId}/publish/finalize`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const finalized = await completeFinalization({
+        draftId: currentDraftId,
+        payload: {
           registrationId: prepareResponse.registrationId,
           submissionMethod,
           userOpHash,
           transactionHash,
-        }),
+        },
       })
-      const finalizeResponse = await finalizeRaw.json() as FinalizePublishResponse
-
-      if (!finalizeResponse.success) {
-        throw new Error(finalizeResponse.message || 'Failed to finalize publication')
-      }
-
-      setPublishStatus(null)
-      publishHostVerifyError.current = null
-      router.push(`/p/${finalizeResponse.publicationId}?signed=1`)
+      if (!finalized) return
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to publish'
       publishHostVerifyError.current = message
       setError(message)
       setPublishStatus(null)
       setPublishStep(null)
-      setIsEditingDisabled(false)
+      if (!pendingFinalize) setIsEditingDisabled(false)
       throw error
     }
   }
@@ -542,7 +569,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           open={isWorldIdOpen}
           onOpenChange={(open) => {
             setIsWorldIdOpen(open)
-            if (!open && !publishStatus) {
+            if (!open && !publishStatus && !pendingFinalize) {
               setIsEditingDisabled(false)
             }
           }}
@@ -562,7 +589,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
             } else {
               setError(`World ID verification failed: ${errorCode}`)
             }
-            setIsEditingDisabled(false)
+            if (!pendingFinalize) setIsEditingDisabled(false)
           }}
         />
       )}
@@ -578,12 +605,21 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           {!canPublish && <span>Add a title or some content to publish.</span>}
         </span>
         <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setIsConfirmOpen(true)}
-            disabled={!canPublish || isEditingDisabled || isPollingRegistration}
-          >
-            Sign &amp; publish
-          </Button>
+          {pendingFinalize ? (
+            <Button
+              onClick={() => completeFinalization(pendingFinalize).catch(() => undefined)}
+              disabled={publishStep === 4}
+            >
+              {publishStep === 4 ? (<><Loader2 className="h-4 w-4 animate-spin" /> Finalizing…</>) : 'Resume finalization'}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setIsConfirmOpen(true)}
+              disabled={!canPublish || isEditingDisabled || isPollingRegistration}
+            >
+              Sign &amp; publish
+            </Button>
+          )}
           {currentDraftId && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

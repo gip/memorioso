@@ -36,7 +36,7 @@ Run all pending database migrations with:
 pnpm db:migrate
 ```
 
-The runner reads `DATABASE_URL` from the environment and, for local development, falls back to `.env.local`. It discovers numbered SQL files under `lib/db/migrations`, applies each pending migration in its own transaction, and records the filename and checksum in `memorioso_schema_migrations`. An advisory lock prevents concurrent deploys from running migrations at the same time.
+The runner prefers `DATABASE_URL_UNPOOLED` and falls back to `DATABASE_URL`, including values loaded from `.env.local` for local development. Use Neon’s pooled `-pooler` endpoint for the application’s `DATABASE_URL` and its direct endpoint for `DATABASE_URL_UNPOOLED`. The runner discovers numbered SQL files under `lib/db/migrations`, applies each pending migration in its own transaction, and records the filename and checksum in `memorioso_schema_migrations`. An advisory lock prevents concurrent deploys from running migrations at the same time.
 
 The first run against an existing database safely replays the current idempotent migrations and records them. After a migration has been recorded, do not edit or rename it; add a new numbered migration instead. New databases must first be initialized with `lib/db/schema.sql`.
 

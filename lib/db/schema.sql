@@ -96,6 +96,10 @@ CREATE TABLE libro_publish_registrations (
 CREATE INDEX idx_libro_publish_registrations_draft_user
     ON libro_publish_registrations("draftId", "userId");
 
+CREATE UNIQUE INDEX idx_libro_publish_registrations_one_finalized_draft
+    ON libro_publish_registrations("draftId")
+    WHERE finalized_at IS NOT NULL;
+
 CREATE TABLE libro_extension_auth_attempts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,

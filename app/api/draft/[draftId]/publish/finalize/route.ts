@@ -1,6 +1,12 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
+import {
+  configureLibroWriteTransaction,
+  describeDatabaseFailure,
+  rollbackAndRelease,
+} from '@/lib/db/resilience'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import { verifyLibroSignalRegistered } from '@/lib/libro/server'
@@ -20,11 +26,70 @@ type FinalizeRequest = {
   transactionHash?: string
 }
 
+type FinalizeStage =
+  | 'authenticate'
+  | 'lookup'
+  | 'chain_verify'
+  | 'pool_connect'
+  | 'begin'
+  | 'configure_transaction'
+  | 'lock_registration'
+  | 'lock_challenge'
+  | 'lock_draft'
+  | 'check_existing_publication'
+  | 'write_publication'
+  | 'commit'
+  | 'rollback'
+
+function retryableFinalizeResponse(): NextResponse {
+  return NextResponse.json({
+    success: false,
+    code: 'FINALIZE_RETRYABLE',
+    retryable: true,
+    message: 'Publication finalization is temporarily busy. Please retry.',
+  }, {
+    status: 503,
+    headers: {
+      'Cache-Control': 'no-store',
+      'Retry-After': '1',
+    },
+  })
+}
+
+function finalizeErrorResponse(error: unknown, stage: FinalizeStage): NextResponse {
+  const failure = describeDatabaseFailure(error)
+  if (failure.retryable || stage === 'chain_verify' || stage === 'pool_connect') {
+    return retryableFinalizeResponse()
+  }
+
+  return NextResponse.json({
+    success: false,
+    message: 'Failed to finalize Libro publication',
+    error: failure.message,
+  }, { status: 500 })
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
-  const authenticatedUser = await getAuthenticatedUser(req)
+  const requestId = randomUUID()
+  const startedAt = Date.now()
+  let authenticatedUser
+  try {
+    authenticatedUser = await getAuthenticatedUser(req)
+  } catch (error) {
+    const failure = describeDatabaseFailure(error)
+    console.error('Failed to authenticate Libro publication finalization', {
+      requestId,
+      stage: 'authenticate',
+      durationMs: Date.now() - startedAt,
+      code: failure.code,
+      message: failure.message,
+      retryable: failure.retryable,
+    })
+    return finalizeErrorResponse(error, 'authenticate')
+  }
 
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
@@ -40,7 +105,8 @@ export async function PUT(
     }, { status: 500 })
   }
 
-  const { registrationId, submissionMethod, userOpHash, transactionHash } = await req.json() as FinalizeRequest
+  const { registrationId, submissionMethod, userOpHash, transactionHash } =
+    await req.json().catch(() => ({})) as FinalizeRequest
   const { draftId } = await params
 
   if (!registrationId || !submissionMethod || !transactionHash) {
@@ -61,13 +127,27 @@ export async function PUT(
     return NextResponse.json({ success: false, message: 'Invalid submission method' }, { status: 400 })
   }
 
-  const client = await pool.connect()
+  let stage: FinalizeStage = 'lookup'
 
   try {
-    const pendingResult = await client.query(
-      `SELECT signal_hash, transaction_hash, finalized_at, "publicationId"
-       FROM libro_publish_registrations
-       WHERE id = $1 AND "draftId" = $2 AND "userId" = $3`,
+    const pendingResult = await pool.query(
+      `SELECT
+         r.signal_hash,
+         r.transaction_hash,
+         r.finalized_at,
+         r."publicationId",
+         (
+           SELECT finalized."publicationId"
+           FROM libro_publish_registrations finalized
+           WHERE finalized."draftId" = r."draftId"
+             AND finalized."userId" = r."userId"
+             AND finalized.finalized_at IS NOT NULL
+             AND finalized."publicationId" IS NOT NULL
+           ORDER BY finalized.finalized_at ASC
+           LIMIT 1
+         ) AS existing_publication_id
+       FROM libro_publish_registrations r
+       WHERE r.id = $1 AND r."draftId" = $2 AND r."userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
     )
 
@@ -75,16 +155,15 @@ export async function PUT(
       return NextResponse.json({ success: false, message: 'Libro registration not found' }, { status: 404 })
     }
 
-    if (pendingResult.rows[0].finalized_at && pendingResult.rows[0].publicationId) {
-      return NextResponse.json({
-        success: true,
-        publicationId: pendingResult.rows[0].publicationId,
-      })
+    const pending = pendingResult.rows[0]
+    const existingPublicationId = pending.publicationId || pending.existing_publication_id
+    if (existingPublicationId) {
+      return NextResponse.json({ success: true, publicationId: existingPublicationId })
     }
 
     if (
       submissionMethod === 'memorioso_relayer' &&
-      pendingResult.rows[0].transaction_hash?.toLowerCase() !== transactionHash.toLowerCase()
+      pending.transaction_hash?.toLowerCase() !== transactionHash.toLowerCase()
     ) {
       return NextResponse.json({
         success: false,
@@ -92,7 +171,8 @@ export async function PUT(
       }, { status: 400 })
     }
 
-    const isRegistered = await verifyLibroSignalRegistered(pendingResult.rows[0].signal_hash, libroConfig)
+    stage = 'chain_verify'
+    const isRegistered = await verifyLibroSignalRegistered(pending.signal_hash, libroConfig)
     if (!isRegistered) {
       return NextResponse.json({
         success: false,
@@ -100,143 +180,212 @@ export async function PUT(
       }, { status: 400 })
     }
 
-    await client.query('BEGIN')
+    stage = 'pool_connect'
+    const client = await pool.connect()
+    let clientReleased = false
+    let transactionOpen = false
 
-    const fail = async (message: string, status: number = 400) => {
-      await client.query('ROLLBACK')
-      return NextResponse.json({ success: false, message }, { status })
-    }
+    try {
+      stage = 'begin'
+      await client.query('BEGIN')
+      transactionOpen = true
 
-    const registrationResult = await client.query(
-      `SELECT *
-       FROM libro_publish_registrations
-       WHERE id = $1 AND "draftId" = $2 AND "userId" = $3
-       FOR UPDATE`,
-      [registrationId, draftId, authenticatedUser.id]
-    )
+      stage = 'configure_transaction'
+      await configureLibroWriteTransaction(client)
 
-    if (registrationResult.rows.length === 0) {
-      return await fail('Libro registration not found', 404)
-    }
-
-    const registration = registrationResult.rows[0]
-    if (registration.finalized_at) {
-      if (registration.publicationId) {
-        await client.query('COMMIT')
-        return NextResponse.json({ success: true, publicationId: registration.publicationId })
+      const fail = async (message: string, status: number = 400) => {
+        stage = 'rollback'
+        clientReleased = await rollbackAndRelease(client, new Error(message), transactionOpen)
+        transactionOpen = false
+        return NextResponse.json({ success: false, message }, { status })
       }
-      return await fail('Finalized Libro registration is incomplete', 409)
-    }
 
-    if (
-      registration.chain_id !== libroConfig.chainId ||
-      registration.registry_address.toLowerCase() !== libroConfig.registryAddress.toLowerCase()
-    ) {
-      return await fail('Libro registration configuration changed after preparation')
-    }
+      stage = 'lock_registration'
+      const registrationResult = await client.query(
+        `SELECT *
+         FROM libro_publish_registrations
+         WHERE id = $1 AND "draftId" = $2 AND "userId" = $3
+         FOR UPDATE`,
+        [registrationId, draftId, authenticatedUser.id]
+      )
 
-    const challenge = await getLockedPublishChallenge(client, {
-      challengeId: registration.challengeId,
-      draftId,
-      userId: authenticatedUser.id,
-    })
+      if (registrationResult.rows.length === 0) {
+        return await fail('Libro registration not found', 404)
+      }
 
-    if (!challenge) {
-      return await fail('Publish challenge not found', 404)
-    }
+      const registration = registrationResult.rows[0]
+      if (registration.finalized_at) {
+        if (registration.publicationId) {
+          stage = 'commit'
+          await client.query('COMMIT')
+          transactionOpen = false
+          return NextResponse.json({ success: true, publicationId: registration.publicationId })
+        }
+        return await fail('Finalized Libro registration is incomplete', 409)
+      }
 
-    try {
-      assertChallengeCanBeUsed(challenge, false)
-    } catch (error) {
-      return await fail(error instanceof Error ? error.message : 'Publish challenge is invalid')
-    }
+      if (
+        registration.chain_id !== libroConfig.chainId ||
+        registration.registry_address.toLowerCase() !== libroConfig.registryAddress.toLowerCase()
+      ) {
+        return await fail('Libro registration configuration changed after preparation')
+      }
 
-    if (registration.signal_hash.toLowerCase() !== challenge.signal_hash.toLowerCase()) {
-      return await fail('Libro registration signal does not match the publish challenge')
-    }
+      stage = 'lock_challenge'
+      const challenge = await getLockedPublishChallenge(client, {
+        challengeId: registration.challengeId,
+        draftId,
+        userId: authenticatedUser.id,
+      })
 
-    const draft = await getLockedDraftForPublish(client, draftId, authenticatedUser.id)
-    if (!draft) {
-      return await fail('Draft not found or does not belong to the user', 404)
-    }
+      if (!challenge) {
+        return await fail('Publish challenge not found', 404)
+      }
 
-    let storedPublication
-    try {
-      assertDraftCanBePublished(draft)
-      storedPublication = assertDraftMatchesChallenge(draft, challenge)
-    } catch (error) {
-      return await fail(error instanceof Error ? error.message : 'Draft is not ready to publish')
-    }
+      try {
+        assertChallengeCanBeUsed(challenge, false)
+      } catch (error) {
+        return await fail(error instanceof Error ? error.message : 'Publish challenge is invalid')
+      }
 
-    const registeredAt = new Date().toISOString()
-    const proof: WorldIdProofV4 = {
-      ...(registration.proof as WorldIdProofV4),
-      verify_response: {
+      if (registration.signal_hash.toLowerCase() !== challenge.signal_hash.toLowerCase()) {
+        return await fail('Libro registration signal does not match the publish challenge')
+      }
+
+      stage = 'lock_draft'
+      const draft = await getLockedDraftForPublish(client, draftId, authenticatedUser.id)
+      if (!draft) {
+        return await fail('Draft not found or does not belong to the user', 404)
+      }
+
+      stage = 'check_existing_publication'
+      const finalizedResult = await client.query(
+        `SELECT "publicationId"
+         FROM libro_publish_registrations
+         WHERE "draftId" = $1
+           AND "userId" = $2
+           AND finalized_at IS NOT NULL
+           AND "publicationId" IS NOT NULL
+         ORDER BY finalized_at ASC
+         LIMIT 1`,
+        [draftId, authenticatedUser.id]
+      )
+      if (finalizedResult.rows[0]?.publicationId) {
+        stage = 'commit'
+        await client.query('COMMIT')
+        transactionOpen = false
+        return NextResponse.json({
+          success: true,
+          publicationId: finalizedResult.rows[0].publicationId,
+        })
+      }
+
+      let storedPublication
+      try {
+        assertDraftCanBePublished(draft)
+        storedPublication = assertDraftMatchesChallenge(draft, challenge)
+      } catch (error) {
+        return await fail(error instanceof Error ? error.message : 'Draft is not ready to publish')
+      }
+
+      const registeredAt = new Date().toISOString()
+      const proof: WorldIdProofV4 = {
+        ...(registration.proof as WorldIdProofV4),
+        verify_response: {
+          success: true,
+          verifier: 'libro_onchain',
+        },
+        libro_registration: {
+          protocol_version: libroConfig.protocolVersion,
+          submission_method: submissionMethod,
+          chain_id: libroConfig.chainId,
+          registry_address: libroConfig.registryAddress,
+          signal_hash: challenge.signal_hash,
+          action_hash: registration.action_hash,
+          ...(userOpHash ? { user_op_hash: userOpHash.toLowerCase() } : {}),
+          transaction_hash: transactionHash.toLowerCase(),
+          registered_at: registeredAt,
+        },
+      }
+
+      stage = 'write_publication'
+      const articleResult = await client.query(
+        `INSERT INTO publications
+          ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING id`,
+        [
+          authenticatedUser.id,
+          storedPublication.author_id_libro,
+          proof,
+          storedPublication,
+          draft.content,
+          '3',
+          storedPublication.publication_title,
+          storedPublication.publication_subtitle,
+          storedPublication.publication_date,
+        ]
+      )
+
+      await client.query('UPDATE drafts SET status = $1 WHERE id = $2', ['published', draftId])
+      await client.query(
+        'UPDATE world_id_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1',
+        [challenge.id]
+      )
+      await client.query(
+        `UPDATE libro_publish_registrations
+         SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP, "publicationId" = $3
+         WHERE id = $4`,
+        [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), articleResult.rows[0].id, registrationId]
+      )
+
+      stage = 'commit'
+      await client.query('COMMIT')
+      transactionOpen = false
+
+      console.info('Finalized Libro publication', {
+        requestId,
+        draftId,
+        registrationId,
+        publicationId: articleResult.rows[0].id,
+        durationMs: Date.now() - startedAt,
+      })
+
+      return NextResponse.json({
         success: true,
-        verifier: 'libro_onchain',
-      },
-      libro_registration: {
-        protocol_version: libroConfig.protocolVersion,
-        submission_method: submissionMethod,
-        chain_id: libroConfig.chainId,
-        registry_address: libroConfig.registryAddress,
-        signal_hash: challenge.signal_hash,
-        action_hash: registration.action_hash,
-        ...(userOpHash ? { user_op_hash: userOpHash.toLowerCase() } : {}),
-        transaction_hash: transactionHash.toLowerCase(),
-        registered_at: registeredAt,
-      },
+        publicationId: articleResult.rows[0].id,
+      })
+    } catch (error) {
+      clientReleased = await rollbackAndRelease(client, error, transactionOpen)
+      const failure = describeDatabaseFailure(error)
+      const retryable = failure.retryable || stage === 'pool_connect'
+      console.error('Failed to finalize Libro publication', {
+        requestId,
+        draftId,
+        registrationId,
+        stage,
+        durationMs: Date.now() - startedAt,
+        code: failure.code,
+        message: failure.message,
+        retryable,
+      })
+      return finalizeErrorResponse(error, stage)
+    } finally {
+      if (!clientReleased) client.release()
     }
-
-    const articleResult = await client.query(
-      `INSERT INTO publications
-        ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id`,
-      [
-        authenticatedUser.id,
-        storedPublication.author_id_libro,
-        proof,
-        storedPublication,
-        draft.content,
-        '3',
-        storedPublication.publication_title,
-        storedPublication.publication_subtitle,
-        storedPublication.publication_date,
-      ]
-    )
-
-    await client.query(
-      'UPDATE drafts SET status = $1 WHERE id = $2',
-      ['published', draftId]
-    )
-
-    await client.query(
-      'UPDATE world_id_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [challenge.id]
-    )
-
-    await client.query(
-      `UPDATE libro_publish_registrations
-       SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP, "publicationId" = $3
-       WHERE id = $4`,
-      [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), articleResult.rows[0].id, registrationId]
-    )
-
-    await client.query('COMMIT')
-
-    return NextResponse.json({
-      success: true,
-      publicationId: articleResult.rows[0].id,
-    })
   } catch (error) {
-    await client.query('ROLLBACK')
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to finalize Libro publication',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }, { status: 500 })
-  } finally {
-    client.release()
+    const failure = describeDatabaseFailure(error)
+    const retryable = failure.retryable || stage === 'chain_verify' || stage === 'pool_connect'
+    console.error('Failed to finalize Libro publication', {
+      requestId,
+      draftId,
+      registrationId,
+      stage,
+      durationMs: Date.now() - startedAt,
+      code: failure.code,
+      message: failure.message,
+      retryable,
+    })
+    return finalizeErrorResponse(error, stage)
   }
 }

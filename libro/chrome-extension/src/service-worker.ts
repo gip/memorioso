@@ -3,6 +3,7 @@ import { autoScanPreference, hasAutoScanPermission, setAutoScan, syncAutoScan } 
 import { enabledLibroRpcUrls } from './rpc-settings'
 import { verifyCandidate } from './verifier'
 import { clearLibroVerificationCache, createCachedChainVerifier } from './verification-cache'
+import { retryWithBackoff } from './retry'
 import type { LibroCandidate, LibroVerificationResult, ScanResponse } from './shared'
 
 const MAX_MANIFEST_BYTES = 1_000_000
@@ -41,6 +42,29 @@ type SigningJob = {
   transactionHash?: string
   publicationId?: string
   tag?: string
+}
+
+class MemoriosoApiError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly retryable: boolean
+
+  constructor(message: string, status: number, code?: string, retryable = false) {
+    super(message)
+    this.name = 'MemoriosoApiError'
+    this.status = status
+    this.code = code
+    this.retryable = retryable
+  }
+}
+
+function isRetryableFinalizeFailure(error: unknown): boolean {
+  if (error instanceof MemoriosoApiError) {
+    return error.code === 'FINALIZE_RETRYABLE' && error.retryable
+  }
+  return error instanceof TypeError || (
+    error instanceof DOMException && error.name === 'AbortError'
+  )
 }
 
 function isSafeManifestUrl(value: string): boolean {
@@ -295,12 +319,21 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, authenticated =
     cache: 'no-store',
     credentials: 'omit',
   })
-  const body = await response.json().catch(() => ({})) as T & { message?: string }
+  const body = await response.json().catch(() => ({})) as T & {
+    message?: string
+    code?: string
+    retryable?: boolean
+  }
   if (!response.ok) {
     if (response.status === 401 && authenticated) {
       await chrome.storage.local.remove([TOKEN_KEY, SESSION_KEY])
     }
-    throw new Error(body.message || `Memorioso returned HTTP ${response.status}`)
+    throw new MemoriosoApiError(
+      body.message || `Memorioso returned HTTP ${response.status}`,
+      response.status,
+      body.code,
+      body.retryable === true
+    )
   }
   return body
 }
@@ -474,14 +507,20 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       const stored = await chrome.storage.local.get(JOB_KEY)
       const job = stored[JOB_KEY] as SigningJob | undefined
       if (!job?.registrationId || !job.transactionHash) throw new Error('The Libro registration has not been relayed')
-      const response = await apiFetch<{ publicationId: string }>(`/api/draft/${job.draftId}/publish/finalize`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          registrationId: job.registrationId,
-          submissionMethod: 'memorioso_relayer',
-          transactionHash: job.transactionHash,
-        }),
+      const finalizePath = `/api/draft/${job.draftId}/publish/finalize`
+      const finalizeBody = JSON.stringify({
+        registrationId: job.registrationId,
+        submissionMethod: 'memorioso_relayer',
+        transactionHash: job.transactionHash,
       })
+      const response = await retryWithBackoff(
+        (signal) => apiFetch<{ publicationId: string }>(finalizePath, {
+          method: 'PUT',
+          body: finalizeBody,
+          signal,
+        }),
+        { shouldRetry: isRetryableFinalizeFailure }
+      )
       const manifest = await apiFetch<unknown>(`/api/publications/${response.publicationId}/libro-manifest`, {}, false)
       const tag = formatLibroTextTag(manifest)
       const next = { ...job, stage: 'finalized' as const, publicationId: response.publicationId, tag }

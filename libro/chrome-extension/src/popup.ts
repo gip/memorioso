@@ -1,4 +1,9 @@
-import type { LibroVerificationResult, LibroVerificationSource, ScanResponse } from './shared'
+import {
+  isIndeterminateStatus,
+  type LibroVerificationResult,
+  type LibroVerificationSource,
+  type ScanResponse,
+} from './shared'
 
 const summary = document.querySelector<HTMLElement>('#summary')
 const resultsNode = document.querySelector<HTMLElement>('#results')
@@ -39,7 +44,7 @@ function formatPublicationDate(value?: string): string {
 
 function renderResult(item: LibroVerificationResult): HTMLElement {
   const card = document.createElement('article')
-  card.className = `result ${item.status}`
+  card.className = `result ${item.status}${isIndeterminateStatus(item.status) ? ' indeterminate' : ''}`
 
   const heading = document.createElement('div')
   heading.className = 'result-heading'
@@ -67,6 +72,7 @@ function renderResult(item: LibroVerificationResult): HTMLElement {
 
 const SOURCE_LABELS: Record<LibroVerificationSource['status'], string> = {
   verified: 'confirmed',
+  pending_finality: 'pending finality',
   not_registered: 'not registered',
   mismatch: 'contradicted',
   unconfirmed: 'not confirmed',
@@ -103,7 +109,8 @@ function render(response: ScanResponse): void {
   summary.textContent = response.results.length === 0
     ? 'No Libro human-signed declarations found.'
     : `${verified} of ${response.results.length} Libro declaration${response.results.length === 1 ? '' : 's'} verified.`
-  summary.className = `summary ${verified > 0 ? 'success' : ''}`
+  const indeterminate = verified === 0 && response.results.some((item) => isIndeterminateStatus(item.status))
+  summary.className = `summary ${verified > 0 ? 'success' : indeterminate ? 'indeterminate' : ''}`
   response.results.forEach((item) => resultsNode.append(renderResult(item)))
 }
 

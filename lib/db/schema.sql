@@ -100,6 +100,9 @@ CREATE TABLE libro_extension_auth_attempts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,
     intent VARCHAR(16) NOT NULL DEFAULT 'login',
+    requested_handle VARCHAR(32) NOT NULL,
+    request_ip_hash CHAR(64),
+    verification_attempts SMALLINT NOT NULL DEFAULT 0 CHECK (verification_attempts >= 0 AND verification_attempts <= 5),
     nonce VARCHAR(255) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     consumed_at TIMESTAMPTZ,
@@ -113,6 +116,13 @@ CREATE TABLE libro_extension_auth_attempts (
 CREATE INDEX idx_libro_extension_auth_attempts_user
     ON libro_extension_auth_attempts("userId", expires_at);
 
+CREATE INDEX idx_libro_extension_auth_attempts_handle_created
+    ON libro_extension_auth_attempts(requested_handle, created_at);
+
+CREATE INDEX idx_libro_extension_auth_attempts_ip_created
+    ON libro_extension_auth_attempts(request_ip_hash, created_at)
+    WHERE request_ip_hash IS NOT NULL;
+
 CREATE TABLE libro_extension_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -125,6 +135,17 @@ CREATE TABLE libro_extension_sessions (
 
 CREATE INDEX idx_libro_extension_sessions_user
     ON libro_extension_sessions("userId", expires_at);
+
+CREATE INDEX idx_libro_extension_sessions_expiry
+    ON libro_extension_sessions(expires_at, revoked_at);
+
+CREATE INDEX idx_extension_drafts_cleanup
+    ON drafts(created_at)
+    WHERE status = 'editing' AND history->>'source' = 'chrome_extension';
+
+CREATE INDEX idx_extension_drafts_user_created
+    ON drafts("userId", created_at)
+    WHERE history->>'source' = 'chrome_extension';
 
 CREATE TABLE libro_agent_registrations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

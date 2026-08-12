@@ -40,6 +40,8 @@ const loginAttempt = {
   id: 'attempt-1',
   userId: 7,
   intent: 'login',
+  requested_handle: 'ada',
+  verification_attempts: 0,
   nonce: 'nonce-1',
   expires_at: '2099-01-01T00:00:00.000Z',
   consumed_at: null,
@@ -73,12 +75,22 @@ function mockLoginTransaction(): void {
   })
 }
 
+function mockAttempt(attempt: typeof loginAttempt | Record<string, unknown> = loginAttempt): void {
+  dbMock.query.mockImplementation(async (query: string) => {
+    if (query.includes('WITH removed_attempts')) {
+      return { rows: [{ attempts: 0, sessions: 0, drafts: 0 }] }
+    }
+    if (query.includes('SET verification_attempts')) return { rows: [{ id: 'attempt-1' }] }
+    return { rows: [attempt] }
+  })
+}
+
 describe('extension World ID auth verification', () => {
   beforeEach(() => {
     Object.values(dbMock).forEach((mock) => mock.mockReset())
     Object.values(proofMock).forEach((mock) => mock.mockReset())
     dbMock.connect.mockResolvedValue({ query: dbMock.clientQuery, release: dbMock.release })
-    dbMock.query.mockResolvedValue({ rows: [loginAttempt] })
+    mockAttempt()
     proofMock.validateWorldIdSessionResult.mockReturnValue(validated)
     proofMock.validateSessionCredentialResponses.mockReturnValue(['proof_of_human'])
     proofMock.verifyWorldIdProof.mockResolvedValue({ ok: true })
@@ -98,12 +110,13 @@ describe('extension World ID auth verification', () => {
   })
 
   it('creates a normalized first author and session in one transaction', async () => {
-    dbMock.query.mockResolvedValue({ rows: [{
+    mockAttempt({
       ...loginAttempt,
       userId: null,
       intent: 'signup',
+      requested_handle: 'new_writer',
       world_id_session_id: null,
-    }] })
+    })
     proofMock.validateWorldIdSessionResult.mockReturnValue({
       ...validated,
       session_id: 'session_new',
@@ -152,12 +165,13 @@ describe('extension World ID auth verification', () => {
   })
 
   it('connects an existing World ID author without overwriting its profile', async () => {
-    dbMock.query.mockResolvedValue({ rows: [{
+    mockAttempt({
       ...loginAttempt,
       userId: null,
       intent: 'signup',
+      requested_handle: 'new_writer',
       world_id_session_id: null,
-    }] })
+    })
     dbMock.clientQuery.mockImplementation(async (query: string) => {
       if (query.includes('UPDATE libro_extension_auth_attempts')) return { rows: [{ id: 'attempt-1' }] }
       if (query.includes('FROM users') && query.includes('FOR UPDATE')) return { rows: [user] }
@@ -170,7 +184,7 @@ describe('extension World ID auth verification', () => {
     })
 
     const response = await POST(request({
-      profile: { handle: 'other-handle', name: 'Different Name', bio: 'Different bio' },
+      profile: { handle: 'new_writer', name: 'Different Name', bio: 'Different bio' },
     }))
     const body = await response.json()
     expect(response.status).toBe(200)
@@ -179,12 +193,13 @@ describe('extension World ID auth verification', () => {
   })
 
   it('rejects invalid signup profile data before proof verification', async () => {
-    dbMock.query.mockResolvedValue({ rows: [{
+    mockAttempt({
       ...loginAttempt,
       userId: null,
       intent: 'signup',
+      requested_handle: 'new_writer',
       world_id_session_id: null,
-    }] })
+    })
     const response = await POST(request({
       profile: { handle: 'bad handle', name: 'No', bio: '' },
     }))
@@ -194,12 +209,13 @@ describe('extension World ID auth verification', () => {
   })
 
   it('rolls back a handle race and does not issue a session', async () => {
-    dbMock.query.mockResolvedValue({ rows: [{
+    mockAttempt({
       ...loginAttempt,
       userId: null,
       intent: 'signup',
+      requested_handle: 'new-writer',
       world_id_session_id: null,
-    }] })
+    })
     dbMock.clientQuery.mockImplementation(async (query: string) => {
       if (query === 'BEGIN') return { rows: [] }
       if (query.includes('UPDATE libro_extension_auth_attempts')) return { rows: [{ id: 'attempt-1' }] }
@@ -220,10 +236,10 @@ describe('extension World ID auth verification', () => {
   })
 
   it('rejects an expired or already-consumed attempt before proof verification', async () => {
-    dbMock.query.mockResolvedValueOnce({ rows: [{
+    mockAttempt({
       ...loginAttempt,
       expires_at: '2020-01-01T00:00:00.000Z',
-    }] })
+    })
     expect((await POST(request())).status).toBe(400)
     expect(proofMock.verifyWorldIdProof).not.toHaveBeenCalled()
   })
@@ -240,5 +256,28 @@ describe('extension World ID auth verification', () => {
       query.includes('UPDATE libro_extension_auth_attempts') ? { rows: [] } : { rows: [] })
     expect((await POST(request())).status).toBe(409)
     expect(dbMock.clientQuery).toHaveBeenCalledWith('ROLLBACK')
+  })
+
+  it('rejects a signup profile that changes the requested handle before proof verification', async () => {
+    mockAttempt({
+      ...loginAttempt,
+      userId: null,
+      intent: 'signup',
+      requested_handle: 'new_writer',
+      world_id_session_id: null,
+    })
+    const response = await POST(request({
+      profile: { handle: 'different_writer', name: 'New Writer', bio: '' },
+    }))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ message: expect.stringContaining('does not match') })
+    expect(proofMock.verifyWorldIdProof).not.toHaveBeenCalled()
+  })
+
+  it('rate-limits proof retries for one attempt', async () => {
+    mockAttempt({ ...loginAttempt, verification_attempts: 5 })
+    const response = await POST(request())
+    expect(response.status).toBe(429)
+    expect(proofMock.verifyWorldIdProof).not.toHaveBeenCalled()
   })
 })

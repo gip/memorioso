@@ -3,10 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { canonicalPublicationSignal } from '@/lib/world-id/publication'
 
 const dbMock = vi.hoisted(() => ({ connect: vi.fn(), query: vi.fn(), release: vi.fn() }))
-const authMock = vi.hoisted(() => ({ getExtensionSession: vi.fn() }))
+const authMock = vi.hoisted(() => ({
+  getExtensionSession: vi.fn(),
+  cleanupExpiredExtensionData: vi.fn(),
+  enforceExtensionSignatureRateLimit: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({ pool: { connect: dbMock.connect } }))
-vi.mock('@/lib/extension-auth', () => ({ getExtensionSession: authMock.getExtensionSession }))
+vi.mock('@/lib/extension-auth', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/extension-auth')>(),
+  getExtensionSession: authMock.getExtensionSession,
+  cleanupExpiredExtensionData: authMock.cleanupExpiredExtensionData,
+  enforceExtensionSignatureRateLimit: authMock.enforceExtensionSignatureRateLimit,
+}))
 vi.mock('@/lib/world-id/server', () => ({
   getWorldIdServerConfig: () => ({
     appId: 'app_424563557eea16567fdb5655c9ee742e',
@@ -27,6 +36,7 @@ vi.mock('@/lib/world-id/server', () => ({
 vi.mock('@/lib/libro/config', () => ({ getLibroServerConfig: () => ({ chainId: 480 }) }))
 
 import { POST } from './route'
+import { ExtensionRateLimitError } from '@/lib/extension-auth'
 
 function request(text: unknown): NextRequest {
   return new NextRequest('https://memorioso.xyz/api/extension/signatures', {
@@ -42,6 +52,8 @@ describe('inline signature creation', () => {
     dbMock.query.mockReset()
     dbMock.release.mockReset()
     authMock.getExtensionSession.mockReset()
+    authMock.cleanupExpiredExtensionData.mockReset().mockResolvedValue(undefined)
+    authMock.enforceExtensionSignatureRateLimit.mockReset().mockResolvedValue(undefined)
     authMock.getExtensionSession.mockResolvedValue({ user: { id: 7, handle: 'ada' } })
     dbMock.connect.mockResolvedValue({ query: dbMock.query, release: dbMock.release })
     dbMock.query.mockImplementation(async (query: string) => {
@@ -105,5 +117,15 @@ describe('inline signature creation', () => {
     const response = await POST(request('Human text'))
     expect(response.status).toBe(409)
     expect(dbMock.query).toHaveBeenCalledWith('ROLLBACK')
+  })
+
+  it('rate-limits excessive signing requests before opening a transaction', async () => {
+    authMock.enforceExtensionSignatureRateLimit.mockRejectedValueOnce(
+      new ExtensionRateLimitError('Too many signing requests')
+    )
+    const response = await POST(request('Human text'))
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('600')
+    expect(dbMock.connect).not.toHaveBeenCalled()
   })
 })

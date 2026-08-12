@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
-import { getExtensionSession } from '@/lib/extension-auth'
+import {
+  cleanupExpiredExtensionData,
+  enforceExtensionSignatureRateLimit,
+  ExtensionRateLimitError,
+  getExtensionSession,
+} from '@/lib/extension-auth'
 import {
   inlineTextToHtml,
   MAX_INLINE_TEXT_LENGTH,
@@ -16,6 +21,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getExtensionSession(request)
   if (!session) {
     return NextResponse.json({ success: false, message: 'Extension authentication required' }, { status: 401 })
+  }
+
+  try {
+    await cleanupExpiredExtensionData()
+    await enforceExtensionSignatureRateLimit(session.user.id)
+  } catch (error) {
+    if (error instanceof ExtensionRateLimitError) {
+      return NextResponse.json({ success: false, message: error.message }, {
+        status: 429,
+        headers: { 'Retry-After': '600' },
+      })
+    }
+    return NextResponse.json({
+      success: false,
+      message: 'Extension abuse controls are unavailable',
+    }, { status: 500 })
   }
 
   const body = await request.json().catch(() => null) as { text?: unknown } | null

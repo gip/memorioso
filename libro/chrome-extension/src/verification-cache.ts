@@ -27,9 +27,19 @@ type ChainVerifier = (manifest: LibroEmbedManifestV1) => Promise<LibroChainVerif
  * The transaction hash is part of the key: two manifests can cite the same signal through
  * different transactions, and only the cited one is what verification actually confirmed.
  */
-export function libroVerificationCacheKey(manifest: LibroEmbedManifestV1): string {
+export function libroVerificationCacheKey(
+  manifest: LibroEmbedManifestV1,
+  rpcUrls: readonly string[] = []
+): string {
   const { chain_id, registry_address, signal_hash, transaction_hash } = manifest.registration
-  return `${chain_id}:${registry_address}:${signal_hash}:${transaction_hash}`.toLowerCase()
+  const trustConfiguration = rpcUrls.map((value) => {
+    try {
+      return new URL(value).toString().replace(/\/$/, '')
+    } catch {
+      return value.trim()
+    }
+  }).sort().join(',')
+  return `${chain_id}:${registry_address}:${signal_hash}:${transaction_hash}:${trustConfiguration}`.toLowerCase()
 }
 
 function isEntry(value: unknown, now: number): value is CacheEntry {
@@ -91,7 +101,7 @@ export function createCachedChainVerifier(
   const inFlight = new Map<string, Promise<LibroChainVerification>>()
 
   return async function verifyWithCache(manifest: LibroEmbedManifestV1): Promise<LibroChainVerification> {
-    const key = libroVerificationCacheKey(manifest)
+    const key = libroVerificationCacheKey(manifest, rpcUrls)
     const cache = await readCache(Date.now())
     const cached = cache[key]
     // The stored manifest is never trusted back: the caller's manifest is the one being verified.

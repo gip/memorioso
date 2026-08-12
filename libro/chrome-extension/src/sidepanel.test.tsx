@@ -266,9 +266,12 @@ describe('automatic page following', () => {
     expiresAt: '2099-01-01T00:00:00.000Z',
   }
 
-  function pushStorageChange(changes: Record<string, { newValue?: unknown }>): Promise<void> {
+  function pushStorageChange(
+    changes: Record<string, { newValue?: unknown }>,
+    areaName: 'local' | 'session' = 'session'
+  ): Promise<void> {
     return act(async () => {
-      storageListeners.forEach((listener) => listener(changes, 'local'))
+      storageListeners.forEach((listener) => listener(changes, areaName))
     })
   }
 
@@ -327,7 +330,7 @@ describe('automatic page following', () => {
 
     await pushStorageChange({
       libroAutoCapture: { newValue: { enabled: false, tabId: 4, reason: 'navigated' } },
-    })
+    }, 'local')
     expect(container.textContent).toContain('Following stopped because the page navigated.')
     expect(toggle().checked).toBe(false)
   })
@@ -348,5 +351,19 @@ describe('automatic page following', () => {
 
     expect(runtimeMock).toHaveBeenCalledWith({ type: 'LIBRO_SET_AUTO_CAPTURE', enabled: true, remember: true })
     expect(container.textContent).toContain('Following this page.')
+  })
+
+  it('counts and enforces the server-normalized 10,000-character limit', async () => {
+    mockState(false)
+    await renderApp()
+    await act(async () => { await Promise.resolve() })
+
+    await changeInput('section textarea', 'a     b')
+    expect(container.textContent).toContain('3 / 10,000 normalized characters')
+    expect(container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(false)
+
+    await changeInput('section textarea', 'x'.repeat(10_001))
+    expect(container.textContent).toContain('10,001 / 10,000 normalized characters')
+    expect(container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(true)
   })
 })

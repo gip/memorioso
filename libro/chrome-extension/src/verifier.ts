@@ -1,6 +1,7 @@
 import {
   LibroChainVerificationError,
   LibroNotRegisteredError,
+  LibroRegistrationPendingFinalityError,
   LibroRegistrationMismatchError,
   LibroRegistrationUnconfirmedError,
   LibroUnsupportedRegistryError,
@@ -26,6 +27,7 @@ const LABELS = {
   manifest_missing: 'Manifest missing',
   unsupported_registry: 'Unsupported registry',
   not_registered: 'Not registered',
+  pending_finality: 'Pending finality',
   registration_unconfirmed: 'Registration unconfirmed',
   network_unavailable: 'Network unavailable',
 } as const
@@ -160,6 +162,16 @@ export async function verifyCandidate(
     }
     if (error instanceof LibroRegistrationMismatchError) {
       return result(candidate, 'invalid_manifest', error.message + summarizeSources(sources), manifest, sources)
+    }
+    if (error instanceof LibroRegistrationPendingFinalityError) {
+      return result(
+        candidate,
+        'pending_finality',
+        'The exact registration is on World Chain but has not inherited Ethereum finality yet' +
+          summarizeSources(sources),
+        manifest,
+        sources
+      )
     }
     if (error instanceof LibroRegistrationUnconfirmedError) {
       return result(

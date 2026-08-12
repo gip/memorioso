@@ -1,11 +1,18 @@
 import { formatLibroTextTag } from '@libro/core'
 import { autoScanPreference, hasAutoScanPermission, setAutoScan, syncAutoScan } from './auto-scan'
-import { enabledLibroRpcUrls } from './rpc-settings'
+import { loadApprovedManifestOrigins } from './manifest-access'
+import { resolveTextManifest } from './manifest-fetch'
+import { enabledLibroRpcUrls, RPC_SETTINGS_KEY } from './rpc-settings'
+import {
+  isContentNotification,
+  isTrustedContentSender,
+  isTrustedExtensionPageSender,
+  restrictExtensionStorageAccess,
+} from './security'
 import { verifyCandidate } from './verifier'
 import { clearLibroVerificationCache, createCachedChainVerifier } from './verification-cache'
-import type { LibroCandidate, LibroVerificationResult, ScanResponse } from './shared'
+import { isIndeterminateStatus, type LibroCandidate, type LibroVerificationResult, type ScanResponse } from './shared'
 
-const MAX_MANIFEST_BYTES = 1_000_000
 const API_ORIGIN = (import.meta.env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz').replace(/\/$/, '')
 const TOKEN_KEY = 'libroExtensionToken'
 const SESSION_KEY = 'libroExtensionSession'
@@ -13,6 +20,11 @@ const CAPTURE_KEY = 'libroSigningCapture'
 const JOB_KEY = 'libroSigningJob'
 const AUTO_KEY = 'libroAutoCapture'
 const FOLLOW_KEY = 'libroFollowPages'
+const SIGNING_JOB_VERSION = 1 as const
+
+// local and sync are exposed to content scripts by default. All privileged work waits for this
+// restriction, so a failure cannot silently fall back to page-readable credential storage.
+const storageReady = restrictExtensionStorageAccess()
 
 type StoredCapture = {
   tabId: number
@@ -30,12 +42,13 @@ type AutoCaptureState = {
 }
 
 type SigningJob = {
+  version: typeof SIGNING_JOB_VERSION
   draftId: string
   signingId: string
   challengeId: string
-  normalizedText: string
-  author: { id: string; name: string; handle: string }
-  context: Record<string, unknown>
+  normalizedText?: string
+  author?: { id: string; name: string; handle: string }
+  context?: Record<string, unknown>
   stage: 'proof' | 'prepared' | 'relayed' | 'finalized'
   registrationId?: string
   transactionHash?: string
@@ -43,37 +56,93 @@ type SigningJob = {
   tag?: string
 }
 
-function isSafeManifestUrl(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost')
-  } catch {
-    return false
+function normalizedSigningJob(value: unknown): SigningJob | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const raw = value as Record<string, unknown>
+  if (
+    typeof raw.draftId !== 'string' || typeof raw.signingId !== 'string' ||
+    typeof raw.challengeId !== 'string' ||
+    !['proof', 'prepared', 'relayed', 'finalized'].includes(String(raw.stage))
+  ) return undefined
+
+  const job: SigningJob = {
+    version: SIGNING_JOB_VERSION,
+    draftId: raw.draftId,
+    signingId: raw.signingId,
+    challengeId: raw.challengeId,
+    stage: raw.stage as SigningJob['stage'],
+    ...(typeof raw.registrationId === 'string' ? { registrationId: raw.registrationId } : {}),
+    ...(typeof raw.transactionHash === 'string' ? { transactionHash: raw.transactionHash } : {}),
+    ...(typeof raw.publicationId === 'string' ? { publicationId: raw.publicationId } : {}),
+  }
+  if (job.stage === 'proof') {
+    if (
+      typeof raw.normalizedText !== 'string' || typeof raw.context !== 'object' || raw.context === null ||
+      typeof raw.author !== 'object' || raw.author === null
+    ) return undefined
+    const author = raw.author as Record<string, unknown>
+    if (typeof author.id !== 'string' || typeof author.name !== 'string' || typeof author.handle !== 'string') return undefined
+    job.normalizedText = raw.normalizedText
+    job.context = raw.context as Record<string, unknown>
+    job.author = { id: author.id, name: author.name, handle: author.handle }
+  }
+  return job
+}
+
+function resumableSigningJob(job: SigningJob): SigningJob {
+  return {
+    version: SIGNING_JOB_VERSION,
+    draftId: job.draftId,
+    signingId: job.signingId,
+    challengeId: job.challengeId,
+    stage: job.stage,
+    ...(job.registrationId ? { registrationId: job.registrationId } : {}),
+    ...(job.transactionHash ? { transactionHash: job.transactionHash } : {}),
+    ...(job.publicationId ? { publicationId: job.publicationId } : {}),
   }
 }
 
-async function resolveTextManifest(candidate: LibroCandidate): Promise<LibroCandidate> {
-  if (candidate.kind !== 'text' || candidate.manifestText || candidate.error) return candidate
-  if (!candidate.manifestUrl) return candidate
-  if (!isSafeManifestUrl(candidate.manifestUrl)) {
-    return { ...candidate, error: 'The text tag manifest URL must use HTTPS' }
+async function saveSigningJob(job: SigningJob): Promise<void> {
+  if (job.stage === 'proof') {
+    const { tag: _tag, ...ephemeralJob } = job
+    await Promise.all([
+      chrome.storage.session.set({ [JOB_KEY]: { ...ephemeralJob, version: SIGNING_JOB_VERSION } }),
+      chrome.storage.local.remove(JOB_KEY),
+    ])
+    return
   }
+  await Promise.all([
+    chrome.storage.local.set({ [JOB_KEY]: resumableSigningJob(job) }),
+    chrome.storage.session.remove(JOB_KEY),
+  ])
+}
 
-  try {
-    const response = await fetch(candidate.manifestUrl, {
-      cache: 'no-store',
-      credentials: 'omit',
-      redirect: 'error',
-    })
-    if (!response.ok) return { ...candidate, error: `The text tag manifest returned HTTP ${response.status}` }
-    const declaredLength = Number(response.headers.get('content-length') || 0)
-    if (declaredLength > MAX_MANIFEST_BYTES) return { ...candidate, error: 'The text tag manifest is too large' }
-    const manifestText = await response.text()
-    if (manifestText.length > MAX_MANIFEST_BYTES) return { ...candidate, error: 'The text tag manifest is too large' }
-    return { ...candidate, manifestText }
-  } catch {
-    return { ...candidate, error: 'The text tag manifest could not be retrieved' }
-  }
+async function readSigningJob(): Promise<SigningJob | undefined> {
+  const [ephemeral, persistent] = await Promise.all([
+    chrome.storage.session.get(JOB_KEY),
+    chrome.storage.local.get(JOB_KEY),
+  ])
+  const fromSession = normalizedSigningJob(ephemeral[JOB_KEY])
+  const fromLocal = normalizedSigningJob(persistent[JOB_KEY])
+  const job = fromSession || fromLocal
+  if (!job) return undefined
+  const source = fromSession ? ephemeral[JOB_KEY] : persistent[JOB_KEY]
+  const sourceRecord = source as Record<string, unknown>
+  const needsMigration = sourceRecord.version !== SIGNING_JOB_VERSION ||
+    (job.stage === 'proof' && !fromSession) ||
+    (job.stage !== 'proof' && (
+      !fromLocal || 'normalizedText' in sourceRecord || 'author' in sourceRecord || 'context' in sourceRecord
+    ))
+  // Migrate legacy unversioned stage builds and strip proof material from local storage once.
+  if (needsMigration) await saveSigningJob(job)
+  return job
+}
+
+async function clearSigningJob(): Promise<void> {
+  await Promise.all([
+    chrome.storage.local.remove(JOB_KEY),
+    chrome.storage.session.remove(JOB_KEY),
+  ])
 }
 
 async function activeTabId(): Promise<number> {
@@ -85,10 +154,14 @@ async function activeTabId(): Promise<number> {
 // Scoped to the tab it describes: automatic scanning verifies background tabs too, and a global
 // badge would let whichever tab finished last speak for the one the reader is looking at.
 function setToolbarBadge(tabId: number, results: LibroVerificationResult[]): void {
+  if (results.length === 0) {
+    chrome.action.setBadgeText({ text: '', tabId }).catch(() => undefined)
+    return
+  }
   const verified = results.filter((item) => item.status === 'verified').length
-  const hasProblems = results.some((item) => !['verified', 'registration_unconfirmed', 'network_unavailable'].includes(item.status))
-  const text = verified > 0 ? String(verified) : hasProblems ? '!' : results.length === 0 ? '0' : '?'
-  const color = verified > 0 ? '#15803d' : hasProblems ? '#b91c1c' : '#71717a'
+  const hasProblems = results.some((item) => item.status !== 'verified' && !isIndeterminateStatus(item.status))
+  const text = verified > 0 ? String(verified) : hasProblems ? '!' : '?'
+  const color = verified > 0 ? '#15803d' : hasProblems ? '#b91c1c' : '#b45309'
   chrome.action.setBadgeBackgroundColor({ color, tabId }).catch(() => undefined)
   chrome.action.setBadgeText({ text, tabId }).catch(() => undefined)
 }
@@ -100,14 +173,21 @@ async function ensureContentScript(tabId: number): Promise<void> {
 // A manual rescan arriving while an automatic scan is mid-flight joins it rather than starting a
 // second pass over the same DOM, which would race the first one's decorations.
 const scansInFlight = new Map<number, Promise<ScanResponse>>()
+const automaticRescanTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
 async function runScan(tabId: number, inject: boolean): Promise<ScanResponse> {
   try {
     if (inject) await ensureContentScript(tabId)
     const scanResult = await chrome.tabs.sendMessage(tabId, { type: 'LIBRO_SCAN_PAGE' }) as { candidates?: LibroCandidate[] }
     const discoveredCandidates = Array.isArray(scanResult?.candidates) ? scanResult.candidates : []
-    const candidates = await Promise.all(discoveredCandidates.map(resolveTextManifest))
-    const rpcUrls = await enabledLibroRpcUrls()
+    const [approvedOrigins, rpcUrls] = await Promise.all([
+      loadApprovedManifestOrigins(),
+      enabledLibroRpcUrls(),
+    ])
+    const candidates = await Promise.all(discoveredCandidates.map((candidate) => resolveTextManifest(candidate, {
+      apiOrigin: API_ORIGIN,
+      approvedOrigins,
+    })))
     const verifyChain = createCachedChainVerifier(rpcUrls)
     let results = await Promise.all(candidates.map((candidate) => verifyCandidate(candidate, verifyChain)))
     const applied = await chrome.tabs.sendMessage(tabId, {
@@ -171,6 +251,16 @@ async function scanAnnouncedPage(tabId: number | undefined): Promise<void> {
   await scanTab(tabId, false)
 }
 
+async function scheduleAutomaticRescan(tabId: number): Promise<void> {
+  if (!(await autoScanPreference())) return
+  const previous = automaticRescanTimers.get(tabId)
+  if (previous) clearTimeout(previous)
+  automaticRescanTimers.set(tabId, setTimeout(() => {
+    automaticRescanTimers.delete(tabId)
+    scanTab(tabId, false).catch(() => undefined)
+  }, 400))
+}
+
 async function captureActiveText(requestedTabId?: number, hintText?: string): Promise<StoredCapture> {
   const tabId = requestedTabId ?? await activeTabId()
   try {
@@ -189,7 +279,7 @@ async function captureActiveText(requestedTabId?: number, hintText?: string): Pr
       canReplace: result.success === true && result.canReplace === true,
       message: result.message,
     }
-    await chrome.storage.local.set({ [CAPTURE_KEY]: capture })
+    await chrome.storage.session.set({ [CAPTURE_KEY]: capture })
     return capture
   } catch (error) {
     const capture: StoredCapture = {
@@ -199,7 +289,7 @@ async function captureActiveText(requestedTabId?: number, hintText?: string): Pr
       canReplace: false,
       message: error instanceof Error ? error.message : 'Text could not be captured from this page',
     }
-    await chrome.storage.local.set({ [CAPTURE_KEY]: capture })
+    await chrome.storage.session.set({ [CAPTURE_KEY]: capture })
     return capture
   }
 }
@@ -207,24 +297,31 @@ async function captureActiveText(requestedTabId?: number, hintText?: string): Pr
 // The page pushes edits of the captured editor until a signing request binds the text to a proof.
 async function applyCaptureUpdate(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
   if (typeof tabId !== 'number' || typeof update.operationId !== 'string' || typeof update.text !== 'string') return
-  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY])
-  if (stored[JOB_KEY]) return
+  const [stored, job] = await Promise.all([
+    chrome.storage.session.get(CAPTURE_KEY),
+    readSigningJob(),
+  ])
+  if (job) return
   const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
   if (!capture || capture.tabId !== tabId || capture.operationId !== update.operationId) return
   if (capture.text === update.text) return
-  await chrome.storage.local.set({ [CAPTURE_KEY]: { ...capture, text: update.text } })
+  await chrome.storage.session.set({ [CAPTURE_KEY]: { ...capture, text: update.text } })
 }
 
 // Auto mode resolves a whole new target, so this replaces the capture instead of patching its text.
 async function applyAutoCapture(tabId: number | undefined, update: Record<string, unknown>): Promise<void> {
   if (typeof tabId !== 'number' || typeof update.text !== 'string' || !update.text.trim()) return
-  const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY, AUTO_KEY])
-  if (stored[JOB_KEY]) return
-  const auto = stored[AUTO_KEY] as AutoCaptureState | undefined
+  const [ephemeral, local, job] = await Promise.all([
+    chrome.storage.session.get(CAPTURE_KEY),
+    chrome.storage.local.get(AUTO_KEY),
+    readSigningJob(),
+  ])
+  if (job) return
+  const auto = local[AUTO_KEY] as AutoCaptureState | undefined
   if (!auto?.enabled || auto.tabId !== tabId) return
-  const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
+  const capture = ephemeral[CAPTURE_KEY] as StoredCapture | undefined
   if (capture && capture.operationId === update.operationId && capture.text === update.text) return
-  await chrome.storage.local.set({
+  await chrome.storage.session.set({
     [CAPTURE_KEY]: {
       tabId,
       operationId: typeof update.operationId === 'string' ? update.operationId : undefined,
@@ -305,9 +402,19 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, authenticated =
   return body
 }
 
+async function hydrateFinalizedJob(job: SigningJob): Promise<SigningJob> {
+  if (job.stage !== 'finalized' || !job.publicationId) return job
+  const manifest = await apiFetch<unknown>(`/api/publications/${job.publicationId}/libro-manifest`, {}, false)
+  return { ...job, tag: formatLibroTextTag(manifest) }
+}
+
 async function currentState(): Promise<Record<string, unknown>> {
-  const stored = await chrome.storage.local.get([SESSION_KEY, CAPTURE_KEY, JOB_KEY, AUTO_KEY])
-  let job = stored[JOB_KEY] as SigningJob | undefined
+  const [stored, ephemeral, restoredJob] = await Promise.all([
+    chrome.storage.local.get([SESSION_KEY, AUTO_KEY]),
+    chrome.storage.session.get(CAPTURE_KEY),
+    readSigningJob(),
+  ])
+  let job = restoredJob
   if (job && typeof stored[SESSION_KEY] === 'object') {
     try {
       const recovery = await apiFetch<{
@@ -316,7 +423,7 @@ async function currentState(): Promise<Record<string, unknown>> {
         transactionHash?: string
         publicationId?: string
       }>(`/api/extension/signatures/${job.signingId}`)
-      job = {
+      const recovered: SigningJob = {
         ...job,
         stage: recovery.stage === 'challenge'
           ? 'proof'
@@ -327,14 +434,16 @@ async function currentState(): Promise<Record<string, unknown>> {
         transactionHash: recovery.transactionHash || job.transactionHash,
         publicationId: recovery.publicationId || job.publicationId,
       }
-      await chrome.storage.local.set({ [JOB_KEY]: job })
+      await saveSigningJob(recovered)
+      job = recovered
+      job = await hydrateFinalizedJob(job)
     } catch {
       // Cached state remains useful when the API is temporarily unavailable.
     }
   }
   return {
     session: stored[SESSION_KEY] || null,
-    capture: stored[CAPTURE_KEY] || null,
+    capture: ephemeral[CAPTURE_KEY] || null,
     job: job || null,
     autoCapture: stored[AUTO_KEY] || null,
     followPages: await followPreference(),
@@ -422,7 +531,11 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     }
     case 'LIBRO_AUTH_LOGOUT':
       await apiFetch('/api/extension/auth/session', { method: 'DELETE' }).catch(() => undefined)
-      await chrome.storage.local.remove([TOKEN_KEY, SESSION_KEY, JOB_KEY])
+      await Promise.all([
+        chrome.storage.local.remove([TOKEN_KEY, SESSION_KEY]),
+        chrome.storage.session.remove(CAPTURE_KEY),
+        clearSigningJob(),
+      ])
       return { success: true }
     case 'LIBRO_CREATE_SIGNATURE': {
       const response = await apiFetch<Record<string, unknown>>('/api/extension/signatures', {
@@ -430,6 +543,7 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
         body: JSON.stringify({ text: message.text }),
       })
       const job: SigningJob = {
+        version: SIGNING_JOB_VERSION,
         draftId: response.draftId as string,
         signingId: response.signingId as string,
         challengeId: response.challengeId as string,
@@ -438,24 +552,22 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
         context: response,
         stage: 'proof',
       }
-      await chrome.storage.local.set({ [JOB_KEY]: job })
+      await saveSigningJob(job)
       return { success: true, job }
     }
     case 'LIBRO_PREPARE_SIGNATURE': {
-      const stored = await chrome.storage.local.get(JOB_KEY)
-      const job = stored[JOB_KEY] as SigningJob | undefined
+      const job = await readSigningJob()
       if (!job) throw new Error('No inline signing request is active')
       const response = await apiFetch<{ registrationId: string }>(`/api/draft/${job.draftId}/publish/prepare`, {
         method: 'PUT',
         body: JSON.stringify({ challengeId: job.challengeId, idkitResult: message.idkitResult }),
       })
       const next = { ...job, stage: 'prepared' as const, registrationId: response.registrationId }
-      await chrome.storage.local.set({ [JOB_KEY]: next })
+      await saveSigningJob(next)
       return { success: true, job: next }
     }
     case 'LIBRO_RELAY_SIGNATURE': {
-      const stored = await chrome.storage.local.get(JOB_KEY)
-      const job = stored[JOB_KEY] as SigningJob | undefined
+      const job = await readSigningJob()
       if (!job?.registrationId) throw new Error('The Libro registration has not been prepared')
       const response = await apiFetch<{ transactionHash: string; publicationId?: string }>(`/api/draft/${job.draftId}/publish/relay`, {
         method: 'PUT',
@@ -467,35 +579,42 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
         transactionHash: response.transactionHash,
         publicationId: response.publicationId,
       }
-      await chrome.storage.local.set({ [JOB_KEY]: next })
+      await saveSigningJob(next)
       return { success: true, job: next }
     }
     case 'LIBRO_FINALIZE_SIGNATURE': {
-      const stored = await chrome.storage.local.get(JOB_KEY)
-      const job = stored[JOB_KEY] as SigningJob | undefined
-      if (!job?.registrationId || !job.transactionHash) throw new Error('The Libro registration has not been relayed')
-      const response = await apiFetch<{ publicationId: string }>(`/api/draft/${job.draftId}/publish/finalize`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          registrationId: job.registrationId,
-          submissionMethod: 'memorioso_relayer',
-          transactionHash: job.transactionHash,
-        }),
-      })
-      const manifest = await apiFetch<unknown>(`/api/publications/${response.publicationId}/libro-manifest`, {}, false)
-      const tag = formatLibroTextTag(manifest)
-      const next = { ...job, stage: 'finalized' as const, publicationId: response.publicationId, tag }
-      await chrome.storage.local.set({ [JOB_KEY]: next })
+      const job = await readSigningJob()
+      if (!job) throw new Error('No inline signing request is active')
+      let finalized: SigningJob
+      if (job.stage === 'finalized' && job.publicationId) {
+        finalized = job
+      } else {
+        if (!job.registrationId || !job.transactionHash) throw new Error('The Libro registration has not been relayed')
+        const response = await apiFetch<{ publicationId: string }>(`/api/draft/${job.draftId}/publish/finalize`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            registrationId: job.registrationId,
+            submissionMethod: 'memorioso_relayer',
+            transactionHash: job.transactionHash,
+          }),
+        })
+        finalized = { ...job, stage: 'finalized', publicationId: response.publicationId }
+        await saveSigningJob(finalized)
+      }
+      const next = await hydrateFinalizedJob(finalized)
       return {
         success: true,
         job: next,
-        publicationUrl: `${API_ORIGIN}/p/${response.publicationId}`,
+        publicationUrl: `${API_ORIGIN}/p/${finalized.publicationId}`,
       }
     }
     case 'LIBRO_INSERT_TAG': {
-      const stored = await chrome.storage.local.get([CAPTURE_KEY, JOB_KEY])
+      const [stored, persistedJob] = await Promise.all([
+        chrome.storage.session.get(CAPTURE_KEY),
+        readSigningJob(),
+      ])
       const capture = stored[CAPTURE_KEY] as StoredCapture | undefined
-      const job = stored[JOB_KEY] as SigningJob | undefined
+      const job = persistedJob ? await hydrateFinalizedJob(persistedJob) : undefined
       if (!capture || !job?.tag) throw new Error('No completed Libro signature is available')
       if (!capture.operationId || !capture.canReplace) {
         return { success: true, inserted: false, tag: job.tag, message: 'The signed tag was copied because the source was not editable' }
@@ -513,12 +632,11 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       }
     }
     case 'LIBRO_CANCEL_SIGNATURE': {
-      const stored = await chrome.storage.local.get(JOB_KEY)
-      const job = stored[JOB_KEY] as SigningJob | undefined
+      const job = await readSigningJob()
       if (job && job.stage === 'proof') {
         await apiFetch(`/api/extension/signatures/${job.signingId}`, { method: 'DELETE' }).catch(() => undefined)
       }
-      await chrome.storage.local.remove(JOB_KEY)
+      await clearSigningJob()
       return { success: true }
     }
     default:
@@ -532,32 +650,44 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Sign with Libro',
     contexts: ['selection', 'editable'],
   })).catch(() => undefined)
-  syncAutoScan().catch(() => undefined)
+  storageReady.then(syncAutoScan).catch(() => undefined)
 })
 
 chrome.runtime.onStartup.addListener(() => {
-  syncAutoScan().catch(() => undefined)
+  storageReady.then(syncAutoScan).catch(() => undefined)
 })
 
 // Host permission can be revoked from chrome://extensions without the extension being asked, so
 // the registered script and the preference are reconciled whenever the grant changes.
 chrome.permissions.onRemoved.addListener(() => {
-  syncAutoScan().catch(() => undefined)
+  storageReady.then(async () => {
+    await clearLibroVerificationCache()
+    await syncAutoScan()
+  }).catch(() => undefined)
 })
 
 chrome.permissions.onAdded.addListener(() => {
-  syncAutoScan().catch(() => undefined)
+  storageReady.then(async () => {
+    await clearLibroVerificationCache()
+    await syncAutoScan()
+  }).catch(() => undefined)
+})
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes[RPC_SETTINGS_KEY]) {
+    storageReady.then(clearLibroVerificationCache).catch(() => undefined)
+  }
 })
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (typeof tab?.id !== 'number') return
   const hintText = typeof info.selectionText === 'string' ? info.selectionText : undefined
-  openSigningPanel(tab.id, hintText).catch(() => undefined)
+  storageReady.then(() => openSigningPanel(tab.id, hintText)).catch(() => undefined)
 })
 
 // Following exists to feed the open panel, so closing the panel must stop the page from reporting.
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'libro-side-panel') return
+  if (port.name !== 'libro-side-panel' || !isTrustedExtensionPageSender(port.sender || {})) return
   port.onDisconnect.addListener(() => {
     setAutoCapture(false).catch(() => undefined)
   })
@@ -566,36 +696,43 @@ chrome.runtime.onConnect.addListener((port) => {
 // The activeTab grant and the injected listeners both end at navigation, so following ends with them.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status !== 'loading') return
-  disarmAutoCapture(tabId, 'navigated').catch(() => undefined)
+  const pendingRescan = automaticRescanTimers.get(tabId)
+  if (pendingRescan) clearTimeout(pendingRescan)
+  automaticRescanTimers.delete(tabId)
+  chrome.action.setBadgeText({ text: '', tabId }).catch(() => undefined)
+  storageReady.then(() => disarmAutoCapture(tabId, 'navigated')).catch(() => undefined)
 })
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  disarmAutoCapture(tabId, 'closed').catch(() => undefined)
+  const pendingRescan = automaticRescanTimers.get(tabId)
+  if (pendingRescan) clearTimeout(pendingRescan)
+  automaticRescanTimers.delete(tabId)
+  storageReady.then(() => disarmAutoCapture(tabId, 'closed')).catch(() => undefined)
 })
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const typed = message as Record<string, unknown>
-  if (typed.type === 'LIBRO_CAPTURE_UPDATE') {
-    applyCaptureUpdate(sender.tab?.id, typed).catch(() => undefined)
-    return
-  }
-  if (typed.type === 'LIBRO_AUTO_CAPTURE') {
-    applyAutoCapture(sender.tab?.id, typed).catch(() => undefined)
-    return
-  }
-  if (typed.type === 'LIBRO_PAGE_MAY_HAVE_LIBRO') {
-    scanAnnouncedPage(sender.tab?.id).catch(() => undefined)
-    return
-  }
-  if (typed.type === 'LIBRO_RESULT_STALE') {
+  if (isContentNotification(typed.type)) {
+    if (!isTrustedContentSender(sender)) return
     const tabId = sender.tab?.id
-    if (typeof tabId !== 'number') return
-    chrome.action.setBadgeBackgroundColor({ color: '#b45309', tabId }).catch(() => undefined)
-    chrome.action.setBadgeText({ text: '?', tabId }).catch(() => undefined)
+    storageReady.then(async () => {
+      if (typed.type === 'LIBRO_CAPTURE_UPDATE') await applyCaptureUpdate(tabId, typed)
+      else if (typed.type === 'LIBRO_AUTO_CAPTURE') await applyAutoCapture(tabId, typed)
+      else if (typed.type === 'LIBRO_PAGE_MAY_HAVE_LIBRO') await scanAnnouncedPage(tabId)
+      else if (typed.type === 'LIBRO_RESULT_STALE' && typeof tabId === 'number') {
+        chrome.action.setBadgeBackgroundColor({ color: '#b45309', tabId }).catch(() => undefined)
+        chrome.action.setBadgeText({ text: '?', tabId }).catch(() => undefined)
+        await scheduleAutomaticRescan(tabId)
+      }
+    }).catch(() => undefined)
     return
   }
   if (typeof typed.type === 'string' && typed.type.startsWith('LIBRO_')) {
-    handleMessage(typed)
+    if (!isTrustedExtensionPageSender(sender)) {
+      sendResponse({ success: false, message: 'This extension request is not allowed from a webpage' })
+      return
+    }
+    storageReady.then(() => handleMessage(typed))
       .then(sendResponse)
       .catch((error) => sendResponse({
         success: false,

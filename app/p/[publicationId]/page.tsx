@@ -6,7 +6,7 @@ import { getProof, getPublication } from '@/lib/db/objects'
 import { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { buildLibroEmbedManifest } from '@/lib/libro/embed'
-import type { LibroEmbedManifestV1 } from '@libro/core'
+import { extractReadableText, type LibroEmbedManifestV1 } from '@libro/core'
 
 type Params = Promise<{ publicationId: string }>
 type SearchParams = Promise<{ signed?: string }>
@@ -30,11 +30,13 @@ const getCachedProof = unstable_cache(
 export const generateMetadata = async ({ params }: { params: Params }): Promise<Metadata> => {
   const { publicationId } = await params
   const publication = await getCachedPublication(publicationId)
+  const title = publication?.publication_title.trim()
+    || (publication ? extractReadableText(publication.publication_content.html) : '')
 
   return {
-    title: publication?.publication_title || 'Untitled publication',
+    title,
     openGraph: {
-      title: publication?.publication_title || 'Untitled publication',
+      title,
       url: `https://memoriozo.xyz/p/${publicationId}`,
     },
   }

@@ -4,14 +4,17 @@ import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Proof } from '@/components/Proof'
 import { getProof, getPublication } from '@/lib/db/objects'
+import { extractReadableText } from '@libro/core'
 
 type Params = Promise<{ publicationId: string }>
 
 export const generateMetadata = async ({ params }: { params: Params }): Promise<Metadata> => {
   const { publicationId } = await params
   const publication = await getPublication(publicationId)
+  const title = publication?.publication_title.trim()
+    || (publication ? extractReadableText(publication.publication_content.html) : '')
 
-  return { title: `Proof · ${publication?.publication_title || 'Untitled publication'}` }
+  return { title: `Proof · ${title}` }
 }
 
 const Page = async ({ params }: { params: Params }) => {

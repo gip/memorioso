@@ -8,6 +8,7 @@ import { VerifiedChip } from '@/components/VerifiedChip'
 
 type TextListCardProps = {
   title: string
+  excerpt?: string
   subtitle?: string
   signed?: boolean
   authorshipLabel?: string
@@ -17,12 +18,18 @@ type TextListCardProps = {
   onClick?: () => void
 }
 
-const CardBody = ({ title, subtitle, signed = true, metaText, authorshipLabel }: TextListCardProps) => (
+const CardBody = ({ title, excerpt, subtitle, signed = true, metaText, authorshipLabel }: TextListCardProps) => (
   <div className="flex items-start gap-3">
     <div className="min-w-0 flex-1">
-      <div className="spectral truncate text-[17px] font-semibold leading-tight text-foreground">
-        {title || 'Untitled'}
-      </div>
+      {title.trim() ? (
+        <div className="spectral truncate text-[17px] font-semibold leading-tight text-foreground">
+          {title}
+        </div>
+      ) : (
+        <div className="line-clamp-2 text-[17px] font-normal leading-snug text-foreground">
+          {excerpt}
+        </div>
+      )}
       {subtitle && (
         <div className="mt-0.5 truncate text-[13px] text-muted-foreground">{subtitle}</div>
       )}

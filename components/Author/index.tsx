@@ -142,7 +142,13 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
             <Link href={`/p/${publicationInfo.id}`} key={publicationInfo.id}>
               <div className="flex items-center gap-2">
                 <span>
-                  <span className="italic underline hover:text-blue-500">{publicationInfo.publication_title || 'Untitled'}</span>
+                  {publicationInfo.publication_title.trim() ? (
+                    <span className="italic underline hover:text-blue-500">{publicationInfo.publication_title}</span>
+                  ) : (
+                    <span className="line-clamp-2 font-normal leading-snug hover:text-blue-500">
+                      {publicationInfo.publication_excerpt}
+                    </span>
+                  )}
                   <br />
                   <span className="text-xs text-blurple">{publicationInfo.authorship_label}</span>
                   <br />

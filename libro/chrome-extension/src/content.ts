@@ -281,7 +281,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
   }
 
   function stateClass(status: LibroVerificationResult['status']): string {
-    if (status === 'verified') return 'libro-extension-verified'
+    if (status === 'verified' || status === 'pending_finality') return 'libro-extension-verified'
     if (status === 'stale') return 'libro-extension-stale'
     if (isIndeterminateStatus(status)) return 'libro-extension-unknown'
     return 'libro-extension-warning'
@@ -300,7 +300,7 @@ function libroTextTagHashMatches(declaredHash: string, signalHash: string): bool
       .verified { background: #15803d; } .warning { background: #b91c1c; } .unknown { background: #b45309; }
     `
     const badge = document.createElement('span')
-    badge.className = result.status === 'verified'
+    badge.className = result.status === 'verified' || result.status === 'pending_finality'
       ? 'verified'
       : isIndeterminateStatus(result.status)
         ? 'unknown'

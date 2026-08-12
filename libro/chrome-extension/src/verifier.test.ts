@@ -138,7 +138,7 @@ describe('extension candidate verification', () => {
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationMismatchError('wrong receipt') }))
       .resolves.toMatchObject({ status: 'invalid_manifest' })
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationPendingFinalityError('unsafe block') }))
-      .resolves.toMatchObject({ status: 'pending_finality' })
+      .resolves.toMatchObject({ status: 'pending_finality', label: 'Verified · Pending Finality' })
     await expect(verifyCandidate(candidate(), async () => { throw new LibroRegistrationUnconfirmedError('no receipt') }))
       .resolves.toMatchObject({ status: 'registration_unconfirmed' })
     await expect(verifyCandidate(candidate(), async () => { throw new Error('offline') }))

@@ -61,10 +61,10 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
   if (author) {
     const isNameValid = editName.trim().length >= 3 && editName.trim().length <= 100
     return (<>
-      <div className="w-[90%] mx-auto">
+      <div className="pt-4">
         <div className="text-xs italic text-center text-gray-500">This author was created by a human on Memorioso. Publications are labeled as direct human work or human-authorized agent work.<br />The author identity itself is human-controlled.</div>
       </div>
-      <div className="w-[90%] mx-auto space-y-8 py-8">
+      <div className="space-y-8 py-8">
         {isEditing ? (
           <div className="space-y-4 max-w-md mx-auto">
             {error && <div className="text-sm text-destructive">{error}</div>}
@@ -169,5 +169,5 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
     </>)
   }
 
-  return <div className="w-[90%] mx-auto space-y-4 py-4">Author not found</div>
+  return <div className="space-y-4 py-4">Author not found</div>
 }

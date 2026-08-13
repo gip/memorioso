@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import { Footer } from '@/components/Footer'
 import { Publication } from '@/components/Publication'
 import { getProof, getPublication } from '@/lib/db/objects'
 import { Metadata } from 'next'
@@ -56,7 +55,7 @@ const Page = async ({ params, searchParams }: { params: Params; searchParams: Se
     }
   }
 
-  return (<>
+  return (
     <Suspense fallback={<div>Loading...</div>}>
       {publication && (
         <Publication
@@ -68,8 +67,7 @@ const Page = async ({ params, searchParams }: { params: Params; searchParams: Se
         />
       )}
     </Suspense>
-    <Footer />
-  </>)
+  )
 }
 
 export default Page

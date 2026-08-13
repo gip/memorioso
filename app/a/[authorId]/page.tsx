@@ -2,7 +2,6 @@ import { Author } from '@/components/Author'
 import { type Author as AuthorType, getAuthor, getPublicationInfoByAuthor, getAuthorByHandle } from '@/lib/db/objects'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { notFound } from 'next/navigation'
-import { Footer } from '@/components/Footer'
 
 const Page = async ({ params }: { params: Promise<{ authorId: string }> }) => {
   const resolvedParams = await params
@@ -37,12 +36,7 @@ const Page = async ({ params }: { params: Promise<{ authorId: string }> }) => {
   ])
   const self = Boolean(authenticatedUser && author.userId === authenticatedUser.id)
 
-  return (<>
-    <div className="w-[96%] mx-auto space-y-4 py-4">
-      <Author author={author} publicationInfos={publicationInfos} redirect={redirect} self={self} />
-    </div>
-    <Footer />
-  </>)
+  return <Author author={author} publicationInfos={publicationInfos} redirect={redirect} self={self} />
 }
 
 export default Page

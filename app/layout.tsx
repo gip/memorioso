@@ -48,8 +48,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          <SiteChrome />
-          <div className="min-h-screen flex flex-col">{children}</div>
+          <SiteChrome>{children}</SiteChrome>
         </Providers>
         <Analytics />
       </body>

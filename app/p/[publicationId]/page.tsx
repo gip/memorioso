@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { Footer } from '@/components/Footer'
-import { Header } from '@/components/Header'
 import { Publication } from '@/components/Publication'
 import { getProof, getPublication } from '@/lib/db/objects'
 import { Metadata } from 'next'
@@ -58,7 +57,6 @@ const Page = async ({ params, searchParams }: { params: Params; searchParams: Se
   }
 
   return (<>
-    <Header />
     <Suspense fallback={<div>Loading...</div>}>
       {publication && (
         <Publication

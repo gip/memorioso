@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import { Footer } from '@/components/Footer'
-import { Header } from '@/components/Header'
 import { Proof } from '@/components/Proof'
 import { getProof, getPublication } from '@/lib/db/objects'
 import { extractReadableText } from '@libro/core'
@@ -27,7 +26,6 @@ const Page = async ({ params }: { params: Params }) => {
   const proof = await getProof(publicationId)
 
   return (<>
-    <Header />
     <Proof proof={proof} publication={publication} publicationId={publicationId} />
     <Footer />
   </>)

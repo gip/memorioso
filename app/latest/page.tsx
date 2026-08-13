@@ -1,4 +1,3 @@
-import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { getLatestPublications } from '@/lib/db/objects'
 import { TextListCard } from '@/components/TextListCard'
@@ -12,7 +11,6 @@ const Page = async () => {
 
   return (
     <>
-      <Header />
       <div className="text-center mt-4">
         <h1 className="text-5xl">
           For Human Creativity

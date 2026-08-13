@@ -5,15 +5,6 @@
   font-style: normal;
 }
 
-.sticky {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background-color: hsl(var(--background));
-    /* padding: 0.5rem 1rem; */
-    box-shadow: none;
-  }
-  
 .editor-input {
   border: none !important;
   outline: none !important;

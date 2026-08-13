@@ -128,12 +128,12 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
   }
 })
 
-export const getLatestPublications = cache(async (limit: number = 20): Promise<PublicationInfo[]> => {
+export const getLatestPublications = cache(async (limit: number = 20, offset: number = 0): Promise<PublicationInfo[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal, proof FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1',
-      [limit]
+      'SELECT id, signal, proof FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
     )
 
     return rows.map(row => ({

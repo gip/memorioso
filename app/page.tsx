@@ -13,13 +13,17 @@ const Page = () => {
   const isAuthenticated = status === 'authenticated'
 
   return (<>
-    <div className="mx-auto flex w-full max-w-[1000px] gap-10 px-4 lg:px-6">
+    {/* Three columns so the reading column sits in the middle of the viewport and
+        the rail lives in the left gutter rather than beside the text. When the
+        gutters can no longer hold the rail the grid gives it its minimum and the
+        reading column slides right instead of overflowing. */}
+    <div className="mx-auto grid w-full max-w-[740px] grid-cols-1 gap-10 px-4 lg:max-w-none lg:grid-cols-[minmax(12rem,1fr)_minmax(0,700px)_minmax(0,1fr)] lg:px-6">
       {/* Sticky so the actions cost the reading column no vertical space. */}
-      <aside className="hidden w-52 shrink-0 lg:block">
-        <HomeActions className="sticky top-8 py-8" />
+      <aside className="hidden lg:block">
+        <HomeActions className="sticky top-8 w-full max-w-[12rem] py-8" />
       </aside>
 
-      <main className="w-full min-w-0 max-w-[700px] py-8">
+      <main className="w-full min-w-0 py-8">
         <section className="spectral max-w-prose text-lg leading-relaxed">
           <h1 className="text-3xl font-semibold leading-tight">For Human Creativity</h1>
           <p className="mt-4 text-muted-foreground">

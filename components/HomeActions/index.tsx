@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogIn, PenLine } from 'lucide-react'
+import { Files, LogIn, PenLine } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Diamond } from '@/components/Diamond'
@@ -48,21 +48,26 @@ export const HomeActions = ({ className }: { className?: string }) => {
         <span className="text-xl font-bold">Memorioso</span>
       </Link>
 
+      {/* One button style for every action: a rail of shouting CTAs competes with
+          the text it sits next to. */}
       <div className="flex flex-col items-stretch gap-2">
-        <Button onClick={() => router.push('/d/new')}>
-          <PenLine className="mr-2 h-4 w-4" />
+        <Button variant="outline" className="justify-start px-3" onClick={() => router.push('/d/new')}>
+          <PenLine className="h-4 w-4" />
           Start writing
         </Button>
         {isAuthenticated ? (
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="flex-1" asChild>
-              <Link href="#your-drafts">Your drafts</Link>
+            <Button variant="outline" className="flex-1 justify-start px-3" asChild>
+              <Link href="#your-drafts">
+                <Files className="h-4 w-4" />
+                Your drafts
+              </Link>
             </Button>
             <Diamond atBottom={false} />
           </div>
         ) : (
-          <Button variant="outline" onClick={handleSignIn}>
-            <LogIn className="mr-2 h-4 w-4" />
+          <Button variant="outline" className="justify-start px-3" onClick={handleSignIn}>
+            <LogIn className="h-4 w-4" />
             Sign in with World ID
           </Button>
         )}

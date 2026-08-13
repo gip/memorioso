@@ -10,6 +10,7 @@ import {
 import { MemMark } from '@/components/MemMark'
 import { HumanSeal } from '@/components/HumanSeal'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
+import { RightPanePortal } from '@/components/SiteChrome/RightPanePortal'
 import {
   extractReadableText,
   manifestElementId,
@@ -22,6 +23,104 @@ import {
   sanitizeLibroEmbedHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
+
+const AuthorshipMark = ({
+  isAgentAuthored,
+  size,
+  sealId,
+}: {
+  isAgentAuthored: boolean
+  size: number
+  sealId: string
+}) => isAgentAuthored ? (
+  <div
+    aria-label="Human-authorized agent publication"
+    className="flex shrink-0 items-center justify-center rounded-full border border-blurple/20 bg-[radial-gradient(circle_at_center,rgba(82,0,255,0.08),transparent_68%)]"
+    role="img"
+    style={{ width: size, height: size }}
+  >
+    <MemMark size={size * 0.46} />
+  </div>
+) : (
+  <HumanSeal id={sealId} size={size} />
+)
+
+const PublicationVerification = ({
+  isAgentAuthored,
+  verifyHref,
+  celebrate,
+  embedSnippet,
+  textSnippet,
+  compact = false,
+}: {
+  isAgentAuthored: boolean
+  verifyHref?: string
+  celebrate: boolean
+  embedSnippet: string | null
+  textSnippet: string | null
+  compact?: boolean
+}) => compact ? (
+  <section
+    aria-label="Publication verification"
+    className="mb-7 rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-3 sm:p-4 xl:hidden"
+  >
+    <div className="flex items-center gap-3.5">
+      <AuthorshipMark isAgentAuthored={isAgentAuthored} sealId="publication-seal-mobile" size={72} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">
+          {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
+        </p>
+        {celebrate && (
+          <p className="mt-0.5 text-xs text-muted-foreground">Signed and published just now</p>
+        )}
+        {verifyHref && (
+          <Link
+            href={verifyHref}
+            className="mt-1.5 inline-block text-xs font-medium text-blurple hover:underline"
+          >
+            View verification
+          </Link>
+        )}
+      </div>
+    </div>
+    {embedSnippet && textSnippet && (
+      <div className="mt-3 border-t border-zinc-200/80 pt-2">
+        <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} />
+      </div>
+    )}
+  </section>
+) : (
+  <aside
+    aria-label="Publication verification"
+    className="flex w-full max-w-[14rem] flex-col items-center py-8 text-center"
+  >
+    <AuthorshipMark isAgentAuthored={isAgentAuthored} sealId="publication-seal-desktop" size={112} />
+    <p className="mt-4 text-sm font-semibold text-foreground">
+      {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
+    </p>
+    {celebrate && (
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Signed and published just now
+      </p>
+    )}
+    {verifyHref && (
+      <Link
+        href={verifyHref}
+        className="mt-2 text-xs font-medium leading-relaxed text-muted-foreground underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-blurple"
+      >
+        View independent verification
+      </Link>
+    )}
+    {embedSnippet && textSnippet && (
+      <div className="mt-6 w-full border-t border-zinc-200 pt-4 text-left">
+        <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Reuse this publication
+        </p>
+        <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} vertical />
+      </div>
+    )}
+  </aside>
+)
 
 export const Publication = ({
   publication,
@@ -68,99 +167,82 @@ export const Publication = ({
   )
 
   return (
-    <article className="pb-20 pt-8 sm:pt-12">
-      <header className="text-center">
-        <div className="flex flex-col items-center">
-          {isAgentAuthored ? (
-            <div
-              aria-label="Human-authorized agent publication"
-              className="flex h-28 w-28 items-center justify-center rounded-full border border-blurple/20 bg-[radial-gradient(circle_at_center,rgba(82,0,255,0.08),transparent_68%)]"
-              role="img"
-            >
-              <MemMark size={52} />
-            </div>
-          ) : (
-            <HumanSeal size={116} />
-          )}
-          {isAgentAuthored && (
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-blurple">
-              Human-authorized agent
+    <>
+      <RightPanePortal>
+        <PublicationVerification
+          isAgentAuthored={isAgentAuthored}
+          verifyHref={verifyHref}
+          celebrate={celebrate}
+          embedSnippet={embedSnippet}
+          textSnippet={textSnippet}
+        />
+      </RightPanePortal>
+
+      <article className="pb-16 pt-5 sm:pb-20 sm:pt-8 xl:pt-12">
+        <PublicationVerification
+          isAgentAuthored={isAgentAuthored}
+          verifyHref={verifyHref}
+          celebrate={celebrate}
+          embedSnippet={embedSnippet}
+          textSnippet={textSnippet}
+          compact
+        />
+
+        <header className="text-center">
+          <h1 className={title
+            ? 'spectral mx-auto line-clamp-2 text-balance text-[clamp(30px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
+            : 'mx-auto line-clamp-2 text-[17px] font-normal leading-relaxed text-foreground'
+          }>
+            {titleOrExcerpt}
+          </h1>
+          {publication.publication_subtitle && (
+            <p className="spectral mx-auto mt-3 text-pretty text-[19px] leading-snug text-muted-foreground sm:text-[21px]">
+              {publication.publication_subtitle}
             </p>
           )}
-          {celebrate && (
-            <p className="mt-1 text-xs text-muted-foreground">Signed and published just now</p>
-          )}
-          {verifyHref && (
-            <Link
-              href={verifyHref}
-              className="mt-2 text-xs font-medium text-muted-foreground underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-blurple"
-            >
-              View independent verification
+
+          <div className="mt-6 text-[13.5px] leading-relaxed text-muted-foreground">
+            <span className="italic">By </span>
+            <Link href={authorHref} className="font-medium text-blurple hover:underline">
+              @{publication.author_handle_libro}
             </Link>
-          )}
-        </div>
-
-        <div className="mx-auto mt-8 h-px w-12 bg-zinc-200" />
-
-        <h1 className={title
-          ? 'spectral mx-auto mt-8 line-clamp-2 text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
-          : 'mx-auto mt-8 line-clamp-2 text-[17px] font-normal leading-relaxed text-foreground'
-        }>
-          {titleOrExcerpt}
-        </h1>
-        {publication.publication_subtitle && (
-          <p className="spectral mx-auto mt-3 text-pretty text-[19px] leading-snug text-muted-foreground sm:text-[21px]">
-            {publication.publication_subtitle}
-          </p>
-        )}
-
-        <div className="mt-6 text-[13.5px] leading-relaxed text-muted-foreground">
-          <span className="italic">By </span>
-          <Link href={authorHref} className="font-medium text-blurple hover:underline">
-            @{publication.author_handle_libro}
-          </Link>
-          <span className="ml-1">/ {publication.author_name_libro}</span>
-          <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px]">
-            <span><PublicationTimestamp date={publication.publication_date} /></span>
-            {credentialLabel && (
-              <>
-                <span aria-hidden className="text-zinc-300">·</span>
-                <span>{credentialLabel}</span>
-              </>
-            )}
+            <span className="ml-1">/ {publication.author_name_libro}</span>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px]">
+              <span><PublicationTimestamp date={publication.publication_date} /></span>
+              {credentialLabel && (
+                <>
+                  <span aria-hidden className="text-zinc-300">·</span>
+                  <span>{credentialLabel}</span>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </header>
 
-        {embedSnippet && textSnippet && (
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-1">
-            <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} />
+        {isLegacy && (
+          <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE}
           </div>
         )}
-      </header>
 
-      {isLegacy && (
-        <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE}
+        <div className="my-7 h-px bg-zinc-100 sm:my-9" />
+
+        <div>
+          {publicationBody}
         </div>
-      )}
 
-      <div className="my-9 h-px bg-zinc-100" />
+        {embedManifest && manifestId && (
+          <script
+            id={manifestId}
+            type="application/libro+json"
+            dangerouslySetInnerHTML={{ __html: serializeManifestForHtml(embedManifest) }}
+          />
+        )}
 
-      <div>
-        {publicationBody}
-      </div>
-
-      {embedManifest && manifestId && (
-        <script
-          id={manifestId}
-          type="application/libro+json"
-          dangerouslySetInnerHTML={{ __html: serializeManifestForHtml(embedManifest) }}
-        />
-      )}
-
-      <div className="mt-10 flex justify-center">
-        <MemMark size={26} />
-      </div>
-    </article>
+        <div className="mt-10 flex justify-center">
+          <MemMark size={26} />
+        </div>
+      </article>
+    </>
   )
 }

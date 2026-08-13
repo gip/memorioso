@@ -144,7 +144,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
         )}
       </header>
 
-      <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:min-h-0 lg:max-w-none lg:grid-cols-[minmax(12rem,1fr)_minmax(0,740px)_minmax(0,1fr)] lg:gap-10 lg:px-6">
+      <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:min-h-0 lg:max-w-none lg:grid-cols-[12rem_minmax(0,740px)_minmax(0,1fr)] lg:gap-4 lg:px-6 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,740px)_minmax(12rem,1fr)] xl:gap-8">
         <div className="contents lg:col-start-1 lg:row-start-1 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
           <aside className="hidden lg:block">
             <HomeActions className="w-full max-w-[12rem] py-8" />
@@ -158,7 +158,10 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
 
-        <div className="hidden lg:col-start-3 lg:row-start-1 lg:block" aria-hidden />
+        <div
+          id="site-right-pane"
+          className="hidden xl:col-start-3 xl:row-start-1 xl:flex xl:h-full xl:min-h-0 xl:overflow-hidden"
+        />
       </div>
     </div>
   )

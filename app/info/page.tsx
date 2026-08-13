@@ -1,4 +1,3 @@
-import { Header } from '@/components/Header'
 import { getAuthors } from '@/lib/db/objects'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { Footer } from '@/components/Footer'
@@ -12,7 +11,6 @@ const Info = async () => {
   const authors = name && await getAuthors(name)
 
   return (<>
-    <Header />
     <div className="max-w-3xl mx-auto py-12 px-4">
       {name ? (
         <>

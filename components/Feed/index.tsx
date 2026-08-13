@@ -33,28 +33,20 @@ export const Feed = () => {
   }, []);
 
   const EmptyFeed = () => (
-    <div className="w-[90%] mx-auto py-8 text-center">
-      <h3 className="text-xl font-semibold mb-2">No drafts yet</h3>
-      <p className="text-muted-foreground mb-4">Start writing your first draft to get started</p>
+    <div className="py-6 text-center">
+      <p className="text-muted-foreground mb-4">You have no drafts yet.</p>
       <Button onClick={() => router.push('/d/new')}>
-        Create New Draft
+        Start writing
       </Button>
     </div>
   )
 
   const FeedContent = () => (
-    <div className="w-[90%] mx-auto space-y-2 py-4">
+    <div className="space-y-3">
       {feedItems && feedItems.length > 0 ? (
-        <>
-          {feedItems.map((item) => (
-            <FeedItem key={item.id} item={item} />
-          ))}
-          <div className="text-center pt-8">
-            <Button onClick={() => router.push('/d/new')}>
-              Create New Draft
-            </Button>
-          </div>
-        </>
+        feedItems.map((item) => (
+          <FeedItem key={item.id} item={item} />
+        ))
       ) : (
         <EmptyFeed />
       )}
@@ -62,28 +54,29 @@ export const Feed = () => {
   )
 
   const FeedLoading = () => (
-    <div className="w-[90%] mx-auto space-y-2 py-4">
+    <div className="space-y-3">
       <FeedItem item={null} />
       <FeedItem item={null} />
     </div>
   )
 
+  // Width and section spacing come from the surrounding page container.
   return (
-    <>      
-      <div className="w-[90%] mx-auto">
-        <main className="w-full">
-          <div className="text-left p-4 flex items-start gap-2">
-            <h2 className="text-2xl font-bold">Your Drafts</h2>
-            {/* <Link href="/d/new" className="hover:bg-gray-300 bg-gray-200 p-1 rounded-md mt-1">
-              <Plus size={10} />
-            </Link> */}
-          </div>
-          {feedStatus === 'loading' &&
-              <FeedLoading />}
-          {feedStatus === 'ready' &&
-            <FeedContent />}
-        </main>
+    <div>
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Your Drafts
+        </h2>
+        <button
+          type="button"
+          onClick={() => router.push('/d/new')}
+          className="text-xs text-blurple hover:underline"
+        >
+          New draft
+        </button>
       </div>
-    </>
+      {feedStatus === 'loading' && <FeedLoading />}
+      {feedStatus === 'ready' && <FeedContent />}
+    </div>
   )
 }

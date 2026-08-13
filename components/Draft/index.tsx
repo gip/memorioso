@@ -11,13 +11,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/alert"
 import { type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
+import { clearLocalDraft, readLocalDraft, writeLocalDraft } from '@/lib/local-draft'
 import {
   isNativeLibroTransactionAvailable,
   sendLibroRegistrationTransaction,
@@ -166,13 +167,17 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'saved-local' | 'error'>('idle')
+  // Anonymous drafts live in local storage until login; the editor must not mount
+  // before we know whether there is something to restore into it.
+  const [isLocalRestored, setIsLocalRestored] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPickingAuthor, setIsPickingAuthor] = useState(false)
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
   const { status, signInWithWorldId } = useWorldIdAuth()
+  const isAuthenticated = status === 'authenticated'
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
   const publicClient = useMemo(
@@ -184,13 +189,24 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   })
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      signInWithWorldId().catch(() => setError('Failed to sign in'))
-    }
-  }, [status, signInWithWorldId])
-
-  useEffect(() => {
     setCurrentDraftId(draftId)
+  }, [draftId])
+
+  // Restore anonymous work into a fresh editor. Only for /d/new: an existing
+  // draft id always wins over whatever is on this device.
+  useEffect(() => {
+    if (draftId) {
+      setIsLocalRestored(true)
+      return
+    }
+    const local = readLocalDraft()
+    if (local) {
+      setDraft({ title: local.title, subtitle: local.subtitle, content: local.content })
+      setInitialContent(local.content.html)
+      setInitialTitle(local.title)
+      setInitialSubtitle(local.subtitle)
+    }
+    setIsLocalRestored(true)
   }, [draftId])
 
   const setContent = ({ html }: { html: string }) => {
@@ -251,9 +267,12 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     }
   }, [])
 
+  // Re-runs on login: the anonymous request 401s and would otherwise leave the
+  // writer with no author to publish as.
   useEffect(() => {
+    if (status !== 'authenticated') return
     fetchAuthors()
-  }, [fetchAuthors])
+  }, [fetchAuthors, status])
 
   // Auto-assign the author when the writer has exactly one identity.
   useEffect(() => {
@@ -305,6 +324,17 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       console.error('Failed to save draft:', error)
       throw error
     }
+  }
+
+  // signInWithWorldId resolves once the login modal is on screen, not once the
+  // writer is actually signed in. So this only hands over to that modal;
+  // adoption persists the draft, and the writer publishes after.
+  const handleSignInToPublish = () => {
+    setIsConfirmOpen(false)
+    setError(null)
+    signInWithWorldId().catch((reason) => {
+      setError(reason instanceof Error ? reason.message : 'Could not start World ID login')
+    })
   }
 
   const handlePublish = async () => {
@@ -374,6 +404,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       setPendingFinalize(null)
       setPublishStatus(null)
       publishHostVerifyError.current = null
+      clearLocalDraft()
       router.push(`/p/${response.publicationId}?signed=1`)
       return true
     } catch (reason) {
@@ -510,6 +541,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       })
       const response = await raw.json()
       if (response.success) {
+        clearLocalDraft()
         router.push('/')
       }
     } catch (error) {
@@ -531,14 +563,25 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     hasMeaningfulPublicationBody(draft?.content)
   const canPublish = hasPublishablePublication(draft?.title, draft?.content)
 
-  // Debounced autosave: no Save button, work is never lost.
+  // Debounced autosave: no Save button, work is never lost. Anonymous writers
+  // are saved to this device instead of the account.
   useEffect(() => {
-    if (isEditingDisabled || !isDraftChanged()) return
-    if (!hasText) return
+    if (isEditingDisabled || !hasText) return
+    const isAnonymous = status !== 'authenticated'
+    if (!isAnonymous && !isDraftChanged()) return
 
     setSaveState('saving')
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     autosaveTimer.current = setTimeout(async () => {
+      if (isAnonymous) {
+        const stored = writeLocalDraft({
+          title: draft?.title ?? '',
+          subtitle: draft?.subtitle ?? '',
+          content: draft?.content ?? { html: '' },
+        })
+        setSaveState(stored ? 'saved-local' : 'error')
+        return
+      }
       try {
         await handleSaveRef.current()
         setSaveState('saved')
@@ -550,9 +593,40 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [draft, isEditingDisabled, isDraftChanged, hasText])
+  }, [draft, isEditingDisabled, isDraftChanged, hasText, status])
 
-  if (status === 'loading' || loading) {
+  // Adoption: the moment the writer signs in, their local draft becomes a real
+  // draft on their account. handleSave adopts the new id and rewrites the URL
+  // without remounting, so typing is not interrupted.
+  const isAdoptingRef = useRef(false)
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    if (currentDraftId || draftId) return
+    if (!isLocalRestored || !hasText || isEditingDisabled) return
+    // Only adopt work that was actually written anonymously. Without this an
+    // already-signed-in writer would skip the autosave debounce and create a
+    // draft on their first keystroke.
+    if (!readLocalDraft()) return
+    if (isAdoptingRef.current) return
+
+    isAdoptingRef.current = true
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    setSaveState('saving')
+    handleSaveRef.current()
+      .then(() => {
+        clearLocalDraft()
+        setSaveState('saved')
+        return fetchAuthors()
+      })
+      .catch(() => {
+        setSaveState('error')
+      })
+      .finally(() => {
+        isAdoptingRef.current = false
+      })
+  }, [status, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors])
+
+  if (status === 'loading' || loading || !isLocalRestored) {
     return <FeedItem item={null} />
   }
 
@@ -597,10 +671,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
       )}
-      <div className="sticky top-14 z-20 -mx-[5vw] px-[5vw] py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2">
+      {/* Parks below the mobile bar; on lg+ the site chrome scrolls away, so this
+          is the only thing pinned to the top. */}
+      <div className="sticky top-14 lg:top-0 z-20 -mx-[5vw] px-[5vw] py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
+          {saveState === 'saved-local' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved on this device</>)}
           {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
           {!canPublish && <span>Add a title or some content to publish.</span>}
         </span>
@@ -651,7 +728,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
               setSubtitle={setSubtitle}
               />
 
-      <Sheet
+      <Dialog
         open={isConfirmOpen}
         onOpenChange={(open) => {
           setIsConfirmOpen(open)
@@ -660,19 +737,24 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           }
         }}
       >
-        <SheetContent side="bottom" className="rounded-t-xl pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <SheetHeader>
-            <SheetTitle>Sign &amp; publish</SheetTitle>
-            <SheetDescription>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign &amp; publish</DialogTitle>
+            <DialogDescription>
               A publication needs a title or some content. Publishing permanently registers its human signature and can&apos;t be undone.
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
           <div className="py-4 space-y-3">
             <div className="space-y-1 text-sm">
               <div className="font-medium text-base">{draft?.title || 'Untitled'}</div>
               {draft?.subtitle && <div className="text-muted-foreground">{draft.subtitle}</div>}
             </div>
-            {selectedAuthor && !isPickingAuthor ? (
+            {!isAuthenticated ? (
+              <p className="text-sm text-muted-foreground">
+                Your draft is saved on this device. Sign in with World ID to publish it.
+                It moves to your account automatically, and nothing you wrote is lost.
+              </p>
+            ) : selectedAuthor && !isPickingAuthor ? (
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-muted-foreground truncate">
                   by <span className="font-medium text-foreground">{selectedAuthor.name}</span>
@@ -708,26 +790,34 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
                 </div>
               </div>
             )}
-            {isMiniKitInstalled === undefined ? (
-              <p className="text-sm text-muted-foreground">Checking World wallet availability…</p>
-            ) : canUseWorldWallet ? (
-              <p className="text-sm text-muted-foreground">
-                After World ID verification, your World wallet will ask you to approve the on-chain registration.
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Memorioso will sponsor and submit the on-chain registration for you.
-              </p>
+            {isAuthenticated && (
+              isMiniKitInstalled === undefined ? (
+                <p className="text-sm text-muted-foreground">Checking World wallet availability…</p>
+              ) : canUseWorldWallet ? (
+                <p className="text-sm text-muted-foreground">
+                  After World ID verification, your World wallet will ask you to approve the on-chain registration.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Memorioso will sponsor and submit the on-chain registration for you.
+                </p>
+              )
             )}
           </div>
-          <SheetFooter>
+          <DialogFooter>
             <Button variant="ghost" onClick={() => setIsConfirmOpen(false)}>Cancel</Button>
-            <Button onClick={handlePublish} disabled={!draft?.authorId}>
-              Verify with World ID
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+            {isAuthenticated ? (
+              <Button onClick={handlePublish} disabled={!draft?.authorId}>
+                Verify with World ID
+              </Button>
+            ) : (
+              <Button onClick={handleSignInToPublish}>
+                Sign in to publish
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

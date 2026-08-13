@@ -149,33 +149,37 @@ export const SiteChrome = () => {
 
       {/* Large screens: no bar at all. These sit at the top of the document and
           scroll away with the page rather than hovering over it, so nothing ever
-          passes underneath them. The masthead already brands the home page, so
-          the brand link only appears on interior pages. */}
+          passes underneath them. The home page carries its own left rail, which
+          already holds the brand and every action, so it opts out entirely. */}
       {!isHome && (
-        <Link
-          href="/"
-          className="absolute left-6 top-5 z-40 hidden items-center gap-2 text-sm font-semibold lg:flex"
-        >
-          <MemMark size={22} />
-          Memorioso
-        </Link>
+        <>
+          {/* Reserves the strip these two sit in, so page content starts below. */}
+          <div className="hidden h-16 lg:block" aria-hidden />
+          <Link
+            href="/"
+            className="absolute left-6 top-5 z-40 hidden items-center gap-2 text-sm font-semibold lg:flex"
+          >
+            <MemMark size={22} />
+            Memorioso
+          </Link>
+          <div className="absolute right-6 top-5 z-40 hidden items-center gap-2 lg:flex">
+            {user && !isWriting && (
+              <Button className="h-10 rounded-full px-4" onClick={() => router.push('/d/new')}>
+                <PenLine className="mr-1.5 h-4 w-4" />
+                Write
+              </Button>
+            )}
+            {user ? (
+              <Diamond atBottom={false} />
+            ) : (
+              <Button className="h-10 rounded-full px-4" onClick={handleSignIn}>
+                <LogIn className="mr-1.5 h-4 w-4" />
+                Log in
+              </Button>
+            )}
+          </div>
+        </>
       )}
-      <div className="absolute right-6 top-5 z-40 hidden items-center gap-2 lg:flex">
-        {user && !isWriting && (
-          <Button className="h-10 rounded-full px-4" onClick={() => router.push('/d/new')}>
-            <PenLine className="mr-1.5 h-4 w-4" />
-            Write
-          </Button>
-        )}
-        {user ? (
-          <Diamond atBottom={false} />
-        ) : (
-          <Button className="h-10 rounded-full px-4" onClick={handleSignIn}>
-            <LogIn className="mr-1.5 h-4 w-4" />
-            Log in
-          </Button>
-        )}
-      </div>
     </>
   )
 }

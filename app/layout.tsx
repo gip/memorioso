@@ -49,9 +49,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <SiteChrome />
-          {/* On lg+ there is no header, so pages reserve room for the fixed
-              brand and account clusters. */}
-          <div className="min-h-screen flex flex-col lg:pt-16">{children}</div>
+          <div className="min-h-screen flex flex-col">{children}</div>
         </Providers>
         <Analytics />
       </body>

@@ -68,7 +68,7 @@ export const Publication = ({
   )
 
   return (
-    <article className="mx-auto max-w-3xl px-5 pb-20 pt-8 sm:px-8 sm:pt-12">
+    <article className="pb-20 pt-8 sm:pt-12">
       <header className="text-center">
         <div className="flex flex-col items-center">
           {isAgentAuthored ? (
@@ -103,13 +103,13 @@ export const Publication = ({
         <div className="mx-auto mt-8 h-px w-12 bg-zinc-200" />
 
         <h1 className={title
-          ? 'spectral mx-auto mt-8 line-clamp-2 max-w-2xl text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
-          : 'mx-auto mt-8 line-clamp-2 max-w-2xl text-[17px] font-normal leading-relaxed text-foreground'
+          ? 'spectral mx-auto mt-8 line-clamp-2 text-balance text-[clamp(32px,6vw,46px)] font-semibold leading-[1.08] tracking-tight text-foreground'
+          : 'mx-auto mt-8 line-clamp-2 text-[17px] font-normal leading-relaxed text-foreground'
         }>
           {titleOrExcerpt}
         </h1>
         {publication.publication_subtitle && (
-          <p className="spectral mx-auto mt-3 max-w-xl text-pretty text-[19px] leading-snug text-muted-foreground sm:text-[21px]">
+          <p className="spectral mx-auto mt-3 text-pretty text-[19px] leading-snug text-muted-foreground sm:text-[21px]">
             {publication.publication_subtitle}
           </p>
         )}
@@ -139,14 +139,14 @@ export const Publication = ({
       </header>
 
       {isLegacy && (
-        <div className="mx-auto mt-8 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE}
         </div>
       )}
 
-      <div className="mx-auto my-9 h-px max-w-2xl bg-zinc-100" />
+      <div className="my-9 h-px bg-zinc-100" />
 
-      <div className="mx-auto max-w-2xl">
+      <div>
         {publicationBody}
       </div>
 

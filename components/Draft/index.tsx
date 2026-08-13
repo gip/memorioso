@@ -637,7 +637,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const selectedAuthor = authors.find((a) => a.id === draft?.authorId) || null
 
   return (
-    <div className="w-[90%] mx-auto space-y-4 py-4">
+    <div className="space-y-4 py-4">
       {publishContext && worldIdConstraints && (
         <IDKitRequestWidget
           open={isWorldIdOpen}
@@ -671,9 +671,8 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
       )}
-      {/* Parks below the mobile bar; on lg+ the site chrome scrolls away, so this
-          is the only thing pinned to the top. */}
-      <div className="sticky top-14 lg:top-0 z-20 -mx-[5vw] px-[5vw] py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2">
+      {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}
+      <div className="sticky top-14 z-20 -mx-4 flex items-center justify-between gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur lg:top-0 lg:mx-0 lg:px-0">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}

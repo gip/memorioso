@@ -378,7 +378,7 @@ export const Proof = ({
   const title = publicationTitle || extractReadableText(publication.publication_content.html)
 
   return (
-    <article className="mx-auto max-w-2xl px-5 pb-16 pt-4">
+    <article className="pb-16 pt-8">
       <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-blurple">
         <MemMark size={16} />
         {view.eyebrow}

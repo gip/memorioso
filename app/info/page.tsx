@@ -1,6 +1,5 @@
 import { getAuthors } from '@/lib/db/objects'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { Footer } from '@/components/Footer'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -10,8 +9,8 @@ const Info = async () => {
   const name = user?.subject
   const authors = name && await getAuthors(name)
 
-  return (<>
-    <div className="max-w-3xl mx-auto py-12 px-4">
+  return (
+    <main className="py-12">
       {name ? (
         <>
           <h2 className="text-2xl font-bold">User Information</h2>
@@ -43,9 +42,8 @@ const Info = async () => {
           Please log in to see your information
         </p>
       )}
-      <Footer />
-    </div>
-  </>);
+    </main>
+  );
 }
 
 export default Info

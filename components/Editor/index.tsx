@@ -250,9 +250,9 @@ export default function Editor({
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 pt-4">
+    <div className="py-4">
       {editable && (
-        <div className="-mx-4 px-2 mb-3 border-b flex justify-center overflow-x-auto">
+        <div className="-mx-4 mb-3 flex justify-center overflow-x-auto border-b px-2 lg:mx-0 lg:px-0">
           <div className="flex items-center justify-between gap-2 py-1.5">
             <div className="flex items-center gap-1">
               <DropdownMenu>

@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Footer } from '@/components/Footer'
 import { Divider } from '@/components/Divider'
 
 const STEPS = [
@@ -26,52 +25,49 @@ const STEPS = [
 ]
 
 const Page = () => (
-  <>
-    <div className="mx-auto w-[90%] max-w-3xl py-8 lg:py-12">
-      <h1 className="spectral text-4xl font-semibold leading-tight lg:text-5xl">
-        How it works
-      </h1>
-      <p className="spectral mt-5 max-w-prose text-lg leading-relaxed text-muted-foreground">
-        Soon, most of the content accessible to us will have been created by machines. Memorioso
-        exists so that human-created texts stay identifiable as such: created, signed, shared,
-        verified, and archived in a decentralized and permissionless way.
-      </p>
+  <main className="py-8 lg:py-12">
+    <h1 className="spectral text-4xl font-semibold leading-tight lg:text-5xl">
+      How it works
+    </h1>
+    <p className="spectral mt-5 max-w-prose text-lg leading-relaxed text-muted-foreground">
+      Soon, most of the content accessible to us will have been created by machines. Memorioso
+      exists so that human-created texts stay identifiable as such: created, signed, shared,
+      verified, and archived in a decentralized and permissionless way.
+    </p>
 
-      <Divider />
+    <Divider />
 
-      <ol className="mt-8 space-y-8">
-        {STEPS.map((step, index) => (
-          <li key={step.title} className="flex gap-4">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
-              {index + 1}
-            </span>
-            <div>
-              <h2 className="text-lg font-semibold">{step.title}</h2>
-              <p className="mt-1 max-w-prose text-muted-foreground">{step.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
+    <ol className="mt-8 space-y-8">
+      {STEPS.map((step, index) => (
+        <li key={step.title} className="flex gap-4">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
+            {index + 1}
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold">{step.title}</h2>
+            <p className="mt-1 max-w-prose text-muted-foreground">{step.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
 
-      <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-        <Link href="/d/new" className="text-blurple hover:underline">
-          Start writing
-        </Link>
-        <Link href="/latest" className="text-blurple hover:underline">
-          Latest publications
-        </Link>
-        <Link
-          href="https://whitepaper.world.org/#proof-of-human-(poh)"
-          className="text-blurple hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Proof of Human
-        </Link>
-      </div>
+    <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <Link href="/d/new" className="text-blurple hover:underline">
+        Start writing
+      </Link>
+      <Link href="/latest" className="text-blurple hover:underline">
+        Latest publications
+      </Link>
+      <Link
+        href="https://whitepaper.world.org/#proof-of-human-(poh)"
+        className="text-blurple hover:underline"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Proof of Human
+      </Link>
     </div>
-    <Footer />
-  </>
+  </main>
 )
 
 export default Page

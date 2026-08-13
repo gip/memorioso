@@ -1,6 +1,6 @@
 const TermsPage = () => {
-  return (<>
-    <main className="max-w-3xl mx-auto py-12 px-4">
+  return (
+    <main className="py-12">
       <h1 className="text-3xl font-bold mb-8">Terms of Use</h1>
 
       <section className="space-y-6">
@@ -79,7 +79,7 @@ const TermsPage = () => {
         </div>
       </section>
     </main>
-  </>)
+  )
 }
 
-export default TermsPage 
+export default TermsPage

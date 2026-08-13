@@ -108,9 +108,9 @@ export const HomeActions = ({ className }: { className?: string }) => {
 
   return (
     <div className={className}>
-      <Link href="/" className="mb-6 flex items-center gap-2">
-        <MemMark size={26} />
-        <span className="text-xl font-bold">Memorioso</span>
+      <Link href="/" className="mb-7 flex items-center justify-center gap-2.5">
+        <MemMark size={32} />
+        <span className="text-2xl font-bold">Memorioso</span>
       </Link>
 
       <div className="flex flex-col items-stretch gap-2">

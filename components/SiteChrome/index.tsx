@@ -145,16 +145,18 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
       </header>
 
       <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:max-w-none lg:grid-cols-[minmax(12rem,1fr)_minmax(0,700px)_minmax(0,1fr)] lg:gap-10 lg:px-6">
-        <aside className="hidden lg:block">
-          <HomeActions className="sticky top-8 w-full max-w-[12rem] py-8" />
-        </aside>
-
-        <div className="flex min-h-full min-w-0 flex-col">
-          <div className="flex-1">{children}</div>
-          <Footer />
+        <div className="contents lg:col-start-1 lg:row-start-1 lg:flex lg:min-h-full lg:flex-col">
+          <aside className="hidden lg:block">
+            <HomeActions className="sticky top-8 w-full max-w-[12rem] py-8" />
+          </aside>
+          <Footer className="order-last lg:order-none lg:w-full lg:max-w-[12rem]" />
         </div>
 
-        <div className="hidden lg:block" aria-hidden />
+        <div className="flex min-h-full min-w-0 flex-col lg:col-start-2 lg:row-start-1">
+          {children}
+        </div>
+
+        <div className="hidden lg:col-start-3 lg:row-start-1 lg:block" aria-hidden />
       </div>
     </div>
   )

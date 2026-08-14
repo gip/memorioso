@@ -21,7 +21,7 @@ vi.mock('@/lib/auth-user', () => ({
   getAuthenticatedUser: authMock.getAuthenticatedUser,
 }))
 
-import { PUT } from './route'
+import { DELETE, PUT } from './route'
 
 function request(body: unknown): NextRequest {
   return {
@@ -131,5 +131,29 @@ describe('draft route', () => {
       [draft.authorId, 7]
     )
     expect(dbMock.query.mock.calls.some(([query]) => String(query).includes('UPDATE drafts'))).toBe(false)
+  })
+
+  it('deletes only an editing draft owned by the authenticated user', async () => {
+    dbMock.query.mockResolvedValue({ rows: [{ id: 'draft-1' }] })
+
+    const response = await DELETE({} as NextRequest, context('draft-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(dbMock.query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM drafts'),
+      ['draft-1', 7, 'editing']
+    )
+    expect(body).toEqual({ success: true, draftId: 'draft-1' })
+    expect(dbMock.release).toHaveBeenCalled()
+  })
+
+  it('does not delete a draft outside the authenticated account', async () => {
+    dbMock.query.mockResolvedValue({ rows: [] })
+
+    const response = await DELETE({} as NextRequest, context('other-draft'))
+
+    expect(response.status).toBe(404)
+    expect(dbMock.release).toHaveBeenCalled()
   })
 })

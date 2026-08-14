@@ -37,7 +37,7 @@ export const getPrimarySiteAction = (
 ): PrimarySiteAction => {
   if (pathname.startsWith('/d/')) {
     return {
-      href: isAuthenticated ? '/#your-drafts' : '/',
+      href: isAuthenticated ? '/activity' : '/',
       label: isAuthenticated ? 'Back to drafts' : 'Back home',
       icon: 'back',
     }
@@ -155,9 +155,9 @@ export const HomeActions = ({ className }: { className?: string }) => {
           </Button>
         )}
 
-        {pathname === '/' && isAuthenticated && (
+        {isAuthenticated && (
           <Button variant="outline" className="justify-start px-3" asChild>
-            <Link href="/#your-drafts">
+            <Link href="/activity">
               <Files className="h-4 w-4" />
               Your drafts
             </Link>
@@ -175,7 +175,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuItem asChild>
-                <Link href="/#your-drafts">My drafts</Link>
+                <Link href="/activity">My drafts</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/authors">My authors</Link>

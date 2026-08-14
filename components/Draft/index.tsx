@@ -570,7 +570,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const handleDelete = async () => {
     if (!currentDraftId) return
     try {
-      const raw = await fetch(`/api/draft?id=${currentDraftId}`, {
+      const raw = await fetch(`/api/draft/${currentDraftId}`, {
         method: 'DELETE',
       })
       const response = await raw.json()

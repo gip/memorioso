@@ -101,9 +101,9 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
               <DropdownMenuItem asChild>
                 <Link href={primaryAction.href}>{primaryAction.label}</Link>
               </DropdownMenuItem>
-              {pathname === '/' && isAuthenticated && (
+              {isAuthenticated && (
                 <DropdownMenuItem asChild>
-                  <Link href="/#your-drafts">Your drafts</Link>
+                  <Link href="/activity">Your drafts</Link>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem asChild>
@@ -126,7 +126,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
               ) : (
                 <>
                   <DropdownMenuItem asChild>
-                    <Link href="/#your-drafts">My drafts</Link>
+                    <Link href="/activity">My drafts</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/authors">My authors</Link>

@@ -101,3 +101,45 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
     client.release();
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ draftId: string }> }
+): Promise<NextResponse> {
+  const authenticatedUser = await getAuthenticatedUser(req)
+  if (!authenticatedUser) {
+    return NextResponse.json(
+      { success: false, message: 'Authentication required' },
+      { status: 401 }
+    )
+  }
+
+  const { draftId } = await context.params
+  if (!draftId) {
+    return NextResponse.json(
+      { success: false, message: 'Draft ID is required' },
+      { status: 400 }
+    )
+  }
+
+  const client = await pool.connect()
+  try {
+    const result = await client.query(
+      `DELETE FROM drafts
+       WHERE id = $1 AND "userId" = $2 AND status = $3
+       RETURNING id`,
+      [draftId, authenticatedUser.id, 'editing']
+    )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Draft not found or you do not have permission to delete it' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ success: true, draftId })
+  } finally {
+    client.release()
+  }
+}

@@ -14,10 +14,33 @@ type PublicationRow = {
   version: string
 }
 
+type PublicationInfoRow = {
+  id: string
+  signal: Omit<PublicationRecord, 'version'>
+  proof: Proof
+}
+
 export function mapPublicationRow(row: PublicationRow): PublicationRecord {
   return {
     ...row.signal,
     version: row.version,
+  }
+}
+
+export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo {
+  return {
+    id: row.id,
+    author_id_libro: row.signal.author_id_libro,
+    publication_date: row.signal.publication_date,
+    author_name_libro: row.signal.author_name_libro,
+    publication_title: row.signal.publication_title,
+    publication_subtitle: row.signal.publication_subtitle,
+    publication_excerpt: extractReadableText(row.signal.publication_content.html),
+    authorship_label: 'proof_type' in row.proof
+      && row.proof.proof_type === 'human_authorized_agent_signature'
+      ? 'Human-authorized agent'
+      : 'Signed by a human',
+    publication_type: publicationKindFromTitle(row.signal.publication_title),
   }
 }
 
@@ -115,19 +138,7 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
     )
 
     // TODO: Not efficient - we need to fix this
-    return rows.map(row => ({
-      id: row.id,
-      author_id_libro: row.signal.author_id_libro,
-      publication_date: row.signal.publication_date,
-      author_name_libro: row.signal.author_name_libro,
-      publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle,
-      publication_excerpt: extractReadableText(row.signal.publication_content.html),
-      authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
-        ? 'Human-authorized agent'
-        : 'Signed by a human',
-      publication_type: publicationKindFromTitle(row.signal.publication_title),
-    }))
+    return rows.map(mapPublicationInfoRow)
   } finally {
     client.release()
   }
@@ -151,20 +162,30 @@ export const getLatestPublications = cache(async (
       [limit, offset, type]
     )
 
-    return rows.map(row => ({
-      id: row.id,
-      author_id_libro: row.signal.author_id_libro,
-      publication_date: row.signal.publication_date,
-      author_name_libro: row.signal.author_name_libro,
-      publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle,
-      publication_excerpt: extractReadableText(row.signal.publication_content.html),
-      authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
-        ? 'Human-authorized agent'
-        : 'Signed by a human',
-      publication_type: publicationKindFromTitle(row.signal.publication_title),
-    }))
+    return rows.map(mapPublicationInfoRow)
   } finally {
     client.release()
   }
 })
+
+export const getPublicationsByUser = async (
+  userId: number,
+  limit: number = 5,
+  offset: number = 0
+): Promise<PublicationInfo[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE "userId" = $1
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    )
+
+    return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+}

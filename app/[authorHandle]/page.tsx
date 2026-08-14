@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import { Author } from '@/components/Author'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getAuthorByHandle, getPublicationInfoByAuthor } from '@/lib/db/objects'
@@ -31,7 +32,7 @@ export const generateMetadata = async ({ params }: { params: Params }): Promise<
   }
 }
 
-export default async function Page({ params }: { params: Params }) {
+async function AuthorContent({ params }: { params: Params }) {
   const { authorHandle } = await params
   const author = await resolveAuthor(authorHandle)
   if (!author) notFound()
@@ -41,4 +42,12 @@ export default async function Page({ params }: { params: Params }) {
   ])
   const self = Boolean(authenticatedUser && author.userId === authenticatedUser.id)
   return <Author author={author} publicationInfos={publicationInfos} self={self} />
+}
+
+export default function Page({ params }: { params: Params }) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AuthorContent params={params} />
+    </Suspense>
+  )
 }

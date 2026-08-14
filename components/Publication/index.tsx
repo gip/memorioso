@@ -22,7 +22,9 @@ import {
   sanitizeShortPublicationHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
+import { FreshPublicationNotice } from './FreshPublicationNotice'
 import { getPublicationKind } from '@/lib/publication-kind'
+import { Suspense } from 'react'
 
 const AuthorshipMark = ({
   isAgentAuthored,
@@ -69,14 +71,12 @@ const PublicationByline = ({
 const PublicationVerification = ({
   isAgentAuthored,
   verifyHref,
-  celebrate,
   embedSnippet,
   textSnippet,
   compact = false,
 }: {
   isAgentAuthored: boolean
   verifyHref?: string
-  celebrate: boolean
   embedSnippet: string | null
   textSnippet: string | null
   compact?: boolean
@@ -91,9 +91,9 @@ const PublicationVerification = ({
         <p className="text-sm font-semibold text-foreground">
           {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
         </p>
-        {celebrate && (
-          <p className="mt-0.5 text-xs text-muted-foreground">Signed and published just now</p>
-        )}
+        <Suspense fallback={null}>
+          <FreshPublicationNotice className="mt-0.5 text-xs text-muted-foreground" />
+        </Suspense>
         {verifyHref && (
           <Link
             href={verifyHref}
@@ -119,11 +119,9 @@ const PublicationVerification = ({
     <p className="mt-4 text-sm font-semibold text-foreground">
       {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
     </p>
-    {celebrate && (
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        Signed and published just now
-      </p>
-    )}
+    <Suspense fallback={null}>
+      <FreshPublicationNotice className="mt-1 text-xs leading-relaxed text-muted-foreground" />
+    </Suspense>
     {verifyHref && (
       <Link
         href={verifyHref}
@@ -147,13 +145,11 @@ export const Publication = ({
   publication,
   proof,
   proofLink,
-  celebrate = false,
   embedManifest,
 }: {
   publication: PublicationType
   proof?: ProofType | null
   proofLink?: string
-  celebrate?: boolean
   embedManifest?: LibroEmbedManifestV1 | null
 }) => {
   const content = publication.publication_content.html
@@ -191,7 +187,6 @@ export const Publication = ({
           <PublicationVerification
             isAgentAuthored={isAgentAuthored}
             verifyHref={verifyHref}
-            celebrate={celebrate}
             embedSnippet={embedSnippet}
             textSnippet={textSnippet}
           />
@@ -201,7 +196,6 @@ export const Publication = ({
           <PublicationVerification
             isAgentAuthored={isAgentAuthored}
             verifyHref={verifyHref}
-            celebrate={celebrate}
             embedSnippet={embedSnippet}
             textSnippet={textSnippet}
             compact
@@ -241,7 +235,6 @@ export const Publication = ({
         <PublicationVerification
           isAgentAuthored={isAgentAuthored}
           verifyHref={verifyHref}
-          celebrate={celebrate}
           embedSnippet={embedSnippet}
           textSnippet={textSnippet}
         />
@@ -251,7 +244,6 @@ export const Publication = ({
         <PublicationVerification
           isAgentAuthored={isAgentAuthored}
           verifyHref={verifyHref}
-          celebrate={celebrate}
           embedSnippet={embedSnippet}
           textSnippet={textSnippet}
           compact

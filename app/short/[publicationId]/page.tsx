@@ -1,18 +1,26 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import {
   CanonicalPublicationPage,
   canonicalPublicationMetadata,
 } from '@/components/CanonicalPublicationPage'
 
 type Params = Promise<{ publicationId: string }>
-type SearchParams = Promise<{ signed?: string }>
 
 export const generateMetadata = async ({ params }: { params: Params }): Promise<Metadata> => {
   const { publicationId } = await params
   return canonicalPublicationMetadata(publicationId, 'short')
 }
 
-export default async function Page({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
-  const [{ publicationId }, { signed }] = await Promise.all([params, searchParams])
-  return <CanonicalPublicationPage publicationId={publicationId} expectedKind="short" signed={signed} />
+async function Short({ params }: { params: Params }) {
+  const { publicationId } = await params
+  return <CanonicalPublicationPage publicationId={publicationId} expectedKind="short" />
+}
+
+export default function Page({ params }: { params: Params }) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <Short params={params} />
+    </Suspense>
+  )
 }

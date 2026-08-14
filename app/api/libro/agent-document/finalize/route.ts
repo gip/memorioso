@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto'
+import { revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
+import { publicationCacheTag } from '@/lib/db/publication-cache'
 import {
   configureLibroWriteTransaction,
   describeDatabaseFailure,
@@ -188,6 +190,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       stage = 'commit'
       await client.query('COMMIT')
       transactionOpen = false
+      revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
       console.info('Finalized Libro agent publication', {
         requestId,
         documentRegistrationId,

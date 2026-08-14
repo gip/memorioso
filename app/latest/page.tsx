@@ -2,8 +2,7 @@ import Link from 'next/link'
 import { LatestPublications } from '@/components/LatestPublications'
 import { Divider } from '@/components/Divider'
 import type { PublicationFeedKind } from '@/lib/publication-kind'
-
-export const dynamic = 'force-dynamic'
+import { Suspense } from 'react'
 
 const tabs: Array<{ label: string; type: PublicationFeedKind; href: string }> = [
   { label: 'Articles', type: 'article', href: '/latest' },
@@ -11,7 +10,7 @@ const tabs: Array<{ label: string; type: PublicationFeedKind; href: string }> = 
   { label: 'All', type: 'all', href: '/latest?type=all' },
 ]
 
-const Page = async ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => {
+const LatestContent = async ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => {
   const { type: requestedType } = await searchParams
   const type: PublicationFeedKind = requestedType === 'short' || requestedType === 'all'
     ? requestedType
@@ -43,5 +42,11 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ type?: string }>
     </main>
   )
 }
+
+const Page = ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <LatestContent searchParams={searchParams} />
+  </Suspense>
+)
 
 export default Page

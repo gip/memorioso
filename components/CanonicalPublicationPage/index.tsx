@@ -1,11 +1,10 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { unstable_cache } from 'next/cache'
 import { extractReadableText, type LibroEmbedManifestV1 } from '@libro/core'
 import { Publication } from '@/components/Publication'
 import { Proof } from '@/components/Proof'
-import { getProof, getPublication } from '@/lib/db/objects'
+import { getCachedProof, getCachedPublication } from '@/lib/db/publication-cache'
 import { buildLibroEmbedManifest } from '@/lib/libro/embed'
 import {
   getPublicationKind,
@@ -13,18 +12,6 @@ import {
   publicationProofPath,
   type PublicationKind,
 } from '@/lib/publication-kind'
-
-const getCachedPublication = unstable_cache(
-  async (publicationId: string) => getPublication(publicationId),
-  ['publication'],
-  { revalidate: 3600 }
-)
-
-const getCachedProof = unstable_cache(
-  async (publicationId: string) => getProof(publicationId),
-  ['publication-proof'],
-  { revalidate: 3600 }
-)
 
 export async function canonicalPublicationMetadata(
   publicationId: string,
@@ -55,11 +42,9 @@ export async function canonicalPublicationMetadata(
 export async function CanonicalPublicationPage({
   publicationId,
   expectedKind,
-  signed,
 }: {
   publicationId: string
   expectedKind: PublicationKind
-  signed?: string
 }) {
   const publication = await getCachedPublication(publicationId)
   if (!publication || getPublicationKind(publication) !== expectedKind) notFound()
@@ -79,7 +64,6 @@ export async function CanonicalPublicationPage({
         publication={publication}
         proof={proof}
         proofLink={publicationProofPath(expectedKind, publicationId)}
-        celebrate={signed === '1'}
         embedManifest={embedManifest}
       />
     </Suspense>
@@ -93,8 +77,8 @@ export async function CanonicalProofPage({
   publicationId: string
   expectedKind: PublicationKind
 }) {
-  const publication = await getPublication(publicationId)
+  const publication = await getCachedPublication(publicationId)
   if (!publication || getPublicationKind(publication) !== expectedKind) notFound()
-  const proof = await getProof(publicationId)
+  const proof = await getCachedProof(publicationId)
   return <Proof proof={proof} publication={publication} publicationId={publicationId} />
 }

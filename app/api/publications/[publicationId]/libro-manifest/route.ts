@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getProof, getPublication } from '@/lib/db/objects'
+import { getCachedProof, getCachedPublication } from '@/lib/db/publication-cache'
 import { buildLibroEmbedManifest, LibroEmbedUnavailableError } from '@/lib/libro/embed'
 
 type Params = Promise<{ publicationId: string }>
@@ -13,8 +13,8 @@ const PUBLIC_HEADERS = {
 export async function GET(_request: Request, { params }: { params: Params }): Promise<NextResponse> {
   const { publicationId } = await params
   const [publication, proof] = await Promise.all([
-    getPublication(publicationId),
-    getProof(publicationId),
+    getCachedPublication(publicationId),
+    getCachedProof(publicationId),
   ])
 
   if (!publication) {

@@ -444,6 +444,8 @@ export function App(): JSX.Element {
   return (
     <main>
       <header>
+        {/* This Vite extension cannot use Next.js image optimization. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="mark" src="/icon-128.png" alt="" />
         <div><h1>Sign with Libro</h1><p>Human authorship, without leaving this page</p></div>
       </header>

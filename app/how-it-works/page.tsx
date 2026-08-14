@@ -1,71 +1,34 @@
-import Link from 'next/link'
-import { Divider } from '@/components/Divider'
-
-const STEPS = [
-  {
-    title: 'Write',
-    body: 'Open the editor and start typing. No account is needed to begin. Your draft stays on your device until you sign in, and is saved to your account the moment you do.',
-  },
-  {
-    title: 'Prove you are human',
-    body: 'Signing in uses World ID Proof of Human. Memorioso stores an application-specific identifier that cannot be traced back to you, and never your real name.',
-  },
-  {
-    title: 'Sign the publication',
-    body: 'Publishing produces a World ID proof over the exact text you wrote. Change a single character and the proof no longer matches, so the signature covers the publication itself, not just the account.',
-  },
-  {
-    title: 'Register on World Chain',
-    body: 'The proof is recorded in the Libro registry on World Chain. Registration is permissionless: anyone can verify it later without asking Memorioso, and without Memorioso being able to revoke it.',
-  },
-  {
-    title: 'Verify anywhere',
-    body: 'Every publication carries a portable Libro tag and a public manifest, so a signed text stays verifiable after it is quoted, copied, or republished somewhere else.',
-  },
-]
+const libroRegistryAddress = process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS
 
 const Page = () => (
-  <main className="py-8 lg:py-12">
-    <h1 className="spectral text-4xl font-semibold leading-tight lg:text-5xl">
-      How it works
-    </h1>
-    <p className="spectral mt-5 max-w-prose text-lg leading-relaxed text-muted-foreground">
-      Soon, most of the content accessible to us will have been created by machines. Memorioso
-      exists so that human-created texts stay identifiable as such: created, signed, shared,
-      verified, and archived in a decentralized and permissionless way.
-    </p>
+  <main className="py-6 sm:py-10 lg:py-12">
+    <div className="max-w-xl">
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-blurple">
+        How it works
+      </p>
+      <h1 className="spectral mt-2 text-3xl font-semibold leading-tight sm:text-4xl">
+        Human writing, independently verifiable.
+      </h1>
 
-    <Divider />
+      <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-muted-foreground sm:mt-5 sm:text-base">
+        <p>
+          Write a short or article, then sign it with World ID. Memorioso binds the proof to the
+          exact publication and registers it on World Chain, so anyone can verify its human
+          authorship without learning the writer&apos;s identity.
+        </p>
+        <p>
+          Memorioso is built on Libro, an open protocol for portable authorship proofs. The Libro
+          record remains independently verifiable even when a publication is copied or shared
+          somewhere else.
+        </p>
+      </div>
 
-    <ol className="mt-8 space-y-8">
-      {STEPS.map((step, index) => (
-        <li key={step.title} className="flex gap-4">
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
-            {index + 1}
-          </span>
-          <div>
-            <h2 className="text-lg font-semibold">{step.title}</h2>
-            <p className="mt-1 max-w-prose text-muted-foreground">{step.body}</p>
-          </div>
-        </li>
-      ))}
-    </ol>
-
-    <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-      <Link href="/d/new" className="text-blurple hover:underline">
-        Start writing
-      </Link>
-      <Link href="/latest" className="text-blurple hover:underline">
-        Latest publications
-      </Link>
-      <Link
-        href="https://whitepaper.world.org/#proof-of-human-(poh)"
-        className="text-blurple hover:underline"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Proof of Human
-      </Link>
+      <section className="mt-5 rounded-xl border bg-muted/30 p-3.5 sm:mt-7 sm:p-4" aria-label="Libro contract">
+        <p className="text-xs font-medium text-foreground">LibroProofRegistry · World Chain</p>
+        <p className="mt-1.5 break-all font-mono text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+          {libroRegistryAddress || 'Contract address unavailable'}
+        </p>
+      </section>
     </div>
   </main>
 )

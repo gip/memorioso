@@ -52,7 +52,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
   }, [user])
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
       <header className="sticky top-0 z-30 border-b bg-background shadow-sm lg:hidden">
         <div className="flex items-center justify-between px-4 py-2">
           <Link href="/" className="flex items-center gap-2">
@@ -144,19 +144,24 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
         )}
       </header>
 
-      <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:max-w-none lg:grid-cols-[minmax(12rem,1fr)_minmax(0,700px)_minmax(0,1fr)] lg:gap-10 lg:px-6">
-        <div className="contents lg:col-start-1 lg:row-start-1 lg:flex lg:min-h-full lg:flex-col">
+      <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:min-h-0 lg:max-w-none lg:grid-cols-[12rem_minmax(0,740px)_minmax(0,1fr)] lg:gap-4 lg:px-6 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,740px)_minmax(12rem,1fr)] xl:gap-8">
+        <div className="contents lg:col-start-1 lg:row-start-1 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
           <aside className="hidden lg:block">
-            <HomeActions className="sticky top-8 w-full max-w-[12rem] py-8" />
+            <HomeActions className="w-full max-w-[12rem] py-8" />
           </aside>
           <Footer className="order-last lg:order-none lg:w-full lg:max-w-[12rem]" />
         </div>
 
-        <div className="flex min-h-full min-w-0 flex-col lg:col-start-2 lg:row-start-1">
-          {children}
+        <div className="min-h-full min-w-0 lg:col-start-2 lg:row-start-1 lg:h-full lg:min-h-0 lg:overscroll-y-contain lg:overflow-y-auto lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden">
+          <div className="flex min-h-full min-w-0 flex-col lg:mx-auto lg:w-full lg:max-w-[700px]">
+            {children}
+          </div>
         </div>
 
-        <div className="hidden lg:col-start-3 lg:row-start-1 lg:block" aria-hidden />
+        <div
+          id="site-right-pane"
+          className="hidden xl:col-start-3 xl:row-start-1 xl:flex xl:h-full xl:min-h-0 xl:overflow-hidden"
+        />
       </div>
     </div>
   )

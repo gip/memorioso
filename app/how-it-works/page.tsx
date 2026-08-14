@@ -1,4 +1,7 @@
 const libroRegistryAddress = process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS
+const libroRegistryExplorerUrl = libroRegistryAddress
+  ? `https://worldscan.org/address/${libroRegistryAddress}`
+  : null
 
 const Page = () => (
   <main className="py-6 sm:py-10 lg:py-12">
@@ -25,9 +28,20 @@ const Page = () => (
 
       <section className="mt-5 rounded-xl border bg-muted/30 p-3.5 sm:mt-7 sm:p-4" aria-label="Libro contract">
         <p className="text-xs font-medium text-foreground">LibroProofRegistry · World Chain</p>
-        <p className="mt-1.5 break-all font-mono text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-          {libroRegistryAddress || 'Contract address unavailable'}
-        </p>
+        {libroRegistryExplorerUrl ? (
+          <a
+            href={libroRegistryExplorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 block break-all font-mono text-[11px] leading-relaxed text-muted-foreground underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-blurple sm:text-xs"
+          >
+            {libroRegistryAddress}
+          </a>
+        ) : (
+          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground sm:text-xs">
+            Contract address unavailable
+          </p>
+        )}
       </section>
     </div>
   </main>

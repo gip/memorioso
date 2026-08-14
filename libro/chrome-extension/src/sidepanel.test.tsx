@@ -353,17 +353,17 @@ describe('automatic page following', () => {
     expect(container.textContent).toContain('Following this page.')
   })
 
-  it('counts and enforces the server-normalized 10,000-character limit', async () => {
+  it('counts and enforces the server-normalized 500-character limit', async () => {
     mockState(false)
     await renderApp()
     await act(async () => { await Promise.resolve() })
 
     await changeInput('section textarea', 'a     b')
-    expect(container.textContent).toContain('3 / 10,000 normalized characters')
+    expect(container.textContent).toContain('3 / 500 normalized characters')
     expect(container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(false)
 
-    await changeInput('section textarea', 'x'.repeat(10_001))
-    expect(container.textContent).toContain('10,001 / 10,000 normalized characters')
+    await changeInput('section textarea', 'x'.repeat(501))
+    expect(container.textContent).toContain('501 / 500 normalized characters')
     expect(container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(true)
   })
 })

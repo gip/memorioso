@@ -65,8 +65,8 @@ describe('Libro embed generation', () => {
   it('builds a resolvable plain-text tag', () => {
     const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
     manifest.source = {
-      publication_url: 'https://memorioso.xyz/p/42',
-      proof_url: 'https://memorioso.xyz/p/42/proof',
+      publication_url: 'https://memorioso.xyz/short/42',
+      proof_url: 'https://memorioso.xyz/short/42/proof',
       manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
     }
     expect(buildLibroTextSnippet(manifest)).toBe([

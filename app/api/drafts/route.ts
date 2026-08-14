@@ -13,7 +13,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const draftsResult = await client.query(
-      `SELECT d.*, a.name as author_name 
+      `SELECT d.*, d.publication_type AS "publicationType", a.name as author_name
        FROM drafts d 
        LEFT JOIN authors a ON d."authorId" = a.id 
        WHERE d."userId" = $1 AND d.status = $2

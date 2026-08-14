@@ -21,8 +21,10 @@ import {
   buildLibroEmbedSnippet,
   buildLibroTextSnippet,
   sanitizeLibroEmbedHtml,
+  sanitizeShortPublicationHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
+import { getPublicationKind } from '@/lib/publication-kind'
 
 const AuthorshipMark = ({
   isAgentAuthored,
@@ -145,7 +147,8 @@ export const Publication = ({
     : null
   const verifyHref = !isLegacy ? proofLink : undefined
   const isAgentAuthored = isLibroAgentProof(proof)
-  const authorHref = `/a/${publication.author_handle_libro || publication.author_id_libro}`
+  const authorHref = `/@${publication.author_handle_libro}`
+  const publicationKind = getPublicationKind(publication)
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
   const textSnippet = embedManifest ? buildLibroTextSnippet(embedManifest) : null
@@ -165,6 +168,60 @@ export const Publication = ({
       dangerouslySetInnerHTML={{ __html: presentationContent }}
     />
   )
+
+  if (publicationKind === 'short') {
+    return (
+      <>
+        <RightPanePortal>
+          <PublicationVerification
+            isAgentAuthored={isAgentAuthored}
+            verifyHref={verifyHref}
+            celebrate={celebrate}
+            embedSnippet={embedSnippet}
+            textSnippet={textSnippet}
+          />
+        </RightPanePortal>
+
+        <article className="pb-16 pt-5 sm:pb-20 sm:pt-10 xl:pt-16">
+          <PublicationVerification
+            isAgentAuthored={isAgentAuthored}
+            verifyHref={verifyHref}
+            celebrate={celebrate}
+            embedSnippet={embedSnippet}
+            textSnippet={textSnippet}
+            compact
+          />
+          <div
+            className="space-y-4 text-[clamp(21px,4vw,28px)] leading-[1.55] tracking-[-0.01em] text-foreground"
+            dangerouslySetInnerHTML={{ __html: sanitizeShortPublicationHtml(content) }}
+          />
+          <div className="mt-8 border-t border-zinc-100 pt-5 text-[13.5px] leading-relaxed text-muted-foreground">
+            <Link href={authorHref} className="font-medium text-blurple hover:underline">
+              @{publication.author_handle_libro}
+            </Link>
+            <span className="ml-1">/ {publication.author_name_libro}</span>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+              <PublicationTimestamp date={publication.publication_date} />
+              {credentialLabel && <><span aria-hidden>·</span><span>{credentialLabel}</span></>}
+            </div>
+          </div>
+          {isLegacy && (
+            <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE}
+            </div>
+          )}
+          {embedManifest && manifestId && (
+            <script
+              id={manifestId}
+              type="application/libro+json"
+              dangerouslySetInnerHTML={{ __html: serializeManifestForHtml(embedManifest) }}
+            />
+          )}
+          <div className="mt-10 flex justify-center"><MemMark size={26} /></div>
+        </article>
+      </>
+    )
+  }
 
   return (
     <>

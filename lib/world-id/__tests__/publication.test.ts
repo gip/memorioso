@@ -271,22 +271,19 @@ describe('Libro agent authorization helpers', () => {
     })).toThrow('Publication content HTML is required')
   })
 
-  it('accepts agent documents with either a title or readable content', () => {
+  it('accepts valid shorts and articles for agent documents', () => {
     expect(parseAgentPublicationPayload({ title: '', subtitle: '', content })).toMatchObject({
       title: '',
       subtitle: '',
     })
-    expect(parseAgentPublicationPayload({
+    expect(() => parseAgentPublicationPayload({
       title: 'Title only',
       content: { html: '<p><br></p>' },
-    })).toMatchObject({
-      title: 'Title only',
-      content: { html: '<p><br></p>' },
-    })
+    })).toThrow('Article body is required')
     expect(() => parseAgentPublicationPayload({
       title: '   ',
       content: { html: '<p><br></p>' },
-    })).toThrow('Publication must include a title or readable content')
+    })).toThrow('Shorts can contain only plain text and line breaks')
   })
 })
 

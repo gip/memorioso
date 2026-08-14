@@ -24,6 +24,7 @@ export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
 export const LIBRO_INLINE_TEXT_MAX_LENGTH = 10_000 as const
+export const MEMORIOSO_SHORT_MAX_LENGTH = 500 as const
 /**
  * Ordered World Chain endpoints. Verification queries all of them, so the list is a quorum
  * rather than a preference: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction
@@ -151,6 +152,31 @@ export function normalizeReadableText(value: string): string {
     .replace(/\u00a0/gu, ' ')
     .replace(/\s+/gu, ' ')
     .trim()
+}
+
+export function normalizedUnicodeLength(value: string): number {
+  return Array.from(normalizeReadableText(value)).length
+}
+
+export function isPlainTextPublicationHtml(html: unknown): html is string {
+  if (typeof html !== 'string' || !extractReadableText(html)) return false
+  const document = parseDocument(html, { decodeEntities: true })
+  const roots = document.children.filter((node) => {
+    if (node.type === 'text') return normalizeReadableText(node.data).length > 0
+    return node.type !== 'comment'
+  })
+  if (roots.length === 0) return false
+
+  const isPlainNode = (node: AnyNode, root = false): boolean => {
+    if (node.type === 'text' || node.type === 'comment') return true
+    if (!isElement(node)) return false
+    const name = node.name.toLowerCase()
+    if (root ? name !== 'p' : name !== 'br') return false
+    if (Object.keys(node.attribs).length > 0) return false
+    return node.children.every((child) => isPlainNode(child, false))
+  }
+
+  return roots.every((node) => isPlainNode(node, true))
 }
 
 const LIBRO_TEXT_TAG_PATTERN = new RegExp(

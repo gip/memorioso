@@ -8,7 +8,10 @@ import {
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
-import { LIBRO_INLINE_TEXT_MAX_LENGTH, normalizeReadableText } from '@libro/core'
+import {
+  MEMORIOSO_SHORT_MAX_LENGTH,
+  normalizedUnicodeLength,
+} from '@libro/core'
 import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
@@ -228,7 +231,7 @@ export function App(): JSX.Element {
   const publicationConstraints = useMemo(() => job?.stage === 'proof' && job.context
     ? CredentialRequest('proof_of_human', { signal: job.context.signalText })
     : null, [job])
-  const normalizedTextLength = useMemo(() => normalizeReadableText(text).length, [text])
+  const normalizedTextLength = useMemo(() => normalizedUnicodeLength(text), [text])
 
   async function beginAuth(event: FormEvent): Promise<void> {
     event.preventDefault()
@@ -357,7 +360,7 @@ export function App(): JSX.Element {
       if (!inserted.inserted) await navigator.clipboard.writeText(inserted.tag)
       setCompletion({
         inserted: inserted.inserted,
-        publicationUrl: `${API_ORIGIN}/p/${current.publicationId}`,
+        publicationUrl: `${API_ORIGIN}/short/${current.publicationId}`,
       })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Signing could not be completed')
@@ -529,7 +532,7 @@ export function App(): JSX.Element {
               placeholder="Enter the text you wrote…"
             />
             <div className="counter">
-              {normalizedTextLength.toLocaleString()} / {LIBRO_INLINE_TEXT_MAX_LENGTH.toLocaleString()} normalized characters
+              {normalizedTextLength.toLocaleString()} / {MEMORIOSO_SHORT_MAX_LENGTH.toLocaleString()} normalized characters
             </div>
             {following && !followPaused && (
               <p className="hint">Following this page. Moving to another editor or selecting new text updates this.</p>
@@ -550,7 +553,7 @@ export function App(): JSX.Element {
             <button
               className="primary"
               onClick={startSigning}
-              disabled={normalizedTextLength === 0 || normalizedTextLength > LIBRO_INLINE_TEXT_MAX_LENGTH || Boolean(progress)}
+              disabled={normalizedTextLength === 0 || normalizedTextLength > MEMORIOSO_SHORT_MAX_LENGTH || Boolean(progress)}
             >
               Review World ID proof
             </button>

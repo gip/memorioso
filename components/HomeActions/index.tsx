@@ -41,7 +41,7 @@ export const getPrimarySiteAction = (
     }
   }
 
-  if (/^\/p\/[^/]+\/proof\/?$/.test(pathname)) {
+  if (/^\/(?:article|short)\/[^/]+\/proof\/?$/.test(pathname)) {
     return {
       href: pathname.replace(/\/proof\/?$/, ''),
       label: 'Back to publication',
@@ -178,7 +178,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
 
       <nav className="mt-5 flex flex-col border-t pt-4">
         <QuietLink href="/latest" active={pathname === '/latest'}>
-          All publications
+          Browse publications
         </QuietLink>
         <QuietLink href="/how-it-works" active={pathname === '/how-it-works'}>
           How it works

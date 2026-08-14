@@ -9,6 +9,8 @@ import type {
     LIBRO_PUBLICATION_SCHEMA_V1,
 } from '@/lib/libro/contract'
 
+export type PublicationKind = 'short' | 'article'
+
 export type Author = {
     id: string
     name: string
@@ -67,6 +69,7 @@ export type Author = {
     publication_subtitle: string
     publication_excerpt: string
     authorship_label: 'Signed by a human' | 'Human-authorized agent'
+    publication_type: PublicationKind
   }
   
   export type LegacyProof = {

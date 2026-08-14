@@ -6,7 +6,7 @@ export type FinalizePublishPayload = {
 }
 
 type FinalizePublishResponse =
-  | { success: true; publicationId: string }
+  | { success: true; publicationId: string; publicationType?: 'short' | 'article' }
   | {
       success: false
       message?: string
@@ -44,7 +44,7 @@ export async function finalizePublicationWithRetry(
   url: string,
   payload: FinalizePublishPayload,
   options: FinalizeRequestOptions = {}
-): Promise<{ publicationId: string }> {
+): Promise<{ publicationId: string; publicationType?: 'short' | 'article' }> {
   const attempts = options.attempts ?? 3
   const delaysMs = options.delaysMs ?? [1_000, 2_000]
   const timeoutMs = options.timeoutMs ?? 20_000
@@ -66,7 +66,7 @@ export async function finalizePublicationWithRetry(
       const body = await response.json().catch(() => ({})) as FinalizePublishResponse
 
       if (response.ok && body.success) {
-        return { publicationId: body.publicationId }
+        return { publicationId: body.publicationId, publicationType: body.publicationType }
       }
 
       const retryable = !body.success && body.code === 'FINALIZE_RETRYABLE' && body.retryable === true

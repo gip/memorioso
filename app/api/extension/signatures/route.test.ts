@@ -101,7 +101,7 @@ describe('inline signature creation', () => {
 
   it('rejects empty and over-limit normalized text before opening a transaction', async () => {
     expect((await POST(request(' \n\t '))).status).toBe(400)
-    expect((await POST(request('x'.repeat(10_001)))).status).toBe(400)
+    expect((await POST(request('x'.repeat(501)))).status).toBe(400)
     expect(dbMock.connect).not.toHaveBeenCalled()
   })
 

@@ -9,6 +9,7 @@ import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/object
 import Link from 'next/link'
 import { AgentRegistrationPanel } from './AgentRegistrationPanel'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
+import { publicationPath } from '@/lib/publication-kind'
 
 export const Author = ({ author, publicationInfos, redirect = null, self = false }: { author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null, self?: boolean }) => {
   const router = useRouter()
@@ -110,15 +111,15 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
             </div>
             <div className="text-xm">
               <span className="text-xs">Handle: </span>
-              <a href={`${process.env.NEXT_PUBLIC_APP_URL}/a/${author.handle}`} className="text-sm text-blurple hover:underline">
+              <a href={`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`} className="text-sm text-blurple hover:underline">
                 {`@${author.handle}`}
               </a>
             </div>
             <div className="text-xm">
               <span className="text-xs">Link: </span>
               <span className="text-xm text-blurple">
-                <a href={`${process.env.NEXT_PUBLIC_APP_URL}/a/${author.handle}`} className="text-sm text-burple hover:underline">
-                  {`${process.env.NEXT_PUBLIC_APP_URL}/a/${author.handle}`}
+                <a href={`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`} className="text-sm text-burple hover:underline">
+                  {`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`}
                 </a></span>
             </div>
             {self && (
@@ -139,7 +140,7 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
         </div>
         <div className="space-y-4">
           {publicationInfos.slice(0, 20).map(publicationInfo => (
-            <Link href={`/p/${publicationInfo.id}`} key={publicationInfo.id}>
+            <Link href={publicationPath(publicationInfo.publication_type, publicationInfo.id)} key={publicationInfo.id}>
               <div className="flex items-center gap-2">
                 <span>
                   {publicationInfo.publication_title.trim() ? (

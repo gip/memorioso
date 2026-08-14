@@ -69,6 +69,7 @@ describe('local draft storage', () => {
   it('fills in missing optional fields', () => {
     storage.store.set(KEY, JSON.stringify({ content: { html: '<p>x</p>' } }))
     expect(readLocalDraft()).toEqual({
+      publicationType: 'article',
       title: '',
       subtitle: '',
       content: { html: '<p>x</p>' },

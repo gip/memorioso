@@ -49,6 +49,7 @@ CREATE TABLE drafts (
     "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "authorId" UUID REFERENCES authors(id) ON DELETE SET NULL,
     status VARCHAR(255) NOT NULL,
+    publication_type VARCHAR(16) NOT NULL DEFAULT 'article' CHECK (publication_type IN ('short', 'article')),
     title VARCHAR(255) NOT NULL,
     subtitle VARCHAR(255),
     content JSONB NOT NULL,

@@ -75,6 +75,7 @@ const draftRow = {
   author_name: 'Ada',
   author_handle: 'ada',
   author_bio: 'Writes proofs.',
+  publicationType: 'article',
 }
 
 describe('publish context route', () => {
@@ -136,7 +137,9 @@ describe('publish context route', () => {
 
   it('accepts an empty title while keeping it in the signed payload', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '', subtitle: '' }] }
+      if (query.includes('FROM drafts')) return {
+        rows: [{ ...draftRow, publicationType: 'short', title: '', subtitle: '' }],
+      }
       return { rows: [] }
     })
 
@@ -146,7 +149,7 @@ describe('publish context route', () => {
     expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":""')
   })
 
-  it('accepts a title-only publication', async () => {
+  it('rejects an article without a readable body', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
       if (query.includes('FROM drafts')) {
         return { rows: [{ ...draftRow, title: 'Title only', content: { html: '<p><br></p>' } }] }
@@ -155,21 +158,22 @@ describe('publish context route', () => {
     })
 
     const response = await POST(request({ draftId: draftRow.id }))
-    expect(response.status).toBe(200)
-    const insert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO world_id_publish_challenges'))
-    expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":"Title only"')
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: 'Article body is required' })
   })
 
   it('rejects a publication with an empty title and no readable content', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('FROM drafts')) return { rows: [{ ...draftRow, title: '   ', content: { html: '<p><br></p>' } }] }
+      if (query.includes('FROM drafts')) return {
+        rows: [{ ...draftRow, title: '   ', subtitle: '', content: { html: '<p><br></p>' } }],
+      }
       return { rows: [] }
     })
 
     const response = await POST(request({ draftId: draftRow.id }))
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
-      message: 'Publication must include a title or readable content',
+      message: 'Article title is required',
     })
   })
 })

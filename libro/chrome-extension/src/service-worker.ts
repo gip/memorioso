@@ -644,7 +644,7 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       return {
         success: true,
         job: next,
-        publicationUrl: `${API_ORIGIN}/p/${finalized.publicationId}`,
+        publicationUrl: `${API_ORIGIN}/short/${finalized.publicationId}`,
       }
     }
     case 'LIBRO_INSERT_TAG': {

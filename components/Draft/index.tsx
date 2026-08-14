@@ -56,6 +56,7 @@ import {
   publicationPath,
   validatePublicationForKind,
 } from '@/lib/publication-kind'
+import { announceDraftShortcutUpdate } from '@/lib/draft-events'
 
 type DraftData = {
   id?: string
@@ -206,6 +207,16 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   useEffect(() => {
     setCurrentDraftId(draftId)
   }, [draftId])
+
+  useEffect(() => {
+    if (status !== 'authenticated' || loading || !currentDraftId || !draft) return
+    announceDraftShortcutUpdate({
+      id: currentDraftId,
+      title: draft.title,
+      content: draft.content,
+      publicationType: draft.publicationType,
+    })
+  }, [currentDraftId, draft, loading, status])
 
   // Restore anonymous work into a fresh editor. Only for /d/new: an existing
   // draft id always wins over whatever is on this device.

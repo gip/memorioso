@@ -17,6 +17,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  DRAFT_SHORTCUT_UPDATED_EVENT,
+  type DraftShortcutUpdate,
+} from '@/lib/draft-events'
 
 type DraftsResponse = {
   success?: boolean
@@ -34,12 +38,13 @@ const draftLabel = (draft: FeedItemD): string => {
 const useDraftShortcuts = () => {
   const [drafts, setDrafts] = useState<FeedItemD[]>([])
   const [loaded, setLoaded] = useState(false)
-  const requestStartedRef = useRef(false)
+  const requestInFlightRef = useRef(false)
   const controllerRef = useRef<AbortController | null>(null)
+  const liveUpdatesRef = useRef(new Map<string, DraftShortcutUpdate>())
 
   const loadDrafts = useCallback(async () => {
-    if (requestStartedRef.current) return
-    requestStartedRef.current = true
+    if (requestInFlightRef.current) return
+    requestInFlightRef.current = true
     const controller = new AbortController()
     controllerRef.current = controller
 
@@ -47,19 +52,44 @@ const useDraftShortcuts = () => {
       const raw = await fetch('/api/drafts', { signal: controller.signal })
       const response = await raw.json() as DraftsResponse
       if (raw.ok && response.success && response.drafts) {
-        setDrafts(response.drafts.slice(0, 5))
+        setDrafts(response.drafts.slice(0, 5).map(draft => ({
+          ...draft,
+          ...liveUpdatesRef.current.get(draft.id),
+        })))
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         console.error('Failed to load draft shortcuts:', error)
       }
     } finally {
-      if (!controller.signal.aborted) setLoaded(true)
+      if (controllerRef.current === controller) {
+        requestInFlightRef.current = false
+        if (!controller.signal.aborted) setLoaded(true)
+      }
     }
   }, [])
 
   useEffect(() => {
-    return () => controllerRef.current?.abort()
+    const updateShortcut = (event: Event) => {
+      const updated = (event as CustomEvent<DraftShortcutUpdate>).detail
+      liveUpdatesRef.current.set(updated.id, updated)
+      setDrafts(previous => {
+        const existingIndex = previous.findIndex(draft => draft.id === updated.id)
+        if (existingIndex === -1) {
+          return [updated, ...previous].slice(0, 5)
+        }
+
+        const next = [...previous]
+        next[existingIndex] = { ...next[existingIndex], ...updated }
+        return next
+      })
+    }
+
+    window.addEventListener(DRAFT_SHORTCUT_UPDATED_EVENT, updateShortcut)
+    return () => {
+      controllerRef.current?.abort()
+      window.removeEventListener(DRAFT_SHORTCUT_UPDATED_EVENT, updateShortcut)
+    }
   }, [])
 
   return { drafts, loaded, loadDrafts }
@@ -86,7 +116,7 @@ const DraftMenuEntries = ({ drafts, loaded }: { drafts: FeedItemD[]; loaded: boo
     ))}
     <DropdownMenuSeparator />
     <DropdownMenuItem asChild>
-      <Link href="/activity">View all activity</Link>
+      <Link href="/activity">Activity</Link>
     </DropdownMenuItem>
   </>
 )
@@ -95,37 +125,22 @@ export const YourDraftsButton = () => {
   const { drafts, loaded, loadDrafts } = useDraftShortcuts()
 
   return (
-    <div className="flex w-full">
-      <Button
-        variant="outline"
-        className="min-w-0 flex-1 justify-start rounded-r-none border-r-0 px-3"
-        asChild
-      >
-        <Link href="/activity">
+    <DropdownMenu
+      onOpenChange={open => {
+        if (open) loadDrafts()
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="min-w-0 justify-start px-3">
           <Files className="h-4 w-4 shrink-0" />
           <span className="truncate">Your drafts</span>
-        </Link>
-      </Button>
-
-      <DropdownMenu onOpenChange={open => {
-        if (open) loadDrafts()
-      }}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="w-9 rounded-l-none px-0"
-            aria-label="Choose a draft to edit"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-60">
-          <DraftMenuEntries drafts={drafts} loaded={loaded} />
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+          <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60">
+        <DraftMenuEntries drafts={drafts} loaded={loaded} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -133,26 +148,18 @@ export const YourDraftsMobileMenu = () => {
   const { drafts, loaded, loadDrafts } = useDraftShortcuts()
 
   return (
-    <div className="flex items-stretch">
-      <DropdownMenuItem asChild className="min-w-0 flex-1 rounded-r-none">
-        <Link href="/activity">
-          <Files className="h-4 w-4" />
-          Your drafts
-        </Link>
-      </DropdownMenuItem>
-      <DropdownMenuSub onOpenChange={open => {
+    <DropdownMenuSub
+      onOpenChange={open => {
         if (open) loadDrafts()
-      }}>
-        <DropdownMenuSubTrigger
-          className="w-9 justify-center rounded-l-none px-0 [&>svg]:ml-0"
-          aria-label="Choose a draft to edit"
-        >
-          <span className="sr-only">Choose a draft to edit</span>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-60">
-          <DraftMenuEntries drafts={drafts} loaded={loaded} />
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-    </div>
+      }}
+    >
+      <DropdownMenuSubTrigger>
+        <Files className="h-4 w-4" />
+        Your drafts
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-60">
+        <DraftMenuEntries drafts={drafts} loaded={loaded} />
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }

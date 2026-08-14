@@ -63,17 +63,10 @@ export const Feed = () => {
   // Width and section spacing come from the surrounding page container.
   return (
     <div>
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Your Drafts
         </h2>
-        <button
-          type="button"
-          onClick={() => router.push('/d/new')}
-          className="text-xs text-blurple hover:underline"
-        >
-          New draft
-        </button>
       </div>
       {feedStatus === 'loading' && <FeedLoading />}
       {feedStatus === 'ready' && <FeedContent />}

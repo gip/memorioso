@@ -3,14 +3,13 @@ import { notFound } from 'next/navigation'
 import { Author } from '@/components/Author'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getAuthorByHandle, getPublicationInfoByAuthor } from '@/lib/db/objects'
-import { isValidUserHandle } from '@/lib/handle'
+import { parseAuthorHandlePathSegment } from '@/lib/handle'
 
 type Params = Promise<{ authorHandle: string }>
 
 async function resolveAuthor(value: string) {
-  if (!value.startsWith('@')) return null
-  const handle = value.slice(1)
-  if (!isValidUserHandle(handle)) return null
+  const handle = parseAuthorHandlePathSegment(value)
+  if (!handle) return null
   return getAuthorByHandle(handle)
 }
 

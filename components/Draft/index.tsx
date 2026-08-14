@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
+import { ArrowRight, FileText, MessageSquareText, MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
   IDKitRequestWidget,
@@ -660,10 +660,10 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
   if (!draftId && !hasChosenType && !readLocalDraft()) {
     return (
-      <div className="mx-auto max-w-xl py-16 text-center">
-        <h1 className="spectral text-3xl font-semibold">What are you publishing?</h1>
-        <p className="mt-3 text-muted-foreground">Choose a format before you begin.</p>
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+      <div className="mx-auto max-w-xl py-8 text-center sm:py-16">
+        <h1 className="spectral text-2xl font-semibold sm:text-3xl">What are you publishing?</h1>
+        <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">Choose a format before you begin.</p>
+        <div className="mt-5 grid gap-2.5 sm:mt-8 sm:grid-cols-2 sm:gap-3">
           {(['short', 'article'] as const).map((kind) => (
             <button
               key={kind}
@@ -673,12 +673,18 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
                 setHasChosenType(true)
                 router.replace(`/d/new?type=${kind}`)
               }}
-              className="rounded-xl border bg-card p-6 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md"
+              className="group flex items-center gap-3 rounded-xl border bg-card p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blurple/30 hover:shadow-md sm:block sm:p-6"
             >
-              <span className="text-lg font-semibold capitalize">{kind}</span>
-              <span className="mt-2 block text-sm text-muted-foreground">
-                {kind === 'short' ? 'Up to 500 characters of plain text.' : 'A titled, fully formatted publication.'}
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blurple/10 text-blurple sm:mb-4 sm:h-10 sm:w-10">
+                {kind === 'short' ? <MessageSquareText className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
               </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold capitalize sm:text-lg">{kind}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground sm:mt-2 sm:text-sm">
+                  {kind === 'short' ? 'Plain text · 500 characters' : 'Title, formatting and images'}
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-blurple sm:hidden" />
             </button>
           ))}
         </div>

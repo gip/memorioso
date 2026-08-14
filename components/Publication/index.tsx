@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import { PublicationRecord as PublicationType, Proof as ProofType } from '@/lib/db/objects'
-import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 import {
-  getCredentialIdentifierForPublication,
   isLibroAgentProof,
   isLegacyPublication,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
@@ -45,6 +43,27 @@ const AuthorshipMark = ({
   </div>
 ) : (
   <HumanSeal id={sealId} size={size} />
+)
+
+const PublicationByline = ({
+  authorHref,
+  authorHandle,
+  publicationDate,
+  className = '',
+}: {
+  authorHref: string
+  authorHandle: string
+  publicationDate: Date | string | number
+  className?: string
+}) => (
+  <p className={`overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] leading-relaxed text-muted-foreground ${className}`}>
+    <span>By </span>
+    <Link href={authorHref} className="font-medium text-blurple hover:underline">
+      @{authorHandle}
+    </Link>
+    <span> on </span>
+    <PublicationTimestamp date={publicationDate} style="short" />
+  </p>
 )
 
 const PublicationVerification = ({
@@ -141,10 +160,6 @@ export const Publication = ({
   const title = publication.publication_title.trim()
   const titleOrExcerpt = title || extractReadableText(content)
   const isLegacy = isLegacyPublication(publication)
-  const credentialIdentifier = getCredentialIdentifierForPublication(publication, proof)
-  const credentialLabel = credentialIdentifier
-    ? WORLD_ID_CREDENTIAL_LABELS[credentialIdentifier as WorldIdCredentialIdentifier] || credentialIdentifier
-    : null
   const verifyHref = !isLegacy ? proofLink : undefined
   const isAgentAuthored = isLibroAgentProof(proof)
   const authorHref = `/@${publication.author_handle_libro}`
@@ -195,15 +210,12 @@ export const Publication = ({
             className="space-y-4 text-[clamp(21px,4vw,28px)] leading-[1.55] tracking-[-0.01em] text-foreground"
             dangerouslySetInnerHTML={{ __html: sanitizeShortPublicationHtml(content) }}
           />
-          <div className="mt-8 border-t border-zinc-100 pt-5 text-[13.5px] leading-relaxed text-muted-foreground">
-            <Link href={authorHref} className="font-medium text-blurple hover:underline">
-              @{publication.author_handle_libro}
-            </Link>
-            <span className="ml-1">/ {publication.author_name_libro}</span>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
-              <PublicationTimestamp date={publication.publication_date} />
-              {credentialLabel && <><span aria-hidden>·</span><span>{credentialLabel}</span></>}
-            </div>
+          <div className="mt-8 border-t border-zinc-100 pt-5">
+            <PublicationByline
+              authorHref={authorHref}
+              authorHandle={publication.author_handle_libro}
+              publicationDate={publication.publication_date}
+            />
           </div>
           {isLegacy && (
             <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -258,22 +270,12 @@ export const Publication = ({
             </p>
           )}
 
-          <div className="mt-6 text-[13.5px] leading-relaxed text-muted-foreground">
-            <span className="italic">By </span>
-            <Link href={authorHref} className="font-medium text-blurple hover:underline">
-              @{publication.author_handle_libro}
-            </Link>
-            <span className="ml-1">/ {publication.author_name_libro}</span>
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px]">
-              <span><PublicationTimestamp date={publication.publication_date} /></span>
-              {credentialLabel && (
-                <>
-                  <span aria-hidden className="text-zinc-300">·</span>
-                  <span>{credentialLabel}</span>
-                </>
-              )}
-            </div>
-          </div>
+          <PublicationByline
+            authorHref={authorHref}
+            authorHandle={publication.author_handle_libro}
+            publicationDate={publication.publication_date}
+            className="mt-6 text-center"
+          />
         </header>
 
         {isLegacy && (

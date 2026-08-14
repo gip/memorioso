@@ -25,6 +25,18 @@ const validationMock = vi.hoisted(() => ({
   getLockedPublishChallenge: vi.fn(),
 }))
 
+const cacheMock = vi.hoisted(() => ({
+  revalidateTag: vi.fn(),
+}))
+
+vi.mock('next/cache', () => ({
+  revalidateTag: cacheMock.revalidateTag,
+}))
+
+vi.mock('@/lib/db/publication-cache', () => ({
+  publicationCacheTag: (id: string) => `publication:${id}`,
+}))
+
 vi.mock('@/lib/db', () => ({
   pool: { connect: dbMock.connect, query: dbMock.poolQuery },
 }))
@@ -114,6 +126,7 @@ describe('Libro publication finalize route', () => {
     dbMock.release.mockReset()
     authMock.getAuthenticatedUser.mockReset()
     serverMock.verifyLibroRegistrationTransaction.mockReset()
+    cacheMock.revalidateTag.mockReset()
     Object.values(validationMock).forEach((mock) => mock.mockReset())
 
     dbMock.connect.mockResolvedValue({ query: dbMock.clientQuery, release: dbMock.release })
@@ -177,6 +190,14 @@ describe('Libro publication finalize route', () => {
       actionHash: '12345',
       registryAddress: '0x1111111111111111111111111111111111111111',
     }, expect.objectContaining({ chainId: 480 }))
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      `publication:${publicationId}`,
+      { expire: 0 }
+    )
+    const commitCall = dbMock.clientQuery.mock.invocationCallOrder[
+      dbMock.clientQuery.mock.calls.findIndex(([query]) => query === 'COMMIT')
+    ]
+    expect(commitCall).toBeLessThan(cacheMock.revalidateTag.mock.invocationCallOrder[0])
   })
 
   it('rejects a sponsored hash that was not stored by the relayer', async () => {
@@ -188,6 +209,7 @@ describe('Libro publication finalize route', () => {
 
     expect(response.status).toBe(400)
     expect(serverMock.verifyLibroRegistrationTransaction).not.toHaveBeenCalled()
+    expect(cacheMock.revalidateTag).not.toHaveBeenCalled()
   })
 
   it('still requires a user operation hash for World wallet submission', async () => {

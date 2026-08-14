@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getPublicationsByUser } from '@/lib/db/objects'
 
-export const dynamic = 'force-dynamic'
-
 const readInt = (value: string | null, fallback: number, min: number, max: number): number => {
   const parsed = value ? Number(value) : NaN
   if (!Number.isFinite(parsed)) return fallback

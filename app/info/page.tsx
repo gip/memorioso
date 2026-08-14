@@ -1,10 +1,9 @@
 import { getAuthors } from '@/lib/db/objects'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
-export const dynamic = 'force-dynamic'
-
-const Info = async () => {
+const InfoContent = async () => {
   const user = await getAuthenticatedUser()
   const name = user?.subject
   const authors = name && await getAuthors(name)
@@ -45,5 +44,11 @@ const Info = async () => {
     </main>
   );
 }
+
+const Info = () => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <InfoContent />
+  </Suspense>
+)
 
 export default Info

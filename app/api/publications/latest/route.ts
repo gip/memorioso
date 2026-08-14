@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getLatestPublications } from '@/lib/db/objects'
 import { type PublicationFeedKind } from '@/lib/publication-kind'
 
-export const dynamic = 'force-dynamic'
-
 const readInt = (value: string | null, fallback: number, min: number, max: number): number => {
   const parsed = value ? Number(value) : NaN
   if (!Number.isFinite(parsed)) return fallback

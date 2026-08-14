@@ -250,14 +250,14 @@ export default function Editor({
   }
 
   return (
-    <div className="py-4">
+    <div className={editable ? 'pb-16 pt-1 sm:py-4' : 'py-4'}>
       {editable && (
-        <div className="-mx-4 mb-3 flex justify-center overflow-x-auto border-b px-2 lg:mx-0 lg:px-0">
-          <div className="flex items-center justify-between gap-2 py-1.5">
-            <div className="flex items-center gap-1">
+        <div className="-mx-4 mb-5 overflow-x-auto border-y bg-muted/30 px-3 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mb-6 sm:rounded-lg sm:border sm:px-2">
+          <div className="mx-auto w-max">
+            <div className="grid grid-cols-[auto_auto] items-center gap-x-1 gap-y-1 sm:flex sm:gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-9 px-3 text-sm">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm">
                     Style
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
@@ -275,12 +275,12 @@ export default function Editor({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <div className="flex items-center gap-1 border-l border-r px-2">
+              <div className="flex items-center gap-0.5 border-l border-r px-1.5 sm:gap-1 sm:px-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('bold')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('bold') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('bold') ? 'bg-muted' : ''}`}
                 >
                   <Bold className="h-4 w-4" />
                 </Button>
@@ -288,7 +288,7 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('italic')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('italic') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('italic') ? 'bg-muted' : ''}`}
                 >
                   <Italic className="h-4 w-4" />
                 </Button>
@@ -296,7 +296,7 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('underline')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('underline') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('underline') ? 'bg-muted' : ''}`}
                 >
                   <UnderlineIcon className="h-4 w-4" />
                 </Button>
@@ -304,7 +304,7 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('strike')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('strike') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('strike') ? 'bg-muted' : ''}`}
                 >
                   <Strikethrough className="h-4 w-4" />
                 </Button>
@@ -312,19 +312,19 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('quote')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('blockquote') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('blockquote') ? 'bg-muted' : ''}`}
                 >
                   <Quote className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex items-center gap-1 border-r px-2">
+              <div className="flex items-center gap-0.5 border-r px-1.5 sm:gap-1 sm:px-2">
                 <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
                   <DialogTrigger asChild>
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className={`h-9 w-9 p-0 ${editor?.isActive('link') ? 'bg-muted' : ''}`}
+                      className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('link') ? 'bg-muted' : ''}`}
                     >
                       <LinkIcon className="h-4 w-4" />
                     </Button>
@@ -381,19 +381,19 @@ export default function Editor({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-9 w-9 p-0"
+                  className="h-8 w-8 p-0 sm:h-9 sm:w-9"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <ImageIcon className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 sm:gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('bullet-list')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('bulletList') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('bulletList') ? 'bg-muted' : ''}`}
                 >
                   <List className="h-4 w-4" />
                 </Button>
@@ -401,7 +401,7 @@ export default function Editor({
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleFormat('ordered-list')}
-                  className={`h-9 w-9 p-0 ${editor?.isActive('orderedList') ? 'bg-muted' : ''}`}
+                  className={`h-8 w-8 p-0 sm:h-9 sm:w-9 ${editor?.isActive('orderedList') ? 'bg-muted' : ''}`}
                 >
                   <ListOrdered className="h-4 w-4" />
                 </Button>
@@ -411,7 +411,7 @@ export default function Editor({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className={editable ? 'space-y-5 px-1 sm:space-y-4 sm:px-0' : 'space-y-4'}>
         <textarea
           value={title}
           onChange={(e) => {
@@ -421,7 +421,7 @@ export default function Editor({
           }}
           placeholder="Title"
           autoFocus={editable && !initialTitle}
-          className="editor-input text-4xl sm:text-4xl md:text-4xl px-0 w-full resize-none overflow-hidden border-none bg-transparent focus:outline-none focus:ring-0 whitespace-pre-wrap break-words"
+          className="editor-input w-full resize-none overflow-hidden border-none bg-transparent px-0 text-[2rem] leading-[1.1] whitespace-pre-wrap break-words focus:outline-none focus:ring-0 sm:text-4xl"
           readOnly={!editable}
           rows={1}
           style={{
@@ -451,7 +451,7 @@ export default function Editor({
               setSubtitle(newValue);
             }}
             placeholder="Add a subtitle..."
-            className="editor-input text-lg sm:text-xl text-muted-foreground px-0 
+            className="editor-input px-0 text-base text-muted-foreground sm:text-xl
                        placeholder:text-muted-foreground/30 break-words"
             readOnly={!editable}
           />
@@ -463,7 +463,7 @@ export default function Editor({
             {author.map((author, index) => (
               <div key={index} className="flex flex-col items-start gap-1">
                 <div className="">
-                  <span>By </span> <NextLink href={`/a/${author.handle}`} className="text-blurple hover:underline">
+                  <span>By </span> <NextLink href={`/@${author.handle}`} className="text-blurple hover:underline">
                     @{author.handle}
                   </NextLink>
                   <span className="ml-1">/ {author.name}</span>
@@ -484,7 +484,7 @@ export default function Editor({
           </div>
         )}
 
-        <div className="editable text-xl">
+        <div className="editable min-h-[18rem] text-lg sm:text-xl">
           <style>{editorStyles}</style>
           {editable && editor && (
             <BubbleMenu

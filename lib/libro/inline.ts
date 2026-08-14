@@ -1,6 +1,6 @@
-import { LIBRO_INLINE_TEXT_MAX_LENGTH, normalizeReadableText } from '@libro/core'
+import { MEMORIOSO_SHORT_MAX_LENGTH, normalizeReadableText } from '@libro/core'
 
-export const MAX_INLINE_TEXT_LENGTH = LIBRO_INLINE_TEXT_MAX_LENGTH
+export const MAX_INLINE_TEXT_LENGTH = MEMORIOSO_SHORT_MAX_LENGTH
 
 function escapeHtml(value: string): string {
   return value

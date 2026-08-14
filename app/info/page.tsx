@@ -26,7 +26,7 @@ const Info = async () => {
             authors.map((author) => (
               <div className="px-4 py-2" key={author.id}>
                 <h3 className="text-lg font-bold">
-                  <Link href={`/a/${author.id}`}>{author.name}</Link>
+                  <Link href={`/@${author.handle}`}>{author.name}</Link>
                 </h3>
                 <p className="text-sm text-gray-500">{author.bio}</p>
               </div>

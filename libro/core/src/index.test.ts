@@ -54,8 +54,8 @@ function manifest(): LibroEmbedManifestV1 {
       transaction_hash: `0x${'11'.repeat(32)}`,
     },
     source: {
-      publication_url: 'https://memorioso.xyz/p/42',
-      proof_url: 'https://memorioso.xyz/p/42/proof',
+      publication_url: 'https://memorioso.xyz/short/42',
+      proof_url: 'https://memorioso.xyz/short/42/proof',
       manifest_url: 'https://memorioso.xyz/api/publications/42/libro-manifest',
     },
   }

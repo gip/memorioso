@@ -11,23 +11,31 @@ const draft: PublishDraftRow = {
   author_name: 'Ada',
   author_handle: 'ada',
   author_bio: null,
+  publicationType: 'short',
 }
 
 describe('publish draft validation', () => {
-  it('accepts a title or readable body content', () => {
+  it('accepts valid shorts and articles', () => {
     expect(() => assertDraftCanBePublished(draft)).not.toThrow()
     expect(() => assertDraftCanBePublished({
       ...draft,
-      title: 'Title only',
-      content: { html: '<p><br></p>' },
+      publicationType: 'article',
+      title: 'An article',
+      content: { html: '<p>Readable body</p>' },
     })).not.toThrow()
   })
 
-  it('rejects a draft when both title and body are empty', () => {
+  it('rejects empty shorts and articles without bodies', () => {
     expect(() => assertDraftCanBePublished({
       ...draft,
       title: '   ',
       content: { html: '<p><br></p>' },
-    })).toThrow('Publication must include a title or readable content')
+    })).toThrow('Shorts can contain only plain text and line breaks')
+    expect(() => assertDraftCanBePublished({
+      ...draft,
+      publicationType: 'article',
+      title: 'Title only',
+      content: { html: '<p><br></p>' },
+    })).toThrow('Article body is required')
   })
 })

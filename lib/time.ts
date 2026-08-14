@@ -63,7 +63,7 @@ type PublicationDateOptions = {
 };
 
 /**
- * Formats a publication timestamp with hours and minutes.
+ * Formats a publication timestamp with hours, minutes, and timezone.
  * Omitting timeZone uses the runtime's local timezone.
  */
 export const fmtDate = (
@@ -80,6 +80,7 @@ export const fmtDate = (
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZoneName: 'short',
     ...(timeZone ? { timeZone } : {}),
   });
 }

@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
+import { ArrowRight, FileText, MessageSquareText, MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
   IDKitRequestWidget,
@@ -30,6 +30,7 @@ import { useUserOperationReceipt } from '@worldcoin/minikit-react'
 import { useMiniKit } from '@worldcoin/minikit-js/minikit-provider'
 import { type Author } from '@/types'
 import Editor from '@/components/Editor'
+import { ShortEditor } from '@/components/ShortEditor'
 import { AlertCircle } from "lucide-react"
 import {
   Alert,
@@ -49,7 +50,12 @@ import {
   type FinalizePublishPayload,
 } from '@/lib/libro/finalize-client'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
-import { createLibroPublicClient, hasMeaningfulPublicationBody, hasPublishablePublication } from '@libro/core'
+import { createLibroPublicClient, hasMeaningfulPublicationBody } from '@libro/core'
+import {
+  type PublicationKind,
+  publicationPath,
+  validatePublicationForKind,
+} from '@/lib/publication-kind'
 
 type DraftData = {
   id?: string
@@ -59,6 +65,7 @@ type DraftData = {
   content: PublicationContent
   authorId?: string
   history?: unknown
+  publicationType: PublicationKind
 }
 
 type PublishContext = {
@@ -150,8 +157,13 @@ const PublishProgress = ({ step, status }: { step: number; status: string | null
   </Alert>
 )
 
-export const Draft = ({ draftId }: { draftId: string | null }) => {
-  const [draft, setDraft] = useState<DraftData | null>({ title: '', subtitle: '', content: { html: '' } })
+export const Draft = ({ draftId, initialType }: { draftId: string | null; initialType: PublicationKind | null }) => {
+  const [draft, setDraft] = useState<DraftData | null>({
+    title: '',
+    subtitle: '',
+    content: { html: '' },
+    publicationType: initialType || 'article',
+  })
   const [originalDraft, setOriginalDraft] = useState<DraftData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -171,6 +183,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   // Anonymous drafts live in local storage until login; the editor must not mount
   // before we know whether there is something to restore into it.
   const [isLocalRestored, setIsLocalRestored] = useState(false)
+  const [hasChosenType, setHasChosenType] = useState(Boolean(draftId || initialType))
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPickingAuthor, setIsPickingAuthor] = useState(false)
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
@@ -201,10 +214,17 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     }
     const local = readLocalDraft()
     if (local) {
-      setDraft({ title: local.title, subtitle: local.subtitle, content: local.content })
+      setDraft({
+        title: local.title,
+        subtitle: local.subtitle,
+        content: local.content,
+        publicationType: local.publicationType,
+      })
+      setHasChosenType(true)
       setInitialContent(local.content.html)
       setInitialTitle(local.title)
       setInitialSubtitle(local.subtitle)
+      window.history.replaceState(null, '', `/d/new?type=${local.publicationType}`)
     }
     setIsLocalRestored(true)
   }, [draftId])
@@ -238,6 +258,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
             setInitialTitle(response.data.title || '')
             setInitialSubtitle(response.data.subtitle || '')
             setInitialAuthorId(response.data.authorId)
+            setHasChosenType(true)
           } else {
             router.push('/')
           }
@@ -405,7 +426,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       setPublishStatus(null)
       publishHostVerifyError.current = null
       clearLocalDraft()
-      router.push(`/p/${response.publicationId}?signed=1`)
+      router.push(`${publicationPath(response.publicationType || draft?.publicationType || 'article', response.publicationId)}?signed=1`)
       return true
     } catch (reason) {
       if (reason instanceof FinalizePublicationError && reason.retryable) {
@@ -427,7 +448,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
       setIsEditingDisabled(false)
       throw reason
     }
-  }, [router])
+  }, [router, draft?.publicationType])
 
   const handleWorldIdResult = async (idkitResult: IDKitResult) => {
     if (!publishContext || !currentDraftId) {
@@ -561,7 +582,13 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     (draft?.title?.trim()?.length ?? 0) > 0 ||
     (draft?.subtitle?.trim()?.length ?? 0) > 0 ||
     hasMeaningfulPublicationBody(draft?.content)
-  const canPublish = hasPublishablePublication(draft?.title, draft?.content)
+  const publicationValidationError = draft ? validatePublicationForKind({
+    kind: draft.publicationType,
+    title: draft.title,
+    subtitle: draft.subtitle,
+    content: draft.content,
+  }) : 'Draft is unavailable'
+  const canPublish = publicationValidationError === null
 
   // Debounced autosave: no Save button, work is never lost. Anonymous writers
   // are saved to this device instead of the account.
@@ -575,6 +602,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     autosaveTimer.current = setTimeout(async () => {
       if (isAnonymous) {
         const stored = writeLocalDraft({
+          publicationType: draft?.publicationType ?? 'article',
           title: draft?.title ?? '',
           subtitle: draft?.subtitle ?? '',
           content: draft?.content ?? { html: '' },
@@ -630,6 +658,40 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
     return <FeedItem item={null} />
   }
 
+  if (!draftId && !hasChosenType && !readLocalDraft()) {
+    return (
+      <div className="mx-auto max-w-xl py-8 text-center sm:py-16">
+        <h1 className="spectral text-2xl font-semibold sm:text-3xl">What are you publishing?</h1>
+        <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">Choose a format before you begin.</p>
+        <div className="mt-5 grid gap-2.5 sm:mt-8 sm:grid-cols-2 sm:gap-3">
+          {(['short', 'article'] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => {
+                setDraft({ title: '', subtitle: '', content: { html: '' }, publicationType: kind })
+                setHasChosenType(true)
+                router.replace(`/d/new?type=${kind}`)
+              }}
+              className="group flex items-center gap-3 rounded-xl border bg-card p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blurple/30 hover:shadow-md sm:block sm:p-6"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blurple/10 text-blurple sm:mb-4 sm:h-10 sm:w-10">
+                {kind === 'short' ? <MessageSquareText className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold capitalize sm:text-lg">{kind}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground sm:mt-2 sm:text-sm">
+                  {kind === 'short' ? 'Plain text · 500 characters' : 'Title, formatting and images'}
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-blurple sm:hidden" />
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const worldIdConstraints = publishContext
     ? CredentialRequest('proof_of_human', { signal: publishContext.signalText })
     : null
@@ -637,7 +699,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
   const selectedAuthor = authors.find((a) => a.id === draft?.authorId) || null
 
   return (
-    <div className="space-y-4 py-4">
+    <div className="space-y-3 pb-10 pt-2 sm:space-y-4 sm:py-4">
       {publishContext && worldIdConstraints && (
         <IDKitRequestWidget
           open={isWorldIdOpen}
@@ -672,15 +734,15 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         <PublishProgress step={publishStep} status={publishStatus} />
       )}
       {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}
-      <div className="sticky top-14 z-20 -mx-4 flex items-center justify-between gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur lg:top-0 lg:mx-0 lg:px-0">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="sticky top-14 z-20 -mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-background/95 px-4 py-2.5 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur lg:top-0 lg:mx-0 lg:flex lg:justify-between lg:px-0 lg:shadow-none">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground sm:text-xs">
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
           {saveState === 'saved-local' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved on this device</>)}
           {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
-          {!canPublish && <span>Add a title or some content to publish.</span>}
+          {!canPublish && <span>{publicationValidationError}</span>}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {pendingFinalize ? (
             <Button
               onClick={() => completeFinalization(pendingFinalize).catch(() => undefined)}
@@ -692,6 +754,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
             <Button
               onClick={() => setIsConfirmOpen(true)}
               disabled={!canPublish || isEditingDisabled || isPollingRegistration}
+              className="h-9 px-3 text-xs sm:h-10 sm:px-4 sm:text-sm"
             >
               Sign &amp; publish
             </Button>
@@ -699,7 +762,7 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           {currentDraftId && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={isEditingDisabled || isPollingRegistration}>
+                <Button variant="ghost" size="icon" className="h-9 w-9" disabled={isEditingDisabled || isPollingRegistration}>
                   <MoreVertical className="h-4 w-4" />
                   <span className="sr-only">More actions</span>
                 </Button>
@@ -717,15 +780,23 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
         </div>
       </div>
 
-      <Editor authors={authors}
-              initialContent={initialContent}
-              initialTitle={initialTitle}
-              initialSubtitle={initialSubtitle}
-              initialAuthorId={initialAuthorId}
-              setContent={setContent}
-              setTitle={setTitle}
-              setSubtitle={setSubtitle}
-              />
+      {draft?.publicationType === 'short' ? (
+        <ShortEditor
+          initialHtml={typeof initialContent === 'string' ? initialContent : ''}
+          onChange={setContent}
+          disabled={isEditingDisabled}
+        />
+      ) : (
+        <Editor authors={authors}
+                initialContent={initialContent}
+                initialTitle={initialTitle}
+                initialSubtitle={initialSubtitle}
+                initialAuthorId={initialAuthorId}
+                setContent={setContent}
+                setTitle={setTitle}
+                setSubtitle={setSubtitle}
+                />
+      )}
 
       <Dialog
         open={isConfirmOpen}
@@ -740,12 +811,17 @@ export const Draft = ({ draftId }: { draftId: string | null }) => {
           <DialogHeader>
             <DialogTitle>Sign &amp; publish</DialogTitle>
             <DialogDescription>
-              A publication needs a title or some content. Publishing permanently registers its human signature and can&apos;t be undone.
+              {draft?.publicationType === 'short'
+                ? 'A short is plain text up to 500 characters.'
+                : 'An article needs a title and a body.'}{' '}
+              Publishing permanently registers its human signature and can&apos;t be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
             <div className="space-y-1 text-sm">
-              <div className="font-medium text-base">{draft?.title || 'Untitled'}</div>
+              <div className="font-medium text-base">
+                {draft?.publicationType === 'short' ? 'Short' : draft?.title || 'Untitled article'}
+              </div>
               {draft?.subtitle && <div className="text-muted-foreground">{draft.subtitle}</div>}
             </div>
             {!isAuthenticated ? (

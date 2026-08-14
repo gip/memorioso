@@ -143,6 +143,7 @@ export async function PUT(
          r.transaction_hash,
          r.finalized_at,
          r."publicationId",
+         d.publication_type AS "publicationType",
          (
            SELECT finalized."publicationId"
            FROM libro_publish_registrations finalized
@@ -154,6 +155,7 @@ export async function PUT(
            LIMIT 1
          ) AS existing_publication_id
        FROM libro_publish_registrations r
+       INNER JOIN drafts d ON d.id = r."draftId"
        WHERE r.id = $1 AND r."draftId" = $2 AND r."userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
     )
@@ -165,7 +167,11 @@ export async function PUT(
     const pending = pendingResult.rows[0]
     const existingPublicationId = pending.publicationId || pending.existing_publication_id
     if (existingPublicationId) {
-      return NextResponse.json({ success: true, publicationId: existingPublicationId })
+      return NextResponse.json({
+        success: true,
+        publicationId: existingPublicationId,
+        publicationType: pending.publicationType,
+      })
     }
 
     if (
@@ -252,7 +258,11 @@ export async function PUT(
           stage = 'commit'
           await client.query('COMMIT')
           transactionOpen = false
-          return NextResponse.json({ success: true, publicationId: registration.publicationId })
+          return NextResponse.json({
+            success: true,
+            publicationId: registration.publicationId,
+            publicationType: pending.publicationType,
+          })
         }
         return await fail('Finalized Libro registration is incomplete', 409)
       }
@@ -310,6 +320,7 @@ export async function PUT(
         return NextResponse.json({
           success: true,
           publicationId: finalizedResult.rows[0].publicationId,
+          publicationType: draft.publicationType,
         })
       }
 
@@ -387,6 +398,7 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         publicationId: articleResult.rows[0].id,
+        publicationType: draft.publicationType,
       })
     } catch (error) {
       clientReleased = await rollbackAndRelease(client, error, transactionOpen)

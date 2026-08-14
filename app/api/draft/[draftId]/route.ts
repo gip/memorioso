@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ draftId
 
   try {
     const draftResult = await client.query(
-      `SELECT d.*, a.name as author_name 
+      `SELECT d.*, d.publication_type AS "publicationType", a.name as author_name
        FROM drafts d 
        LEFT JOIN authors a ON d."authorId" = a.id 
        WHERE d."userId" = $1 AND d.id = $2 AND d.status = $3`,
@@ -65,7 +65,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
       `UPDATE drafts
        SET title = $1, subtitle = $2, content = $3, history = $4, "authorId" = $5
        WHERE id = $6 AND "userId" = $7 AND status = $8
-       RETURNING *`,
+       RETURNING *, publication_type AS "publicationType"`,
       [title, subtitle, content, historyValue, authorId, id, authenticatedUser.id, 'editing']
     );
 

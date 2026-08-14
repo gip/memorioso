@@ -2,6 +2,10 @@ import { pool } from './index'
 import { cache } from 'react'
 import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
 import { extractReadableText } from '@libro/core'
+import {
+  publicationKindFromTitle,
+  type PublicationFeedKind,
+} from '@/lib/publication-kind'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
@@ -122,18 +126,29 @@ export const getPublicationInfoByAuthor = cache(async (authorId: string): Promis
       authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
         ? 'Human-authorized agent'
         : 'Signed by a human',
+      publication_type: publicationKindFromTitle(row.signal.publication_title),
     }))
   } finally {
     client.release()
   }
 })
 
-export const getLatestPublications = cache(async (limit: number = 20, offset: number = 0): Promise<PublicationInfo[]> => {
+export const getLatestPublications = cache(async (
+  limit: number = 20,
+  offset: number = 0,
+  type: PublicationFeedKind = 'article'
+): Promise<PublicationInfo[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal, proof FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1 OFFSET $2',
-      [limit, offset]
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE $3 = 'all'
+          OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
+          OR ($3 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL)
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset, type]
     )
 
     return rows.map(row => ({
@@ -147,6 +162,7 @@ export const getLatestPublications = cache(async (limit: number = 20, offset: nu
       authorship_label: row.proof?.proof_type === 'human_authorized_agent_signature'
         ? 'Human-authorized agent'
         : 'Signed by a human',
+      publication_type: publicationKindFromTitle(row.signal.publication_title),
     }))
   } finally {
     client.release()

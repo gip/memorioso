@@ -6,8 +6,10 @@ import { usePathname } from 'next/navigation'
 import {
   ArrowLeft,
   ChevronDown,
+  FileText,
   Files,
   LogIn,
+  MessageSquareText,
   PenLine,
   UserRound,
 } from 'lucide-react'
@@ -41,7 +43,7 @@ export const getPrimarySiteAction = (
     }
   }
 
-  if (/^\/p\/[^/]+\/proof\/?$/.test(pathname)) {
+  if (/^\/(?:article|short)\/[^/]+\/proof\/?$/.test(pathname)) {
     return {
       href: pathname.replace(/\/proof\/?$/, ''),
       label: 'Back to publication',
@@ -114,12 +116,44 @@ export const HomeActions = ({ className }: { className?: string }) => {
       </Link>
 
       <div className="flex flex-col items-stretch gap-2">
-        <Button variant="outline" className="justify-start px-3" asChild>
-          <Link href={primaryAction.href}>
-            <PrimaryIcon className="h-4 w-4" />
-            {primaryAction.label}
-          </Link>
-        </Button>
+        {primaryAction.icon === 'write' ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="justify-start px-3">
+                <PenLine className="h-4 w-4" />
+                Start writing
+                <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 p-1.5">
+              <DropdownMenuItem asChild className="p-0">
+                <Link href="/d/new?type=short" className="flex items-center gap-3 rounded-md px-2.5 py-2.5">
+                  <MessageSquareText className="h-4 w-4 text-blurple" />
+                  <span>
+                    <span className="block text-sm font-medium">Short</span>
+                    <span className="block text-[11px] text-muted-foreground">Plain text · 500 characters</span>
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="p-0">
+                <Link href="/d/new?type=article" className="flex items-center gap-3 rounded-md px-2.5 py-2.5">
+                  <FileText className="h-4 w-4 text-blurple" />
+                  <span>
+                    <span className="block text-sm font-medium">Article</span>
+                    <span className="block text-[11px] text-muted-foreground">Title, formatting and images</span>
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button variant="outline" className="justify-start px-3" asChild>
+            <Link href={primaryAction.href}>
+              <PrimaryIcon className="h-4 w-4" />
+              {primaryAction.label}
+            </Link>
+          </Button>
+        )}
 
         {pathname === '/' && isAuthenticated && (
           <Button variant="outline" className="justify-start px-3" asChild>
@@ -178,7 +212,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
 
       <nav className="mt-5 flex flex-col border-t pt-4">
         <QuietLink href="/latest" active={pathname === '/latest'}>
-          All publications
+          Browse articles
         </QuietLink>
         <QuietLink href="/how-it-works" active={pathname === '/how-it-works'}>
           How it works

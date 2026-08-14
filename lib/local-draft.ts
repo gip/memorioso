@@ -6,10 +6,12 @@
 // progress, and is cleared as soon as that draft reaches the database.
 
 import { type PublicationContent } from '@/types';
+import { isPublicationKind, type PublicationKind } from '@/lib/publication-kind';
 
 const LOCAL_DRAFT_KEY = 'memorioso.draft.local.v1';
 
 export type LocalDraft = {
+  publicationType: PublicationKind;
   title: string;
   subtitle: string;
   content: PublicationContent;
@@ -38,6 +40,7 @@ export const readLocalDraft = (): LocalDraft | null => {
       return null;
     }
     return {
+      publicationType: isPublicationKind(parsed.publicationType) ? parsed.publicationType : 'article',
       title: typeof parsed.title === 'string' ? parsed.title : '',
       subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : '',
       content: parsed.content,
@@ -49,12 +52,18 @@ export const readLocalDraft = (): LocalDraft | null => {
 };
 
 /** Persists the draft locally. Storage failures must never break the editor. */
-export const writeLocalDraft = (draft: Omit<LocalDraft, 'savedAt'>): boolean => {
+export const writeLocalDraft = (
+  draft: Omit<LocalDraft, 'savedAt' | 'publicationType'> & { publicationType?: PublicationKind }
+): boolean => {
   if (typeof window === 'undefined') {
     return false;
   }
   try {
-    const payload: LocalDraft = { ...draft, savedAt: new Date().toISOString() };
+    const payload: LocalDraft = {
+      ...draft,
+      publicationType: draft.publicationType || 'article',
+      savedAt: new Date().toISOString(),
+    };
     window.localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(payload));
     return true;
   } catch {

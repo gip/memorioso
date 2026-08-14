@@ -1,39 +1,47 @@
-import { getLatestPublications } from '@/lib/db/objects'
-import { TextListCard } from '@/components/TextListCard'
-import { timeAgo } from '@/lib/time'
+import Link from 'next/link'
+import { LatestPublications } from '@/components/LatestPublications'
 import { Divider } from '@/components/Divider'
+import type { PublicationFeedKind } from '@/lib/publication-kind'
 
 export const dynamic = 'force-dynamic'
 
-const Page = async () => {
-  const publications = await getLatestPublications()
+const tabs: Array<{ label: string; type: PublicationFeedKind; href: string }> = [
+  { label: 'Articles', type: 'article', href: '/latest' },
+  { label: 'Shorts', type: 'short', href: '/latest?type=short' },
+  { label: 'All', type: 'all', href: '/latest?type=all' },
+]
+
+const Page = async ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => {
+  const { type: requestedType } = await searchParams
+  const type: PublicationFeedKind = requestedType === 'short' || requestedType === 'all'
+    ? requestedType
+    : 'article'
 
   return (
     <main className="py-8">
       <div className="text-center">
-        <h1 className="text-5xl">
-          For Human Creativity
-        </h1>
+        <h1 className="text-5xl">For Human Creativity</h1>
         <Divider animate />
       </div>
-      <div className="flex items-start py-4">
-        <h2 className="text-2xl font-bold">Latest Publications</h2>
-      </div>
-      <div className="space-y-3 py-4">
-        {publications.map(publication => (
-          <TextListCard
-            key={publication.id}
-            href={`/p/${publication.id}`}
-            title={publication.publication_title}
-            excerpt={publication.publication_excerpt}
-            subtitle={publication.publication_subtitle}
-            authorshipLabel={publication.authorship_label}
-            metaText={`${publication.author_name_libro} · ${timeAgo(publication.publication_date)}`}
-          />
+      <nav aria-label="Publication type" className="mb-5 flex gap-5 border-b">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.type}
+            href={tab.href}
+            aria-current={tab.type === type ? 'page' : undefined}
+            className={`border-b-2 px-1 py-3 text-sm ${
+              tab.type === type
+                ? 'border-blurple font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </Link>
         ))}
-      </div>
+      </nav>
+      <LatestPublications key={type} type={type} pageSize={20} showHeading={false} />
     </main>
   )
 }
 
-export default Page 
+export default Page

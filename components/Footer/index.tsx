@@ -8,7 +8,7 @@ export const Footer = ({ className }: { className?: string }) => (
       <div>
         <i>
           Memorioso is currently in the{' '}
-          <a href="/p/2" className="text-blurple hover:underline">Make It Work</a> stage.
+          <a href="/article/2" className="text-blurple hover:underline">Make It Work</a> stage.
         </i>
       </div>
       <div className="mt-2 flex items-center justify-center gap-2 whitespace-nowrap">

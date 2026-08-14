@@ -10,11 +10,14 @@ import { type PublicationInfo } from '@/types'
 import { TextListCard } from '@/components/TextListCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { timeAgo } from '@/lib/time'
+import { publicationPath, type PublicationFeedKind } from '@/lib/publication-kind'
 
 type LatestPublicationsProps = {
   /** Publications per page, and therefore how many show on arrival. */
   pageSize?: number
   className?: string
+  type?: PublicationFeedKind
+  showHeading?: boolean
 }
 
 type LatestResponse = {
@@ -23,7 +26,12 @@ type LatestResponse = {
   hasMore?: boolean
 }
 
-export const LatestPublications = ({ pageSize = 5, className }: LatestPublicationsProps) => {
+export const LatestPublications = ({
+  pageSize = 5,
+  className,
+  type = 'article',
+  showHeading = true,
+}: LatestPublicationsProps) => {
   const [publications, setPublications] = useState<PublicationInfo[]>([])
   const [loaded, setLoaded] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -43,7 +51,7 @@ export const LatestPublications = ({ pageSize = 5, className }: LatestPublicatio
     setIsLoading(true)
     try {
       const raw = await fetch(
-        `/api/publications/latest?limit=${pageSize}&offset=${offsetRef.current}`
+        `/api/publications/latest?limit=${pageSize}&offset=${offsetRef.current}&type=${type}`
       )
       const response = await raw.json() as LatestResponse
       if (response.success && response.publications) {
@@ -61,9 +69,15 @@ export const LatestPublications = ({ pageSize = 5, className }: LatestPublicatio
       setIsLoading(false)
       setLoaded(true)
     }
-  }, [pageSize])
+  }, [pageSize, type])
 
   useEffect(() => {
+    setPublications([])
+    setLoaded(false)
+    setHasMore(true)
+    setIsArmed(false)
+    offsetRef.current = 0
+    isFetchingRef.current = false
     loadMore()
   }, [loadMore])
 
@@ -102,14 +116,16 @@ export const LatestPublications = ({ pageSize = 5, className }: LatestPublicatio
 
   return (
     <div className={className}>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Latest Publications
-      </h2>
+      {showHeading && (
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Latest Articles
+        </h2>
+      )}
       <div className="space-y-3 text-left">
         {publications.map(publication => (
           <TextListCard
             key={publication.id}
-            href={`/p/${publication.id}`}
+            href={publicationPath(publication.publication_type, publication.id)}
             title={publication.publication_title}
             excerpt={publication.publication_excerpt}
             subtitle={publication.publication_subtitle}
@@ -145,7 +161,7 @@ export const LatestPublications = ({ pageSize = 5, className }: LatestPublicatio
       )}
       {loaded && !hasMore && publications.length > 0 && (
         <p className="py-8 text-center text-xs text-muted-foreground">
-          That is every signed publication so far.
+          That is every matching signed publication so far.
         </p>
       )}
     </div>

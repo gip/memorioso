@@ -6,7 +6,7 @@ import { createPublishAction, createRpContext, getWorldIdServerConfig } from '@/
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import type { PublicationContent } from '@/types'
-import { hasPublishablePublication } from '@libro/core'
+import { validatePublicationForKind } from '@/lib/publication-kind'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         d.subtitle,
         d.content,
         d.status,
+        d.publication_type AS "publicationType",
         d."authorId",
         a.name AS author_name,
         a.handle AS author_handle,
@@ -62,8 +63,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: "Author is required" }, { status: 400 })
     }
 
-    if (!hasPublishablePublication(draft.title, draft.content)) {
-      return NextResponse.json({ success: false, message: "Publication must include a title or readable content" }, { status: 400 })
+    const validationError = validatePublicationForKind({
+      kind: draft.publicationType,
+      title: draft.title,
+      subtitle: draft.subtitle,
+      content: draft.content,
+    })
+    if (validationError) {
+      return NextResponse.json({ success: false, message: validationError }, { status: 400 })
     }
 
     const challengeId = crypto.randomUUID()
@@ -76,8 +83,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         handle: draft.author_handle,
         bio: draft.author_bio || '',
       },
-      title: draft.title,
-      subtitle: draft.subtitle || '',
+      title: draft.publicationType === 'short' ? '' : draft.title,
+      subtitle: draft.publicationType === 'short' ? '' : draft.subtitle || '',
       content: draft.content as PublicationContent,
       publicationDate,
       action: publishAction,

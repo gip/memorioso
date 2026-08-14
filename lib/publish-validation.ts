@@ -9,7 +9,7 @@ import {
 import { isJsonEqual } from '@/lib/json'
 import type { JsonValue } from '@/lib/json'
 import type { LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
-import { hasPublishablePublication } from '@libro/core'
+import { type PublicationKind, validatePublicationForKind } from '@/lib/publication-kind'
 
 type PublishChallengeLookup = {
   challengeId: string
@@ -40,6 +40,7 @@ export type PublishDraftRow = {
   author_name: string
   author_handle: string
   author_bio: string | null
+  publicationType: PublicationKind
 }
 
 export async function getLockedPublishChallenge(
@@ -69,6 +70,7 @@ export async function getLockedDraftForPublish(
       d.subtitle,
       d.content,
       d.status,
+      d.publication_type AS "publicationType",
       d."authorId",
       a.name AS author_name,
       a.handle AS author_handle,
@@ -98,9 +100,13 @@ export function assertDraftCanBePublished(draft: PublishDraftRow): void {
     throw new Error('Only editing drafts can be published')
   }
 
-  if (!hasPublishablePublication(draft.title, draft.content)) {
-    throw new Error('Publication must include a title or readable content')
-  }
+  const error = validatePublicationForKind({
+    kind: draft.publicationType,
+    title: draft.title,
+    subtitle: draft.subtitle,
+    content: draft.content,
+  })
+  if (error) throw new Error(error)
 }
 
 export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroPublicationV1): void {
@@ -131,6 +137,13 @@ export function assertDraftMatchesChallenge(
     publicationDate: storedPublication.publication_date,
     action: challenge.action,
   }
+  const validationError = validatePublicationForKind({
+    kind: draft.publicationType,
+    title: draft.title,
+    subtitle: draft.subtitle,
+    content: draft.content,
+  })
+  if (validationError) throw new Error(validationError)
   const expectedPublication = isLibroPublicationV1(storedPublication)
     ? createLibroPublicationV1(publicationInput)
     : createPublicationV2(publicationInput)

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
+import {
+  isValidUserHandle,
+  normalizeUserHandle,
+  parseAuthorHandlePathSegment,
+} from '@/lib/handle'
 
 describe('normalizeUserHandle', () => {
   it('lowercases and trims', () => {
@@ -22,5 +26,19 @@ describe('isValidUserHandle', () => {
     expect(isValidUserHandle('john doe')).toBe(false)
     expect(isValidUserHandle('john.doe')).toBe(false)
     expect(isValidUserHandle('')).toBe(false)
+  })
+})
+
+describe('parseAuthorHandlePathSegment', () => {
+  it('parses literal and percent-encoded author path segments', () => {
+    expect(parseAuthorHandlePathSegment('@jacko22')).toBe('jacko22')
+    expect(parseAuthorHandlePathSegment('%40jacko22')).toBe('jacko22')
+  })
+
+  it('rejects malformed or non-author path segments', () => {
+    expect(parseAuthorHandlePathSegment('jacko22')).toBeNull()
+    expect(parseAuthorHandlePathSegment('%')).toBeNull()
+    expect(parseAuthorHandlePathSegment('%2540jacko22')).toBeNull()
+    expect(parseAuthorHandlePathSegment('@Jo')).toBeNull()
   })
 })

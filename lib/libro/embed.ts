@@ -20,6 +20,7 @@ import {
 } from '@libro/core'
 import { isLibroRegisteredProof } from '@/lib/publication-status'
 import type { Proof, PublicationRecord } from '@/types'
+import { publicationPathFor } from '@/lib/publication-kind'
 
 export class LibroEmbedUnavailableError extends Error {}
 
@@ -112,9 +113,10 @@ export function buildLibroEmbedManifest(
 
   const appUrl = normalizeAppUrl()
   if (appUrl && publicationId) {
+    const publicationUrl = `${appUrl}${publicationPathFor(publication, publicationId)}`
     manifest.source = {
-      publication_url: `${appUrl}/p/${publicationId}`,
-      proof_url: `${appUrl}/p/${publicationId}/proof`,
+      publication_url: publicationUrl,
+      proof_url: `${publicationUrl}/proof`,
       manifest_url: `${appUrl}/api/publications/${publicationId}/libro-manifest`,
     }
   }
@@ -161,6 +163,13 @@ export function sanitizeLibroEmbedHtml(html: string): string {
   return extractReadableText(sanitized) === signedText
     ? sanitized
     : `<p>${escapeHtml(signedText)}</p>`
+}
+
+export function sanitizeShortPublicationHtml(html: string): string {
+  return sanitizeHtml(html, {
+    allowedTags: ['p', 'br'],
+    allowedAttributes: {},
+  })
 }
 
 export function getLibroSimpleBoundaryLabel(manifest: LibroEmbedManifestV1): string {

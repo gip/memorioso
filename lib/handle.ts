@@ -7,3 +7,20 @@ export function normalizeUserHandle(value: string): string {
 export function isValidUserHandle(value: string): boolean {
   return USER_HANDLE_PATTERN.test(value)
 }
+
+export function parseAuthorHandlePathSegment(value: string): string | null {
+  let decodedValue: string
+
+  try {
+    decodedValue = decodeURIComponent(value)
+  } catch {
+    return null
+  }
+
+  if (!decodedValue.startsWith('@')) {
+    return null
+  }
+
+  const handle = decodedValue.slice(1)
+  return isValidUserHandle(handle) ? handle : null
+}

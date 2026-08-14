@@ -14,6 +14,7 @@ import {
 } from '@/lib/publication-status'
 import { CodeCard } from './CodeCard'
 import { CopyValue } from './CopyValue'
+import { publicationPathFor } from '@/lib/publication-kind'
 
 const WORLD_CHAIN_ID = 480
 const WORLD_CHAIN_EXPLORER = 'https://worldscan.org'
@@ -47,7 +48,7 @@ const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON
 const signalText = JSON.stringify(signalJson);`
 
 const authorHref = (publication: PublicationType) =>
-  `/a/${publication.author_handle_libro || publication.author_id_libro}`
+  `/@${publication.author_handle_libro}`
 
 const AuthorLink = ({ publication }: { publication: PublicationType }) => (
   <Link href={authorHref(publication)} className="font-medium text-blurple hover:underline">
@@ -376,6 +377,7 @@ export const Proof = ({
 
   const publicationTitle = publication.publication_title.trim()
   const title = publicationTitle || extractReadableText(publication.publication_content.html)
+  const publicationHref = publicationPathFor(publication, publicationId)
 
   return (
     <article className="pb-16 pt-8">
@@ -396,7 +398,7 @@ export const Proof = ({
             <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Publication</dt>
             <dd className="min-w-0 text-[13.5px]">
               <Link
-                href={`/p/${publicationId}`}
+                href={publicationHref}
                 className={`line-clamp-2 font-normal text-blurple hover:underline ${publicationTitle ? '' : 'text-xs'}`}
               >
                 {title}
@@ -426,7 +428,7 @@ export const Proof = ({
       )}
 
       <div className="mt-10 flex justify-center">
-        <Link href={`/p/${publicationId}`} className="text-[13px] text-muted-foreground hover:text-blurple">
+        <Link href={publicationHref} className="text-[13px] text-muted-foreground hover:text-blurple">
           Back to the publication
         </Link>
       </div>

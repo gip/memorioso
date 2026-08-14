@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Menu } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { ArrowLeft, Menu } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,7 @@ import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname() || '/'
+  const router = useRouter()
   const {
     status,
     user,
@@ -32,6 +33,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = status === 'authenticated'
   const authMessage = accountError || authError
   const primaryAction = getPrimarySiteAction(pathname, isAuthenticated)
+  const showMobileBackButton = pathname !== '/'
 
   const handleSignIn = () => {
     setAccountError(null)
@@ -59,14 +61,27 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
             <MemMark size={28} />
             <span className="text-lg font-bold">Memorioso</span>
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" className="h-10 w-10 rounded-full">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Menu</span>
+          <div className="flex items-center gap-1.5">
+            {showMobileBackButton && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => router.back()}
+                className="h-9 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only min-[360px]:not-sr-only">Back</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" className="h-10 w-10 rounded-full">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
               {authMessage && (
                 <div role="alert" className="break-words px-2 py-1.5 text-xs text-destructive">
                   {authMessage}
@@ -92,7 +107,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem asChild>
-                <Link href="/latest">All publications</Link>
+                <Link href="/latest">Browse articles</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/how-it-works">How it works</Link>
@@ -126,8 +141,9 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                   </DropdownMenuItem>
                 </>
               )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         {!isAuthenticated && authMessage && (
           <div

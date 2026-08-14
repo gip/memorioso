@@ -16,6 +16,7 @@ import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSi
 import { createPublishAction, createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
+import { normalizedUnicodeLength } from '@libro/core'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getExtensionSession(request)
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!normalizedText) {
     return NextResponse.json({ success: false, message: 'Text is required' }, { status: 400 })
   }
-  if (normalizedText.length > MAX_INLINE_TEXT_LENGTH) {
+  if (normalizedUnicodeLength(normalizedText) > MAX_INLINE_TEXT_LENGTH) {
     return NextResponse.json({
       success: false,
       message: `Inline signatures are limited to ${MAX_INLINE_TEXT_LENGTH.toLocaleString()} characters`,
@@ -80,8 +81,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const author = authorResult.rows[0]
     const content = { html: inlineTextToHtml(body?.text as string) }
     const draftResult = await client.query(
-      `INSERT INTO drafts ("userId", status, title, subtitle, content, history, "authorId")
-       VALUES ($1, 'editing', '', '', $2, $3, $4)
+      `INSERT INTO drafts ("userId", status, publication_type, title, subtitle, content, history, "authorId")
+       VALUES ($1, 'editing', 'short', '', '', $2, $3, $4)
        RETURNING id`,
       [session.user.id, content, { source: 'chrome_extension' }, author.id]
     )

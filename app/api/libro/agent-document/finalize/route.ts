@@ -10,6 +10,7 @@ import {
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentDocumentRegistered } from '@/lib/libro/server'
 import type { LibroAgentProofV1, LibroAgentPublicationV1 } from '@/types'
+import { publicationKindFromTitle } from '@/lib/publication-kind'
 
 type FinalizeAgentDocumentRequest = {
   documentRegistrationId?: string
@@ -67,9 +68,10 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   let stage = 'lookup'
   try {
     const pendingResult = await pool.query(
-      `SELECT document_signal_hash, finalized_at, "publicationId"
-       FROM libro_agent_document_registrations
-       WHERE id = $1`,
+      `SELECT d.document_signal_hash, d.finalized_at, d."publicationId", p.signal
+       FROM libro_agent_document_registrations d
+       LEFT JOIN publications p ON p.id = d."publicationId"
+       WHERE d.id = $1`,
       [documentRegistrationId]
     )
 
@@ -77,7 +79,11 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: 'Agent document registration not found' }, { status: 404 })
     }
     if (pendingResult.rows[0].finalized_at && pendingResult.rows[0].publicationId) {
-      return NextResponse.json({ success: true, publicationId: pendingResult.rows[0].publicationId })
+      return NextResponse.json({
+        success: true,
+        publicationId: pendingResult.rows[0].publicationId,
+        publicationType: publicationKindFromTitle(pendingResult.rows[0].signal?.publication_title),
+      })
     }
 
     stage = 'chain_verify'
@@ -127,7 +133,12 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         if (documentRegistration.publicationId) {
           await client.query('COMMIT')
           transactionOpen = false
-          return NextResponse.json({ success: true, publicationId: documentRegistration.publicationId })
+          const finalizedPublication = documentRegistration.publication as LibroAgentPublicationV1
+          return NextResponse.json({
+            success: true,
+            publicationId: documentRegistration.publicationId,
+            publicationType: publicationKindFromTitle(finalizedPublication.publication_title),
+          })
         }
         return await fail('Finalized agent document registration is incomplete', 409)
       }
@@ -183,7 +194,11 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         publicationId: articleResult.rows[0].id,
         durationMs: Date.now() - startedAt,
       })
-      return NextResponse.json({ success: true, publicationId: articleResult.rows[0].id })
+      return NextResponse.json({
+        success: true,
+        publicationId: articleResult.rows[0].id,
+        publicationType: publicationKindFromTitle(publication.publication_title),
+      })
     } catch (error) {
       clientReleased = await rollbackAndRelease(client, error, transactionOpen)
       throw error

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Loader2, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 
+import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import type { FeedItemD } from '@/components/FeedItem'
 import { FeedItem } from '@/components/FeedItem'
 
@@ -13,6 +15,9 @@ type FeedStatus = 'loading' | 'ready'
 export const Feed = () => {
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading')
   const [feedItems, setFeedItems] = useState<FeedItemD[]>([])
+  const [feedError, setFeedError] = useState<string | null>(null)
+  const [draftToDelete, setDraftToDelete] = useState<FeedItemD | null>(null)
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const router = useRouter()
   
   useEffect(() => {
@@ -33,6 +38,25 @@ export const Feed = () => {
     fetchData();
   }, []);
 
+  const deleteDraft = async (draft: FeedItemD) => {
+    setDeletingDraftId(draft.id)
+    setFeedError(null)
+    try {
+      const raw = await fetch(`/api/draft/${draft.id}`, { method: 'DELETE' })
+      const response = await raw.json() as { success?: boolean; message?: string }
+      if (!raw.ok || !response.success) {
+        throw new Error(response.message || 'Failed to delete draft')
+      }
+
+      setFeedItems(previous => previous.filter(item => item.id !== draft.id))
+      setDraftToDelete(null)
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : 'Failed to delete draft')
+    } finally {
+      setDeletingDraftId(null)
+    }
+  }
+
   const EmptyFeed = () => (
     <div className="py-6 text-center">
       <p className="text-muted-foreground mb-4">You have no drafts yet.</p>
@@ -46,7 +70,26 @@ export const Feed = () => {
     <div className="space-y-3">
       {feedItems && feedItems.length > 0 ? (
         feedItems.map((item) => (
-          <FeedItem key={item.id} item={item} />
+          <div key={item.id} className="relative [&>a]:pr-14">
+            <FeedItem item={item} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDraftToDelete(item)}
+              disabled={deletingDraftId === item.id}
+            >
+              {deletingDraftId === item.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              <span className="sr-only">
+                {deletingDraftId === item.id ? 'Deleting…' : 'Delete'}
+              </span>
+            </Button>
+          </div>
         ))
       ) : (
         <EmptyFeed />
@@ -72,8 +115,25 @@ export const Feed = () => {
           View activity
         </Link>
       </div>
+      {feedError && !draftToDelete && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {feedError}
+        </p>
+      )}
       {feedStatus === 'loading' && <FeedLoading />}
       {feedStatus === 'ready' && <FeedContent />}
+      <DeleteDraftDialog
+        open={draftToDelete !== null}
+        draftTitle={draftToDelete?.title}
+        errorMessage={feedError}
+        isDeleting={deletingDraftId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDraftToDelete(null)
+        }}
+        onConfirm={() => {
+          if (draftToDelete) deleteDraft(draftToDelete)
+        }}
+      />
     </div>
   )
 }

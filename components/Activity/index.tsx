@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 
 import { FeedItem, type FeedItemD } from '@/components/FeedItem'
+import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import { TextListCard } from '@/components/TextListCard'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,6 +33,7 @@ export const Activity = () => {
   const [draftsLoaded, setDraftsLoaded] = useState(false)
   const [draftsError, setDraftsError] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+  const [draftToDelete, setDraftToDelete] = useState<FeedItemD | null>(null)
   const [publications, setPublications] = useState<PublicationInfo[]>([])
   const [publicationsLoaded, setPublicationsLoaded] = useState(false)
   const [publicationsError, setPublicationsError] = useState<string | null>(null)
@@ -126,9 +128,6 @@ export const Activity = () => {
   }, [hasMorePublications, isPaginationArmed, loadMorePublications, publications.length])
 
   const deleteDraft = async (draft: FeedItemD) => {
-    const title = draft.title?.trim() || 'this draft'
-    if (!window.confirm(`Delete ${title}? This cannot be undone.`)) return
-
     setDeletingDraftId(draft.id)
     setDraftsError(null)
     try {
@@ -138,6 +137,7 @@ export const Activity = () => {
         throw new Error(response.message || 'Failed to delete draft')
       }
       setDrafts(previous => previous.filter(item => item.id !== draft.id))
+      setDraftToDelete(null)
     } catch (error) {
       setDraftsError(error instanceof Error ? error.message : 'Failed to delete draft')
     } finally {
@@ -191,37 +191,44 @@ export const Activity = () => {
             {drafts.map(draft => (
               <div
                 key={draft.id}
-                className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                className="relative [&>a]:pr-14"
               >
                 <FeedItem item={draft} />
-                <div className="flex gap-2 sm:flex-col">
-                  <Button variant="outline" size="sm" className="flex-1 sm:flex-none" asChild>
-                    <Link href={`/d/${draft.id}`}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Link>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-destructive hover:text-destructive sm:flex-none"
-                    onClick={() => deleteDraft(draft)}
-                    disabled={deletingDraftId === draft.id}
-                  >
-                    {deletingDraftId === draft.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                    Delete
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 z-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setDraftToDelete(draft)}
+                  disabled={deletingDraftId === draft.id}
+                >
+                  {deletingDraftId === draft.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  <span className="sr-only">
+                    {deletingDraftId === draft.id ? 'Deleting…' : 'Delete'}
+                  </span>
+                </Button>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      <DeleteDraftDialog
+        open={draftToDelete !== null}
+        draftTitle={draftToDelete?.title}
+        errorMessage={draftsError}
+        isDeleting={deletingDraftId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDraftToDelete(null)
+        }}
+        onConfirm={() => {
+          if (draftToDelete) deleteDraft(draftToDelete)
+        }}
+      />
 
       <section aria-labelledby="activity-publications-heading" className="mt-10">
         <h2

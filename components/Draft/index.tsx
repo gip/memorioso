@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
@@ -188,6 +189,8 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [isLocalRestored, setIsLocalRestored] = useState(false)
   const [hasChosenType, setHasChosenType] = useState(Boolean(draftId || initialType))
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isPickingAuthor, setIsPickingAuthor] = useState(false)
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -580,17 +583,24 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
   const handleDelete = async () => {
     if (!currentDraftId) return
+    setIsDeleting(true)
+    setError(null)
     try {
       const raw = await fetch(`/api/draft/${currentDraftId}`, {
         method: 'DELETE',
       })
-      const response = await raw.json()
-      if (response.success) {
-        clearLocalDraft()
-        router.push('/')
+      const response = await raw.json() as { success?: boolean; message?: string }
+      if (!raw.ok || !response.success) {
+        throw new Error(response.message || 'Failed to delete draft')
       }
+
+      setIsDeleteConfirmOpen(false)
+      clearLocalDraft()
+      router.push('/')
     } catch (error) {
-      console.error('Failed to delete draft:', error)
+      setError(error instanceof Error ? error.message : 'Failed to delete draft')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -794,7 +804,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onClick={handleDelete}
+                  onSelect={() => setIsDeleteConfirmOpen(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Delete draft
                 </DropdownMenuItem>
@@ -803,6 +813,15 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           )}
         </div>
       </div>
+
+      <DeleteDraftDialog
+        open={isDeleteConfirmOpen}
+        draftTitle={draft?.title}
+        errorMessage={error}
+        isDeleting={isDeleting}
+        onOpenChange={setIsDeleteConfirmOpen}
+        onConfirm={handleDelete}
+      />
 
       {draft?.publicationType === 'short' ? (
         <ShortEditor

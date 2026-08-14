@@ -16,7 +16,7 @@ import {
 import { Footer } from '@/components/Footer'
 import { HomeActions, getPrimarySiteAction } from '@/components/HomeActions'
 import { MemMark } from '@/components/MemMark'
-import { YourDraftsMobileMenu } from '@/components/YourDraftsButton'
+import { YourDraftsMenuGroup } from '@/components/YourDraftsButton'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
@@ -103,7 +103,11 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                 <Link href={primaryAction.href}>{primaryAction.label}</Link>
               </DropdownMenuItem>
               {isAuthenticated && (
-                <YourDraftsMobileMenu />
+                <>
+                  <DropdownMenuSeparator />
+                  <YourDraftsMenuGroup />
+                  <DropdownMenuSeparator />
+                </>
               )}
               <DropdownMenuItem asChild>
                 <Link href="/latest">Browse articles</Link>

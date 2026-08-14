@@ -212,7 +212,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
 
       <nav className="mt-5 flex flex-col border-t pt-4">
         <QuietLink href="/latest" active={pathname === '/latest'}>
-          Browse publications
+          Browse articles
         </QuietLink>
         <QuietLink href="/how-it-works" active={pathname === '/how-it-works'}>
           How it works

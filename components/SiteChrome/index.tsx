@@ -107,7 +107,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem asChild>
-                <Link href="/latest">Browse publications</Link>
+                <Link href="/latest">Browse articles</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/how-it-works">How it works</Link>

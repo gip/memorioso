@@ -11,7 +11,7 @@ p { margin: 7px 0 13px; }
 .muted, .hint { color: #71717a; }
 .hint { font-size: 12px; }
 label { display: block; margin: 14px 0 5px; font-size: 12px; font-weight: 700; }
-input, textarea { width: 100%; border: 1px solid #d4d4d8; border-radius: 9px; background: white; padding: 10px; color: inherit; font: inherit; }
+input, textarea, select { width: 100%; border: 1px solid #d4d4d8; border-radius: 9px; background: white; padding: 10px; color: inherit; font: inherit; }
 textarea { min-height: 190px; resize: vertical; line-height: 1.55; }
 .handle { display: flex; align-items: center; border: 1px solid #d4d4d8; border-radius: 9px; background: white; padding-left: 10px; }
 .handle span { color: #71717a; }

@@ -12,6 +12,7 @@ import {
   WorldIdAuthorAuthError,
   type WorldIdAuthorAuthIntent,
 } from '@/lib/world-id/author-auth'
+import { getOwnedAuthors } from '@/lib/authors'
 
 type VerifyBody = {
   attemptId?: unknown
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const result = await verifyAndCreateOrConnectAuthor<{
       expiresAt: string
+      authors: Awaited<ReturnType<typeof getOwnedAuthors>>
     }>({
       idkitResult: body.idkitResult,
       nonce: attempt.nonce,
@@ -123,9 +125,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         )
         return {
           expiresAt: new Date(sessionResult.rows[0].expires_at).toISOString(),
+          authors: await getOwnedAuthors(client, account.user.id),
         }
       },
     })
+
+    const authors = result.transport.authors.length > 0
+      ? result.transport.authors
+      : [{ ...result.author, isPrimary: true }]
+    const primaryAuthor = authors.find((author) => author.isPrimary) || result.author
 
     return NextResponse.json({
       success: true,
@@ -133,7 +141,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       created: result.created,
       expiresAt: result.transport.expiresAt,
       user: result.user,
-      author: result.author,
+      author: primaryAuthor,
+      authors,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     if (error instanceof WorldIdAuthorAuthError) {

@@ -113,4 +113,23 @@ describe('draft route', () => {
     ])
     expect(body).toMatchObject({ success: true })
   })
+
+  it('rejects an author that is not owned by the authenticated user', async () => {
+    const draft = {
+      id: 'd109b298-4dda-4030-a7ac-9e3481cd840a',
+      title: 'Draft title',
+      subtitle: '',
+      content: { html: '<p>Hello</p>' },
+      authorId: '30a0d4e6-3c63-475f-8a37-6a70fb3c49fa',
+    }
+    dbMock.query.mockResolvedValue({ rows: [] })
+
+    const response = await PUT(request(draft), context(draft.id))
+    expect(response.status).toBe(400)
+    expect(dbMock.query).toHaveBeenCalledWith(
+      expect.stringContaining('FROM authors WHERE id::text = $1 AND "userId" = $2'),
+      [draft.authorId, 7]
+    )
+    expect(dbMock.query.mock.calls.some(([query]) => String(query).includes('UPDATE drafts'))).toBe(false)
+  })
 })

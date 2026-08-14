@@ -61,6 +61,7 @@ const author = {
   name: 'Ada Lovelace',
   handle: 'ada',
   bio: 'Writes proofs.',
+  isPrimary: true,
 }
 
 function mockLoginTransaction(): void {
@@ -102,6 +103,7 @@ describe('extension World ID auth verification', () => {
     const body = await response.json()
     expect(response.status).toBe(200)
     expect(body).toMatchObject({ created: false, user: { handle: 'ada' }, author })
+    expect(body.authors).toEqual([author])
     expect(Buffer.from(body.token, 'base64url')).toHaveLength(32)
     const insert = dbMock.clientQuery.mock.calls.find(([query]) =>
       String(query).includes('INSERT INTO libro_extension_sessions'))!

@@ -129,6 +129,9 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                     <Link href="/#your-drafts">My drafts</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link href="/authors">My authors</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href="/info">Information</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem

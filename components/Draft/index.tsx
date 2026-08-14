@@ -105,6 +105,8 @@ type PendingFinalize = {
   payload: FinalizePublishPayload
 }
 
+const LAST_AUTHOR_KEY_PREFIX = 'memorioso:lastAuthorId:'
+
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
     <Alert variant="destructive">
@@ -189,7 +191,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
-  const { status, signInWithWorldId } = useWorldIdAuth()
+  const { status, user, signInWithWorldId } = useWorldIdAuth()
   const isAuthenticated = status === 'authenticated'
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
@@ -243,6 +245,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
   const setAuthorId = (authorId: string | null) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, authorId } as DraftData : null)
+    if (user && authorId) {
+      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, authorId)
+    }
   }
 
   useEffect(() => {
@@ -295,12 +300,20 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     fetchAuthors()
   }, [fetchAuthors, status])
 
-  // Auto-assign the author when the writer has exactly one identity.
+  // Preserve a draft's author, otherwise restore the last owned identity and
+  // fall back to the primary signup author.
   useEffect(() => {
-    if (authors.length === 1) {
-      setDraft((prev) => (prev && !prev.authorId ? { ...prev, authorId: authors[0].id } : prev))
-    }
-  }, [authors])
+    if (!user || authors.length === 0) return
+    setDraft((prev) => {
+      if (!prev || prev.authorId) return prev
+      const rememberedId = window.localStorage.getItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`)
+      const selected = authors.find((author) => author.id === rememberedId)
+        || authors.find((author) => author.isPrimary)
+        || authors[0]
+      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, selected.id)
+      return { ...prev, authorId: selected.id }
+    })
+  }, [authors, user])
 
   const handleSave = async () => {
     try {

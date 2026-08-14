@@ -15,8 +15,9 @@ export type Author = {
     id: string
     name: string
     handle: string
-    bio?: string
+    bio?: string | null
     userId?: number
+    isPrimary?: boolean
   }
   
   export type PublicationContent = {

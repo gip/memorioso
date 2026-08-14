@@ -12,7 +12,7 @@ const Page = () => {
 
   return (
     <main className="w-full min-w-0 py-8">
-      <section className="spectral max-w-prose text-lg leading-relaxed">
+      <section className="spectral mx-auto max-w-prose text-center text-lg leading-relaxed">
         <h1 className="text-3xl font-semibold leading-tight">For Human Creativity</h1>
         <p className="mt-4 text-muted-foreground">
           A protocol to protect and preserve human-created texts, stories, novels,

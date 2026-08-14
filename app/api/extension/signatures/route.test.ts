@@ -38,11 +38,11 @@ vi.mock('@/lib/libro/config', () => ({ getLibroServerConfig: () => ({ chainId: 4
 import { POST } from './route'
 import { ExtensionRateLimitError } from '@/lib/extension-auth'
 
-function request(text: unknown): NextRequest {
+function request(text: unknown, authorId?: unknown): NextRequest {
   return new NextRequest('https://memorioso.xyz/api/extension/signatures', {
     method: 'POST',
     headers: { Authorization: 'Bearer test_token_with_enough_characters' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...(authorId === undefined ? {} : { authorId }) }),
   })
 }
 
@@ -117,6 +117,31 @@ describe('inline signature creation', () => {
     const response = await POST(request('Human text'))
     expect(response.status).toBe(409)
     expect(dbMock.query).toHaveBeenCalledWith('ROLLBACK')
+  })
+
+  it('binds an explicitly selected owned author into the signing request', async () => {
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('FROM authors')) {
+        return { rows: [{ id: 'author-2', name: 'A. Byron', handle: 'byron', bio: null }] }
+      }
+      if (query.includes('INSERT INTO drafts')) return { rows: [{ id: 'draft-2' }] }
+      return { rows: [] }
+    })
+
+    const response = await POST(request('Human text', 'author-2'))
+    expect(response.status).toBe(200)
+    expect(dbMock.query).toHaveBeenCalledWith(expect.stringContaining('a.id::text = $2'), [7, 'author-2'])
+    const draftInsert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO drafts'))!
+    expect(draftInsert[1][3]).toBe('author-2')
+  })
+
+  it('rejects an explicitly selected author outside the extension account', async () => {
+    dbMock.query.mockImplementation(async (query: string) => (
+      query.includes('FROM authors') ? { rows: [] } : { rows: [] }
+    ))
+    const response = await POST(request('Human text', 'other-author'))
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: 'Author not found' })
   })
 
   it('rate-limits excessive signing requests before opening a transaction', async () => {

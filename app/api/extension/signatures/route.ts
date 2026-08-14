@@ -40,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }, { status: 500 })
   }
 
-  const body = await request.json().catch(() => null) as { text?: unknown } | null
+  const body = await request.json().catch(() => null) as { text?: unknown, authorId?: unknown } | null
   const normalizedText = typeof body?.text === 'string' ? normalizeInlineSigningText(body.text) : ''
   if (!normalizedText) {
     return NextResponse.json({ success: false, message: 'Text is required' }, { status: 400 })
@@ -51,6 +51,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: `Inline signatures are limited to ${MAX_INLINE_TEXT_LENGTH.toLocaleString()} characters`,
     }, { status: 400 })
   }
+  if (body?.authorId !== undefined && body.authorId !== null && typeof body.authorId !== 'string') {
+    return NextResponse.json({ success: false, message: 'Author ID must be a string' }, { status: 400 })
+  }
+  const authorId = typeof body?.authorId === 'string' ? body.authorId : null
 
   let worldIdConfig
   try {
@@ -67,15 +71,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await client.query('BEGIN')
     const authorResult = await client.query(
-      `SELECT id, name, handle, bio
-       FROM authors
-       WHERE "userId" = $1
-       FOR SHARE`,
-      [session.user.id]
+      `SELECT a.id, a.name, a.handle, a.bio
+       FROM authors a
+       INNER JOIN users u ON u.id = a."userId"
+       WHERE a."userId" = $1
+         AND ($2::text IS NULL OR a.id::text = $2)
+       ORDER BY (a.handle = u.handle) DESC, a.created_at ASC
+       LIMIT 1
+       FOR SHARE OF a`,
+      [session.user.id, authorId]
     )
     if (authorResult.rows.length === 0) {
       await client.query('ROLLBACK')
-      return NextResponse.json({ success: false, message: 'This Memorioso account has no author' }, { status: 409 })
+      return NextResponse.json({
+        success: false,
+        message: authorId ? 'Author not found' : 'This Memorioso account has no author',
+      }, { status: authorId ? 400 : 409 })
     }
 
     const author = authorResult.rows[0]

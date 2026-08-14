@@ -367,3 +367,56 @@ describe('automatic page following', () => {
     expect(container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(true)
   })
 })
+
+describe('multi-author signing', () => {
+  it('restores the selected author and sends it when creating a signing job', async () => {
+    const primary = { id: 'author-1', name: 'Ada', handle: 'ada', bio: null, isPrimary: true }
+    const secondary = { id: 'author-2', name: 'A. Byron', handle: 'byron', bio: null, isPrimary: false }
+    const session = {
+      user: { id: 7, subject: 'world-id-session:ada', handle: 'ada' },
+      author: primary,
+      authors: [primary, secondary],
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    }
+    runtimeMock.mockImplementation(async (message: Record<string, unknown>) => {
+      if (message.type === 'LIBRO_GET_SIGNING_STATE') return {
+        success: true,
+        session,
+        selectedAuthorId: secondary.id,
+        capture: { tabId: 4, text: 'Captured essay', canReplace: true },
+        job: null,
+        autoCapture: null,
+        followPages: false,
+      }
+      if (message.type === 'LIBRO_AUTH_SESSION') return { success: true, ...session }
+      if (message.type === 'LIBRO_CREATE_SIGNATURE') return {
+        success: true,
+        job: {
+          version: 1,
+          draftId: 'draft-2',
+          signingId: 'draft-2',
+          challengeId: 'challenge-2',
+          normalizedText: 'Captured essay',
+          author: secondary,
+          context: { signalText: 'signal' },
+          stage: 'proof',
+        },
+      }
+      throw new Error(`Unexpected extension message: ${String(message.type)}`)
+    })
+
+    await renderApp()
+    await act(async () => { await Promise.resolve() })
+
+    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe(secondary.id)
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button.primary')?.click()
+      await Promise.resolve()
+    })
+    expect(runtimeMock).toHaveBeenCalledWith({
+      type: 'LIBRO_CREATE_SIGNATURE',
+      text: 'Captured essay',
+      authorId: secondary.id,
+    })
+  })
+})

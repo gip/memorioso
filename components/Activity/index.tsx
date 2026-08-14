@@ -191,14 +191,14 @@ export const Activity = () => {
             {drafts.map(draft => (
               <div
                 key={draft.id}
-                className="relative [&>a]:pr-14 sm:[&>a]:pr-24"
+                className="relative [&>a]:pr-14"
               >
                 <FeedItem item={draft} />
                 <Button
                   type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="absolute right-2 top-2 z-10"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 z-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => setDraftToDelete(draft)}
                   disabled={deletingDraftId === draft.id}
                 >
@@ -207,7 +207,7 @@ export const Activity = () => {
                   ) : (
                     <Trash2 className="h-3.5 w-3.5" />
                   )}
-                  <span className="sr-only sm:not-sr-only">
+                  <span className="sr-only">
                     {deletingDraftId === draft.id ? 'Deleting…' : 'Delete'}
                   </span>
                 </Button>

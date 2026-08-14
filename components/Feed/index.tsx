@@ -70,13 +70,13 @@ export const Feed = () => {
     <div className="space-y-3">
       {feedItems && feedItems.length > 0 ? (
         feedItems.map((item) => (
-          <div key={item.id} className="relative [&>a]:pr-14 sm:[&>a]:pr-24">
+          <div key={item.id} className="relative [&>a]:pr-14">
             <FeedItem item={item} />
             <Button
               type="button"
-              variant="destructive"
-              size="sm"
-              className="absolute right-2 top-2 z-10"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setDraftToDelete(item)}
               disabled={deletingDraftId === item.id}
             >
@@ -85,7 +85,7 @@ export const Feed = () => {
               ) : (
                 <Trash2 className="h-3.5 w-3.5" />
               )}
-              <span className="sr-only sm:not-sr-only">
+              <span className="sr-only">
                 {deletingDraftId === item.id ? 'Deleting…' : 'Delete'}
               </span>
             </Button>

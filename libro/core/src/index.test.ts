@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  actionHashToHex,
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
   extractReadableText,
@@ -9,6 +8,7 @@ import {
   hasMeaningfulPublicationBody,
   hasPublishablePublication,
   hashPublicationSignal,
+  hashLibroHandle,
   isSimpleTextPublication,
   LIBRO_EMBED_SCHEMA_V1,
   LIBRO_HUMAN_SIGNED_CLAIM,
@@ -29,12 +29,13 @@ const publication: LibroPublicationV1Payload = {
   publication_schema: LIBRO_PUBLICATION_SCHEMA_V1,
   libro_protocol_version: LIBRO_PROTOCOL_VERSION,
   world_id_protocol_version: '4.0',
-  world_id_action: 'written-by-a-human-v4-abc',
+  world_id_proof_type: 'session',
   world_id_credential_policy: 'orb',
   author_id_libro: 'author-1',
   publication_date: '2026-07-21T12:00:00.000Z',
   author_name_libro: 'Ada',
   author_handle_libro: 'ada',
+  author_handle_hash_libro: hashLibroHandle('ada'),
   author_bio_libro: '',
   publication_title: '',
   publication_content: { html: '<p>Hello <strong>human</strong> world.</p>' },
@@ -50,7 +51,8 @@ function manifest(): LibroEmbedManifestV1 {
       chain_id: 480,
       registry_address: LIBRO_V1_REGISTRY_ADDRESS,
       signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication)),
-      action_hash: actionHashToHex(publication.world_id_action),
+      handle_hash: publication.author_handle_hash_libro,
+      authorship_class: 'human',
       transaction_hash: `0x${'11'.repeat(32)}`,
     },
     source: {
@@ -142,7 +144,7 @@ describe('Libro plain-text tags', () => {
 })
 
 describe('Libro embed manifests', () => {
-  it('validates canonical signal and action hashes', () => {
+  it('validates canonical signal and handle hashes', () => {
     expect(assertLibroManifestLocalIntegrity(manifest())).toEqual(manifest())
     expect(manifestElementId(manifest().registration.signal_hash))
       .toBe(`libro-manifest-${manifest().registration.signal_hash}`)
@@ -156,7 +158,7 @@ describe('Libro embed manifests', () => {
     expect(() => parseLibroEmbedManifest({
       ...manifest(),
       claim: 'human-authored',
-    })).toThrow('human-signing claim')
+    })).toThrow('signing claim')
   })
 
   it('accepts title-only publications but rejects an empty title and body', () => {
@@ -172,15 +174,15 @@ describe('Libro embed manifests', () => {
     })).toThrow('title or readable content')
   })
 
-  it('rejects publication and action tampering', () => {
+  it('rejects publication and handle tampering', () => {
     expect(() => assertLibroManifestLocalIntegrity({
       ...manifest(),
       publication: { ...publication, publication_content: { html: '<p>Changed</p>' } },
     })).toThrow('signal hash')
     expect(() => assertLibroManifestLocalIntegrity({
       ...manifest(),
-      registration: { ...manifest().registration, action_hash: `0x${'22'.repeat(32)}` },
-    })).toThrow('action hash')
+      registration: { ...manifest().registration, handle_hash: `0x${'22'.repeat(32)}` },
+    })).toThrow('handle hash')
   })
 
   it('escapes HTML script terminators in the data block', () => {

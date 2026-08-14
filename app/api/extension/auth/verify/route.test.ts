@@ -16,6 +16,7 @@ vi.mock('@/lib/world-id/server', () => ({
 vi.mock('@/lib/world-id/proof', () => ({
   validateWorldIdSessionResult: proofMock.validateWorldIdSessionResult,
   validateSessionCredentialResponses: proofMock.validateSessionCredentialResponses,
+  sessionIdToCommitment: () => `0x${'11'.repeat(32)}`,
 }))
 
 import { hashExtensionToken } from '@/lib/extension-auth'
@@ -158,6 +159,7 @@ describe('extension World ID auth verification', () => {
       'world-id-session:session_new',
       'new_writer',
       'session_new',
+      `0x${'11'.repeat(32)}`,
       'nullifier-1',
       'proof_of_human',
     ])

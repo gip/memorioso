@@ -37,13 +37,12 @@ vi.mock('@/lib/world-id/server', () => ({
     environment: 'production',
     signingKeyHex: '0xabc',
   }),
-  createPublishAction: (challengeId: string, actionPrefix: string) => `${actionPrefix}-${challengeId}`,
-  createRpContext: (_config: unknown, action: string) => ({
+  createRpContext: () => ({
     rp_id: 'rp_test',
-    nonce: `nonce-${action}`,
+    nonce: '0x123',
     created_at: Math.floor(Date.now() / 1000),
     expires_at: Math.floor(Date.now() / 1000) + 300,
-    signature: `signature-${action}`,
+    signature: 'signature-session',
   }),
 }))
 
@@ -76,6 +75,8 @@ const draftRow = {
   author_handle: 'ada',
   author_bio: 'Writes proofs.',
   publicationType: 'article',
+  world_id_session_id: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
+  world_id_session_commitment: `0x${'11'.repeat(32)}`,
 }
 
 describe('publish context route', () => {
@@ -95,6 +96,7 @@ describe('publish context route', () => {
       release: dbMock.release,
     })
     dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
       if (query.includes('FROM drafts')) {
         return { rows: [draftRow] }
       }
@@ -104,7 +106,7 @@ describe('publish context route', () => {
     authMock.getAuthenticatedUser.mockResolvedValue({ id: 7 })
   })
 
-  it('creates a unique challenge-suffixed action for each publish attempt', async () => {
+  it('creates independent session-bound publication challenges without actions', async () => {
     const first = await POST(request({ draftId: draftRow.id }))
     const second = await POST(request({ draftId: draftRow.id }))
     const firstBody = await first.json()
@@ -112,9 +114,9 @@ describe('publish context route', () => {
 
     expect(first.status).toBe(200)
     expect(second.status).toBe(200)
-    expect(firstBody.action).toBe(`written-by-a-human-v4-${challengeIds.values[0]}`)
-    expect(secondBody.action).toBe(`written-by-a-human-v4-${challengeIds.values[1]}`)
-    expect(firstBody.action).not.toBe(secondBody.action)
+    expect(firstBody).not.toHaveProperty('action')
+    expect(secondBody).not.toHaveProperty('action')
+    expect(firstBody.existingSessionId).toBe(draftRow.world_id_session_id)
     expect(firstBody.credentialPolicy).toBe('orb')
     expect(firstBody.allowedCredentials).toEqual(['proof_of_human'])
 
@@ -123,20 +125,22 @@ describe('publish context route', () => {
     )
     const firstParams = insertCalls[0][1] as unknown[]
     const firstPublication = firstParams[7] as {
-      world_id_action: string
+      world_id_proof_type: string
       world_id_credential_policy: string
     }
 
     expect(firstParams[0]).toBe(challengeIds.values[0])
-    expect(firstParams[3]).toBe(firstBody.action)
-    expect(firstPublication.world_id_action).toBe(firstBody.action)
+    expect(firstParams[3]).toBe('0x123')
+    expect(firstParams[4]).toBe(draftRow.world_id_session_commitment)
+    expect(firstPublication.world_id_proof_type).toBe('session')
     expect(firstPublication.world_id_credential_policy).toBe('orb')
-    expect(firstParams[5]).toContain(`"world_id_action":"${firstBody.action}"`)
-    expect(firstParams[5]).toContain('"world_id_credential_policy":"orb"')
+    expect(firstParams[5]).not.toContain('world_id_action')
+    expect(firstParams[5]).toContain('"world_id_proof_type":"session"')
   })
 
   it('accepts an empty title while keeping it in the signed payload', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
       if (query.includes('FROM drafts')) return {
         rows: [{ ...draftRow, publicationType: 'short', title: '', subtitle: '' }],
       }
@@ -151,6 +155,7 @@ describe('publish context route', () => {
 
   it('rejects an article without a readable body', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
       if (query.includes('FROM drafts')) {
         return { rows: [{ ...draftRow, title: 'Title only', content: { html: '<p><br></p>' } }] }
       }
@@ -164,6 +169,7 @@ describe('publish context route', () => {
 
   it('rejects a publication with an empty title and no readable content', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
       if (query.includes('FROM drafts')) return {
         rows: [{ ...draftRow, title: '   ', subtitle: '', content: { html: '<p><br></p>' } }],
       }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IDKitResult } from '@worldcoin/idkit'
+import type { IDKitResult, IDKitResultSession } from '@worldcoin/idkit'
 import { decodeFunctionData } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import {
@@ -18,10 +18,11 @@ import {
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_WORLD_CHAIN_ID,
-  libroProofRegistryAbi,
+  libroRegistryAbi,
 } from '../../libro/contract'
-import { actionHashToHex, actionHashToUint256, rpIdToUint64 } from '../../libro/encoding'
+import { rpIdToUint64 } from '../../libro/encoding'
 import { prepareLibroRegistration } from '../../libro/proof'
+import { hashLibroHandle } from '@libro/core'
 import {
   createAgentDocumentTypedData,
   createAgentRegistrationPayload,
@@ -66,6 +67,7 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     action: 'written-by-a-human-v4',
     nonce: 'nonce123',
     environment: 'production',
+    user_presence_completed: true,
     responses: [{
       identifier: 'proof_of_human',
       signal_hash: signalHash,
@@ -76,6 +78,24 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     }],
     ...overrides,
   } as IDKitResult
+}
+
+function sessionResult(signalHash: string): IDKitResultSession {
+  return {
+    protocol_version: '4.0',
+    session_id: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
+    nonce: '0x123',
+    environment: 'production',
+    user_presence_completed: true,
+    responses: [{
+      identifier: 'proof_of_human',
+      signal_hash: signalHash,
+      proof: ['1', '2', '3', '4', '5'],
+      session_nullifier: ['0xabc', '0xdef'],
+      issuer_schema_id: 1,
+      expires_at_min: 1770000000,
+    }],
+  }
 }
 
 describe('World ID publication signals', () => {
@@ -154,38 +174,38 @@ describe('Libro registration helpers', () => {
       environment: 'production',
       signalHash,
     })
-    const prepared = prepareLibroRegistration(validated, signalHash, {
-      protocolVersion: LIBRO_PROTOCOL_VERSION,
-      chainId: LIBRO_WORLD_CHAIN_ID,
-      registryAddress: '0x1111111111111111111111111111111111111111',
-      rpId: BigInt(1),
-      rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
+    const prepared = prepareLibroRegistration({
+      result: sessionResult(signalHash),
+      signalHash,
+      handle: author.handle,
+      handleHash: hashLibroHandle(author.handle),
+      config: {
+        protocolVersion: LIBRO_PROTOCOL_VERSION,
+        chainId: LIBRO_WORLD_CHAIN_ID,
+        registryAddress: '0x1111111111111111111111111111111111111111',
+        rpId: BigInt(1),
+        rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
+      },
     })
     const decoded = decodeFunctionData({
-      abi: libroProofRegistryAbi,
+      abi: libroRegistryAbi,
       data: prepared.transaction.transactions[0].data,
     })
 
     expect(prepared.signalHash).toBe(signalHash)
     expect(prepared.signalHashUint256).toBe(BigInt(signalHash).toString())
-    expect(prepared.actionHash).toBe(actionHashToUint256(action).toString())
-    expect(prepared.proof.nullifier).toBe(BigInt('0xabc').toString())
+    expect(prepared.proof.sessionNullifier[0]).toBe(BigInt('0xabc').toString())
     expect(prepared.proof.nonce).toBe(BigInt('0x123').toString())
     expect(prepared.proof.zeroKnowledgeProof).toEqual(['1', '2', '3', '4', '5'])
     expect(prepared.transaction.chainId).toBe(480)
     expect(prepared.transaction.transactions[0].to).toBe('0x1111111111111111111111111111111111111111')
     expect(prepared.transaction.transactions[0].data).toMatch(/^0x/)
-    expect(decoded.functionName).toBe('register')
-    expect(decoded.args[0]).toBe(BigInt(signalHash))
-    expect(decoded.args[1]).toBe(actionHashToUint256(action))
+    expect(decoded.functionName).toBe('registerHumanDocument')
+    expect(decoded.args[0]).toBe(hashLibroHandle(author.handle))
+    expect(decoded.args[1]).toBe(BigInt(signalHash))
   })
 
-  it('validates action hashes and rp ids', () => {
-    const fullKeccak = '0x64278be7aebb455c0daa33c32137f5f6f6007a9021f4ab4bb773c82f1ab7c67'
-
-    expect(actionHashToHex('written-by-a-human-v4')).toBe('0x0064278be7aebb455c0daa33c32137f5f6f6007a9021f4ab4bb773c82f1ab7c6')
-    expect(actionHashToHex('written-by-a-human-v4')).not.toBe(fullKeccak)
-    expect(actionHashToUint256('written-by-a-human-v4')).toBeGreaterThan(BigInt(0))
+  it('validates rp ids', () => {
     expect(rpIdToUint64('rp_81220394c70700e2')).toBe(BigInt('9305003717630034146'))
     expect(() => rpIdToUint64('rp_b8a20e4bc9a21acd00')).toThrow('WORLD_ID_RP_ID must be in')
     expect(() => rpIdToUint64('b8a20e4bc9a21acd')).toThrow('WORLD_ID_RP_ID must be in')
@@ -194,10 +214,8 @@ describe('Libro registration helpers', () => {
 
 describe('Libro agent authorization helpers', () => {
   it('creates a stable agent registration signal hash', () => {
-    const principalAuthorHash = createPrincipalAuthorHash(author.id)
     const registration = createAgentRegistrationPayload({
-      action: 'register-agent-v1',
-      principalAuthorHash,
+      handleHash: hashLibroHandle(author.handle),
       controllerAddress: '0x1111111111111111111111111111111111111111',
       agentAddress: '0x2222222222222222222222222222222222222222',
       scope: LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
@@ -209,9 +227,9 @@ describe('Libro agent authorization helpers', () => {
     })
 
     expect(registration.payload.schema).toBe('libro-agent-registration-v1')
-    expect(registration.payload.principal_author_hash).toBe(principalAuthorHash)
+    expect(registration.payload.handle_hash).toBe(hashLibroHandle(author.handle))
     expect(registration.registrationHash).toMatch(/^0x[0-9a-f]{64}$/)
-    expect(registration.signalHash).toBe(`0x${(BigInt(registration.registrationHash) >> BigInt(8)).toString(16).padStart(64, '0')}`)
+    expect(registration.signalHash).toBe(hashPublicationSignal(registration.registrationHash))
   })
 
   it('creates an agent publication schema distinct from direct human authorship', () => {
@@ -221,7 +239,6 @@ describe('Libro agent authorization helpers', () => {
       subtitle: 'On agents',
       content,
       publicationDate: '2026-05-13T12:00:00.000Z',
-      principalAuthorHash: createPrincipalAuthorHash(author.id),
       agentAddress: '0x2222222222222222222222222222222222222222',
       agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
     })
@@ -305,7 +322,7 @@ describe('publication version compatibility', () => {
     }
     const v4Proof: WorldIdProofV4 = {
       protocol_version: '4.0',
-      action: 'written-by-a-human-v4',
+      proof_type: 'session',
       nonce: 'nonce123',
       signal_text: canonicalPublicationSignal(publication()),
       signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
@@ -327,7 +344,7 @@ describe('publication version compatibility', () => {
     }
     const v4Proof: WorldIdProofV4 = {
       protocol_version: '4.0',
-      action: 'written-by-a-human-v4',
+      proof_type: 'session',
       nonce: 'nonce123',
       signal_text: canonicalPublicationSignal(publication()),
       signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
@@ -346,10 +363,11 @@ describe('publication version compatibility', () => {
       proof_type: 'human_authorized_agent_signature',
       protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
       agent_registration: {
-        action: 'register-agent-v1',
+        proof_type: 'session',
         signal: '0x1234',
         signal_hash: '0x1234',
         registration_hash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+        handle_hash: hashLibroHandle(author.handle),
         payload: {},
         credential_identifier: 'passport',
         credential_identifiers: ['passport'],

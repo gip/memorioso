@@ -4,7 +4,6 @@ import {
   CredentialRequest,
   any as anyCredential,
   type CredentialType,
-  type IDKitResult,
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
@@ -12,12 +11,12 @@ import {
   MEMORIOSO_SHORT_MAX_LENGTH,
   normalizedUnicodeLength,
 } from '@libro/core'
-import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
+import { WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
 type User = { id: number; subject: string; handle: string }
 type Author = { id: string; name: string; handle: string; bio: string | null; isPrimary: boolean }
-type Session = { user: User; author: Author; authors: Author[]; expiresAt: string }
+type Session = { user: User; author?: Author; authors?: Author[]; expiresAt: string }
 type Capture = {
   tabId: number
   operationId?: string
@@ -32,9 +31,9 @@ type AutoCapture = {
 }
 type SigningContext = {
   appId: `app_${string}`
-  action: string
   environment: 'production' | 'staging'
   rpContext: RpContext
+  existingSessionId: `session_${string}`
   signalText: string
   [key: string]: unknown
 }
@@ -71,7 +70,7 @@ type HandleLookup =
 type SignupProfile = { handle: string; name: string; bio: string }
 type ExtensionResponse<T = Record<string, unknown>> = T & { success: boolean; message?: string }
 const API_ORIGIN = (import.meta.env.VITE_MEMORIOSO_APP_URL || 'https://www.memorioso.xyz').replace(/\/$/, '')
-const USER_HANDLE_PATTERN = /^[a-z0-9][a-z0-9_-]{2,31}$/
+const USER_HANDLE_PATTERN = /^[a-z0-9_-]{3,32}$/
 
 export function normalizeHandle(value: string): string {
   return value.trim().toLowerCase()
@@ -87,6 +86,10 @@ function authorsForSession(session: Session | null): Author[] {
   return session.author ? [{ ...session.author, isPrimary: true }] : []
 }
 
+function authorForSession(session: Session | null): Author | null {
+  return session?.author || authorsForSession(session)[0] || null
+}
+
 async function send<T>(message: Record<string, unknown>): Promise<T> {
   const response = await chrome.runtime.sendMessage(message) as ExtensionResponse<T>
   if (!response?.success) throw new Error(response?.message || 'The extension request failed')
@@ -96,7 +99,6 @@ async function send<T>(message: Record<string, unknown>): Promise<T> {
 export function App(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
-  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null)
   const [capture, setCapture] = useState<Capture | null>(null)
   const [text, setText] = useState('')
   const [job, setJob] = useState<SigningJob | null>(null)
@@ -143,7 +145,6 @@ export function App(): JSX.Element {
     }>({ type: 'LIBRO_GET_SIGNING_STATE' })
       .then(async (state) => {
         setSession(state.session)
-        setSelectedAuthorId(state.selectedAuthorId)
         setCapture(state.capture)
         setText(state.capture?.text || state.job?.normalizedText || '')
         pageTextRef.current = state.capture?.text || ''
@@ -158,11 +159,6 @@ export function App(): JSX.Element {
           try {
             const restored = await send<Session>({ type: 'LIBRO_AUTH_SESSION' })
             setSession(restored)
-            const restoredAuthors = authorsForSession(restored)
-            const preferred = restoredAuthors.find((author) => author.id === state.selectedAuthorId)
-              || restoredAuthors.find((author) => author.isPrimary)
-              || restoredAuthors[0]
-            setSelectedAuthorId(preferred?.id || null)
           } catch {
             setSession(null)
           }
@@ -294,15 +290,10 @@ export function App(): JSX.Element {
         profile: pendingProfile,
       })
       setSession(restored)
-      const restoredAuthors = authorsForSession(restored)
-      const selected = restoredAuthors.find((author) => author.id === restored.selectedAuthorId)
-        || restoredAuthors.find((author) => author.isPrimary)
-        || restoredAuthors[0]
-      setSelectedAuthorId(selected?.id || null)
       if (authContext.intent === 'signup') {
         setAuthNotice(restored.created
-          ? `Created @${restored.author.handle}. Your captured text is ready to review.`
-          : `This World ID already owns @${restored.author.handle}, so that author was connected instead.`)
+          ? `Created @${authorForSession(restored)?.handle}. Your captured text is ready to review.`
+          : `Connected @${authorForSession(restored)?.handle}.`)
       }
       setLoginOpen(false)
       setAuthContext(null)
@@ -343,9 +334,9 @@ export function App(): JSX.Element {
   }
 
   async function startSigning(): Promise<void> {
-    const selectedAuthor = authorsForSession(session).find((author) => author.id === selectedAuthorId)
+    const selectedAuthor = authorForSession(session)
     if (!selectedAuthor) {
-      setError('Choose an author before signing')
+      setError('This login has no author')
       return
     }
     setError(null)
@@ -355,7 +346,6 @@ export function App(): JSX.Element {
       const response = await send<{ job: SigningJob }>({
         type: 'LIBRO_CREATE_SIGNATURE',
         text,
-        authorId: selectedAuthor.id,
       })
       setJob(response.job)
       setText(response.job.normalizedText || text)
@@ -397,7 +387,7 @@ export function App(): JSX.Element {
     }
   }
 
-  async function verifyPublication(result: IDKitResult): Promise<void> {
+  async function verifyPublication(result: IDKitResultSession): Promise<void> {
     setProgress('Verifying the World ID proof…')
     try {
       const prepared = await send<{ job: SigningJob }>({ type: 'LIBRO_PREPARE_SIGNATURE', idkitResult: result })
@@ -416,20 +406,9 @@ export function App(): JSX.Element {
   async function signOut(): Promise<void> {
     await send({ type: 'LIBRO_AUTH_LOGOUT' })
     setSession(null)
-    setSelectedAuthorId(null)
     setJob(null)
     setCompletion(null)
     setAuthNotice(null)
-  }
-
-  async function selectAuthor(authorId: string): Promise<void> {
-    if (!session || job) return
-    setSelectedAuthorId(authorId)
-    try {
-      await send({ type: 'LIBRO_SELECT_AUTHOR', userId: session.user.id, authorId })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not remember the selected author')
-    }
   }
 
   async function cancel(): Promise<void> {
@@ -465,15 +444,15 @@ export function App(): JSX.Element {
         />
       )}
       {job?.stage === 'proof' && job.context && publicationConstraints && (
-        <WorldIdRequestDialog
+        <WorldIdSessionDialog
           open={proofOpen}
           onOpenChange={setProofOpen}
           app_id={job.context.appId}
-          action={job.context.action}
           rp_context={job.context.rpContext}
+          existing_session_id={job.context.existingSessionId}
+          require_user_presence={true}
           environment={job.context.environment}
           constraints={publicationConstraints}
-          allow_legacy_proofs={false}
           handleVerify={verifyPublication}
           onError={(code) => setError(`World ID verification failed: ${code}`)}
         />
@@ -566,18 +545,7 @@ export function App(): JSX.Element {
           <div className="account"><span>Connected as <strong>@{session.user.handle}</strong></span><button className="text-button" onClick={signOut}>Disconnect</button></div>
           <h2>{job ? 'Finish signing' : 'Review text'}</h2>
           {!job && <>
-            <label>
-              Publish as
-              <select
-                value={selectedAuthorId || ''}
-                onChange={(event) => selectAuthor(event.target.value)}
-                disabled={Boolean(progress)}
-              >
-                {authorsForSession(session).map((author) => (
-                  <option key={author.id} value={author.id}>{author.name} (@{author.handle})</option>
-                ))}
-              </select>
-            </label>
+            <p className="muted">Publishing as <strong>{authorForSession(session)?.name}</strong> (@{authorForSession(session)?.handle})</p>
             <p className="muted">The normalized text below becomes a public Memorioso publication and an irreversible World Chain registration.</p>
             <textarea
               value={text}

@@ -5,14 +5,14 @@ import {
   normalizeUint256Hex,
   type LibroRegistrationReference,
 } from '@libro/core'
-import { createPublicClient, http, TransactionReceiptNotFoundError } from 'viem'
+import { createPublicClient, http, parseEventLogs, TransactionReceiptNotFoundError } from 'viem'
 import {
   getLibroAgentServerConfig,
   getLibroServerConfig,
   type LibroAgentServerConfig,
   type LibroServerConfig,
 } from './config'
-import { libroAgentRegistryAbi, libroProofRegistryAbi } from './contract'
+import { libroRegistryAbi } from './contract'
 import { hexToUint256 } from './encoding'
 
 const SERVER_RPC_OPTIONS = {
@@ -23,7 +23,7 @@ const SERVER_RPC_OPTIONS = {
 export type LibroRegistrationTransactionReference = {
   transactionHash: string
   signalHash: string
-  actionHash: string
+  handleHash: string
   registryAddress: string
 }
 
@@ -32,15 +32,16 @@ export class LibroRegistrationNetworkError extends Error {}
 
 export async function verifyLibroSignalRegistered(
   signalHash: string,
+  handleHash: string,
   config: LibroServerConfig = getLibroServerConfig()
 ): Promise<boolean> {
   const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
   return client.readContract({
     address: config.registryAddress,
-    abi: libroProofRegistryAbi,
-    functionName: 'verify',
-    args: [hexToUint256(signalHash, 'signal_hash')],
+    abi: libroRegistryAbi,
+    functionName: 'verifyHumanDocument',
+    args: [hexToUint256(signalHash, 'signal_hash'), handleHash as `0x${string}`],
   })
 }
 
@@ -59,7 +60,8 @@ export async function verifyLibroRegistrationTransaction(
     chain_id: config.chainId,
     registry_address: config.registryAddress,
     signal_hash: normalizeUint256Hex(reference.signalHash, 'signal_hash'),
-    action_hash: normalizeUint256Hex(reference.actionHash, 'action_hash'),
+    handle_hash: normalizeUint256Hex(reference.handleHash, 'handle_hash'),
+    authorship_class: 'human',
     transaction_hash: reference.transactionHash.toLowerCase() as `0x${string}`,
   }
 
@@ -99,28 +101,69 @@ export async function verifyLibroRegistrationTransaction(
 
 export async function verifyLibroAgentRegistered(
   registrationHash: string,
-  config: LibroAgentServerConfig = getLibroAgentServerConfig()
+  handleHash: string,
+  config: LibroAgentServerConfig = getLibroAgentServerConfig(),
+  transactionHash?: string,
 ): Promise<boolean> {
   const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
-  return client.readContract({
+  const registered = await client.readContract({
     address: config.registryAddress,
-    abi: libroAgentRegistryAbi,
+    abi: libroRegistryAbi,
     functionName: 'verifyAgent',
-    args: [registrationHash as `0x${string}`],
+    args: [registrationHash as `0x${string}`, handleHash as `0x${string}`],
   })
+  if (!registered || !transactionHash) return registered
+  return verifyAgentEvent(transactionHash, config, (receipt) =>
+    parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentRegistered', logs: receipt.logs, strict: true })
+      .some((event) =>
+        event.address.toLowerCase() === config.registryAddress.toLowerCase() &&
+        event.args.registrationHash.toLowerCase() === registrationHash.toLowerCase() &&
+        event.args.handleHash.toLowerCase() === handleHash.toLowerCase()
+      )
+  )
 }
 
 export async function verifyLibroAgentDocumentRegistered(
   documentSignalHash: string,
-  config: LibroAgentServerConfig = getLibroAgentServerConfig()
+  handleHash: string,
+  config: LibroAgentServerConfig = getLibroAgentServerConfig(),
+  transactionHash?: string,
 ): Promise<boolean> {
   const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
-  return client.readContract({
+  const registered = await client.readContract({
     address: config.registryAddress,
-    abi: libroAgentRegistryAbi,
+    abi: libroRegistryAbi,
     functionName: 'verifyAgentDocument',
-    args: [hexToUint256(documentSignalHash, 'document_signal_hash')],
+    args: [hexToUint256(documentSignalHash, 'document_signal_hash'), handleHash as `0x${string}`],
   })
+  if (!registered || !transactionHash) return registered
+  return verifyAgentEvent(transactionHash, config, (receipt) =>
+    parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentDocumentRegistered', logs: receipt.logs, strict: true })
+      .some((event) =>
+        event.address.toLowerCase() === config.registryAddress.toLowerCase() &&
+        event.args.documentSignalHash === hexToUint256(documentSignalHash, 'document_signal_hash') &&
+        event.args.handleHash.toLowerCase() === handleHash.toLowerCase()
+      )
+  )
+}
+
+async function verifyAgentEvent(
+  transactionHash: string,
+  config: LibroAgentServerConfig,
+  matches: (receipt: Awaited<ReturnType<ReturnType<typeof createPublicClient>['getTransactionReceipt']>>) => boolean,
+): Promise<boolean> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(transactionHash)) return false
+  const outcomes = await Promise.all(config.rpcUrls.map(async (rpcUrl) => {
+    const client = createPublicClient({ transport: http(rpcUrl, SERVER_RPC_OPTIONS) })
+    try {
+      const receipt = await client.getTransactionReceipt({ hash: transactionHash as `0x${string}` })
+      return receipt.status === 'success' && matches(receipt)
+    } catch (error) {
+      if (error instanceof TransactionReceiptNotFoundError) return false
+      return false
+    }
+  }))
+  return outcomes.some(Boolean)
 }

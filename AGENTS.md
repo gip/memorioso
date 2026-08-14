@@ -35,14 +35,13 @@ The app expects these environment variables in local and deployed environments:
 - `DATABASE_URL` for Postgres.
 - `SESSION_SECRET` for the signed Memorioso session cookie.
 - `NEXT_PUBLIC_APP_URL` for public links.
-- `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
-  `WORLD_ID_PUBLISH_ACTION_PREFIX`, and `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
+- `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
+  `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`,
-  `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`, and optional
+  `LIBRO_HANDLE_PERMIT_PRIVATE_KEY`, and optional
   `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
   for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
   and default to `LIBRO_WORLD_CHAIN_RPC_URLS` in `libro/core`.
-- `WORLD_ID_AGENT_REGISTRATION_ACTION` for the agent registration proof action, defaulting to `register-agent-v1`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -56,7 +55,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
 - `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
-- `libro/contracts/` contains the Foundry contracts and tests for `LibroProofRegistry` and `LibroAgentRegistry`.
+- `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
 
@@ -93,10 +92,10 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - IDKit publication verification uses per-challenge actions shaped as `written-by-a-human-v4-<challengeId>` and the canonical publication JSON as the signal. Changing payload shape or serialization affects proof validity.
 - Published data stores the proof, signal, content, title, subtitle, version, and date in `publications`.
 - Publication dates are validated server-side to be no later than now and no older than five minutes at publish time.
-- Direct human publications use `LibroProofRegistry` with a per-challenge action hash passed to the registry at registration time.
-- Human-authorized agent documents use `LibroAgentRegistry`: a human registers an agent address with World ID action `register-agent-v1`, then the agent signs document payloads with EIP-712. Keep this proof class semantically separate from direct human authorship.
+- Direct human publications use `LibroRegistry.verifySession(...)` with the registered handle's session commitment and exact canonical publication signal.
+- Human-authorized agents are registered in the same registry by the handle owner's session, then sign documents with EIP-712. Keep this proof class semantically separate from direct human authorship.
 - Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address. Derive the constructor `rpId` from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`.
-- On-chain verification queries every configured endpoint in parallel and treats one matching `SignalRegistered` event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
+- On-chain verification queries every configured endpoint in parallel and treats one matching handle-bound registration event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
 
 ## Frontend Notes
 

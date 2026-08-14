@@ -13,6 +13,9 @@ export type WorldIdProofContext = {
 export type WorldIdSessionContext = {
   nonce: string
   environment: 'production' | 'staging'
+  signalHash?: string
+  expectedSessionId?: string
+  requireUserPresence?: boolean
 }
 
 export type WorldIdLoginContext = {
@@ -118,7 +121,10 @@ export function isWorldIdSessionResult(result: IDKitResult | undefined): result 
   )
 }
 
-export function validateSessionCredentialResponses(responses: ResponseItemSession[] | undefined): string[] {
+export function validateSessionCredentialResponses(
+  responses: ResponseItemSession[] | undefined,
+  signalHash?: string,
+): string[] {
   if (!responses || responses.length === 0) {
     throw new Error('World ID session result does not contain a credential response')
   }
@@ -139,6 +145,10 @@ export function validateSessionCredentialResponses(responses: ResponseItemSessio
       throw new Error('World ID result is not a v4 session proof response')
     }
 
+    if (signalHash && (!response.signal_hash || response.signal_hash.toLowerCase() !== signalHash.toLowerCase())) {
+      throw new Error('World ID session signal hash does not match the publication payload')
+    }
+
     return response.identifier
   })
 }
@@ -150,11 +160,19 @@ export function validateWorldIdSessionResult(result: IDKitResult | undefined, co
 
   if (
     result.nonce !== context.nonce ||
-    result.environment !== context.environment
+    result.environment !== context.environment ||
+    (context.expectedSessionId && result.session_id !== context.expectedSessionId) ||
+    (context.requireUserPresence && result.user_presence_completed !== true)
   ) {
     throw new Error('World ID session proof context does not match this login')
   }
 
-  validateSessionCredentialResponses(result.responses)
+  validateSessionCredentialResponses(result.responses, context.signalHash)
   return result
+}
+
+export function sessionIdToCommitment(sessionId: string): `0x${string}` {
+  const match = /^session_([0-9a-fA-F]{64})[0-9a-fA-F]{64}$/.exec(sessionId)
+  if (!match) throw new Error('World ID session id is invalid')
+  return `0x${match[1].toLowerCase()}`
 }

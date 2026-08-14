@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import {
+  assertDestructiveMigrationConfirmed,
   buildMigrationPlan,
   parseMigrationFileNames,
   selectMigrationDatabaseUrl,
 } from './migrate-db.mjs'
+
+it('requires an explicit backup confirmation for destructive migration 013', () => {
+  const migration = { version: 13, fileName: '013_session_bound_handles.sql' }
+  expect(() => assertDestructiveMigrationConfirmed(migration, {})).toThrow('Back up Postgres')
+  expect(() => assertDestructiveMigrationConfirmed(migration, {
+    MEMORIOSO_DB_BACKUP_CONFIRMED: '013_session_bound_handles',
+  })).not.toThrow()
+  expect(() => assertDestructiveMigrationConfirmed({ version: 12 }, {})).not.toThrow()
+})
 
 describe('database migration runner', () => {
   it('discovers migrations in numeric order without requiring consecutive versions', () => {

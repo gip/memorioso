@@ -4,6 +4,7 @@ import {
   canonicalPublicationSignal as canonicalLibroSignal,
   hashPublicationSignal as hashLibroSignal,
   normalizeOptionalPublicationText,
+  hashLibroHandle,
 } from '@libro/core'
 import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
 import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
@@ -50,10 +51,14 @@ export function createPublicationV2({
 }
 
 export function createLibroPublicationV1(input: PublicationDraftInput): LibroPublicationV1 {
+  const publication = createPublicationV2(input)
+  const { world_id_action: _legacyAction, ...sessionPublication } = publication
   return {
-    ...createPublicationV2(input),
+    ...sessionPublication,
     publication_schema: LIBRO_PUBLICATION_SCHEMA_V1,
     libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    world_id_proof_type: 'session',
+    author_handle_hash_libro: hashLibroHandle(input.author.handle),
   }
 }
 

@@ -22,9 +22,9 @@ import {
 import { ArrowRight, FileText, MessageSquareText, MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
-  IDKitRequestWidget,
+  IDKitSessionWidget,
   CredentialRequest,
-  type IDKitResult,
+  type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
@@ -73,9 +73,9 @@ type DraftData = {
 type PublishContext = {
   challengeId: string
   appId: `app_${string}`
-  action: string
   environment: 'production' | 'staging'
   rpContext: RpContext
+  existingSessionId: `session_${string}`
   signalText: string
   signalHash: string
 }
@@ -106,8 +106,6 @@ type PendingFinalize = {
   draftId: string
   payload: FinalizePublishPayload
 }
-
-const LAST_AUTHOR_KEY_PREFIX = 'memorioso:lastAuthorId:'
 
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
@@ -191,7 +189,6 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isPickingAuthor, setIsPickingAuthor] = useState(false)
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
@@ -257,13 +254,6 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, subtitle } : null)
   }
 
-  const setAuthorId = (authorId: string | null) => {
-    setDraft((prevDraft) => prevDraft ? { ...prevDraft, authorId } as DraftData : null)
-    if (user && authorId) {
-      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, authorId)
-    }
-  }
-
   useEffect(() => {
     const fetchDraft = async () => {
       if (draftId) {
@@ -314,18 +304,12 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     fetchAuthors()
   }, [fetchAuthors, status])
 
-  // Preserve a draft's author, otherwise restore the last owned identity and
-  // fall back to the primary signup author.
+  // Every login owns exactly one author; attach it to new drafts.
   useEffect(() => {
     if (!user || authors.length === 0) return
     setDraft((prev) => {
       if (!prev || prev.authorId) return prev
-      const rememberedId = window.localStorage.getItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`)
-      const selected = authors.find((author) => author.id === rememberedId)
-        || authors.find((author) => author.isPrimary)
-        || authors[0]
-      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, selected.id)
-      return { ...prev, authorId: selected.id }
+      return { ...prev, authorId: authors[0].id }
     })
   }, [authors, user])
 
@@ -413,9 +397,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         const nextPublishContext: PublishContext = {
           challengeId: response.challengeId,
           appId: response.appId,
-          action: response.action,
           environment: response.environment,
           rpContext: response.rpContext,
+          existingSessionId: response.existingSessionId,
           signalText: response.signalText,
           signalHash: response.signalHash,
         }
@@ -477,7 +461,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     }
   }, [router, draft?.publicationType])
 
-  const handleWorldIdResult = async (idkitResult: IDKitResult) => {
+  const handleWorldIdResult = async (idkitResult: IDKitResultSession) => {
     if (!publishContext || !currentDraftId) {
       throw new Error('Publish challenge is missing')
     }
@@ -735,7 +719,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   return (
     <div className="space-y-3 pb-10 pt-2 sm:space-y-4 sm:py-4">
       {publishContext && worldIdConstraints && (
-        <IDKitRequestWidget
+        <IDKitSessionWidget
           open={isWorldIdOpen}
           onOpenChange={(open) => {
             setIsWorldIdOpen(open)
@@ -744,9 +728,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
             }
           }}
           app_id={publishContext.appId}
-          action={publishContext.action}
           rp_context={publishContext.rpContext}
-          allow_legacy_proofs={false}
+          existing_session_id={publishContext.existingSessionId}
+          require_user_presence={true}
           environment={publishContext.environment}
           constraints={worldIdConstraints}
           handleVerify={handleWorldIdResult}
@@ -845,9 +829,6 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         open={isConfirmOpen}
         onOpenChange={(open) => {
           setIsConfirmOpen(open)
-          if (!open) {
-            setIsPickingAuthor(false)
-          }
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -872,42 +853,18 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
                 Your draft is saved on this device. Sign in with World ID to publish it.
                 It moves to your account automatically, and nothing you wrote is lost.
               </p>
-            ) : selectedAuthor && !isPickingAuthor ? (
-              <div className="flex items-center justify-between gap-2 text-sm">
+            ) : selectedAuthor ? (
+              <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground truncate">
                   by <span className="font-medium text-foreground">{selectedAuthor.name}</span>
                   {' '}@{selectedAuthor.handle}
                 </span>
-                {authors.length > 1 && (
-                  <Button variant="ghost" size="sm" onClick={() => setIsPickingAuthor(true)}>
-                    Change
-                  </Button>
-                )}
               </div>
             ) : authors.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 This account has no author profile yet, so it cannot publish.
               </p>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Publish as</p>
-                <div className="flex flex-wrap gap-2">
-                  {authors.map((a) => (
-                    <Button
-                      key={a.id}
-                      variant={a.id === draft?.authorId ? 'default' : 'outline'}
-                      className="rounded-full h-10"
-                      onClick={() => {
-                        setAuthorId(a.id)
-                        setIsPickingAuthor(false)
-                      }}
-                    >
-                      {a.name}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
+            ) : null}
             {isAuthenticated && (
               isMiniKitInstalled === undefined ? (
                 <p className="text-sm text-muted-foreground">Checking World wallet availability…</p>

@@ -22,6 +22,9 @@ export const LIBRO_PROTOCOL_VERSION = 'libro-v1' as const
 export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
 export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
+export const LIBRO_AGENT_SIGNED_CLAIM = 'human-authorized-agent' as const
+export const LIBRO_AGENT_PUBLICATION_SCHEMA_V1 = 'libro-agent-publication-v1' as const
+export const LIBRO_AGENT_PROTOCOL_VERSION = 'libro-agent-v1' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
 export const LIBRO_INLINE_TEXT_MAX_LENGTH = 10_000 as const
 export const MEMORIOSO_SHORT_MAX_LENGTH = 500 as const
@@ -38,7 +41,9 @@ export const LIBRO_WORLD_CHAIN_RPC_URLS = [
   'https://worldchain-mainnet.g.alchemy.com/public',
 ] as const
 export const LIBRO_WORLD_CHAIN_RPC_URL = LIBRO_WORLD_CHAIN_RPC_URLS[0]
-export const LIBRO_V1_REGISTRY_ADDRESS = '0x53Fc90aB234E85dD610212753e71e7296053038c' as const
+// Deliberately fail closed until the session-aware registry is deployed and this
+// release constant is replaced as part of the hard cutover.
+export const LIBRO_V1_REGISTRY_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonInput = JsonPrimitive | JsonInput[] | { [key: string]: JsonInput | undefined }
@@ -47,27 +52,48 @@ export type LibroPublicationV1Payload = {
   publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V1
   libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
   world_id_protocol_version: '4.0'
-  world_id_action: string
+  world_id_proof_type: 'session'
   world_id_credential_policy: 'orb'
   author_id_libro: string
   publication_date: string
   author_name_libro: string
   author_handle_libro: string
+  author_handle_hash_libro: Hex
   author_bio_libro: string
   publication_title: string
   publication_content: { html: string }
   publication_subtitle: string
 }
 
+export type LibroAgentPublicationV1Payload = {
+  publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
+  libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
+  authorship_claim: 'human_authorized_agent'
+  author_id_libro: string
+  publication_date: string
+  author_name_libro: string
+  author_handle_libro: string
+  author_handle_hash_libro: Hex
+  author_bio_libro: string
+  publication_title: string
+  publication_content: { html: string }
+  publication_subtitle: string
+  agent_address: Address
+  agent_registration_hash: Hex
+}
+
+export type LibroPublicationPayload = LibroPublicationV1Payload | LibroAgentPublicationV1Payload
+
 export type LibroEmbedManifestV1 = {
   schema: typeof LIBRO_EMBED_SCHEMA_V1
-  claim: typeof LIBRO_HUMAN_SIGNED_CLAIM
-  publication: LibroPublicationV1Payload
+  claim: typeof LIBRO_HUMAN_SIGNED_CLAIM | typeof LIBRO_AGENT_SIGNED_CLAIM
+  publication: LibroPublicationPayload
   registration: {
     chain_id: typeof LIBRO_WORLD_CHAIN_ID
     registry_address: Address
     signal_hash: Hex
-    action_hash: Hex
+    handle_hash: Hex
+    authorship_class: 'human' | 'agent'
     transaction_hash: Hex
   }
   source?: {
@@ -85,20 +111,46 @@ export type LibroTextTagV1 = {
   bodyText: string
 }
 
-export const libroProofRegistryAbi = [
+export const libroRegistryAbi = [
   {
     type: 'function',
-    name: 'verify',
+    name: 'verifyHumanDocument',
     stateMutability: 'view',
-    inputs: [{ name: 'signalHash', type: 'uint256' }],
+    inputs: [
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'handleHash', type: 'bytes32' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'verifyAgentDocument',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'handleHash', type: 'bytes32' },
+    ],
     outputs: [{ name: '', type: 'bool' }],
   },
   {
     type: 'event',
-    name: 'SignalRegistered',
+    name: 'HumanDocumentRegistered',
     inputs: [
-      { name: 'signalHash', type: 'uint256', indexed: true },
-      { name: 'actionHash', type: 'uint256', indexed: true },
+      { name: 'documentSignalHash', type: 'uint256', indexed: true },
+      { name: 'handleHash', type: 'bytes32', indexed: true },
+      { name: 'sessionNullifier', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'AgentDocumentRegistered',
+    inputs: [
+      { name: 'documentSignalHash', type: 'uint256', indexed: true },
+      { name: 'registrationHash', type: 'bytes32', indexed: true },
+      { name: 'handleHash', type: 'bytes32', indexed: true },
+      { name: 'agentAddress', type: 'address', indexed: false },
+      { name: 'documentNonce', type: 'bytes32', indexed: false },
+      { name: 'signedAt', type: 'uint64', indexed: false },
     ],
   },
 ] as const satisfies Abi
@@ -180,7 +232,7 @@ export function isPlainTextPublicationHtml(html: unknown): html is string {
 }
 
 const LIBRO_TEXT_TAG_PATTERN = new RegExp(
-  String.raw`(?:^|\n)=== Libro · Signed by a human · @([^\s·]+) · (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
+  String.raw`(?:^|\n)=== Libro · (?:Signed by a human|Human-authorized agent) · @([^\s·]+) · (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z) · (0x(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{6}(?:…|\.\.\.)[0-9a-fA-F]{4}))(?: · ([^\s]+))? ===[\t ]*\n([\s\S]*?)\n=== End Libro ===(?=$|\n)`,
   'g'
 )
 
@@ -236,7 +288,7 @@ export function formatLibroTextTag(manifestValue: unknown): string {
   const manifestUrl = manifest.source?.manifest_url
   const boundary = [
     '=== Libro',
-    'Signed by a human',
+    manifest.registration.authorship_class === 'human' ? 'Signed by a human' : 'Human-authorized agent',
     `@${publication.author_handle_libro}`,
     formatLibroPublicationMinute(publication.publication_date),
     registration.signal_hash,
@@ -288,10 +340,15 @@ export function hashPublicationSignal(signalText: string): Hex {
   return hashSignal(signalText).toLowerCase() as Hex
 }
 
-export function actionHashToHex(action: string): Hex {
-  if (!action.trim()) throw new Error('World ID action is required')
-  const shifted = BigInt(keccak256(toBytes(action))) >> BigInt(8)
-  return `0x${shifted.toString(16).padStart(64, '0')}` as Hex
+export function normalizeLibroHandle(value: string): string {
+  if (!/^[a-z0-9_-]{3,32}$/.test(value)) {
+    throw new Error('author_handle_libro must be 3-32 lowercase letters, numbers, _ or -')
+  }
+  return value
+}
+
+export function hashLibroHandle(handle: string): Hex {
+  return keccak256(toBytes(normalizeLibroHandle(handle))).toLowerCase() as Hex
 }
 
 export function normalizeUint256Hex(value: string, fieldName: string): Hex {
@@ -334,12 +391,17 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
   }
 
   for (const field of [
-    'world_id_action', 'author_id_libro',
+    'author_id_libro',
     'author_name_libro', 'author_handle_libro', 'author_bio_libro', 'publication_title',
     'publication_subtitle',
   ]) requireString(value, field)
   const publicationDate = requireString(value, 'publication_date')
+  if (value.world_id_proof_type !== 'session') throw new Error('Unsupported World ID proof type')
   if (value.world_id_credential_policy !== 'orb') throw new Error('Unsupported World ID credential policy')
+  const handleHash = requireHash(value.author_handle_hash_libro, 'author_handle_hash_libro')
+  if (hashLibroHandle(value.author_handle_libro as string) !== handleHash) {
+    throw new Error('author_handle_hash_libro does not match author_handle_libro')
+  }
   formatLibroPublicationMinute(publicationDate)
 
   if (!hasPublishablePublication(value.publication_title, value.publication_content)) {
@@ -349,12 +411,49 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
   return value as LibroPublicationV1Payload
 }
 
+export function parseLibroAgentPublicationV1(value: unknown): LibroAgentPublicationV1Payload {
+  if (!isRecord(value)) throw new Error('publication must be an object')
+  if (value.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1) throw new Error('Unsupported publication schema')
+  if (value.libro_agent_protocol_version !== LIBRO_AGENT_PROTOCOL_VERSION) throw new Error('Unsupported Libro agent protocol')
+  if (value.authorship_claim !== 'human_authorized_agent') throw new Error('Unsupported authorship claim')
+  if (!isRecord(value.publication_content) || typeof value.publication_content.html !== 'string') {
+    throw new Error('publication_content.html must be a string')
+  }
+  for (const field of [
+    'author_id_libro', 'author_name_libro', 'author_handle_libro', 'author_bio_libro',
+    'publication_title', 'publication_subtitle',
+  ]) requireString(value, field)
+  const publicationDate = requireString(value, 'publication_date')
+  const handleHash = requireHash(value.author_handle_hash_libro, 'author_handle_hash_libro')
+  if (hashLibroHandle(value.author_handle_libro as string) !== handleHash) {
+    throw new Error('author_handle_hash_libro does not match author_handle_libro')
+  }
+  if (typeof value.agent_address !== 'string' || !isAddress(value.agent_address)) {
+    throw new Error('agent_address must be an address')
+  }
+  requireHash(value.agent_registration_hash, 'agent_registration_hash')
+  formatLibroPublicationMinute(publicationDate)
+  if (!hasPublishablePublication(value.publication_title, value.publication_content)) {
+    throw new Error('Publication must include a title or readable content')
+  }
+  return value as LibroAgentPublicationV1Payload
+}
+
+export function parseLibroPublication(value: unknown): LibroPublicationPayload {
+  if (isRecord(value) && value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1) {
+    return parseLibroAgentPublicationV1(value)
+  }
+  return parseLibroPublicationV1(value)
+}
+
 export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
   if (!isRecord(value)) throw new Error('Manifest must be an object')
   if (value.schema !== LIBRO_EMBED_SCHEMA_V1) throw new Error('Unsupported embed schema')
-  if (value.claim !== LIBRO_HUMAN_SIGNED_CLAIM) throw new Error('Unsupported human-signing claim')
+  if (value.claim !== LIBRO_HUMAN_SIGNED_CLAIM && value.claim !== LIBRO_AGENT_SIGNED_CLAIM) {
+    throw new Error('Unsupported signing claim')
+  }
 
-  const publication = parseLibroPublicationV1(value.publication)
+  const publication = parseLibroPublication(value.publication)
   if (!isRecord(value.registration)) throw new Error('registration must be an object')
   const registration = value.registration
   if (registration.chain_id !== LIBRO_WORLD_CHAIN_ID) throw new Error('Unsupported chain id')
@@ -364,13 +463,16 @@ export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
 
   const manifest: LibroEmbedManifestV1 = {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_SIGNED_CLAIM,
+    claim: value.claim,
     publication,
     registration: {
       chain_id: LIBRO_WORLD_CHAIN_ID,
       registry_address: registration.registry_address,
       signal_hash: requireHash(registration.signal_hash, 'signal_hash'),
-      action_hash: requireHash(registration.action_hash, 'action_hash'),
+      handle_hash: requireHash(registration.handle_hash, 'handle_hash'),
+      authorship_class: registration.authorship_class === 'human' || registration.authorship_class === 'agent'
+        ? registration.authorship_class
+        : (() => { throw new Error('Unsupported authorship class') })(),
       transaction_hash: requireHash(registration.transaction_hash, 'transaction_hash'),
     },
   }
@@ -432,12 +534,17 @@ export class LibroChainUnavailableError extends LibroChainVerificationError {}
 
 export function assertLibroManifestLocalIntegrity(value: unknown): LibroEmbedManifestV1 {
   const manifest = parseLibroEmbedManifest(value)
+  const isAgent = manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1
+  if ((isAgent ? LIBRO_AGENT_SIGNED_CLAIM : LIBRO_HUMAN_SIGNED_CLAIM) !== manifest.claim ||
+      (isAgent ? 'agent' : 'human') !== manifest.registration.authorship_class) {
+    throw new Error('Manifest authorship class does not match the publication')
+  }
   const signalText = canonicalPublicationSignal(manifest.publication)
   if (hashPublicationSignal(signalText) !== manifest.registration.signal_hash) {
     throw new Error('Manifest signal hash does not match the publication')
   }
-  if (actionHashToHex(manifest.publication.world_id_action) !== manifest.registration.action_hash) {
-    throw new Error('Manifest action hash does not match the publication action')
+  if (manifest.publication.author_handle_hash_libro !== manifest.registration.handle_hash) {
+    throw new Error('Manifest event handle hash does not match the publication handle')
   }
   return manifest
 }
@@ -450,7 +557,7 @@ export function serializeManifestForHtml(manifest: LibroEmbedManifestV1): string
   return JSON.stringify(manifest).replace(/</g, '\\u003c')
 }
 
-export function isSimpleTextPublication(publication: LibroPublicationV1Payload): boolean {
+export function isSimpleTextPublication(publication: LibroPublicationPayload): boolean {
   if (publication.publication_title || publication.publication_subtitle) return false
   const document = parseDocument(publication.publication_content.html, { decodeEntities: true })
   const roots = document.children.filter((node) => {
@@ -540,16 +647,13 @@ export function assertLibroRegistrationReceipt(
   if (receipt.status !== 'success') {
     throw new Error('Registration transaction was not successful')
   }
-  const events = parseEventLogs({
-    abi: libroProofRegistryAbi,
-    eventName: 'SignalRegistered',
-    logs: receipt.logs,
-    strict: true,
-  })
+  const events = registration.authorship_class === 'human'
+    ? parseEventLogs({ abi: libroRegistryAbi, eventName: 'HumanDocumentRegistered', logs: receipt.logs, strict: true })
+    : parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentDocumentRegistered', logs: receipt.logs, strict: true })
   const matchingEvent = events.some((event) =>
     event.address.toLowerCase() === registration.registry_address.toLowerCase() &&
-    event.args.signalHash === BigInt(registration.signal_hash) &&
-    event.args.actionHash === BigInt(registration.action_hash)
+    event.args.documentSignalHash === BigInt(registration.signal_hash) &&
+    event.args.handleHash.toLowerCase() === registration.handle_hash.toLowerCase()
   )
   if (!matchingEvent) throw new Error('Registration event does not match the manifest')
 }
@@ -581,9 +685,11 @@ async function verifyLibroManifestAtRpc(
   try {
     registered = await client.readContract({
       address: manifest.registration.registry_address,
-      abi: libroProofRegistryAbi,
-      functionName: 'verify',
-      args: [BigInt(manifest.registration.signal_hash)],
+      abi: libroRegistryAbi,
+      functionName: manifest.registration.authorship_class === 'human'
+        ? 'verifyHumanDocument'
+        : 'verifyAgentDocument',
+      args: [BigInt(manifest.registration.signal_hash), manifest.registration.handle_hash],
     })
   } catch (error) {
     return outcome('unavailable', describeChainError(error))

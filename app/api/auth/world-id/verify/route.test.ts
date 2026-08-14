@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const authMock = vi.hoisted(() => ({ verifyAndCreateOrConnectAuthor: vi.fn() }))
+const dbMock = vi.hoisted(() => ({ query: vi.fn() }))
+
+vi.mock('@/lib/db', () => ({ pool: { query: dbMock.query } }))
 
 vi.mock('@/lib/world-id/author-auth', () => {
   class WorldIdAuthorAuthError extends Error {
@@ -66,6 +69,11 @@ describe('web World ID auth transport', () => {
   beforeEach(() => {
     authMock.verifyAndCreateOrConnectAuthor.mockReset()
     authMock.verifyAndCreateOrConnectAuthor.mockResolvedValue(account)
+    dbMock.query.mockImplementation(async (query: string) =>
+      query.includes('COUNT(*) FILTER')
+        ? { rows: [{ handle_count: 0, ip_count: 0 }] }
+        : { rows: [] }
+    )
     process.env.SESSION_SECRET = 'test-session-secret'
   })
 

@@ -18,12 +18,10 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`
 - `WORLD_ID_RP_ID`
 - `WORLD_ID_RP_SIGNING_KEY`
-- `WORLD_ID_PUBLISH_ACTION_PREFIX=written-by-a-human-v4`
 - `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT=production`
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID=480`
 - `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`
-- `NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS`
-- `WORLD_ID_AGENT_REGISTRATION_ACTION=register-agent-v1`
+- `LIBRO_HANDLE_PERMIT_PRIVATE_KEY` (server-only and distinct from the RP signing key)
 - `LIBRO_RELAYER_PRIVATE_KEY` for sponsored publication registration outside World App
 
 Use `.env.example` as the starting point for local configuration.
@@ -38,23 +36,21 @@ pnpm db:migrate
 
 The runner prefers `DATABASE_URL_UNPOOLED` and falls back to `DATABASE_URL`, including values loaded from `.env.local` for local development. Use Neon’s pooled `-pooler` endpoint for the application’s `DATABASE_URL` and its direct endpoint for `DATABASE_URL_UNPOOLED`. The runner discovers numbered SQL files under `lib/db/migrations`, applies each pending migration in its own transaction, and records the filename and checksum in `memorioso_schema_migrations`. An advisory lock prevents concurrent deploys from running migrations at the same time.
 
-The first run against an existing database safely replays the current idempotent migrations and records them. After a migration has been recorded, do not edit or rename it; add a new numbered migration instead. New databases must first be initialized with `lib/db/schema.sql`.
+The first run against an existing database safely replays the current idempotent migrations and records them. After a migration has been recorded, do not edit or rename it; add a new numbered migration instead. New databases must first be initialized with `lib/db/schema.sql`. Migration 013 is a destructive hard cutover: create and verify a database backup, then set `MEMORIOSO_DB_BACKUP_CONFIRMED=013_session_bound_handles` for that migration run.
 
 ## Libro on-chain registration
 
 Libro protocol assets live under `libro/` so they can be split into a separate repository later:
 
-- `libro/contracts` contains the Foundry project for `LibroProofRegistry`.
+- `libro/contracts` contains the Foundry project for `LibroRegistry`.
 - `libro/skill` contains the Libro protocol skill and reference.
 
-`LibroProofRegistry.register(...)` is permissionless: anyone can submit a valid registration transaction. Direct human publications use per-challenge World ID actions such as `written-by-a-human-v4-<challengeId>`, and the dynamic action hash is passed to the registry with the proof. Deploy the registry with the numeric `rpId` derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`. Inside World App, the user's World wallet submits through MiniKit. Outside World App, the server submits the same prepared transaction from the funded `LIBRO_RELAYER_PRIVATE_KEY` account and sponsors its gas.
-
-`LibroAgentRegistry` is the companion registry for human-authorized agent documents. A human principal first registers an agent address with World ID action `register-agent-v1`; later the agent signs document payloads with EIP-712 and any wallet or relayer can submit the registration transaction.
+`LibroRegistry` permanently binds each normalized handle to the public 32-byte commitment of one World ID session. A short-lived EIP-712 permit authorizes the initial database handle claim, while `verifySession(...)` enforces every human publication against the exact canonical signal. The full session ID and proving seed never enter calldata, manifests, or publication JSON. The same registry binds session-authorized agents to a handle and verifies their later EIP-712 document signatures. Deploy it against the official World ID verifier proxy and derive numeric `rpId` from the 16 hexadecimal characters after `rp_`.
 
 Run `forge test` from `libro/contracts` to test the registry contract.
 
 ## Libro website embeds
 
-Finalized direct-human publications expose `libro-embed-v1`: a `.libro-human-signed` content wrapper plus an adjacent `application/libro+json` manifest with the `human-signed` claim. Simple publications also display a portable plain-text boundary containing the UTC publication timestamp to minute precision, full signal hash, and public manifest URL. Publication pages include the declaration and offer a copyable, sanitized embed. The same public manifest is available at `/api/publications/{id}/libro-manifest`.
+Finalized human and human-authorized-agent publications expose `libro-embed-v1`: a claim-bearing content wrapper plus an adjacent `application/libro+json` manifest. The manifest records the authorship class, exact signal hash, handle hash, unified registry, and transaction. Verification requires the payload handle hash and the handle-bearing registry event to match. Simple publications also display a portable plain-text boundary containing the UTC publication timestamp to minute precision, full signal hash, and public manifest URL. Publication pages include the declaration and offer a copyable, sanitized embed. The same public manifest is available at `/api/publications/{id}/libro-manifest`.
 
-The Chrome Manifest V3 verifier and inline signer live under `libro/chrome-extension`. Build production with `pnpm extension:build`, or build the `https://worldlibro.vercel.app` stage target with `pnpm extension:build:stage`; then load `libro/chrome-extension/dist` or `libro/chrome-extension/dist-stage` as an unpacked extension. Override the target with `VITE_MEMORIOSO_APP_URL` when needed. It scans structured embeds and plain-text Libro tags, and its side panel can capture text, connect an existing Memorioso author or create a first author, complete the normal World ID plus sponsored World Chain publishing flow, and safely return the portable tag to the source editor. Existing databases must apply migrations through `lib/db/migrations/009_one_finalized_publication_per_draft.sql`.
+The Chrome Manifest V3 verifier and inline signer live under `libro/chrome-extension`. Build production with `pnpm extension:build`, or build the `https://worldlibro.vercel.app` stage target with `pnpm extension:build:stage`; then load `libro/chrome-extension/dist` or `libro/chrome-extension/dist-stage` as an unpacked extension. Override the target with `VITE_MEMORIOSO_APP_URL` when needed. It scans structured embeds and plain-text Libro tags, and its side panel can capture text, sign as the one author bound to the login session, complete the normal World ID plus sponsored World Chain publishing flow, and safely return the portable tag to the source editor. Existing databases must apply the destructive hard-cutover migration `013_session_bound_handles.sql` after a verified backup.

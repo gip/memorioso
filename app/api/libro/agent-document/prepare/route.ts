@@ -92,7 +92,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (
       publication.agent_address.toLowerCase() !== registration.agent_address.toLowerCase() ||
-      publication.principal_author_hash.toLowerCase() !== registration.principal_author_hash.toLowerCase()
+      publication.author_handle_hash_libro.toLowerCase() !== registration.handle_hash.toLowerCase()
     ) {
       return await fail('Agent publication does not match the registered agent')
     }
@@ -158,14 +158,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { rows } = await client.query(
       `INSERT INTO libro_agent_document_registrations
-        ("registrationId", registration_hash, document_signal_hash, document_signal_text,
+        ("registrationId", registration_hash, handle_hash, document_signal_hash, document_signal_text,
          document_nonce, signed_at, agent_address, agent_signature, publication, proof,
          chain_id, registry_address, transaction)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id`,
       [
         registration.id,
         registration.registration_hash,
+        registration.handle_hash,
         signalHash,
         signalText,
         documentNonce.toLowerCase(),

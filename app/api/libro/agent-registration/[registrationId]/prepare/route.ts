@@ -1,154 +1,168 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { IDKitResult } from '@worldcoin/idkit'
+import type { IDKitResultSession } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { getLibroAgentServerConfig } from '@/lib/libro/config'
-import { createAgentRegistrationPayload, prepareAgentRegistration, type AgentRegistrationPayload } from '@/lib/libro/agent'
+import {
+  getLibroAgentServerConfig,
+  getLibroHandlePermitConfig,
+} from '@/lib/libro/config'
+import {
+  createAgentRegistrationPayload,
+  prepareAgentRegistration,
+  type AgentRegistrationPayload,
+} from '@/lib/libro/agent'
+import { issueHandleClaimPermit } from '@/lib/libro/proof'
 import { getWorldIdServerConfig } from '@/lib/world-id/server'
-import { validateCredentialResponses, validateWorldIdV4Result } from '@/lib/world-id/proof'
+import {
+  sessionIdToCommitment,
+  validateSessionCredentialResponses,
+  validateWorldIdSessionResult,
+} from '@/lib/world-id/proof'
 
-type PrepareAgentRegistrationRequest = {
-  idkitResult?: IDKitResult
-}
+type RequestBody = { idkitResult?: IDKitResultSession }
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
-  const authenticatedUser = await getAuthenticatedUser()
-
-  if (!authenticatedUser) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
-  }
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
 
   let worldIdConfig
-  let agentConfig
+  let config
   try {
     worldIdConfig = getWorldIdServerConfig()
-    agentConfig = getLibroAgentServerConfig()
+    config = getLibroAgentServerConfig()
   } catch (error) {
-    return NextResponse.json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Libro agent configuration is invalid',
-    }, { status: 500 })
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Invalid configuration' }, { status: 500 })
   }
 
   const { registrationId } = await params
-  const body = await req.json().catch(() => null) as PrepareAgentRegistrationRequest | null
+  const body = await req.json().catch(() => null) as RequestBody | null
   if (!body?.idkitResult) {
-    return NextResponse.json({ success: false, message: 'World ID result is required' }, { status: 400 })
+    return NextResponse.json({ success: false, message: 'World ID session result is required' }, { status: 400 })
   }
 
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-
-    const fail = async (message: string, status: number = 400) => {
+    const fail = async (message: string, status = 400) => {
       await client.query('ROLLBACK')
       return NextResponse.json({ success: false, message }, { status })
     }
-
-    const registrationResult = await client.query(
-      `SELECT *
-       FROM libro_agent_registrations
-       WHERE id = $1 AND "userId" = $2
-       FOR UPDATE`,
-      [registrationId, authenticatedUser.id]
+    const result = await client.query(
+      `SELECT r.*, a.handle, u.world_id_session_id
+       FROM libro_agent_registrations r
+       INNER JOIN authors a ON a.id = r."authorId" AND a."userId" = r."userId"
+       INNER JOIN users u ON u.id = r."userId" AND u.handle = a.handle
+       WHERE r.id = $1 AND r."userId" = $2 FOR UPDATE`,
+      [registrationId, user.id]
     )
+    if (result.rows.length === 0) return await fail('Agent registration not found', 404)
+    const row = result.rows[0]
+    if (row.finalized_at) return await fail('Agent registration is already finalized')
 
-    if (registrationResult.rows.length === 0) {
-      return await fail('Agent registration not found', 404)
-    }
+    const payload = row.payload as AgentRegistrationPayload
+    const recreated = createAgentRegistrationPayload({
+      handleHash: row.handle_hash,
+      controllerAddress: row.controller_address,
+      agentAddress: row.agent_address,
+      scope: BigInt(row.scope),
+      validFrom: row.valid_from,
+      expiresAt: row.expires_at,
+      salt: payload.nonce,
+      chainId: row.chain_id,
+      registryAddress: row.registry_address,
+    })
+    if (
+      recreated.registrationHash.toLowerCase() !== row.registration_hash.toLowerCase() ||
+      recreated.signalHash.toLowerCase() !== row.signal_hash.toLowerCase()
+    ) return await fail('Agent registration payload changed')
 
-    const registrationRow = registrationResult.rows[0]
-    if (registrationRow.finalized_at) {
-      return await fail('Agent registration is already finalized')
-    }
-
-    const payload = registrationRow.payload as AgentRegistrationPayload
-    let recreated
+    let validated
+    let credentials
     try {
-      recreated = createAgentRegistrationPayload({
-        action: registrationRow.action,
-        principalAuthorHash: registrationRow.principal_author_hash,
-        controllerAddress: registrationRow.controller_address,
-        agentAddress: registrationRow.agent_address,
-        scope: BigInt(registrationRow.scope),
-        validFrom: registrationRow.valid_from,
-        expiresAt: registrationRow.expires_at,
-        salt: payload.nonce,
-        chainId: registrationRow.chain_id,
-        registryAddress: registrationRow.registry_address,
-      })
-
-      if (
-        recreated.registrationHash.toLowerCase() !== registrationRow.registration_hash.toLowerCase() ||
-        recreated.signal.toLowerCase() !== registrationRow.signal.toLowerCase() ||
-        recreated.signalHash.toLowerCase() !== registrationRow.signal_hash.toLowerCase()
-      ) {
-        throw new Error('Agent registration payload changed')
-      }
-    } catch (error) {
-      return await fail(error instanceof Error ? error.message : 'Agent registration payload is invalid')
-    }
-
-    let validatedResult
-    let credentialIdentifiers: string[]
-    try {
-      validatedResult = validateWorldIdV4Result(body.idkitResult, {
-        action: registrationRow.action,
-        nonce: registrationRow.nonce,
+      validated = validateWorldIdSessionResult(body.idkitResult, {
+        nonce: row.nonce,
         environment: worldIdConfig.environment,
-        signalHash: registrationRow.signal_hash,
+        signalHash: row.signal_hash,
+        expectedSessionId: row.world_id_session_id,
+        requireUserPresence: true,
       })
-      if (validatedResult.action !== agentConfig.action) {
-        throw new Error('World ID proof context does not match this agent registration')
+      credentials = validateSessionCredentialResponses(validated.responses, row.signal_hash)
+      if (sessionIdToCommitment(validated.session_id) !== row.session_commitment.toLowerCase()) {
+        throw new Error('World ID session does not own this handle')
       }
-      credentialIdentifiers = validateCredentialResponses(validatedResult.responses, registrationRow.signal_hash)
     } catch (error) {
-      return await fail(error instanceof Error ? error.message : 'Invalid World ID agent registration proof')
+      return await fail(error instanceof Error ? error.message : 'Invalid session proof')
     }
 
-    const transaction = prepareAgentRegistration(validatedResult, recreated.contractRegistration, agentConfig)
+    const claim = await client.query(
+      `SELECT id FROM libro_handle_claims
+       WHERE "userId" = $1 AND handle_hash = $2 AND session_commitment = $3`,
+      [user.id, row.handle_hash, row.session_commitment]
+    )
+    let handlePermit
+    if (claim.rows.length === 0) {
+      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [1280068687, user.id])
+      const attempts = await client.query(
+        `SELECT COUNT(*)::int AS count FROM libro_handle_permits
+         WHERE "userId" = $1 AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
+        [user.id]
+      )
+      if (attempts.rows[0].count >= 10) return await fail('Too many handle claim attempts', 429)
+      handlePermit = await issueHandleClaimPermit({
+        handleHash: row.handle_hash,
+        sessionCommitment: row.session_commitment,
+        config,
+        permitConfig: getLibroHandlePermitConfig(),
+      })
+      await client.query(
+        `INSERT INTO libro_handle_permits
+          ("userId", handle_hash, session_commitment, permit_nonce, permit_deadline, purpose)
+         VALUES ($1, $2, $3, $4, to_timestamp($5), 'agent')`,
+        [user.id, row.handle_hash, row.session_commitment, handlePermit.nonce, handlePermit.deadline]
+      )
+    }
+    const transaction = prepareAgentRegistration({
+      result: validated,
+      contractRegistration: recreated.contractRegistration,
+      handle: row.handle,
+      handlePermit,
+      config,
+    })
     const proof = {
       protocol_version: '4.0',
-      action: registrationRow.action,
-      nonce: registrationRow.nonce,
-      signal: registrationRow.signal,
-      signal_hash: registrationRow.signal_hash,
-      registration_hash: registrationRow.registration_hash,
+      proof_type: 'session',
+      nonce: row.nonce,
+      signal: row.signal,
+      signal_hash: row.signal_hash,
+      registration_hash: row.registration_hash,
+      handle_hash: row.handle_hash,
       payload,
-      credential_identifier: credentialIdentifiers[0],
-      credential_identifiers: credentialIdentifiers,
-      idkit_result: validatedResult,
-      verify_response: {
-        success: true,
-        verifier: 'libro_agent_onchain_pending',
+      credential_identifier: credentials[0],
+      credential_identifiers: credentials,
+      session_proof: {
+        responses: validated.responses,
+        environment: validated.environment,
       },
+      ...(handlePermit ? {
+        handle_permit: {
+          nonce: handlePermit.nonce,
+          deadline: handlePermit.deadline.toString(),
+          signature: handlePermit.signature,
+        },
+      } : {}),
     }
-
     await client.query(
-      `UPDATE libro_agent_registrations
-       SET proof = $1, transaction = $2
-       WHERE id = $3`,
+      'UPDATE libro_agent_registrations SET proof = $1, transaction = $2 WHERE id = $3',
       [proof, transaction, registrationId]
     )
-
     await client.query('COMMIT')
-
-    return NextResponse.json({
-      success: true,
-      registrationId,
-      registrationHash: registrationRow.registration_hash,
-      transaction,
-    })
+    return NextResponse.json({ success: true, registrationId, registrationHash: row.registration_hash, transaction })
   } catch (error) {
     await client.query('ROLLBACK')
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to prepare agent registration',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }, { status: 500 })
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Failed to prepare agent registration' }, { status: 500 })
   } finally {
     client.release()
   }

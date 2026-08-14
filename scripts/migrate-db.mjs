@@ -157,7 +157,20 @@ async function getAppliedMigrations(client) {
   return result.rows
 }
 
+export function assertDestructiveMigrationConfirmed(migration, environment = process.env) {
+  if (
+    migration.version === 13 &&
+    environment.MEMORIOSO_DB_BACKUP_CONFIRMED !== '013_session_bound_handles'
+  ) {
+    throw new Error(
+      'Migration 013 is destructive. Back up Postgres, then set ' +
+      'MEMORIOSO_DB_BACKUP_CONFIRMED=013_session_bound_handles for this migration run.',
+    )
+  }
+}
+
 async function applyMigration(client, migration) {
+  assertDestructiveMigrationConfirmed(migration)
   await client.query('BEGIN')
 
   try {

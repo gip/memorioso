@@ -31,7 +31,7 @@ export function libroVerificationCacheKey(
   manifest: LibroEmbedManifestV1,
   rpcUrls: readonly string[] = []
 ): string {
-  const { chain_id, registry_address, signal_hash, transaction_hash } = manifest.registration
+  const { chain_id, registry_address, signal_hash, handle_hash, authorship_class, transaction_hash } = manifest.registration
   const trustConfiguration = rpcUrls.map((value) => {
     try {
       return new URL(value).toString().replace(/\/$/, '')
@@ -39,7 +39,7 @@ export function libroVerificationCacheKey(
       return value.trim()
     }
   }).sort().join(',')
-  return `${chain_id}:${registry_address}:${signal_hash}:${transaction_hash}:${trustConfiguration}`.toLowerCase()
+  return `${chain_id}:${registry_address}:${signal_hash}:${handle_hash}:${authorship_class}:${transaction_hash}:${trustConfiguration}`.toLowerCase()
 }
 
 function isEntry(value: unknown, now: number): value is CacheEntry {

@@ -1,4 +1,3 @@
-import { actionHashToHex as coreActionHashToHex } from '@libro/core'
 import { isHex, type Hex } from 'viem'
 
 export const MAX_UINT64 = BigInt('18446744073709551615')
@@ -54,12 +53,4 @@ export function rpIdToUint64(rpId: string): bigint {
   }
 
   return BigInt(`0x${match[1]}`)
-}
-
-export function actionHashToHex(action: string): Hex {
-  return coreActionHashToHex(action)
-}
-
-export function actionHashToUint256(action: string): bigint {
-  return BigInt(actionHashToHex(action))
 }

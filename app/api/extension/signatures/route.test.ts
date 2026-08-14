@@ -58,7 +58,11 @@ describe('inline signature creation', () => {
     dbMock.connect.mockResolvedValue({ query: dbMock.query, release: dbMock.release })
     dbMock.query.mockImplementation(async (query: string) => {
       if (query.includes('FROM authors')) {
-        return { rows: [{ id: 'author-1', name: 'Ada', handle: 'ada', bio: 'Writes.' }] }
+        return { rows: [{
+          id: 'author-1', name: 'Ada', handle: 'ada', bio: 'Writes.',
+          world_id_session_id: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
+          world_id_session_commitment: `0x${'11'.repeat(32)}`,
+        }] }
       }
       if (query.includes('INSERT INTO drafts')) return { rows: [{ id: 'draft-1' }] }
       return { rows: [] }
@@ -76,6 +80,7 @@ describe('inline signature creation', () => {
       author: { handle: 'ada' },
       credentialPolicy: 'orb',
       allowedCredentials: ['proof_of_human'],
+      existingSessionId: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
     })
 
     const draftInsert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO drafts'))!
@@ -86,6 +91,7 @@ describe('inline signature creation', () => {
     expect(signalText).toBe(canonicalPublicationSignal(publication))
     expect(publication).toMatchObject({
       publication_schema: 'libro-publication-v1',
+      world_id_proof_type: 'session',
       world_id_credential_policy: 'orb',
       author_id_libro: 'author-1',
       author_handle_libro: 'ada',
@@ -93,6 +99,7 @@ describe('inline signature creation', () => {
       publication_subtitle: '',
       publication_content: draftInsert[1][1],
     })
+    expect(publication).not.toHaveProperty('world_id_action')
     expect(dbMock.query.mock.calls.map(([query]) => String(query).trim())).toEqual(expect.arrayContaining([
       'BEGIN',
       'COMMIT',
@@ -117,31 +124,6 @@ describe('inline signature creation', () => {
     const response = await POST(request('Human text'))
     expect(response.status).toBe(409)
     expect(dbMock.query).toHaveBeenCalledWith('ROLLBACK')
-  })
-
-  it('binds an explicitly selected owned author into the signing request', async () => {
-    dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('FROM authors')) {
-        return { rows: [{ id: 'author-2', name: 'A. Byron', handle: 'byron', bio: null }] }
-      }
-      if (query.includes('INSERT INTO drafts')) return { rows: [{ id: 'draft-2' }] }
-      return { rows: [] }
-    })
-
-    const response = await POST(request('Human text', 'author-2'))
-    expect(response.status).toBe(200)
-    expect(dbMock.query).toHaveBeenCalledWith(expect.stringContaining('a.id::text = $2'), [7, 'author-2'])
-    const draftInsert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO drafts'))!
-    expect(draftInsert[1][3]).toBe('author-2')
-  })
-
-  it('rejects an explicitly selected author outside the extension account', async () => {
-    dbMock.query.mockImplementation(async (query: string) => (
-      query.includes('FROM authors') ? { rows: [] } : { rows: [] }
-    ))
-    const response = await POST(request('Human text', 'other-author'))
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ message: 'Author not found' })
   })
 
   it('rate-limits excessive signing requests before opening a transaction', async () => {

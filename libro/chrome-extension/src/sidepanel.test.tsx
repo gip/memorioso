@@ -254,7 +254,7 @@ describe('extension author onboarding', () => {
       await verify({ session_id: 'session_existing' })
     })
 
-    expect(container.textContent).toContain('already owns @ada')
+    expect(container.textContent).toContain('Connected @ada')
     expect(container.textContent).toContain('Connected as @ada')
     expect(container.querySelector<HTMLTextAreaElement>('section textarea')?.value).toBe('Captured essay')
   })
@@ -368,21 +368,20 @@ describe('automatic page following', () => {
   })
 })
 
-describe('multi-author signing', () => {
-  it('restores the selected author and sends it when creating a signing job', async () => {
+describe('session-bound author signing', () => {
+  it('uses the login author and sends no selectable author id', async () => {
     const primary = { id: 'author-1', name: 'Ada', handle: 'ada', bio: null, isPrimary: true }
-    const secondary = { id: 'author-2', name: 'A. Byron', handle: 'byron', bio: null, isPrimary: false }
     const session = {
       user: { id: 7, subject: 'world-id-session:ada', handle: 'ada' },
       author: primary,
-      authors: [primary, secondary],
+      authors: [primary],
       expiresAt: '2099-01-01T00:00:00.000Z',
     }
     runtimeMock.mockImplementation(async (message: Record<string, unknown>) => {
       if (message.type === 'LIBRO_GET_SIGNING_STATE') return {
         success: true,
         session,
-        selectedAuthorId: secondary.id,
+        selectedAuthorId: null,
         capture: { tabId: 4, text: 'Captured essay', canReplace: true },
         job: null,
         autoCapture: null,
@@ -397,7 +396,7 @@ describe('multi-author signing', () => {
           signingId: 'draft-2',
           challengeId: 'challenge-2',
           normalizedText: 'Captured essay',
-          author: secondary,
+          author: primary,
           context: { signalText: 'signal' },
           stage: 'proof',
         },
@@ -408,7 +407,7 @@ describe('multi-author signing', () => {
     await renderApp()
     await act(async () => { await Promise.resolve() })
 
-    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe(secondary.id)
+    expect(container.textContent).toContain('Publishing as Ada (@ada)')
     await act(async () => {
       container.querySelector<HTMLButtonElement>('button.primary')?.click()
       await Promise.resolve()
@@ -416,7 +415,6 @@ describe('multi-author signing', () => {
     expect(runtimeMock).toHaveBeenCalledWith({
       type: 'LIBRO_CREATE_SIGNATURE',
       text: 'Captured essay',
-      authorId: secondary.id,
     })
   })
 })

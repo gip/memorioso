@@ -15,6 +15,7 @@ type HumanSealProps = {
 export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: HumanSealProps) => {
   const r = size / 2
   const pathR = r - (label ? size * 0.135 : 0)
+  const markOpticalOffset = size * 0.035
 
   return (
     <div
@@ -46,7 +47,10 @@ export const HumanSeal = ({ size = 96, label = true, id = 'mem-human-seal' }: Hu
           </text>
         )}
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ transform: `translate(${-markOpticalOffset}px, ${markOpticalOffset}px)` }}
+      >
         <MemMark size={size * 0.46} />
       </div>
     </div>

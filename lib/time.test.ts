@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { fmtDate } from './time'
 
 describe('publication timestamp formatting', () => {
-  it('includes local hours and minutes in long and short styles', () => {
+  it('includes local hours, minutes, and timezone in long and short styles', () => {
     const date = '2026-07-21T12:34:00.000Z'
 
-    expect(fmtDate(date, { timeZone: 'America/Los_Angeles' })).toBe('July 21, 2026 at 5:34 AM')
+    expect(fmtDate(date, { timeZone: 'America/Los_Angeles' })).toBe('July 21, 2026 at 5:34 AM PDT')
     expect(fmtDate(date, { style: 'short', timeZone: 'America/Los_Angeles' }))
-      .toBe('Jul 21, 2026, 5:34 AM')
+      .toBe('Jul 21, 2026, 5:34 AM PDT')
   })
 
   it('returns an empty string for invalid dates', () => {

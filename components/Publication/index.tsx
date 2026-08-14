@@ -86,7 +86,7 @@ const PublicationVerification = ({
       </div>
     </div>
     {embedSnippet && textSnippet && (
-      <div className="mt-3 border-t border-zinc-200/80 pt-2">
+      <div className="mt-3 hidden border-t border-zinc-200/80 pt-2 sm:block">
         <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} />
       </div>
     )}

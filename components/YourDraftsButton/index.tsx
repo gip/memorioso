@@ -10,11 +10,10 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -26,6 +25,9 @@ type DraftsResponse = {
   success?: boolean
   drafts?: FeedItemD[]
 }
+
+/** Keep the inline mobile group short enough to fit a phone viewport. */
+const MOBILE_DRAFT_LIMIT = 3
 
 const draftLabel = (draft: FeedItemD): string => {
   const title = draft.title?.trim()
@@ -95,7 +97,13 @@ const useDraftShortcuts = () => {
   return { drafts, loaded, loadDrafts }
 }
 
-const DraftMenuEntries = ({ drafts, loaded }: { drafts: FeedItemD[]; loaded: boolean }) => (
+type DraftItemsProps = {
+  drafts: FeedItemD[]
+  loaded: boolean
+  limit?: number
+}
+
+const DraftItems = ({ drafts, loaded, limit }: DraftItemsProps) => (
   <>
     {!loaded && (
       <DropdownMenuItem disabled>
@@ -106,7 +114,7 @@ const DraftMenuEntries = ({ drafts, loaded }: { drafts: FeedItemD[]; loaded: boo
     {loaded && drafts.length === 0 && (
       <DropdownMenuItem disabled>No current drafts</DropdownMenuItem>
     )}
-    {drafts.map(draft => (
+    {(limit ? drafts.slice(0, limit) : drafts).map(draft => (
       <DropdownMenuItem key={draft.id} asChild>
         <Link href={`/d/${draft.id}`} title={draftLabel(draft)}>
           <Pencil className="h-4 w-4" />
@@ -114,10 +122,6 @@ const DraftMenuEntries = ({ drafts, loaded }: { drafts: FeedItemD[]; loaded: boo
         </Link>
       </DropdownMenuItem>
     ))}
-    <DropdownMenuSeparator />
-    <DropdownMenuItem asChild>
-      <Link href="/activity">Activity</Link>
-    </DropdownMenuItem>
   </>
 )
 
@@ -138,28 +142,36 @@ export const YourDraftsButton = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DraftMenuEntries drafts={drafts} loaded={loaded} />
+        <DraftItems drafts={drafts} loaded={loaded} />
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/activity">Activity</Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-export const YourDraftsMobileMenu = () => {
+/**
+ * Narrow viewports have no room for a flyout submenu: the parent menu is
+ * already flush right, so a nested panel gets clipped off the left edge.
+ * Render the drafts inline as a labelled group instead and grow downward.
+ */
+export const YourDraftsMenuGroup = () => {
   const { drafts, loaded, loadDrafts } = useDraftShortcuts()
 
+  // Menu content unmounts on close, so mounting is the menu-open signal.
+  useEffect(() => {
+    loadDrafts()
+  }, [loadDrafts])
+
   return (
-    <DropdownMenuSub
-      onOpenChange={open => {
-        if (open) loadDrafts()
-      }}
-    >
-      <DropdownMenuSubTrigger>
-        <Files className="h-4 w-4" />
+    <DropdownMenuGroup>
+      <DropdownMenuLabel className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+        <Files className="h-3.5 w-3.5 shrink-0" />
         Your drafts
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-60">
-        <DraftMenuEntries drafts={drafts} loaded={loaded} />
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+      </DropdownMenuLabel>
+      <DraftItems drafts={drafts} loaded={loaded} limit={MOBILE_DRAFT_LIMIT} />
+    </DropdownMenuGroup>
   )
 }

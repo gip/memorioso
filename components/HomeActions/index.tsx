@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ChevronDown,
   FileText,
-  Files,
   LogIn,
   MessageSquareText,
   PenLine,
@@ -23,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MemMark } from '@/components/MemMark'
+import { YourDraftsButton } from '@/components/YourDraftsButton'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export type PrimarySiteAction = {
@@ -156,12 +156,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
         )}
 
         {isAuthenticated && (
-          <Button variant="outline" className="justify-start px-3" asChild>
-            <Link href="/activity">
-              <Files className="h-4 w-4" />
-              Your drafts
-            </Link>
-          </Button>
+          <YourDraftsButton />
         )}
 
         {isAuthenticated ? (

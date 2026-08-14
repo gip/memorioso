@@ -15,7 +15,7 @@ const Page = () => {
   return (
     <main className="w-full min-w-0 py-8">
       {showIntroduction && (
-        <section className="spectral relative mx-auto w-full rounded-lg border-2 border-solid border-gray-300 px-8 py-7 text-center text-lg leading-relaxed sm:px-12">
+        <section className="spectral relative mx-auto w-full rounded-lg bg-gray-100 px-8 py-7 text-center text-lg leading-relaxed sm:px-12">
           <button
             type="button"
             onClick={() => setShowIntroduction(false)}

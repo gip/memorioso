@@ -699,7 +699,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const selectedAuthor = authors.find((a) => a.id === draft?.authorId) || null
 
   return (
-    <div className="space-y-4 py-4">
+    <div className="space-y-3 pb-10 pt-2 sm:space-y-4 sm:py-4">
       {publishContext && worldIdConstraints && (
         <IDKitRequestWidget
           open={isWorldIdOpen}
@@ -734,15 +734,15 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         <PublishProgress step={publishStep} status={publishStatus} />
       )}
       {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}
-      <div className="sticky top-14 z-20 -mx-4 flex items-center justify-between gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur lg:top-0 lg:mx-0 lg:px-0">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="sticky top-14 z-20 -mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-background/95 px-4 py-2.5 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur lg:top-0 lg:mx-0 lg:flex lg:justify-between lg:px-0 lg:shadow-none">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground sm:text-xs">
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
           {saveState === 'saved-local' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved on this device</>)}
           {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
           {!canPublish && <span>{publicationValidationError}</span>}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {pendingFinalize ? (
             <Button
               onClick={() => completeFinalization(pendingFinalize).catch(() => undefined)}
@@ -754,6 +754,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
             <Button
               onClick={() => setIsConfirmOpen(true)}
               disabled={!canPublish || isEditingDisabled || isPollingRegistration}
+              className="h-9 px-3 text-xs sm:h-10 sm:px-4 sm:text-sm"
             >
               Sign &amp; publish
             </Button>
@@ -761,7 +762,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           {currentDraftId && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={isEditingDisabled || isPollingRegistration}>
+                <Button variant="ghost" size="icon" className="h-9 w-9" disabled={isEditingDisabled || isPollingRegistration}>
                   <MoreVertical className="h-4 w-4" />
                   <span className="sr-only">More actions</span>
                 </Button>

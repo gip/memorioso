@@ -133,7 +133,7 @@ const PublicationVerification = ({
     {embedSnippet && textSnippet && (
       <div className="mt-6 w-full border-t border-zinc-200 pt-4 text-left">
         <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          Reuse this publication
+          Cite this publication
         </p>
         <CopyEmbedButton snippet={embedSnippet} textSnippet={textSnippet} vertical />
       </div>

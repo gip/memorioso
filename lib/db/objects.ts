@@ -20,6 +20,11 @@ type PublicationInfoRow = {
   proof: Proof
 }
 
+export type PublicationBySignalHash = {
+  publicationId: string
+  publication: PublicationRecord
+}
+
 export function mapPublicationRow(row: PublicationRow): PublicationRecord {
   return {
     ...row.signal,
@@ -106,6 +111,33 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
     }
 
     return mapPublicationRow(rows[0])
+  } finally {
+    client.release()
+  }
+})
+
+export const getPublicationBySignalHash = cache(async (
+  signalHash: string
+): Promise<PublicationBySignalHash | null> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal, version
+       FROM publications
+       WHERE LOWER(proof->>'signal_hash') = $1
+          OR LOWER(proof->'agent_document_signature'->>'document_signal_hash') = $1
+       LIMIT 1`,
+      [signalHash]
+    )
+
+    if (rows.length === 0) {
+      return null
+    }
+
+    return {
+      publicationId: String(rows[0].id),
+      publication: mapPublicationRow(rows[0]),
+    }
   } finally {
     client.release()
   }

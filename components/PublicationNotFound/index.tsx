@@ -1,5 +1,5 @@
 type PublicationNotFoundProps = {
-  kind: 'article' | 'short'
+  kind: 'article' | 'short' | 'signed document'
 }
 
 export const PublicationNotFound = ({ kind }: PublicationNotFoundProps) => (

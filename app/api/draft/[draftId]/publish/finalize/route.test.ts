@@ -35,6 +35,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/db/publication-cache', () => ({
   publicationCacheTag: (id: string) => `publication:${id}`,
+  publicationHashCacheTag: (hash: string) => `publication-hash:${hash}`,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -192,6 +193,10 @@ describe('Libro publication finalize route', () => {
     }, expect.objectContaining({ chainId: 480 }))
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
       `publication:${publicationId}`,
+      { expire: 0 }
+    )
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      `publication-hash:${signalHash}`,
       { expire: 0 }
     )
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[

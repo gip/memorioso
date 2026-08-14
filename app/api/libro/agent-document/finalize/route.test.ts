@@ -22,6 +22,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/db/publication-cache', () => ({
   publicationCacheTag: (id: string) => `publication:${id}`,
+  publicationHashCacheTag: (hash: string) => `publication-hash:${hash}`,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -48,6 +49,7 @@ import { PUT } from './route'
 
 const documentRegistrationId = 'a33e71eb-0d0e-4706-8c14-04418b186a3c'
 const publicationId = '52'
+const documentSignalHash = `0x${'11'.repeat(32)}`
 
 function request(): NextRequest {
   return {
@@ -91,7 +93,7 @@ describe('Libro agent document finalize route', () => {
     cacheMock.revalidateTag.mockReset()
 
     dbMock.poolQuery.mockResolvedValue({
-      rows: [{ document_signal_hash: `0x${'11'.repeat(32)}`, finalized_at: null }],
+      rows: [{ document_signal_hash: documentSignalHash, finalized_at: null }],
     })
     dbMock.connect.mockResolvedValue({ query: dbMock.clientQuery, release: dbMock.release })
     dbMock.clientQuery.mockImplementation(async (query: string) => {
@@ -113,6 +115,10 @@ describe('Libro agent document finalize route', () => {
     })
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
       `publication:${publicationId}`,
+      { expire: 0 }
+    )
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      `publication-hash:${documentSignalHash}`,
       { expire: 0 }
     )
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[

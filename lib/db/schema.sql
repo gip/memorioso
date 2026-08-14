@@ -45,6 +45,12 @@ CREATE TABLE publications (
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX idx_publications_world_id_signal_hash
+    ON publications ((LOWER(proof->>'signal_hash')));
+
+CREATE INDEX idx_publications_agent_document_signal_hash
+    ON publications ((LOWER(proof->'agent_document_signature'->>'document_signal_hash')));
+
 CREATE TABLE drafts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

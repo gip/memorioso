@@ -4,6 +4,7 @@ import {
   CanonicalPublicationPage,
   canonicalPublicationMetadata,
 } from '@/components/CanonicalPublicationPage'
+import { ArticleSkeleton } from '@/components/Publication/ArticleSkeleton'
 
 type Params = Promise<{ publicationId: string }>
 
@@ -19,7 +20,7 @@ async function Article({ params }: { params: Params }) {
 
 export default function Page({ params }: { params: Params }) {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<ArticleSkeleton />}>
       <Article params={params} />
     </Suspense>
   )

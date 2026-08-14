@@ -48,7 +48,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         a.handle AS author_handle,
         a.bio AS author_bio
        FROM drafts d
-       INNER JOIN authors a ON a.id = d."authorId"
+       INNER JOIN authors a ON a.id = d."authorId" AND a."userId" = d."userId"
        WHERE d.id = $1 AND d."userId" = $2 AND d.status = $3`,
       [draftId, authenticatedUser.id, 'editing']
     )

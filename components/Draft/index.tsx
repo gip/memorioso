@@ -56,6 +56,7 @@ import {
   publicationPath,
   validatePublicationForKind,
 } from '@/lib/publication-kind'
+import { announceDraftShortcutUpdate } from '@/lib/draft-events'
 
 type DraftData = {
   id?: string
@@ -104,6 +105,8 @@ type PendingFinalize = {
   draftId: string
   payload: FinalizePublishPayload
 }
+
+const LAST_AUTHOR_KEY_PREFIX = 'memorioso:lastAuthorId:'
 
 const AlertDestructive = ({ message }: { message: string }) => {
   return (
@@ -189,7 +192,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
-  const { status, signInWithWorldId } = useWorldIdAuth()
+  const { status, user, signInWithWorldId } = useWorldIdAuth()
   const isAuthenticated = status === 'authenticated'
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
@@ -204,6 +207,16 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   useEffect(() => {
     setCurrentDraftId(draftId)
   }, [draftId])
+
+  useEffect(() => {
+    if (status !== 'authenticated' || loading || !currentDraftId || !draft) return
+    announceDraftShortcutUpdate({
+      id: currentDraftId,
+      title: draft.title,
+      content: draft.content,
+      publicationType: draft.publicationType,
+    })
+  }, [currentDraftId, draft, loading, status])
 
   // Restore anonymous work into a fresh editor. Only for /d/new: an existing
   // draft id always wins over whatever is on this device.
@@ -243,6 +256,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
   const setAuthorId = (authorId: string | null) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, authorId } as DraftData : null)
+    if (user && authorId) {
+      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, authorId)
+    }
   }
 
   useEffect(() => {
@@ -295,12 +311,20 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     fetchAuthors()
   }, [fetchAuthors, status])
 
-  // Auto-assign the author when the writer has exactly one identity.
+  // Preserve a draft's author, otherwise restore the last owned identity and
+  // fall back to the primary signup author.
   useEffect(() => {
-    if (authors.length === 1) {
-      setDraft((prev) => (prev && !prev.authorId ? { ...prev, authorId: authors[0].id } : prev))
-    }
-  }, [authors])
+    if (!user || authors.length === 0) return
+    setDraft((prev) => {
+      if (!prev || prev.authorId) return prev
+      const rememberedId = window.localStorage.getItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`)
+      const selected = authors.find((author) => author.id === rememberedId)
+        || authors.find((author) => author.isPrimary)
+        || authors[0]
+      window.localStorage.setItem(`${LAST_AUTHOR_KEY_PREFIX}${user.id}`, selected.id)
+      return { ...prev, authorId: selected.id }
+    })
+  }, [authors, user])
 
   const handleSave = async () => {
     try {
@@ -557,7 +581,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const handleDelete = async () => {
     if (!currentDraftId) return
     try {
-      const raw = await fetch(`/api/draft?id=${currentDraftId}`, {
+      const raw = await fetch(`/api/draft/${currentDraftId}`, {
         method: 'DELETE',
       })
       const response = await raw.json()

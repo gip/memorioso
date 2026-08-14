@@ -47,6 +47,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
 
   const { draftId } = await context.params;
   const { id, title, subtitle, content, history, authorId } = await req.json();
+  const normalizedAuthorId = authorId ?? null;
 
   if (draftId !== id) {
     return NextResponse.json({ success: false, message: "Draft ID mismatch" }, { status: 400 });
@@ -56,9 +57,23 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
     return NextResponse.json({ success: false, message: "Draft ID is required" }, { status: 400 });
   }
 
+  if (normalizedAuthorId !== null && typeof normalizedAuthorId !== 'string') {
+    return NextResponse.json({ success: false, message: "Author ID must be a string" }, { status: 400 });
+  }
+
   const client = await pool.connect();
 
   try {
+    if (normalizedAuthorId) {
+      const authorResult = await client.query(
+        'SELECT id FROM authors WHERE id::text = $1 AND "userId" = $2',
+        [normalizedAuthorId, authenticatedUser.id]
+      );
+      if (authorResult.rows.length === 0) {
+        return NextResponse.json({ success: false, message: "Author not found" }, { status: 400 });
+      }
+    }
+
     const historyValue = history ?? { history: null };
 
     const draftResult = await client.query(
@@ -66,7 +81,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
        SET title = $1, subtitle = $2, content = $3, history = $4, "authorId" = $5
        WHERE id = $6 AND "userId" = $7 AND status = $8
        RETURNING *, publication_type AS "publicationType"`,
-      [title, subtitle, content, historyValue, authorId, id, authenticatedUser.id, 'editing']
+      [title, subtitle, content, historyValue, normalizedAuthorId, id, authenticatedUser.id, 'editing']
     );
 
     if (draftResult.rows.length === 0) {
@@ -84,5 +99,47 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
     }, { status: 500 });
   } finally {
     client.release();
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ draftId: string }> }
+): Promise<NextResponse> {
+  const authenticatedUser = await getAuthenticatedUser(req)
+  if (!authenticatedUser) {
+    return NextResponse.json(
+      { success: false, message: 'Authentication required' },
+      { status: 401 }
+    )
+  }
+
+  const { draftId } = await context.params
+  if (!draftId) {
+    return NextResponse.json(
+      { success: false, message: 'Draft ID is required' },
+      { status: 400 }
+    )
+  }
+
+  const client = await pool.connect()
+  try {
+    const result = await client.query(
+      `DELETE FROM drafts
+       WHERE id = $1 AND "userId" = $2 AND status = $3
+       RETURNING id`,
+      [draftId, authenticatedUser.id, 'editing']
+    )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Draft not found or you do not have permission to delete it' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ success: true, draftId })
+  } finally {
+    client.release()
   }
 }

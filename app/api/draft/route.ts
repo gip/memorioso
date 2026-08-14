@@ -11,6 +11,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { title, subtitle, content, history, authorId, publicationType } = await req.json();
+  const normalizedAuthorId = authorId ?? null;
+
+  if (normalizedAuthorId !== null && typeof normalizedAuthorId !== 'string') {
+    return NextResponse.json({ success: false, message: "Author ID must be a string" }, { status: 400 });
+  }
 
   const normalizedPublicationType = publicationType ?? 'article';
   if (!isPublicationKind(normalizedPublicationType)) {
@@ -20,13 +25,23 @@ export async function POST(req: NextRequest) {
   const client = await pool.connect();
 
   try {
+    if (normalizedAuthorId) {
+      const authorResult = await client.query(
+        'SELECT id FROM authors WHERE id::text = $1 AND "userId" = $2',
+        [normalizedAuthorId, authenticatedUser.id]
+      );
+      if (authorResult.rows.length === 0) {
+        return NextResponse.json({ success: false, message: "Author not found" }, { status: 400 });
+      }
+    }
+
     const history0 = history || { history: null };
 
     const draftResult = await client.query(
       `INSERT INTO drafts ("userId", status, publication_type, title, subtitle, content, history, "authorId")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *, publication_type AS "publicationType"`,
-      [authenticatedUser.id, 'editing', normalizedPublicationType, title, subtitle, content, history0, authorId]
+      [authenticatedUser.id, 'editing', normalizedPublicationType, title, subtitle, content, history0, normalizedAuthorId]
     );
 
     const draft = draftResult.rows[0];

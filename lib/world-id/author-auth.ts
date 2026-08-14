@@ -1,7 +1,8 @@
 import type { IDKitResult } from '@worldcoin/idkit'
 import type { PoolClient } from 'pg'
 import { pool } from '@/lib/db'
-import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
+import { normalizeUserHandle } from '@/lib/handle'
+import { AuthorProfileValidationError, normalizeAuthorProfile } from '@/lib/authors'
 import {
   validateSessionCredentialResponses,
   validateWorldIdSessionResult,
@@ -83,28 +84,17 @@ function parseIdKitResult(payload: unknown): IDKitResult {
 }
 
 export function normalizeWorldIdAuthorProfile(value: unknown): WorldIdAuthorProfile {
-  if (typeof value !== 'object' || value === null) {
+  try {
+    return normalizeAuthorProfile(value)
+  } catch (error) {
     throw new WorldIdAuthorAuthError(
-      'A valid handle, name, and optional bio are required to create an author',
+      error instanceof AuthorProfileValidationError
+        ? error.message
+        : 'A valid handle, name, and optional bio are required to create an author',
       400,
       'INVALID_PROFILE',
     )
   }
-
-  const raw = value as Record<string, unknown>
-  const handle = typeof raw.handle === 'string' ? normalizeUserHandle(raw.handle) : ''
-  const name = typeof raw.name === 'string' ? raw.name.trim() : ''
-  const bio = typeof raw.bio === 'string' ? raw.bio.trim() : ''
-
-  if (!isValidUserHandle(handle) || name.length < 3 || name.length > 100 || bio.length > 2000) {
-    throw new WorldIdAuthorAuthError(
-      'A valid handle, name, and optional bio are required to create an author',
-      400,
-      'INVALID_PROFILE',
-    )
-  }
-
-  return { handle, name, bio: bio || null }
 }
 
 async function verifyIdentity(input: WorldIdAuthorAuthInput): Promise<VerifiedWorldIdIdentity> {
@@ -203,9 +193,10 @@ async function connectExistingAuthor(
 
   const user = userResult.rows[0]
   const authorResult = await client.query(
-    `SELECT id, name, handle, bio
-     FROM authors
-     WHERE "userId" = $1`,
+    `SELECT a.id, a.name, a.handle, a.bio
+     FROM authors a
+     INNER JOIN users u ON u.id = a."userId"
+     WHERE a."userId" = $1 AND a.handle = u.handle`,
     [user.id]
   )
   if (authorResult.rows.length === 0) {
@@ -249,10 +240,11 @@ async function createOrConnectAuthor(
   if (existingUserResult.rows.length > 0) {
     user = existingUserResult.rows[0]
     const existingAuthorResult = await client.query(
-      `SELECT id, name, handle, bio
-       FROM authors
-       WHERE "userId" = $1
-       FOR UPDATE`,
+      `SELECT a.id, a.name, a.handle, a.bio
+       FROM authors a
+       INNER JOIN users u ON u.id = a."userId"
+       WHERE a."userId" = $1 AND a.handle = u.handle
+       FOR UPDATE OF a`,
       [user.id]
     )
 

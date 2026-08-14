@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 
@@ -21,7 +22,7 @@ export const Feed = () => {
         const response = await raw.json();
         if(response.success) {
           const drafts = response.drafts;
-          setFeedItems(drafts)
+          setFeedItems(drafts.slice(0, 5))
           setFeedStatus('ready')
         }
       } catch (error) {
@@ -63,17 +64,13 @@ export const Feed = () => {
   // Width and section spacing come from the surrounding page container.
   return (
     <div>
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between gap-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Your Drafts
         </h2>
-        <button
-          type="button"
-          onClick={() => router.push('/d/new')}
-          className="text-xs text-blurple hover:underline"
-        >
-          New draft
-        </button>
+        <Link href="/activity" className="text-xs text-blurple hover:underline">
+          View activity
+        </Link>
       </div>
       {feedStatus === 'loading' && <FeedLoading />}
       {feedStatus === 'ready' && <FeedContent />}

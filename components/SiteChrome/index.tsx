@@ -16,6 +16,7 @@ import {
 import { Footer } from '@/components/Footer'
 import { HomeActions, getPrimarySiteAction } from '@/components/HomeActions'
 import { MemMark } from '@/components/MemMark'
+import { YourDraftsMobileMenu } from '@/components/YourDraftsButton'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
@@ -101,10 +102,8 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
               <DropdownMenuItem asChild>
                 <Link href={primaryAction.href}>{primaryAction.label}</Link>
               </DropdownMenuItem>
-              {pathname === '/' && isAuthenticated && (
-                <DropdownMenuItem asChild>
-                  <Link href="/#your-drafts">Your drafts</Link>
-                </DropdownMenuItem>
+              {isAuthenticated && (
+                <YourDraftsMobileMenu />
               )}
               <DropdownMenuItem asChild>
                 <Link href="/latest">Browse articles</Link>
@@ -126,7 +125,10 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
               ) : (
                 <>
                   <DropdownMenuItem asChild>
-                    <Link href="/#your-drafts">My drafts</Link>
+                    <Link href="/activity">My drafts</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/authors">My authors</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/info">Information</Link>

@@ -16,8 +16,8 @@ import { WorldIdRequestDialog, WorldIdSessionDialog } from './world-id-dialog'
 import './sidepanel.css'
 
 type User = { id: number; subject: string; handle: string }
-type Session = { user: User; expiresAt: string }
-type Author = { id: string; name: string; handle: string; bio: string | null }
+type Author = { id: string; name: string; handle: string; bio: string | null; isPrimary: boolean }
+type Session = { user: User; author: Author; authors: Author[]; expiresAt: string }
 type Capture = {
   tabId: number
   operationId?: string
@@ -81,6 +81,12 @@ export function isValidHandle(value: string): boolean {
   return USER_HANDLE_PATTERN.test(value)
 }
 
+function authorsForSession(session: Session | null): Author[] {
+  if (!session) return []
+  if (Array.isArray(session.authors) && session.authors.length > 0) return session.authors
+  return session.author ? [{ ...session.author, isPrimary: true }] : []
+}
+
 async function send<T>(message: Record<string, unknown>): Promise<T> {
   const response = await chrome.runtime.sendMessage(message) as ExtensionResponse<T>
   if (!response?.success) throw new Error(response?.message || 'The extension request failed')
@@ -90,6 +96,7 @@ async function send<T>(message: Record<string, unknown>): Promise<T> {
 export function App(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null)
   const [capture, setCapture] = useState<Capture | null>(null)
   const [text, setText] = useState('')
   const [job, setJob] = useState<SigningJob | null>(null)
@@ -130,11 +137,13 @@ export function App(): JSX.Element {
       session: Session | null
       capture: Capture | null
       job: SigningJob | null
+      selectedAuthorId: string | null
       autoCapture: AutoCapture | null
       followPages: boolean
     }>({ type: 'LIBRO_GET_SIGNING_STATE' })
       .then(async (state) => {
         setSession(state.session)
+        setSelectedAuthorId(state.selectedAuthorId)
         setCapture(state.capture)
         setText(state.capture?.text || state.job?.normalizedText || '')
         pageTextRef.current = state.capture?.text || ''
@@ -149,6 +158,11 @@ export function App(): JSX.Element {
           try {
             const restored = await send<Session>({ type: 'LIBRO_AUTH_SESSION' })
             setSession(restored)
+            const restoredAuthors = authorsForSession(restored)
+            const preferred = restoredAuthors.find((author) => author.id === state.selectedAuthorId)
+              || restoredAuthors.find((author) => author.isPrimary)
+              || restoredAuthors[0]
+            setSelectedAuthorId(preferred?.id || null)
           } catch {
             setSession(null)
           }
@@ -273,13 +287,18 @@ export function App(): JSX.Element {
     if (!authContext) throw new Error('The login attempt is missing')
     setProgress(authContext.intent === 'signup' ? 'Creating your Memorioso author…' : 'Verifying your Memorioso author…')
     try {
-      const restored = await send<Session & { author: Author; created: boolean }>({
+      const restored = await send<Session & { created: boolean; selectedAuthorId?: string | null }>({
         type: 'LIBRO_AUTH_VERIFY',
         attemptId: authContext.attemptId,
         idkitResult: result,
         profile: pendingProfile,
       })
       setSession(restored)
+      const restoredAuthors = authorsForSession(restored)
+      const selected = restoredAuthors.find((author) => author.id === restored.selectedAuthorId)
+        || restoredAuthors.find((author) => author.isPrimary)
+        || restoredAuthors[0]
+      setSelectedAuthorId(selected?.id || null)
       if (authContext.intent === 'signup') {
         setAuthNotice(restored.created
           ? `Created @${restored.author.handle}. Your captured text is ready to review.`
@@ -324,11 +343,20 @@ export function App(): JSX.Element {
   }
 
   async function startSigning(): Promise<void> {
+    const selectedAuthor = authorsForSession(session).find((author) => author.id === selectedAuthorId)
+    if (!selectedAuthor) {
+      setError('Choose an author before signing')
+      return
+    }
     setError(null)
     setCompletion(null)
     setProgress('Creating a public Memorioso publication…')
     try {
-      const response = await send<{ job: SigningJob }>({ type: 'LIBRO_CREATE_SIGNATURE', text })
+      const response = await send<{ job: SigningJob }>({
+        type: 'LIBRO_CREATE_SIGNATURE',
+        text,
+        authorId: selectedAuthor.id,
+      })
       setJob(response.job)
       setText(response.job.normalizedText || text)
       setProofOpen(true)
@@ -388,9 +416,20 @@ export function App(): JSX.Element {
   async function signOut(): Promise<void> {
     await send({ type: 'LIBRO_AUTH_LOGOUT' })
     setSession(null)
+    setSelectedAuthorId(null)
     setJob(null)
     setCompletion(null)
     setAuthNotice(null)
+  }
+
+  async function selectAuthor(authorId: string): Promise<void> {
+    if (!session || job) return
+    setSelectedAuthorId(authorId)
+    try {
+      await send({ type: 'LIBRO_SELECT_AUTHOR', userId: session.user.id, authorId })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not remember the selected author')
+    }
   }
 
   async function cancel(): Promise<void> {
@@ -525,6 +564,18 @@ export function App(): JSX.Element {
           <div className="account"><span>Connected as <strong>@{session.user.handle}</strong></span><button className="text-button" onClick={signOut}>Disconnect</button></div>
           <h2>{job ? 'Finish signing' : 'Review text'}</h2>
           {!job && <>
+            <label>
+              Publish as
+              <select
+                value={selectedAuthorId || ''}
+                onChange={(event) => selectAuthor(event.target.value)}
+                disabled={Boolean(progress)}
+              >
+                {authorsForSession(session).map((author) => (
+                  <option key={author.id} value={author.id}>{author.name} (@{author.handle})</option>
+                ))}
+              </select>
+            </label>
             <p className="muted">The normalized text below becomes a public Memorioso publication and an irreversible World Chain registration.</p>
             <textarea
               value={text}

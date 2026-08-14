@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ChevronDown,
   FileText,
-  Files,
   LogIn,
   MessageSquareText,
   PenLine,
@@ -23,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MemMark } from '@/components/MemMark'
+import { YourDraftsButton } from '@/components/YourDraftsButton'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export type PrimarySiteAction = {
@@ -37,7 +37,7 @@ export const getPrimarySiteAction = (
 ): PrimarySiteAction => {
   if (pathname.startsWith('/d/')) {
     return {
-      href: isAuthenticated ? '/#your-drafts' : '/',
+      href: isAuthenticated ? '/activity' : '/',
       label: isAuthenticated ? 'Back to drafts' : 'Back home',
       icon: 'back',
     }
@@ -155,13 +155,8 @@ export const HomeActions = ({ className }: { className?: string }) => {
           </Button>
         )}
 
-        {pathname === '/' && isAuthenticated && (
-          <Button variant="outline" className="justify-start px-3" asChild>
-            <Link href="/#your-drafts">
-              <Files className="h-4 w-4" />
-              Your drafts
-            </Link>
-          </Button>
+        {isAuthenticated && (
+          <YourDraftsButton />
         )}
 
         {isAuthenticated ? (
@@ -175,7 +170,10 @@ export const HomeActions = ({ className }: { className?: string }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuItem asChild>
-                <Link href="/#your-drafts">My drafts</Link>
+                <Link href="/activity">My drafts</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/authors">My authors</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/info">Information</Link>

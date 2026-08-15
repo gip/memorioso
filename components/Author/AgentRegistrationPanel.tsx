@@ -76,6 +76,8 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
 
   const loadRegistrations = useCallback(async () => {
     if (status !== 'authenticated') {
+      setCanManage(false)
+      setRegistrations([])
       return
     }
 
@@ -209,7 +211,7 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
     }
   }
 
-  if (!canManage) {
+  if (status !== 'authenticated' || !canManage) {
     return null
   }
 

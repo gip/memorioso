@@ -10,14 +10,17 @@ import Link from 'next/link'
 import { AgentRegistrationPanel } from './AgentRegistrationPanel'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import { publicationPath } from '@/lib/publication-kind'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Author = ({ author, publicationInfos, redirect = null, self = false }: { author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null, self?: boolean }) => {
   const router = useRouter()
+  const { status } = useWorldIdAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(author?.name || '')
   const [editBio, setEditBio] = useState(author?.bio || '')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const canEdit = self && status === 'authenticated'
 
   useEffect(() => {
     if (redirect) {
@@ -66,7 +69,7 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
         <div className="text-xs italic text-center text-gray-500">This author was created by a human on Memorioso. Publications are labeled as direct human work or human-authorized agent work.<br />The author identity itself is human-controlled.</div>
       </div>
       <div className="space-y-8 py-8">
-        {isEditing ? (
+        {canEdit && isEditing ? (
           <div className="space-y-4 max-w-md mx-auto">
             {error && <div className="text-sm text-destructive">{error}</div>}
             <div className="flex flex-col gap-1">
@@ -122,7 +125,7 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
                   {`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`}
                 </a></span>
             </div>
-            {self && (
+            {canEdit && (
               <div>
                 <Button variant="outline" size="sm" onClick={startEditing}>Edit profile</Button>
               </div>

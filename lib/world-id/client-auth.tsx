@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   CredentialRequest,
   IDKitSessionWidget,
@@ -129,6 +130,7 @@ export function useWorldIdAuth(): WorldIdAuthContextValue {
 }
 
 export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const [user, setUser] = useState<WorldIdSessionUser | null>(null)
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -297,12 +299,16 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setIsLoginDialogOpen(false)
     setPendingLogin(null)
     setIsWorldAppLoginPending(false)
-    await fetch('/api/auth/logout', {
+    const response = await fetch('/api/auth/logout', {
       method: 'POST',
     })
+    if (!response.ok) {
+      throw new Error('Failed to log out')
+    }
     setUser(null)
     setStatus('unauthenticated')
-  }, [])
+    router.refresh()
+  }, [router])
 
   const value = useMemo<WorldIdAuthContextValue>(() => ({
     user,

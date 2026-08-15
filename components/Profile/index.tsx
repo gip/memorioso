@@ -11,7 +11,7 @@ import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type ManagedAuthor = Author & { isPrimary: boolean }
 
-export const AuthorsManager = () => {
+export const Profile = ({ subject }: { subject: string }) => {
   const [author, setAuthor] = useState<ManagedAuthor | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +66,7 @@ export const AuthorsManager = () => {
   return (
     <div className="space-y-6 py-6 sm:py-10">
       <div>
-        <h1 className="text-2xl font-semibold">Author identity</h1>
+        <h1 className="text-2xl font-semibold">Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           This login controls exactly one permanent handle. Your display name and bio remain editable.
         </p>
@@ -101,6 +101,17 @@ export const AuthorsManager = () => {
           This signs out and creates a fresh, unlinkable World ID session. It does not add a second handle to this login.
         </p>
         <Button className="mt-3" variant="outline" onClick={createAnotherHandle}>Create another handle</Button>
+      </div>
+
+      <div className="rounded-lg border p-4">
+        <h2 className="font-medium">World ID</h2>
+        <p className="mt-2 break-all rounded-lg bg-gray-100 px-3 py-2 text-center text-xs">
+          {subject}
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This unique ID is the only information we store about you. It is application-specific and
+          cannot be traced.
+        </p>
       </div>
     </div>
   )

@@ -173,10 +173,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
                 <Link href="/activity">My drafts</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/authors">My authors</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/info">Information</Link>
+                <Link href="/profile">Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

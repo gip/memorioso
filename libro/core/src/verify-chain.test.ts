@@ -43,7 +43,8 @@ vi.mock('viem', async () => {
               topics: [
                 TOPIC0,
                 receipt === 'wrong-signal' ? toHex(1n, { size: 32 }) : toHex(BigInt(SIGNAL_HASH), { size: 32 }),
-                toHex(BigInt(ACTION_HASH), { size: 32 }),
+                publication.author_handle_hash_libro,
+                toHex(9n, { size: 32 }),
               ],
               data: '0x',
             }],
@@ -65,7 +66,6 @@ const {
   LibroRegistrationPendingFinalityError,
   LibroRegistrationUnconfirmedError,
   LibroChainUnavailableError,
-  actionHashToHex,
   canonicalPublicationSignal,
   hashPublicationSignal,
   libroRpcLabel,
@@ -80,24 +80,24 @@ const {
 } = await import('./index')
 
 const REGISTRY = LIBRO_V1_REGISTRY_ADDRESS
-const TOPIC0 = keccak256(toBytes('SignalRegistered(uint256,uint256)'))
+const TOPIC0 = keccak256(toBytes('HumanDocumentRegistered(uint256,bytes32,uint256)'))
 const publication = {
   publication_schema: LIBRO_PUBLICATION_SCHEMA_V1,
   libro_protocol_version: LIBRO_PROTOCOL_VERSION,
   world_id_protocol_version: '4.0' as const,
-  world_id_action: 'written-by-a-human-v4-chain-test',
+  world_id_proof_type: 'session' as const,
   world_id_credential_policy: 'orb' as const,
   author_id_libro: 'author-1',
   publication_date: '2026-07-27T00:10:31.296Z',
   author_name_libro: 'Ada',
   author_handle_libro: 'ada',
+  author_handle_hash_libro: keccak256(toBytes('ada')),
   author_bio_libro: '',
   publication_title: '',
   publication_content: { html: '<p>Hello human world.</p>' },
   publication_subtitle: '',
 }
 const SIGNAL_HASH = hashPublicationSignal(canonicalPublicationSignal(publication))
-const ACTION_HASH = actionHashToHex(publication.world_id_action)
 
 function manifest() {
   return {
@@ -108,7 +108,8 @@ function manifest() {
       chain_id: 480 as const,
       registry_address: REGISTRY,
       signal_hash: SIGNAL_HASH,
-      action_hash: ACTION_HASH,
+      handle_hash: publication.author_handle_hash_libro,
+      authorship_class: 'human' as const,
       transaction_hash: `0x${'11'.repeat(32)}` as `0x${string}`,
     },
   }

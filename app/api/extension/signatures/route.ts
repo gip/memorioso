@@ -13,7 +13,7 @@ import {
   normalizeInlineSigningText,
 } from '@/lib/libro/inline'
 import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
-import { createPublishAction, createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
+import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import { normalizedUnicodeLength } from '@libro/core'
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }, { status: 500 })
   }
 
-  const body = await request.json().catch(() => null) as { text?: unknown, authorId?: unknown } | null
+  const body = await request.json().catch(() => null) as { text?: unknown } | null
   const normalizedText = typeof body?.text === 'string' ? normalizeInlineSigningText(body.text) : ''
   if (!normalizedText) {
     return NextResponse.json({ success: false, message: 'Text is required' }, { status: 400 })
@@ -51,10 +51,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: `Inline signatures are limited to ${MAX_INLINE_TEXT_LENGTH.toLocaleString()} characters`,
     }, { status: 400 })
   }
-  if (body?.authorId !== undefined && body.authorId !== null && typeof body.authorId !== 'string') {
-    return NextResponse.json({ success: false, message: 'Author ID must be a string' }, { status: 400 })
-  }
-  const authorId = typeof body?.authorId === 'string' ? body.authorId : null
 
   let worldIdConfig
   try {
@@ -71,22 +67,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await client.query('BEGIN')
     const authorResult = await client.query(
-      `SELECT a.id, a.name, a.handle, a.bio
+      `SELECT a.id, a.name, a.handle, a.bio,
+              u.world_id_session_id, u.world_id_session_commitment
        FROM authors a
        INNER JOIN users u ON u.id = a."userId"
        WHERE a."userId" = $1
-         AND ($2::text IS NULL OR a.id::text = $2)
-       ORDER BY (a.handle = u.handle) DESC, a.created_at ASC
+         AND a.handle = u.handle
+       ORDER BY a.created_at ASC
        LIMIT 1
        FOR SHARE OF a`,
-      [session.user.id, authorId]
+      [session.user.id]
     )
     if (authorResult.rows.length === 0) {
       await client.query('ROLLBACK')
       return NextResponse.json({
         success: false,
-        message: authorId ? 'Author not found' : 'This Memorioso account has no author',
-      }, { status: authorId ? 400 : 409 })
+        message: 'This Memorioso account has no author',
+      }, { status: 409 })
     }
 
     const author = authorResult.rows[0]
@@ -99,7 +96,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
     const draftId = draftResult.rows[0].id as string
     const challengeId = randomUUID()
-    const action = createPublishAction(challengeId, worldIdConfig.publishActionPrefix)
     const publicationDate = new Date().toISOString()
     const publication = createLibroPublicationV1({
       author: {
@@ -112,22 +108,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       subtitle: '',
       content,
       publicationDate,
-      action,
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)
-    const rpContext = createRpContext(worldIdConfig, action)
+    const rpContext = createRpContext(worldIdConfig)
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
-        (id, "userId", "draftId", action, nonce, signal_text, signal_hash, publication, expires_at)
+        (id, "userId", "draftId", nonce, session_commitment, signal_text, signal_hash, publication, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))`,
       [
         challengeId,
         session.user.id,
         draftId,
-        action,
         rpContext.nonce,
+        author.world_id_session_commitment,
         signalText,
         signalHash,
         publication,
@@ -144,9 +139,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       normalizedText,
       author: { id: author.id, name: author.name, handle: author.handle },
       appId: worldIdConfig.appId,
-      action,
       environment: worldIdConfig.environment,
       rpContext,
+      existingSessionId: author.world_id_session_id,
       signalText,
       signalHash,
       credentialPolicy: WORLD_ID_CREDENTIAL_POLICY,

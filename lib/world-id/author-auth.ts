@@ -6,6 +6,7 @@ import { AuthorProfileValidationError, normalizeAuthorProfile } from '@/lib/auth
 import {
   validateSessionCredentialResponses,
   validateWorldIdSessionResult,
+  sessionIdToCommitment,
 } from '@/lib/world-id/proof'
 import { getWorldIdServerConfig, verifyWorldIdProof } from '@/lib/world-id/server'
 
@@ -73,6 +74,7 @@ type VerifiedWorldIdIdentity = {
   subject: string
   worldIdSessionId: string
   sessionNullifier: string
+  sessionCommitment: string
   credentialIdentifier: string
 }
 
@@ -153,6 +155,7 @@ async function verifyIdentity(input: WorldIdAuthorAuthInput): Promise<VerifiedWo
   return {
     subject: `world-id-session:${validatedResult.session_id}`,
     worldIdSessionId: validatedResult.session_id,
+    sessionCommitment: sessionIdToCommitment(validatedResult.session_id),
     sessionNullifier: validatedResult.responses[0].session_nullifier[0],
     credentialIdentifier: credentialIdentifiers[0],
   }
@@ -168,19 +171,23 @@ async function connectExistingAuthor(
       `UPDATE users
        SET world_id_session_nullifier = $2,
            world_id_credential_identifier = $3,
+           world_id_session_commitment = $4,
+           libro_identity_status = 'session_bound',
            modified_at = CURRENT_TIMESTAMP
        WHERE world_id_session_id = $1
        RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
-      [identity.worldIdSessionId, identity.sessionNullifier, identity.credentialIdentifier]
+      [identity.worldIdSessionId, identity.sessionNullifier, identity.credentialIdentifier, identity.sessionCommitment]
     )
     : await client.query(
       `UPDATE users
        SET world_id_session_nullifier = $2,
            world_id_credential_identifier = $3,
+           world_id_session_commitment = $5,
+           libro_identity_status = 'session_bound',
            modified_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND world_id_session_id = $4
        RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
-      [expectedUserId, identity.sessionNullifier, identity.credentialIdentifier, identity.worldIdSessionId]
+      [expectedUserId, identity.sessionNullifier, identity.credentialIdentifier, identity.worldIdSessionId, identity.sessionCommitment]
     )
 
   if (userResult.rows.length === 0) {
@@ -255,10 +262,12 @@ async function createOrConnectAuthor(
          SET handle = COALESCE(handle, $2),
              world_id_session_nullifier = $3,
              world_id_credential_identifier = $4,
+             world_id_session_commitment = $5,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
-        [user.id, author.handle, identity.sessionNullifier, identity.credentialIdentifier]
+        [user.id, author.handle, identity.sessionNullifier, identity.credentialIdentifier, identity.sessionCommitment]
       )
       user = updatedUser.rows[0]
     } else if (user.handle) {
@@ -273,10 +282,12 @@ async function createOrConnectAuthor(
         `UPDATE users
          SET world_id_session_nullifier = $2,
              world_id_credential_identifier = $3,
+             world_id_session_commitment = $4,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
-        [user.id, identity.sessionNullifier, identity.credentialIdentifier]
+        [user.id, identity.sessionNullifier, identity.credentialIdentifier, identity.sessionCommitment]
       )
       user = updatedUser.rows[0]
     } else {
@@ -285,10 +296,12 @@ async function createOrConnectAuthor(
          SET handle = $2,
              world_id_session_nullifier = $3,
              world_id_credential_identifier = $4,
+             world_id_session_commitment = $5,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1 AND handle IS NULL
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
-        [user.id, profile.handle, identity.sessionNullifier, identity.credentialIdentifier]
+        [user.id, profile.handle, identity.sessionNullifier, identity.credentialIdentifier, identity.sessionCommitment]
       )
       user = claimedUser.rows[0]
       const authorResult = await client.query(
@@ -303,13 +316,14 @@ async function createOrConnectAuthor(
   } else {
     const userResult = await client.query(
       `INSERT INTO users
-        (name, handle, world_id_session_id, world_id_session_nullifier, world_id_credential_identifier)
-       VALUES ($1, $2, $3, $4, $5)
+        (name, handle, world_id_session_id, world_id_session_commitment, world_id_session_nullifier, world_id_credential_identifier)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
       [
         identity.subject,
         profile.handle,
         identity.worldIdSessionId,
+        identity.sessionCommitment,
         identity.sessionNullifier,
         identity.credentialIdentifier,
       ]

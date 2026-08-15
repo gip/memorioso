@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CredentialRequest,
-  IDKitRequestWidget,
-  any as anyCredential,
-  type IDKitResult,
+  IDKitSessionWidget,
+  type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
@@ -32,9 +31,9 @@ type AgentRegistrationRow = {
 type AgentRegistrationContext = {
   registrationId: string
   appId: `app_${string}`
-  action: string
   environment: 'production' | 'staging'
   rpContext: RpContext
+  existingSessionId: `session_${string}`
   signal: string
   signalHash: string
 }
@@ -77,6 +76,8 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
 
   const loadRegistrations = useCallback(async () => {
     if (status !== 'authenticated') {
+      setCanManage(false)
+      setRegistrations([])
       return
     }
 
@@ -119,9 +120,9 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
       setContext({
         registrationId: response.registrationId,
         appId: response.appId,
-        action: response.action,
         environment: response.environment,
         rpContext: response.rpContext,
+        existingSessionId: response.existingSessionId,
         signal: response.signal,
         signalHash: response.signalHash,
       })
@@ -132,7 +133,7 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
     }
   }
 
-  const handleWorldIdResult = async (idkitResult: IDKitResult) => {
+  const handleWorldIdResult = async (idkitResult: IDKitResultSession) => {
     if (!context) {
       throw new Error('Agent registration context is missing')
     }
@@ -210,26 +211,24 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
     }
   }
 
-  if (!canManage) {
+  if (status !== 'authenticated' || !canManage) {
     return null
   }
 
   const constraints = context
-    ? anyCredential(
-      CredentialRequest('proof_of_human', { signal: context.signal })
-    )
+    ? CredentialRequest('proof_of_human', { signal: context.signal })
     : null
 
   return (
     <div className="space-y-3 border-t pt-6">
       {context && constraints && (
-        <IDKitRequestWidget
+        <IDKitSessionWidget
           open={isWorldIdOpen}
           onOpenChange={setIsWorldIdOpen}
           app_id={context.appId}
-          action={context.action}
           rp_context={context.rpContext}
-          allow_legacy_proofs={false}
+          existing_session_id={context.existingSessionId}
+          require_user_presence={true}
           environment={context.environment}
           constraints={constraints}
           handleVerify={handleWorldIdResult}

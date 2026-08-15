@@ -21,8 +21,8 @@ export type PublishChallengeRow = {
   id: string
   userId: number
   draftId: string
-  action: string
   nonce: string
+  session_commitment: string
   signal_text: string
   signal_hash: string
   publication: PublicationV2 | LibroPublicationV1
@@ -76,7 +76,8 @@ export async function getLockedDraftForPublish(
       a.handle AS author_handle,
       a.bio AS author_bio
      FROM drafts d
-     INNER JOIN authors a ON a.id = d."authorId"
+     INNER JOIN authors a ON a.id = d."authorId" AND a."userId" = d."userId"
+     INNER JOIN users u ON u.id = d."userId" AND u.handle = a.handle
      WHERE d.id = $1 AND d."userId" = $2
      FOR UPDATE`,
     [draftId, userId]
@@ -135,7 +136,6 @@ export function assertDraftMatchesChallenge(
     subtitle: draft.subtitle || '',
     content: draft.content,
     publicationDate: storedPublication.publication_date,
-    action: challenge.action,
   }
   const validationError = validatePublicationForKind({
     kind: draft.publicationType,

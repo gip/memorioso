@@ -12,13 +12,14 @@ Direct Libro publications require `world_id_credential_policy: "orb"` and reject
 
 ## World ID 4.0 Mapping
 
-For a v4 uniqueness proof, map the first accepted credential response:
+For a v4 session proof, map the first accepted credential response:
 
-- `proof.nullifier` = `BigInt(response.nullifier)`
+- `proof.sessionCommitment` = the first 32 bytes of the verified `session_id`
 - `proof.nonce` = `BigInt(idkitResult.nonce)`
 - `proof.expiresAtMin` = `response.expires_at_min`
 - `proof.issuerSchemaId` = `response.issuer_schema_id`
 - `proof.credentialGenesisIssuedAtMin` = `response.credential_genesis_issued_at_min ?? 0`
+- `proof.sessionNullifier` = `response.session_nullifier` as exactly two `uint256` values
 - `proof.zeroKnowledgeProof` = `response.proof` as exactly five `uint256` values
 
 The registry constructor fixes:
@@ -26,19 +27,20 @@ The registry constructor fixes:
 - World ID v4 verifier address
 - numeric `rpId` (`uint64`), derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_`
 
-Each publication uses a one-time World ID action shaped as `written-by-a-human-v4-<challengeId>`. The app hashes that full action string and passes the resulting field element to the registry with the proof.
+Session requests have no action and use the canonical publication JSON as the credential signal. Direct publication does not force an additional user-presence check; agent authorization does.
 
 ## Contract ABI
 
 ```solidity
-function register(uint256 signalHash, uint256 actionHash, WorldIdV4Proof calldata proof) external;
-function verify(uint256 signalHash) external view returns (bool);
-event SignalRegistered(uint256 indexed signalHash, uint256 indexed actionHash);
+function claimHandleAndRegisterHumanDocument(string calldata handle, uint256 signalHash, WorldIdSessionProof calldata proof) external;
+function registerHumanDocument(bytes32 handleHash, uint256 signalHash, WorldIdSessionProof calldata proof) external;
+function verifyHumanDocument(uint256 signalHash, bytes32 handleHash) external view returns (bool);
+event HumanDocumentRegistered(uint256 indexed signalHash, bytes32 indexed handleHash, uint256 indexed sessionNullifier);
 ```
 
-`LibroProofRegistry` is permissionless. Any account, relayer, backend, or MiniKit wallet can call `register` as long as the calldata contains a valid World ID proof for the signal. The caller is not part of the proof.
+Handle claims and submission are permissionless. An unclaimed normalized handle is permanently assigned to the first valid World ID session proof, and later proofs must resolve to that registered session commitment.
 
-The registry stores only `mapping(uint256 => bool)` for signal existence. It does not store wallet addresses or nullifiers. Reusing the same nullifier for multiple distinct signals is allowed so one human can publish multiple documents.
+The registry stores bidirectional handle/session mappings, consumes session nullifiers, and stores the handle for every document. Claims cannot be transferred or overwritten.
 
 ## Transaction Submission
 
@@ -64,16 +66,16 @@ Independent verification recomputes the canonical signal hash and calls:
 ```ts
 const registered = await publicClient.readContract({
   address: registryAddress,
-  abi: libroProofRegistryAbi,
-  functionName: 'verify',
-  args: [BigInt(signalHash)],
+  abi: libroRegistryAbi,
+  functionName: 'verifyHumanDocument',
+  args: [BigInt(signalHash), handleHash],
 });
 ```
 
 The result is true only if the signal was previously registered through a successful World ID verifier call.
 
-For website embeds, also recompute readable text from both the embedded DOM and `publication_content.html`, validate the approved chain and registry, and confirm the declared registration receipt emitted `SignalRegistered` with the expected signal and action hashes. See [embed.md](embed.md).
+For website embeds, also compare the payload handle hash with `HumanDocumentRegistered`. See [embed.md](embed.md).
 
 ## Privacy Note
 
-Libro v1 uses per-challenge actions such as `written-by-a-human-v4-<challengeId>`. World ID v4 nullifiers are stable for a human/RP/action, so changing the action per publication avoids reusing the same nullifier across direct human publications.
+Only the public 32-byte session commitment is used on-chain. The 32-byte proving seed and full 64-byte session identifier must stay server-side.

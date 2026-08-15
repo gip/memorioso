@@ -8,7 +8,10 @@ export function isLegacyPublication(publication: Pick<PublicationRecord, 'versio
 }
 
 export function isWorldIdV4Proof(proof?: Proof | null): proof is Extract<Proof, { protocol_version: '4.0' }> {
-  return Boolean(proof && 'protocol_version' in proof && proof.protocol_version === '4.0')
+  return Boolean(
+    proof && 'protocol_version' in proof && proof.protocol_version === '4.0' &&
+    'proof_type' in proof && proof.proof_type === 'session'
+  )
 }
 
 export function isLibroRegisteredProof(

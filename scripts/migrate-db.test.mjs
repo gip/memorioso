@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import {
+  assertDestructiveMigrationConfirmed,
   buildMigrationPlan,
   parseMigrationFileNames,
   selectMigrationDatabaseUrl,
 } from './migrate-db.mjs'
+
+it('requires an explicit backup confirmation for destructive migration 013', () => {
+  const migration = { version: 13, fileName: '013_session_bound_handles.sql' }
+  expect(() => assertDestructiveMigrationConfirmed(migration, {})).toThrow('Back up Postgres')
+  expect(() => assertDestructiveMigrationConfirmed(migration, {
+    MEMORIOSO_DB_BACKUP_CONFIRMED: '013_session_bound_handles',
+  })).not.toThrow()
+  expect(() => assertDestructiveMigrationConfirmed({ version: 12 }, {})).not.toThrow()
+})
 
 describe('database migration runner', () => {
   it('discovers migrations in numeric order without requiring consecutive versions', () => {
@@ -73,6 +83,23 @@ describe('database migration runner', () => {
     for (const sql of [migration, schema]) {
       expect(sql).toContain('idx_libro_publish_registrations_one_finalized_draft')
       expect(sql).toContain('WHERE finalized_at IS NOT NULL')
+    }
+  })
+
+  it('preserves pre-session identities while enforcing complete new session identities', async () => {
+    const [migration, schema] = await Promise.all([
+      readFile(new URL('../lib/db/migrations/013_session_bound_handles.sql', import.meta.url), 'utf8'),
+      readFile(new URL('../lib/db/schema.sql', import.meta.url), 'utf8'),
+    ])
+
+    expect(migration).toContain('WITH ranked_authors AS')
+    expect(migration).toContain("DEFAULT 'legacy'")
+    expect(migration).toContain("SET libro_identity_status = 'session_bound'")
+    expect(migration).not.toContain('ALTER COLUMN handle SET NOT NULL')
+    expect(migration).not.toContain('ALTER COLUMN world_id_session_id SET NOT NULL')
+    for (const sql of [migration, schema]) {
+      expect(sql).toContain('users_session_bound_identity_complete')
+      expect(sql).toContain("libro_identity_status = 'legacy'")
     }
   })
 })

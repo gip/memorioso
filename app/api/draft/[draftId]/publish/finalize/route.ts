@@ -139,7 +139,8 @@ export async function PUT(
     const pendingResult = await pool.query(
       `SELECT
          r.signal_hash,
-         r.action_hash,
+         r.handle_hash,
+         r.session_commitment,
          r.chain_id,
          r.registry_address,
          r.transaction_hash,
@@ -202,7 +203,7 @@ export async function PUT(
       isRegistered = await verifyLibroRegistrationTransaction({
         transactionHash,
         signalHash: pending.signal_hash,
-        actionHash: pending.action_hash,
+        handleHash: pending.handle_hash,
         registryAddress: pending.registry_address,
       }, libroConfig)
     } catch (error) {
@@ -347,7 +348,8 @@ export async function PUT(
           chain_id: libroConfig.chainId,
           registry_address: libroConfig.registryAddress,
           signal_hash: challenge.signal_hash,
-          action_hash: registration.action_hash,
+          handle_hash: registration.handle_hash,
+          authorship_class: 'human',
           ...(userOpHash ? { user_op_hash: userOpHash.toLowerCase() } : {}),
           transaction_hash: transactionHash.toLowerCase(),
           registered_at: registeredAt,
@@ -383,6 +385,20 @@ export async function PUT(
          SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP, "publicationId" = $3
          WHERE id = $4`,
         [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), articleResult.rows[0].id, registrationId]
+      )
+
+      await client.query(
+        `INSERT INTO libro_handle_claims
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         ON CONFLICT ("userId") DO NOTHING`,
+        [
+          authenticatedUser.id,
+          storedPublication.author_handle_libro,
+          registration.handle_hash,
+          registration.session_commitment,
+          transactionHash.toLowerCase(),
+        ]
       )
 
       stage = 'commit'

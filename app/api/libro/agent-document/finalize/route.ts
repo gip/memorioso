@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   let stage = 'lookup'
   try {
     const pendingResult = await pool.query(
-      `SELECT d.document_signal_hash, d.finalized_at, d."publicationId", p.signal
+      `SELECT d.document_signal_hash, d.handle_hash, d.finalized_at, d."publicationId", p.signal
        FROM libro_agent_document_registrations d
        LEFT JOIN publications p ON p.id = d."publicationId"
        WHERE d.id = $1`,
@@ -91,7 +91,9 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     stage = 'chain_verify'
     const isRegistered = await verifyLibroAgentDocumentRegistered(
       pendingResult.rows[0].document_signal_hash,
-      agentConfig
+      pendingResult.rows[0].handle_hash,
+      agentConfig,
+      transactionHash
     )
     if (!isRegistered) {
       return NextResponse.json({

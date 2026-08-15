@@ -17,6 +17,7 @@ import { Footer } from '@/components/Footer'
 import { HomeActions, getPrimarySiteAction } from '@/components/HomeActions'
 import { MemMark } from '@/components/MemMark'
 import { YourDraftsMenuGroup } from '@/components/YourDraftsButton'
+import { isAuthRequiredPath } from '@/lib/auth-routes'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
@@ -35,6 +36,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
   const authMessage = accountError || authError
   const primaryAction = getPrimarySiteAction(pathname, isAuthenticated)
   const showMobileBackButton = pathname !== '/'
+  const shouldRedirectAfterLogout = status === 'unauthenticated' && isAuthRequiredPath(pathname)
 
   const handleSignIn = () => {
     setAccountError(null)
@@ -53,6 +55,10 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (user) setAccountError(null)
   }, [user])
+
+  useEffect(() => {
+    if (shouldRedirectAfterLogout) router.replace('/')
+  }, [router, shouldRedirectAfterLogout])
 
   return (
     <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
@@ -176,7 +182,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
 
         <div className="min-h-full min-w-0 lg:col-start-2 lg:row-start-1 lg:h-full lg:min-h-0 lg:overscroll-y-contain lg:overflow-y-auto lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden">
           <div className="flex min-h-full min-w-0 flex-col lg:mx-auto lg:w-full lg:max-w-[700px]">
-            {children}
+            {!shouldRedirectAfterLogout && children}
           </div>
         </div>
 

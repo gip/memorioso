@@ -1,22 +1,22 @@
 ---
 name: libro
-description: Use when building with the Libro protocol for human-signed document registration: canonical publication signals, World ID 4.0 proof mapping, MiniKit registration transactions, and on-chain verification through LibroProofRegistry.
+description: Use when building with Libro session-bound handles, World ID 4.0 session proofs, canonical document registration, agents, and verification through LibroRegistry.
 ---
 
 # Libro Protocol
 
 Use this skill when implementing or reviewing Libro registration and verification flows.
 
-Libro v1 proves that a World ID 4.0 Proof of Human was used to sign a specific canonical document signal. The proof must be registered on-chain through `LibroProofRegistry.register(...)` while the World ID proof is fresh; after registration, anyone can call `verify(signalHash)` to check persistence. The registry is permissionless: anyone can call `register` with valid calldata. MiniKit is only Memorioso's sponsored-gas submission path.
+Libro v1 permissionlessly binds one normalized handle to one World ID session commitment on a first-claim basis. Human publications and agent authorizations require `verifySession(...)` for that commitment and exact signal. The full session ID never enters Libro data.
 
 ## Workflow
 
 1. Build the publication payload with the Libro schema and canonical JSON key ordering.
 2. Use the canonical JSON string as the IDKit signal.
-3. Validate the IDKit result server-side against the challenge context before preparing calldata.
-4. Map the first World ID v4 credential response into `WorldIdV4Proof`.
-5. Submit `LibroProofRegistry.register(signalHash, actionHash, proof)` with any EVM transaction sender; use MiniKit `sendTransaction` when the app wants World App gas sponsorship.
-6. Finalize publication only after `LibroProofRegistry.verify(signalHash)` returns true.
+3. Validate the session ID, commitment, RP nonce, environment, credential, and signal hash server-side; require user presence only for flows whose policy explicitly needs it.
+4. Map the first session response into `WorldIdSessionProof` without retaining the full session ID.
+5. Claim-and-publish atomically on first use; otherwise call `registerHumanDocument(handleHash, signalHash, proof)`.
+6. Finalize only after the exact handle-bound event is confirmed on World Chain.
 
 ## Reference
 

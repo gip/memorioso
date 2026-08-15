@@ -85,10 +85,6 @@ if (idkitResult.protocol_version !== '4.0') {
   throw new Error('Expected a World ID 4.0 proof');
 }
 
-if (idkitResult.action !== ${JSON.stringify(proof.action)}) {
-  throw new Error('Unexpected action');
-}
-
 if (idkitResult.nonce !== ${JSON.stringify(proof.nonce)}) {
   throw new Error('Unexpected nonce');
 }
@@ -143,17 +139,21 @@ function buildLibroView(
 const { worldchain } = require('viem/chains');
 const { hashSignal } = require('@worldcoin/idkit/hashing');
 
-const libroProofRegistryAbi = [{
+const libroRegistryAbi = [{
   type: 'function',
-  name: 'verify',
+  name: 'verifyHumanDocument',
   stateMutability: 'view',
-  inputs: [{ name: 'signalHash', type: 'uint256' }],
+  inputs: [
+    { name: 'signalHash', type: 'uint256' },
+    { name: 'handleHash', type: 'bytes32' },
+  ],
   outputs: [{ name: '', type: 'bool' }],
 }];
 
 ${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(registration.signal_hash)};
 const registryAddress = ${JSON.stringify(registration.registry_address)};
+const handleHash = ${JSON.stringify(registration.handle_hash)};
 
 const localSignalHash = hashSignal(signalText).toLowerCase();
 if (localSignalHash !== expectedSignalHash.toLowerCase()) {
@@ -169,9 +169,9 @@ ${LIBRO_WORLD_CHAIN_RPC_URLS.map((url) => `    http(${JSON.stringify(url)}),`).j
 
 const registered = await client.readContract({
   address: registryAddress,
-  abi: libroProofRegistryAbi,
-  functionName: 'verify',
-  args: [BigInt(expectedSignalHash)],
+  abi: libroRegistryAbi,
+  functionName: 'verifyHumanDocument',
+  args: [BigInt(expectedSignalHash), handleHash],
 });
 
 if (!registered) {
@@ -221,11 +221,14 @@ function buildAgentView(
 const { worldchain } = require('viem/chains');
 const { hashSignal } = require('@worldcoin/idkit/hashing');
 
-const libroAgentRegistryAbi = [{
+const libroRegistryAbi = [{
   type: 'function',
   name: 'verifyAgentDocument',
   stateMutability: 'view',
-  inputs: [{ name: 'documentSignalHash', type: 'uint256' }],
+  inputs: [
+    { name: 'documentSignalHash', type: 'uint256' },
+    { name: 'handleHash', type: 'bytes32' },
+  ],
   outputs: [{ name: '', type: 'bool' }],
 }];
 
@@ -233,6 +236,7 @@ ${signalJsonDeclaration(document.document_signal_text)}
 const expectedSignalHash = ${JSON.stringify(document.document_signal_hash)};
 const registryAddress = ${JSON.stringify(document.registry_address)};
 const registrationHash = ${JSON.stringify(registration.registration_hash)};
+const handleHash = ${JSON.stringify(registration.handle_hash)};
 const documentNonce = ${JSON.stringify(document.document_nonce)};
 const signedAt = BigInt(${JSON.stringify(Math.floor(new Date(document.signed_at).getTime() / 1000))});
 const signature = ${JSON.stringify(document.signature)};
@@ -245,7 +249,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 
 const typedData = {
   domain: {
-    name: 'LibroAgentRegistry',
+    name: 'LibroRegistry',
     version: '1',
     chainId: ${document.chain_id},
     verifyingContract: registryAddress,
@@ -281,9 +285,9 @@ ${LIBRO_WORLD_CHAIN_RPC_URLS.map((url) => `    http(${JSON.stringify(url)}),`).j
 
 const registered = await client.readContract({
   address: registryAddress,
-  abi: libroAgentRegistryAbi,
+  abi: libroRegistryAbi,
   functionName: 'verifyAgentDocument',
-  args: [BigInt(expectedSignalHash)],
+  args: [BigInt(expectedSignalHash), handleHash],
 });
 
 if (!registered) {
@@ -324,7 +328,7 @@ console.log({ registered, signer, signalHash: expectedSignalHash });`
     ],
     code,
     codeNote:
-      'Recovers the agent address from the EIP-712 signature, then asks the agent registry on World Chain whether this document signal is registered.',
+      'Recovers the agent address from the EIP-712 signature, then asks the unified Libro registry whether this document signal is registered for the signed handle.',
   }
 }
 

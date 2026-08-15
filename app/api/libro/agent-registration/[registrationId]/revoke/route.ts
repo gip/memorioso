@@ -3,7 +3,7 @@ import { encodeFunctionData } from 'viem'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
-import { libroAgentRegistryAbi } from '@/lib/libro/contract'
+import { libroRegistryAbi } from '@/lib/libro/contract'
 
 export async function PUT(
   _req: Request,
@@ -50,7 +50,7 @@ export async function PUT(
     }
 
     const data = encodeFunctionData({
-      abi: libroAgentRegistryAbi,
+      abi: libroRegistryAbi,
       functionName: 'revokeAgent',
       args: [registration.registration_hash],
     })

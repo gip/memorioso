@@ -27,7 +27,7 @@ const Page = () => (
       </div>
 
       <section className="mt-5 rounded-xl border bg-muted/30 p-3.5 sm:mt-7 sm:p-4" aria-label="Libro contract">
-        <p className="text-xs font-medium text-foreground">LibroProofRegistry · World Chain</p>
+        <p className="text-xs font-medium text-foreground">LibroRegistry · World Chain</p>
         {libroRegistryExplorerUrl ? (
           <a
             href={libroRegistryExplorerUrl}

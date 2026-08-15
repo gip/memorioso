@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   LIBRO_V1_REGISTRY_ADDRESS,
-  actionHashToHex,
   canonicalPublicationSignal,
   hashPublicationSignal,
+  hashLibroHandle,
 } from '@libro/core'
 import { buildLibroEmbedManifest, buildLibroEmbedSnippet, buildLibroTextSnippet, sanitizeLibroEmbedHtml } from '../embed'
-import type { LibroPublicationV1, PublicationRecord, WorldIdProofV4 } from '@/types'
+import type { LibroAgentProofV1, LibroAgentPublicationV1, LibroPublicationV1, PublicationRecord, WorldIdProofV4 } from '@/types'
 
 const publication: LibroPublicationV1 = {
   publication_schema: 'libro-publication-v1',
   libro_protocol_version: 'libro-v1',
   world_id_protocol_version: '4.0',
-  world_id_action: 'written-by-a-human-v4-challenge',
+  world_id_proof_type: 'session',
   world_id_credential_policy: 'orb',
   author_id_libro: 'author-1',
   publication_date: '2026-07-21T12:00:00.000Z',
   author_name_libro: 'Ada',
   author_handle_libro: 'ada',
+  author_handle_hash_libro: hashLibroHandle('ada'),
   author_bio_libro: '',
   publication_title: '',
   publication_content: { html: '<p>Hello <strong>human</strong>.</p>' },
@@ -28,7 +29,7 @@ function proof(): WorldIdProofV4 {
   const signalText = canonicalPublicationSignal(publication)
   return {
     protocol_version: '4.0',
-    action: publication.world_id_action,
+    proof_type: 'session',
     nonce: '0x1',
     signal_text: signalText,
     signal_hash: hashPublicationSignal(signalText),
@@ -41,14 +42,69 @@ function proof(): WorldIdProofV4 {
       chain_id: 480,
       registry_address: LIBRO_V1_REGISTRY_ADDRESS,
       signal_hash: hashPublicationSignal(signalText),
-      action_hash: BigInt(actionHashToHex(publication.world_id_action)).toString(),
+      handle_hash: publication.author_handle_hash_libro,
+      authorship_class: 'human',
       transaction_hash: `0x${'11'.repeat(32)}`,
       registered_at: '2026-07-21T12:01:00.000Z',
     },
   }
 }
 
+const agentPublication: LibroAgentPublicationV1 = {
+  publication_schema: 'libro-agent-publication-v1',
+  libro_agent_protocol_version: 'libro-agent-v1',
+  authorship_claim: 'human_authorized_agent',
+  author_id_libro: 'author-1',
+  publication_date: '2026-07-21T12:00:00.000Z',
+  author_name_libro: 'Ada',
+  author_handle_libro: 'ada',
+  author_handle_hash_libro: hashLibroHandle('ada'),
+  author_bio_libro: '',
+  publication_title: '',
+  publication_content: { html: '<p>Written by the authorized agent.</p>' },
+  publication_subtitle: '',
+  agent_address: '0x1111111111111111111111111111111111111111',
+  agent_registration_hash: `0x${'22'.repeat(32)}`,
+}
+
+function agentProof(): LibroAgentProofV1 {
+  const signalText = canonicalPublicationSignal(agentPublication)
+  return {
+    proof_type: 'human_authorized_agent_signature',
+    protocol_version: 'libro-agent-v1',
+    agent_registration: {
+      proof_type: 'session', signal: 'registration', signal_hash: `0x${'33'.repeat(32)}`,
+      registration_hash: agentPublication.agent_registration_hash,
+      handle_hash: agentPublication.author_handle_hash_libro,
+      payload: {}, credential_identifier: 'proof_of_human', credential_identifiers: ['proof_of_human'],
+      idkit_result: {}, chain_id: 480, registry_address: LIBRO_V1_REGISTRY_ADDRESS,
+      user_op_hash: `0x${'44'.repeat(32)}`, transaction_hash: `0x${'55'.repeat(32)}`,
+      registered_at: '2026-07-21T12:00:00.000Z',
+    },
+    agent_document_signature: {
+      document_signal_text: signalText, document_signal_hash: hashPublicationSignal(signalText),
+      document_nonce: `0x${'66'.repeat(32)}`, signed_at: '2026-07-21T12:00:00.000Z',
+      agent_address: agentPublication.agent_address, signature_type: 'eip712', signature: `0x${'77'.repeat(65)}`,
+      chain_id: 480, registry_address: LIBRO_V1_REGISTRY_ADDRESS,
+      user_op_hash: `0x${'88'.repeat(32)}`, transaction_hash: `0x${'99'.repeat(32)}`,
+      registered_at: '2026-07-21T12:01:00.000Z',
+    },
+  }
+}
+
 describe('Libro embed generation', () => {
+  it('builds an agent manifest bound to the same handle and unified registry', () => {
+    const manifest = buildLibroEmbedManifest(
+      { ...agentPublication, version: '3' } as PublicationRecord,
+      agentProof(),
+      '43'
+    )
+    expect(manifest.claim).toBe('human-authorized-agent')
+    expect(manifest.registration.authorship_class).toBe('agent')
+    expect(manifest.registration.handle_hash).toBe(agentPublication.author_handle_hash_libro)
+    expect(buildLibroEmbedSnippet(manifest)).toContain('data-libro-claim="human-authorized-agent"')
+  })
+
   it('builds a self-contained simple text embed', () => {
     const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
     const snippet = buildLibroEmbedSnippet(manifest)
@@ -92,9 +148,9 @@ describe('Libro embed generation', () => {
     )).toThrow('proof signal hash')
     expect(() => buildLibroEmbedManifest(
       { ...publication, version: '3' } as PublicationRecord,
-      { ...proof(), action: 'written-by-a-human-v4-other' },
+      { ...proof(), libro_registration: { ...proof().libro_registration!, handle_hash: `0x${'33'.repeat(32)}` } },
       '42'
-    )).toThrow('proof action')
+    )).toThrow('event handle hash')
   })
 
   it('reports the publication and approved registries being compared', () => {

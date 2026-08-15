@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AUTH_SESSION_COOKIE, createAuthSessionToken, getAuthSessionCookieOptions } from '@/lib/auth-session'
-import { normalizeUserHandle } from '@/lib/handle'
+import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
 import {
   WORLD_ID_AUTH_NONCE_COOKIE,
   WORLD_ID_SESSION_HINT_COOKIE,
@@ -11,6 +11,8 @@ import {
   WorldIdAuthorAuthError,
   type WorldIdAuthorAuthIntent,
 } from '@/lib/world-id/author-auth'
+import { createHmac } from 'crypto'
+import { pool } from '@/lib/db'
 
 type VerifyRequestBody = {
   payload?: unknown
@@ -46,6 +48,36 @@ export async function POST(request: NextRequest) {
   const signupHandle = typeof body?.handle === 'string'
     ? normalizeUserHandle(body.handle)
     : ''
+
+  if (intent === 'signup') {
+    if (!isValidUserHandle(signupHandle)) {
+      return NextResponse.json({ success: false, message: 'A valid handle is required' }, { status: 400 })
+    }
+    const address = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')?.trim()
+    const secret = process.env.SESSION_SECRET
+    if (!secret) {
+      return NextResponse.json({ success: false, message: 'SESSION_SECRET is required' }, { status: 500 })
+    }
+    const ipHash = address
+      ? createHmac('sha256', secret).update(`world-id-signup-ip:${address}`).digest('hex')
+      : null
+    const limit = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE requested_handle = $1)::int AS handle_count,
+         COUNT(*) FILTER (WHERE request_ip_hash = $2)::int AS ip_count
+       FROM world_id_signup_attempts
+       WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
+      [signupHandle, ipHash]
+    )
+    if (limit.rows[0].handle_count >= 5 || (ipHash && limit.rows[0].ip_count >= 20)) {
+      return NextResponse.json({ success: false, message: 'Too many signup attempts' }, { status: 429 })
+    }
+    await pool.query(
+      'INSERT INTO world_id_signup_attempts (requested_handle, request_ip_hash) VALUES ($1, $2)',
+      [signupHandle, ipHash]
+    )
+  }
 
   try {
     const result = await verifyAndCreateOrConnectAuthor({

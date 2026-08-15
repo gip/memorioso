@@ -80,8 +80,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       subtitle: publicationInput.subtitle,
       content: publicationInput.content,
       publicationDate,
-      action: registration.action,
-      principalAuthorHash: registration.principal_author_hash,
       agentAddress: registration.agent_address,
       agentRegistrationHash: registration.registration_hash,
     })

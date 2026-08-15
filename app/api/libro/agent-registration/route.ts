@@ -5,10 +5,10 @@ import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import {
   createAgentRegistrationPayload,
-  createPrincipalAuthorHash,
   LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
 } from '@/lib/libro/agent'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
+import { hashLibroHandle } from '@libro/core'
 
 type CreateAgentRegistrationRequest = {
   authorId?: unknown
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     const { rows } = await client.query(
-      `SELECT id, registration_hash, principal_author_hash, controller_address, agent_address,
+      `SELECT id, registration_hash, handle_hash, controller_address, agent_address,
         scope, valid_from, expires_at, finalized_at, revoked_at, created_at
        FROM libro_agent_registrations
        WHERE "authorId" = $1 AND "userId" = $2
@@ -114,7 +114,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const authorResult = await client.query(
-      'SELECT id FROM authors WHERE id = $1 AND "userId" = $2',
+      `SELECT a.id, a.handle, u.world_id_session_id, u.world_id_session_commitment
+       FROM authors a INNER JOIN users u ON u.id = a."userId" AND u.handle = a.handle
+       WHERE a.id = $1 AND a."userId" = $2`,
       [authorId, authenticatedUser.id]
     )
 
@@ -122,11 +124,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: 'Author not found' }, { status: 404 })
     }
 
-    const principalAuthorHash = createPrincipalAuthorHash(authorId)
-    const rpContext = createRpContext(worldIdConfig, agentConfig.action)
+    const author = authorResult.rows[0]
+    const handleHash = hashLibroHandle(author.handle)
+    const rpContext = createRpContext(worldIdConfig)
     const registration = createAgentRegistrationPayload({
-      action: agentConfig.action,
-      principalAuthorHash,
+      handleHash,
       controllerAddress,
       agentAddress,
       scope: LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
@@ -139,21 +141,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { rows } = await client.query(
       `INSERT INTO libro_agent_registrations
-        ("userId", "authorId", registration_hash, principal_author_hash, controller_address, agent_address,
-         scope, valid_from, expires_at, action, nonce, signal, signal_hash, payload, chain_id, registry_address)
+        ("userId", "authorId", registration_hash, handle_hash, session_commitment, controller_address, agent_address,
+         scope, valid_from, expires_at, nonce, signal, signal_hash, payload, chain_id, registry_address)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING id`,
       [
         authenticatedUser.id,
         authorId,
         registration.registrationHash,
-        principalAuthorHash,
+        handleHash,
+        author.world_id_session_commitment,
         controllerAddress.toLowerCase(),
         agentAddress.toLowerCase(),
         Number(LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE),
         validFrom,
         expiresAt,
-        agentConfig.action,
         rpContext.nonce,
         registration.signal,
         registration.signalHash,
@@ -168,9 +170,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       registrationId: rows[0].id,
       registrationHash: registration.registrationHash,
       appId: worldIdConfig.appId,
-      action: agentConfig.action,
       environment: worldIdConfig.environment,
       rpContext,
+      existingSessionId: author.world_id_session_id,
       signal: registration.signal,
       signalHash: registration.signalHash,
       payload: registration.payload,

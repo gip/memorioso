@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IDKitResult } from '@worldcoin/idkit'
+import type { IDKitResultSession } from '@worldcoin/idkit'
 
 const dbMock = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -21,13 +21,16 @@ const validationMock = vi.hoisted(() => ({
     id: '03b18435-96c5-46e6-91c5-cd4ac1abb197',
     userId: 7,
     draftId: 'd109b298-4dda-4030-a7ac-9e3481cd840a',
-    action: 'written-by-a-human-v4-03b18435-96c5-46e6-91c5-cd4ac1abb197',
     nonce: '0x123',
+    session_commitment: `0x${'11'.repeat(32)}`,
     signal_text: '{"publication_title":"A human note"}',
     signal_hash: '0x1111111111111111111111111111111111111111111111111111111111111111',
     publication: {
       publication_schema: 'libro-publication-v1',
+      libro_protocol_version: 'libro-v1',
       publication_date: new Date().toISOString(),
+      author_handle_libro: 'ada',
+      author_handle_hash_libro: `0x${'aa'.repeat(32)}`,
     },
     expires_at: new Date(Date.now() + 300000),
     consumed_at: null,
@@ -84,8 +87,11 @@ vi.mock('@/lib/publish-validation', () => ({
   assertDraftCanBePublished: vi.fn(),
   assertDraftMatchesChallenge: vi.fn(() => ({
     publication_schema: 'libro-publication-v1',
+    libro_protocol_version: 'libro-v1',
     publication_date: new Date().toISOString(),
     author_id_libro: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
+    author_handle_libro: 'ada',
+    author_handle_hash_libro: `0x${'aa'.repeat(32)}`,
     publication_title: 'A human note',
     publication_subtitle: 'On signatures',
   })),
@@ -97,7 +103,7 @@ vi.mock('@/lib/publish-validation', () => ({
 import { PUT } from './route'
 import { assertChallengeCanBeUsed } from '@/lib/publish-validation'
 
-function request(idkitResult: IDKitResult): NextRequest {
+function request(idkitResult: IDKitResultSession): NextRequest {
   return {
     json: async () => ({
       challengeId: validationMock.challenge.id,
@@ -112,21 +118,21 @@ function context(draftId: string) {
   }
 }
 
-function result(action = validationMock.challenge.action): IDKitResult {
+function result(sessionId = `session_${'11'.repeat(32)}${'22'.repeat(32)}`): IDKitResultSession {
   return {
     protocol_version: '4.0',
-    action,
+    session_id: sessionId,
     nonce: validationMock.challenge.nonce,
     environment: 'production',
     responses: [{
       identifier: 'proof_of_human',
       signal_hash: validationMock.challenge.signal_hash,
       proof: ['1', '2', '3', '4', '5'],
-      nullifier: '0xabc',
+      session_nullifier: ['0xabc', '0xdef'],
       issuer_schema_id: 9303,
       expires_at_min: 1770000000,
     }],
-  } as IDKitResult
+  } as IDKitResultSession
 }
 
 describe('publish prepare route', () => {
@@ -142,11 +148,12 @@ describe('publish prepare route', () => {
       release: dbMock.release,
     })
     dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('FROM libro_handle_claims')) return { rows: [{ id: 'claim-1' }] }
       if (query.includes('INSERT INTO libro_publish_registrations')) {
         return { rows: [{
           id: 'fca16bc9-362c-4c58-9083-06a0370f6824',
           signal_hash: validationMock.challenge.signal_hash,
-          action_hash: '12345',
+          handle_hash: `0x${'aa'.repeat(32)}`,
           chain_id: 480,
           registry_address: '0x1111111111111111111111111111111111111111',
           transaction: {
@@ -162,17 +169,24 @@ describe('publish prepare route', () => {
 
       return { rows: [] }
     })
-    authMock.getAuthenticatedUser.mockResolvedValue({ id: 7 })
+    authMock.getAuthenticatedUser.mockResolvedValue({
+      id: 7,
+      handle: 'ada',
+      worldIdSessionId: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
+    })
     proofMock.prepareLibroRegistration.mockReturnValue({
       signalHash: validationMock.challenge.signal_hash,
       signalHashUint256: BigInt(validationMock.challenge.signal_hash).toString(),
-      actionHash: '12345',
+      handleHash: `0x${'aa'.repeat(32)}`,
+      sessionCommitment: `0x${'11'.repeat(32)}`,
+      sessionNullifier: '2748',
       proof: {
-        nullifier: '2748',
+        sessionCommitment: BigInt(`0x${'11'.repeat(32)}`).toString(),
         nonce: '291',
         expiresAtMin: '1770000000',
         issuerSchemaId: '9303',
         credentialGenesisIssuedAtMin: '0',
+        sessionNullifier: ['2748', '3567'],
         zeroKnowledgeProof: ['1', '2', '3', '4', '5'],
       },
       transaction: {
@@ -186,21 +200,24 @@ describe('publish prepare route', () => {
     })
   })
 
-  it('accepts the stored challenge action instead of comparing against a global publish action', async () => {
+  it('accepts the exact logged-in session and publication signal without requiring user presence', async () => {
     const response = await PUT(request(result()), context(validationMock.challenge.draftId))
     const body = await response.json()
 
     expect(response.status).toBe(200)
     expect(body).toMatchObject({
       success: true,
-      actionHash: '12345',
+      handleHash: `0x${'aa'.repeat(32)}`,
     })
-    expect(proofMock.prepareLibroRegistration).toHaveBeenCalled()
+    expect(proofMock.prepareLibroRegistration).toHaveBeenCalledWith(expect.objectContaining({
+      handle: 'ada',
+      claimHandle: false,
+    }))
   })
 
-  it('rejects a proof action that does not match the stored challenge action', async () => {
+  it('rejects a proof from another session', async () => {
     const response = await PUT(
-      request(result('written-by-a-human-v4-wrong-challenge')),
+      request(result(`session_${'44'.repeat(32)}${'55'.repeat(32)}`)),
       context(validationMock.challenge.draftId)
     )
     const body = await response.json()
@@ -208,7 +225,7 @@ describe('publish prepare route', () => {
     expect(response.status).toBe(400)
     expect(body).toMatchObject({
       success: false,
-      message: 'World ID proof context does not match this publication',
+      message: 'World ID session proof context does not match this login',
     })
     expect(proofMock.prepareLibroRegistration).not.toHaveBeenCalled()
   })
@@ -219,7 +236,7 @@ describe('publish prepare route', () => {
         return { rows: [{
           id: 'registration-existing',
           signal_hash: validationMock.challenge.signal_hash,
-          action_hash: '12345',
+          handle_hash: `0x${'aa'.repeat(32)}`,
           chain_id: 480,
           registry_address: '0x1111111111111111111111111111111111111111',
           transaction: { chainId: 480, transactions: [] },
@@ -229,7 +246,7 @@ describe('publish prepare route', () => {
       return { rows: [] }
     })
 
-    const response = await PUT(request(result('wrong-action-is-ignored-after-proof-was-accepted')), context(validationMock.challenge.draftId))
+    const response = await PUT(request(result(`session_${'44'.repeat(32)}${'55'.repeat(32)}`)), context(validationMock.challenge.draftId))
     expect(await response.json()).toMatchObject({
       success: true,
       registrationId: 'registration-existing',

@@ -21,7 +21,6 @@ const CAPTURE_KEY = 'libroSigningCapture'
 const JOB_KEY = 'libroSigningJob'
 const AUTO_KEY = 'libroAutoCapture'
 const FOLLOW_KEY = 'libroFollowPages'
-const AUTHOR_SELECTION_KEY = 'libroSelectedAuthorByUser'
 const SIGNING_JOB_VERSION = 1 as const
 
 // local and sync are exposed to content scripts by default. All privileged work waits for this
@@ -444,7 +443,7 @@ async function hydrateFinalizedJob(job: SigningJob): Promise<SigningJob> {
 
 async function currentState(): Promise<Record<string, unknown>> {
   const [stored, ephemeral, restoredJob] = await Promise.all([
-    chrome.storage.local.get([SESSION_KEY, AUTO_KEY, AUTHOR_SELECTION_KEY]),
+    chrome.storage.local.get([SESSION_KEY, AUTO_KEY]),
     chrome.storage.session.get(CAPTURE_KEY),
     readSigningJob(),
   ])
@@ -476,21 +475,9 @@ async function currentState(): Promise<Record<string, unknown>> {
     }
   }
   const session = stored[SESSION_KEY]
-  const sessionUser = typeof session === 'object' && session !== null && 'user' in session
-    ? (session as { user?: unknown }).user
-    : null
-  const userId = typeof sessionUser === 'object' && sessionUser !== null && 'id' in sessionUser
-    ? (sessionUser as { id?: unknown }).id
-    : null
-  const selections = typeof stored[AUTHOR_SELECTION_KEY] === 'object' && stored[AUTHOR_SELECTION_KEY] !== null
-    ? stored[AUTHOR_SELECTION_KEY] as Record<string, unknown>
-    : {}
-
   return {
     session: session || null,
-    selectedAuthorId: typeof userId === 'number' && typeof selections[String(userId)] === 'string'
-      ? selections[String(userId)]
-      : null,
+    selectedAuthorId: null,
     capture: ephemeral[CAPTURE_KEY] || null,
     job: job || null,
     autoCapture: stored[AUTO_KEY] || null,
@@ -570,22 +557,12 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
           expiresAt: response.expiresAt,
         },
       })
-      const selectionStore = await chrome.storage.local.get(AUTHOR_SELECTION_KEY)
-      const selections = typeof selectionStore[AUTHOR_SELECTION_KEY] === 'object' && selectionStore[AUTHOR_SELECTION_KEY] !== null
-        ? selectionStore[AUTHOR_SELECTION_KEY] as Record<string, unknown>
-        : {}
-      const responseUser = typeof response.user === 'object' && response.user !== null
-        ? response.user as { id?: unknown }
-        : null
-      const selectedAuthorId = typeof responseUser?.id === 'number' && typeof selections[String(responseUser.id)] === 'string'
-        ? selections[String(responseUser.id)] as string
-        : null
       return {
         success: true,
         user: response.user,
         author: response.author,
         authors: response.authors,
-        selectedAuthorId,
+        selectedAuthorId: null,
         created: response.created,
         expiresAt: response.expiresAt,
       }
@@ -594,19 +571,6 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       const response = await apiFetch<{ user: unknown; author: unknown; authors: unknown; expiresAt: string }>('/api/extension/auth/session')
       await chrome.storage.local.set({ [SESSION_KEY]: response })
       return { success: true, ...response }
-    }
-    case 'LIBRO_SELECT_AUTHOR': {
-      if (typeof message.userId !== 'number' || typeof message.authorId !== 'string') {
-        throw new Error('A valid user and author are required')
-      }
-      const stored = await chrome.storage.local.get(AUTHOR_SELECTION_KEY)
-      const selections = typeof stored[AUTHOR_SELECTION_KEY] === 'object' && stored[AUTHOR_SELECTION_KEY] !== null
-        ? stored[AUTHOR_SELECTION_KEY] as Record<string, unknown>
-        : {}
-      await chrome.storage.local.set({
-        [AUTHOR_SELECTION_KEY]: { ...selections, [String(message.userId)]: message.authorId },
-      })
-      return { success: true }
     }
     case 'LIBRO_AUTH_LOGOUT':
       await apiFetch('/api/extension/auth/session', { method: 'DELETE' }).catch(() => undefined)
@@ -619,7 +583,7 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     case 'LIBRO_CREATE_SIGNATURE': {
       const response = await apiFetch<Record<string, unknown>>('/api/extension/signatures', {
         method: 'POST',
-        body: JSON.stringify({ text: message.text, authorId: message.authorId }),
+        body: JSON.stringify({ text: message.text }),
       })
       const job: SigningJob = {
         version: SIGNING_JOB_VERSION,

@@ -22,7 +22,7 @@ describe('isValidUserHandle', () => {
     expect(isValidUserHandle('jo')).toBe(false)
     expect(isValidUserHandle('a'.repeat(33))).toBe(false)
     expect(isValidUserHandle('JohNN')).toBe(false)
-    expect(isValidUserHandle('-john')).toBe(false)
+    expect(isValidUserHandle('-john')).toBe(true)
     expect(isValidUserHandle('john doe')).toBe(false)
     expect(isValidUserHandle('john.doe')).toBe(false)
     expect(isValidUserHandle('')).toBe(false)

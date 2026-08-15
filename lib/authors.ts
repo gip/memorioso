@@ -1,8 +1,6 @@
 import type { Pool, PoolClient } from 'pg'
 import { isValidUserHandle, normalizeUserHandle } from '@/lib/handle'
 
-export const MAX_AUTHORS_PER_USER = 5
-
 export type AuthorProfile = {
   handle: string
   name: string
@@ -56,16 +54,11 @@ export async function getOwnedAuthors(queryable: Queryable, userId: number): Pro
        (a.handle = u.handle) AS "isPrimary"
      FROM authors a
      INNER JOIN users u ON u.id = a."userId"
-     WHERE a."userId" = $1
-     ORDER BY (a.handle = u.handle) DESC, a.created_at ASC, a.id ASC`,
+     WHERE a."userId" = $1 AND a.handle = u.handle
+     ORDER BY a.created_at ASC, a.id ASC`,
     [userId]
   )
   return rows
-}
-
-export function isAuthorLimitViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null &&
-    'constraint' in error && error.constraint === 'authors_per_user_limit'
 }
 
 export function isAuthorHandleConflict(error: unknown): boolean {

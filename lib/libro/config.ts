@@ -1,12 +1,11 @@
 import { isAddress, type Address, type Hex } from 'viem'
-import { DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION } from '@/lib/world-id/constants'
 import { parseLibroRpcUrls } from '@libro/core'
 import {
   LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_WORLD_CHAIN_ID,
 } from './contract'
-import { actionHashToUint256, rpIdToUint64 } from './encoding'
+import { rpIdToUint64 } from './encoding'
 
 export type LibroServerConfig = {
   protocolVersion: typeof LIBRO_PROTOCOL_VERSION
@@ -22,8 +21,6 @@ export type LibroAgentServerConfig = {
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
   rpId: bigint
-  action: string
-  actionHash: bigint
   /** Every configured endpoint; clients fail over between them. */
   rpcUrls: string[]
 }
@@ -70,15 +67,11 @@ export function getLibroServerConfig(): LibroServerConfig {
 }
 
 export function getLibroAgentServerConfig(): LibroAgentServerConfig {
-  const action = process.env.WORLD_ID_AGENT_REGISTRATION_ACTION || DEFAULT_WORLD_ID_AGENT_REGISTRATION_ACTION
-
   return {
     protocolVersion: LIBRO_AGENT_PROTOCOL_VERSION,
     chainId: getLibroChainId(),
-    registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_AGENT_REGISTRY_ADDRESS'),
+    registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
-    action,
-    actionHash: actionHashToUint256(action),
     rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }
 }

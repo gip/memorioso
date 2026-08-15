@@ -82,9 +82,11 @@ export async function PUT(
   let stage = 'lookup'
   try {
     const registrationResult = await pool.query(
-      `SELECT registration_hash, finalized_at, transaction_hash
-       FROM libro_agent_registrations
-       WHERE id = $1 AND "userId" = $2`,
+      `SELECT r.registration_hash, r.handle_hash, r.session_commitment,
+              r.finalized_at, r.transaction_hash, a.handle
+       FROM libro_agent_registrations r
+       INNER JOIN authors a ON a.id = r."authorId"
+       WHERE r.id = $1 AND r."userId" = $2`,
       [registrationId, authenticatedUser.id]
     )
 
@@ -104,7 +106,9 @@ export async function PUT(
     }
 
     stage = 'chain_verify'
-    const isRegistered = await verifyLibroAgentRegistered(pending.registration_hash, agentConfig)
+    const isRegistered = await verifyLibroAgentRegistered(
+      pending.registration_hash, pending.handle_hash, agentConfig, transactionHash
+    )
     if (!isRegistered) {
       return NextResponse.json({
         success: false,
@@ -149,6 +153,20 @@ export async function PUT(
          WHERE id = $3 AND "userId" = $4
          RETURNING id, registration_hash, agent_address`,
         [userOpHash.toLowerCase(), transactionHash.toLowerCase(), registrationId, authenticatedUser.id]
+      )
+
+      await client.query(
+        `INSERT INTO libro_handle_claims
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         ON CONFLICT ("userId") DO NOTHING`,
+        [
+          authenticatedUser.id,
+          pending.handle,
+          pending.handle_hash,
+          pending.session_commitment,
+          transactionHash.toLowerCase(),
+        ]
       )
 
       stage = 'commit'

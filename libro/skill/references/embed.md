@@ -34,12 +34,13 @@ The timestamp is the publication time normalized to UTC minute precision. The si
 
 ## Manifest
 
-`publication` is the complete canonical `libro-publication-v1` object. `registration` contains:
+`publication` is the complete canonical direct-human `libro-publication-v1` or agent `libro-agent-publication-v1` object. `registration` contains:
 
 - `chain_id`: `480`
 - `registry_address`: the approved Libro v1 registry
 - `signal_hash`: the World ID signal field hash
-- `action_hash`: the World ID action field hash used by `register`
+- `handle_hash`: `keccak256` of the normalized author handle
+- `authorship_class`: `human` or `agent`, matching the payload and claim
 - `transaction_hash`: the successful registration transaction
 
 An optional `source` object may link to the publication and proof pages, but verifiers must not use those URLs as trust inputs.
@@ -51,13 +52,13 @@ Libro embed v1 proves readable text rather than exact markup. Parse both the sig
 ## Verification
 
 1. Require exactly one referenced `application/libro+json` data block.
-2. Validate `libro-embed-v1`, `human-signed`, and the direct `libro-publication-v1` payload.
+2. Validate `libro-embed-v1` and the matching pair: `human-signed` / `libro-publication-v1`, or `human-authorized-agent` / `libro-agent-publication-v1`.
 3. Compare normalized embedded and signed readable text.
-4. Canonicalize the publication, recompute its signal hash, and recompute the action hash.
+4. Canonicalize the publication, recompute its signal hash and normalized handle hash.
 5. Require World Chain `480` and an approved registry address.
-6. Call `LibroProofRegistry.verify(signalHash)`.
-7. Require the declared successful transaction receipt to contain the matching `SignalRegistered(signalHash, actionHash)` event from that registry.
+6. Call `LibroRegistry.verifyHumanDocument(signalHash, handleHash)` for humans or `verifyAgentDocument(signalHash, handleHash)` for agents.
+7. Require the declared receipt to contain the matching `HumanDocumentRegistered` or `AgentDocumentRegistered` event, including the exact signal and handle, from that registry.
 
 For a plain-text declaration, resolve its manifest first and additionally require the boundary's full signal hash, author handle, UTC minute timestamp, and normalized body text to match it.
 
-Network failures are unknown results, not proof failures. Human-authorized agent publications use a separate registry and claim label and must never be presented as direct human authorship.
+Network failures are unknown results, not proof failures. Human-authorized agent publications use the same registry but a distinct claim label and must never be presented as direct human authorship.

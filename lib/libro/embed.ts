@@ -1,6 +1,7 @@
 import sanitizeHtml from 'sanitize-html'
 import {
   LIBRO_EMBED_SCHEMA_V1,
+  LIBRO_AGENT_SIGNED_CLAIM,
   LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_V1_REGISTRY_ADDRESS,
   LIBRO_WORLD_CHAIN_ID,
@@ -14,11 +15,11 @@ import {
   isSimpleTextPublication,
   manifestElementId,
   normalizeUint256Hex,
-  parseLibroPublicationV1,
+  parseLibroPublication,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
 } from '@libro/core'
-import { isLibroRegisteredProof } from '@/lib/publication-status'
+import { isLibroAgentProof, isLibroRegisteredProof } from '@/lib/publication-status'
 import type { Proof, PublicationRecord } from '@/types'
 import { publicationPathFor } from '@/lib/publication-kind'
 
@@ -58,56 +59,64 @@ export function buildLibroEmbedManifest(
   proof: Proof | null | undefined,
   publicationId?: string
 ): LibroEmbedManifestV1 {
-  if (!isLibroRegisteredProof(proof)) {
-    throw new LibroEmbedUnavailableError('Publication does not have a direct Libro registration')
-  }
+  const isHuman = isLibroRegisteredProof(proof)
+  const isAgent = isLibroAgentProof(proof)
+  if (!isHuman && !isAgent) throw new LibroEmbedUnavailableError('Publication does not have a Libro registration')
+
+  const signalText = isHuman ? proof.signal_text : proof.agent_document_signature.document_signal_text
+  const signalHash = isHuman ? proof.signal_hash : proof.agent_document_signature.document_signal_hash
+  const registryAddress = isHuman
+    ? proof.libro_registration.registry_address
+    : proof.agent_document_signature.registry_address
+  const transactionHash = isHuman
+    ? proof.libro_registration.transaction_hash
+    : proof.agent_document_signature.transaction_hash
+  const handleHash = isHuman
+    ? proof.libro_registration.handle_hash
+    : proof.agent_registration.handle_hash
 
   let signedValue: unknown
   try {
-    signedValue = JSON.parse(proof.signal_text)
+    signedValue = JSON.parse(signalText)
   } catch {
     throw new LibroEmbedUnavailableError('Stored publication signal is not valid JSON')
   }
 
   let signedPublication
   try {
-    signedPublication = parseLibroPublicationV1(signedValue)
+    signedPublication = parseLibroPublication(signedValue)
   } catch (error) {
     throw new LibroEmbedUnavailableError(error instanceof Error ? error.message : 'Unsupported signed publication')
   }
 
   const canonicalSignal = canonicalPublicationSignal(signedPublication)
-  if (canonicalSignal !== proof.signal_text) {
+  if (canonicalSignal !== signalText) {
     throw new LibroEmbedUnavailableError('Stored publication signal is not canonical')
   }
 
   const expectedSignalHash = hashPublicationSignal(canonicalSignal)
-  if (normalizeUint256Hex(proof.signal_hash, 'proof signal_hash') !== expectedSignalHash) {
+  if (normalizeUint256Hex(signalHash, 'proof signal_hash') !== expectedSignalHash) {
     throw new LibroEmbedUnavailableError('Stored proof signal hash does not match its signed signal')
   }
-  if (proof.action !== signedPublication.world_id_action) {
-    throw new LibroEmbedUnavailableError('Stored proof action does not match its signed publication')
-  }
-
   const { version: _version, ...storedPublication } = publication
   if (canonicalPublicationSignal(storedPublication) !== canonicalSignal) {
     throw new LibroEmbedUnavailableError('Stored publication does not match its signed signal')
   }
 
-  const registration = proof.libro_registration
-  if (!/^0x[0-9a-fA-F]{64}$/.test(registration.transaction_hash)) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(transactionHash)) {
     throw new LibroEmbedUnavailableError('transaction_hash must be a 32-byte hex string')
   }
   const manifest: LibroEmbedManifestV1 = {
     schema: LIBRO_EMBED_SCHEMA_V1,
-    claim: LIBRO_HUMAN_SIGNED_CLAIM,
+    claim: isHuman ? LIBRO_HUMAN_SIGNED_CLAIM : LIBRO_AGENT_SIGNED_CLAIM,
     publication: signedPublication,
     registration: {
-      chain_id: registration.chain_id as 480,
-      registry_address: registration.registry_address as `0x${string}`,
-      signal_hash: normalizeUint256Hex(registration.signal_hash, 'signal_hash'),
-      action_hash: normalizeUint256Hex(registration.action_hash, 'action_hash'),
-      transaction_hash: registration.transaction_hash.toLowerCase() as `0x${string}`,
+      chain_id: (isHuman ? proof.libro_registration.chain_id : proof.agent_document_signature.chain_id) as 480,
+      registry_address: registryAddress as `0x${string}`,
+      signal_hash: normalizeUint256Hex(signalHash, 'signal_hash'),
+      handle_hash: normalizeUint256Hex(handleHash, 'handle_hash'),
+      authorship_class: isHuman ? 'human' : 'agent',
+      transaction_hash: transactionHash.toLowerCase() as `0x${string}`,
     },
   }
 
@@ -175,7 +184,8 @@ export function sanitizeShortPublicationHtml(html: string): string {
 export function getLibroSimpleBoundaryLabel(manifest: LibroEmbedManifestV1): string {
   const { publication, registration } = manifest
   const manifestUrl = manifest.source?.manifest_url
-  return `=== Libro · Signed by a human · @${publication.author_handle_libro} · ${formatLibroPublicationMinute(publication.publication_date)} · ${registration.signal_hash}${manifestUrl ? ` · ${manifestUrl}` : ''} ===`
+  const label = registration.authorship_class === 'human' ? 'Signed by a human' : 'Human-authorized agent'
+  return `=== Libro · ${label} · @${publication.author_handle_libro} · ${formatLibroPublicationMinute(publication.publication_date)} · ${registration.signal_hash}${manifestUrl ? ` · ${manifestUrl}` : ''} ===`
 }
 
 export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
@@ -185,7 +195,7 @@ export function buildLibroTextSnippet(manifest: LibroEmbedManifestV1): string {
 export function buildLibroEmbedSnippet(manifest: LibroEmbedManifestV1): string {
   const id = manifestElementId(manifest.registration.signal_hash)
   const content = sanitizeLibroEmbedHtml(manifest.publication.publication_content.html)
-  const body = `<div class="libro-human-signed" data-libro-claim="human-signed" data-libro-manifest="${id}" data-libro-signal-hash="${manifest.registration.signal_hash}">\n${content}\n</div>`
+  const body = `<div class="libro-${manifest.claim}" data-libro-claim="${manifest.claim}" data-libro-manifest="${id}" data-libro-signal-hash="${manifest.registration.signal_hash}">\n${content}\n</div>`
   const presentation = isSimpleTextPublication(manifest.publication)
     ? `<div class="libro-simple">\n<div class="libro-boundary">${escapeHtml(getLibroSimpleBoundaryLabel(manifest))}</div>\n${body}\n<div class="libro-boundary">=== End Libro ===</div>\n</div>`
     : body

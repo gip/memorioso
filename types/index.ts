@@ -43,16 +43,18 @@ export type Author = {
     world_id_credential_policy: typeof WORLD_ID_CREDENTIAL_POLICY
   }
 
-  export type LibroPublicationV1 = Omit<PublicationV2, 'publication_schema'> & {
+  export type LibroPublicationV1 = Omit<PublicationV2, 'publication_schema' | 'world_id_action'> & {
     publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V1
     libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
+    world_id_proof_type: 'session'
+    author_handle_hash_libro: string
   }
 
   export type LibroAgentPublicationV1 = PublicationV1 & {
     publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
     libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
     authorship_claim: typeof LIBRO_AGENT_AUTHORSHIP_CLAIM
-    principal_author_hash: string
+    author_handle_hash_libro: string
     agent_address: string
     agent_registration_hash: string
   }
@@ -82,7 +84,7 @@ export type Author = {
 
   export type WorldIdProofV4 = {
     protocol_version: '4.0'
-    action: string
+    proof_type: 'session'
     nonce: string
     signal_text: string
     signal_hash: string
@@ -96,7 +98,8 @@ export type Author = {
       chain_id: number
       registry_address: string
       signal_hash: string
-      action_hash: string
+      handle_hash: string
+      authorship_class: 'human'
       user_op_hash?: string
       transaction_hash: string
       registered_at: string
@@ -107,10 +110,11 @@ export type Author = {
     proof_type: 'human_authorized_agent_signature'
     protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
     agent_registration: {
-      action: string
+      proof_type: 'session'
       signal: string
       signal_hash: string
       registration_hash: string
+      handle_hash: string
       payload: JsonValue
       credential_identifier: string
       credential_identifiers: string[]

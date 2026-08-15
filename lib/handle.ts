@@ -1,4 +1,4 @@
-export const USER_HANDLE_PATTERN = /^[a-z0-9][a-z0-9_-]{2,31}$/
+export const USER_HANDLE_PATTERN = /^[a-z0-9_-]{3,32}$/
 
 export function normalizeUserHandle(value: string): string {
   return value.trim().toLowerCase()

@@ -65,6 +65,7 @@ const draftId = 'd109b298-4dda-4030-a7ac-9e3481cd840a'
 const registrationId = 'fca16bc9-362c-4c58-9083-06a0370f6824'
 const challengeId = '03b18435-96c5-46e6-91c5-cd4ac1abb197'
 const signalHash = `0x${'11'.repeat(32)}`
+const handleHash = `0x${'22'.repeat(32)}`
 const transactionHash = `0x${'ab'.repeat(32)}`
 const publicationId = '09c61e45-887d-42e5-81b3-bb545a061e4e'
 
@@ -87,7 +88,8 @@ function finalizeRequest() {
 function pendingRegistration() {
   return {
     signal_hash: signalHash,
-    action_hash: '12345',
+    handle_hash: handleHash,
+    session_commitment: `0x${'33'.repeat(32)}`,
     chain_id: 480,
     registry_address: '0x1111111111111111111111111111111111111111',
     transaction_hash: transactionHash,
@@ -101,12 +103,13 @@ function lockedRegistration() {
   return {
     challengeId,
     signal_hash: signalHash,
-    action_hash: '12345',
+    handle_hash: handleHash,
+    session_commitment: `0x${'33'.repeat(32)}`,
     chain_id: 480,
     registry_address: '0x1111111111111111111111111111111111111111',
     proof: {
       protocol_version: '4.0',
-      action: `written-by-a-human-v4-${challengeId}`,
+      proof_type: 'session',
       nonce: '0x123',
       signal_text: '{"publication_title":"A human note"}',
       signal_hash: signalHash,
@@ -188,7 +191,7 @@ describe('Libro publication finalize route', () => {
     expect(serverMock.verifyLibroRegistrationTransaction).toHaveBeenCalledWith({
       transactionHash,
       signalHash,
-      actionHash: '12345',
+      handleHash,
       registryAddress: '0x1111111111111111111111111111111111111111',
     }, expect.objectContaining({ chainId: 480 }))
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(

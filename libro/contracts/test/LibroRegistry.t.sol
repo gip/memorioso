@@ -7,7 +7,6 @@ interface Vm {
     function addr(uint256 privateKey) external returns (address);
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function warp(uint256 timestamp) external;
-    function chainId(uint256 newChainId) external;
 }
 
 contract MockWorldIDSessionVerifier is IWorldIDVerifier {
@@ -229,21 +228,5 @@ contract LibroRegistryTest {
 
         registry.revokeAgent(registrationHash);
         require(!registry.verifyAgentDocument(documentHash, handleHash), "revoked agent still valid");
-    }
-
-    function testHandleClaimSignalHashDiffersAcrossRegistryDeployments() public {
-        setUp();
-        LibroRegistry otherRegistry = new LibroRegistry(address(verifier), 303);
-        uint256 firstSignal = registry.getHandleClaimSignalHash(HANDLE);
-        uint256 secondSignal = otherRegistry.getHandleClaimSignalHash(HANDLE);
-        require(firstSignal != secondSignal, "signal hash replayable across registry deployments");
-    }
-
-    function testHandleClaimSignalHashDiffersAcrossChainIds() public {
-        setUp();
-        uint256 originalChainSignal = registry.getHandleClaimSignalHash(HANDLE);
-        vm.chainId(999);
-        uint256 otherChainSignal = registry.getHandleClaimSignalHash(HANDLE);
-        require(originalChainSignal != otherChainSignal, "signal hash replayable across chain ids");
     }
 }

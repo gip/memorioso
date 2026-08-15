@@ -4,6 +4,7 @@ import {
   CanonicalPublicationPage,
   canonicalPublicationMetadata,
 } from '@/components/CanonicalPublicationPage'
+import { ShortSkeleton } from '@/components/Publication/ShortSkeleton'
 
 type Params = Promise<{ publicationId: string }>
 
@@ -19,7 +20,7 @@ async function Short({ params }: { params: Params }) {
 
 export default function Page({ params }: { params: Params }) {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<ShortSkeleton />}>
       <Short params={params} />
     </Suspense>
   )

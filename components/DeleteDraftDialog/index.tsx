@@ -38,7 +38,7 @@ export const DeleteDraftDialog = ({
         if (!isDeleting) onOpenChange(nextOpen)
       }}
     >
-      <DialogContent className="max-w-[calc(100%_-_2rem)] rounded-lg sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete draft?</DialogTitle>
           <DialogDescription>

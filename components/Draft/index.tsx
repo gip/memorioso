@@ -304,14 +304,19 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     fetchAuthors()
   }, [fetchAuthors, status])
 
-  // Every login owns exactly one author; attach it to new drafts.
+  // Every login owns exactly one author; attach it to new drafts. Also
+  // re-runs once `loading` flips false: fetchDraft's setDraft(response.data)
+  // can land after this effect already fired and clobber authorId back to
+  // whatever was persisted (e.g. null from a pre-authors-loaded autosave),
+  // so re-check once the fetched draft is in place instead of relying on
+  // effect ordering between the two async requests.
   useEffect(() => {
     if (!user || authors.length === 0) return
     setDraft((prev) => {
       if (!prev || prev.authorId) return prev
       return { ...prev, authorId: authors[0].id }
     })
-  }, [authors, user])
+  }, [authors, user, loading])
 
   const handleSave = async () => {
     try {

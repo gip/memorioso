@@ -11,6 +11,7 @@ import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import { RightPanePortal } from '@/components/SiteChrome/RightPanePortal'
 import {
   extractReadableText,
+  isSimpleTextPublication,
   manifestElementId,
   serializeManifestForHtml,
   type LibroEmbedManifestV1,
@@ -22,6 +23,7 @@ import {
   sanitizeShortPublicationHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
+import { ShareButtons } from './ShareButtons'
 import { FreshPublicationNotice } from './FreshPublicationNotice'
 import { getPublicationKind } from '@/lib/publication-kind'
 import { Suspense } from 'react'
@@ -73,12 +75,14 @@ const PublicationVerification = ({
   verifyHref,
   embedSnippet,
   textSnippet,
+  shareTextSnippet,
   compact = false,
 }: {
   isAgentAuthored: boolean
   verifyHref?: string
   embedSnippet: string | null
   textSnippet: string | null
+  shareTextSnippet: string | null
   compact?: boolean
 }) => compact ? (
   <section
@@ -88,9 +92,12 @@ const PublicationVerification = ({
     <div className="flex items-center gap-3.5">
       <AuthorshipMark isAgentAuthored={isAgentAuthored} sealId="publication-seal-mobile" size={72} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-foreground">
-          {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-foreground">
+            {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
+          </p>
+          <ShareButtons textSnippet={shareTextSnippet} />
+        </div>
         <Suspense fallback={null}>
           <FreshPublicationNotice className="mt-0.5 text-xs text-muted-foreground" />
         </Suspense>
@@ -119,6 +126,7 @@ const PublicationVerification = ({
     <p className="mt-4 text-sm font-semibold text-foreground">
       {isAgentAuthored ? 'Human-authorized agent' : 'Signed by a human'}
     </p>
+    <ShareButtons textSnippet={shareTextSnippet} className="mt-1.5" />
     <Suspense fallback={null}>
       <FreshPublicationNotice className="mt-1 text-xs leading-relaxed text-muted-foreground" />
     </Suspense>
@@ -163,6 +171,7 @@ export const Publication = ({
   const manifestId = embedManifest ? manifestElementId(embedManifest.registration.signal_hash) : null
   const embedSnippet = embedManifest ? buildLibroEmbedSnippet(embedManifest) : null
   const textSnippet = embedManifest ? buildLibroTextSnippet(embedManifest) : null
+  const shareTextSnippet = embedManifest && isSimpleTextPublication(embedManifest.publication) ? textSnippet : null
   const presentationContent = embedManifest ? sanitizeLibroEmbedHtml(content) : content
 
   const publicationBody = embedManifest && manifestId ? (
@@ -189,6 +198,7 @@ export const Publication = ({
             verifyHref={verifyHref}
             embedSnippet={embedSnippet}
             textSnippet={textSnippet}
+            shareTextSnippet={shareTextSnippet}
           />
         </RightPanePortal>
 
@@ -198,6 +208,7 @@ export const Publication = ({
             verifyHref={verifyHref}
             embedSnippet={embedSnippet}
             textSnippet={textSnippet}
+            shareTextSnippet={shareTextSnippet}
             compact
           />
           <div
@@ -237,6 +248,7 @@ export const Publication = ({
           verifyHref={verifyHref}
           embedSnippet={embedSnippet}
           textSnippet={textSnippet}
+          shareTextSnippet={shareTextSnippet}
         />
       </RightPanePortal>
 
@@ -246,6 +258,7 @@ export const Publication = ({
           verifyHref={verifyHref}
           embedSnippet={embedSnippet}
           textSnippet={textSnippet}
+          shareTextSnippet={shareTextSnippet}
           compact
         />
 

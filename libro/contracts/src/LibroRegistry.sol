@@ -239,9 +239,22 @@ contract LibroRegistry {
         return uint256(keccak256(bytes(_toHexString(getAgentRegistrationHash(registration))))) >> 8;
     }
 
-    function getHandleClaimSignalHash(string calldata handle) public pure returns (uint256) {
+    function getHandleClaimSignalHash(string calldata handle) public view returns (uint256) {
         hashHandle(handle);
-        return uint256(keccak256(bytes(string.concat("libro-handle-claim-v1:", handle)))) >> 8;
+        return uint256(
+            keccak256(
+                bytes(
+                    string.concat(
+                        "libro-handle-claim-v2:",
+                        _toHexString(bytes32(block.chainid)),
+                        ":",
+                        _toHexString(bytes32(uint256(uint160(address(this))))),
+                        ":",
+                        handle
+                    )
+                )
+            )
+        ) >> 8;
     }
 
     function hashHandle(string calldata handle) public pure returns (bytes32) {

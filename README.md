@@ -21,7 +21,6 @@ Memorioso uses IDKit 4.x for both login session proofs and publication proofs. R
 - `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT=production`
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID=480`
 - `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`
-- `LIBRO_HANDLE_PERMIT_PRIVATE_KEY` (server-only and distinct from the RP signing key)
 - `LIBRO_RELAYER_PRIVATE_KEY` for sponsored publication registration outside World App
 
 Use `.env.example` as the starting point for local configuration.
@@ -45,7 +44,7 @@ Libro protocol assets live under `libro/` so they can be split into a separate r
 - `libro/contracts` contains the Foundry project for `LibroRegistry`.
 - `libro/skill` contains the Libro protocol skill and reference.
 
-`LibroRegistry` permanently binds each normalized handle to the public 32-byte commitment of one World ID session. A short-lived EIP-712 permit authorizes the initial database handle claim, while `verifySession(...)` enforces every human publication against the exact canonical signal. The full session ID and proving seed never enter calldata, manifests, or publication JSON. The same registry binds session-authorized agents to a handle and verifies their later EIP-712 document signatures. Deploy it against the official World ID verifier proxy and derive numeric `rpId` from the 16 hexadecimal characters after `rp_`.
+`LibroRegistry` permissionlessly and permanently binds each normalized handle to the public 32-byte commitment of one World ID session on a first-claim basis. `verifySession(...)` enforces the initial binding and every human publication against the exact signal. The full session ID and proving seed never enter calldata, manifests, or publication JSON. The same registry binds session-authorized agents to a handle and verifies their later EIP-712 document signatures. Deploy it against the official World ID verifier proxy and derive numeric `rpId` from the 16 hexadecimal characters after `rp_`.
 
 Run `forge test` from `libro/contracts` to test the registry contract.
 

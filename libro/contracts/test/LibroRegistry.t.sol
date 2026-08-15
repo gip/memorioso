@@ -5,7 +5,6 @@ import {LibroRegistry, IWorldIDVerifier} from "../src/LibroRegistry.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
-    function prank(address sender) external;
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function warp(uint256 timestamp) external;
 }
@@ -22,10 +21,21 @@ contract MockWorldIDSessionVerifier is IWorldIDVerifier {
     uint256[5] public expectedProof = [uint256(1), uint256(2), uint256(3), uint256(4), uint256(5)];
     bool public shouldReject;
 
-    function setExpectedSignalHash(uint256 value) external { expectedSignalHash = value; }
-    function setExpectedSessionCommitment(uint256 value) external { expectedSessionCommitment = value; }
-    function setExpectedNullifier(uint256 value) external { expectedSessionNullifier[0] = value; }
-    function setShouldReject(bool value) external { shouldReject = value; }
+    function setExpectedSignalHash(uint256 value) external {
+        expectedSignalHash = value;
+    }
+
+    function setExpectedSessionCommitment(uint256 value) external {
+        expectedSessionCommitment = value;
+    }
+
+    function setExpectedNullifier(uint256 value) external {
+        expectedSessionNullifier[0] = value;
+    }
+
+    function setShouldReject(bool value) external {
+        shouldReject = value;
+    }
 
     function verifySession(
         uint64 rpId,
@@ -48,35 +58,30 @@ contract MockWorldIDSessionVerifier is IWorldIDVerifier {
         require(sessionId == expectedSessionCommitment, "session");
         require(sessionNullifier[0] == expectedSessionNullifier[0], "nullifier");
         require(sessionNullifier[1] == expectedSessionNullifier[1], "action");
-        for (uint256 i; i < 5; i++) require(zeroKnowledgeProof[i] == expectedProof[i], "proof");
+        for (uint256 i; i < 5; i++) {
+            require(zeroKnowledgeProof[i] == expectedProof[i], "proof");
+        }
     }
 }
 
 contract LibroRegistryTest {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    uint256 private constant PERMIT_SIGNER_KEY = 0xA11CE;
     uint256 private constant AGENT_KEY = 0xB0B;
     uint256 private constant SESSION = 808;
     string private constant HANDLE = "alice_1";
 
     MockWorldIDSessionVerifier private verifier;
     LibroRegistry private registry;
-    address private permitSigner;
     address private agent;
 
     function setUp() public {
         vm.warp(100);
-        permitSigner = vm.addr(PERMIT_SIGNER_KEY);
         agent = vm.addr(AGENT_KEY);
         verifier = new MockWorldIDSessionVerifier();
-        registry = new LibroRegistry(address(verifier), 303, permitSigner, address(this));
+        registry = new LibroRegistry(address(verifier), 303);
     }
 
-    function proof(uint256 session, uint256 nullifier)
-        private
-        pure
-        returns (LibroRegistry.WorldIdSessionProof memory)
-    {
+    function proof(uint256 session, uint256 nullifier) private pure returns (LibroRegistry.WorldIdSessionProof memory) {
         return LibroRegistry.WorldIdSessionProof({
             sessionCommitment: session,
             nonce: 404,
@@ -88,32 +93,9 @@ contract LibroRegistryTest {
         });
     }
 
-    function permitFor(string memory handle, uint256 session, bytes32 nonce, uint64 deadline, uint256 key)
-        private
-        returns (LibroRegistry.HandleClaimPermit memory)
-    {
-        bytes32 handleHash = keccak256(bytes(handle));
-        bytes32 structHash = keccak256(abi.encode(
-            registry.HANDLE_CLAIM_TYPEHASH(),
-            handleHash,
-            session,
-            nonce,
-            deadline,
-            block.chainid,
-            address(registry)
-        ));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.domainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, digest);
-        return LibroRegistry.HandleClaimPermit({nonce: nonce, deadline: deadline, signature: abi.encodePacked(r, s, v)});
-    }
-
-    function validPermit() private returns (LibroRegistry.HandleClaimPermit memory) {
-        return permitFor(HANDLE, SESSION, keccak256("permit-1"), 1_000, PERMIT_SIGNER_KEY);
-    }
-
     function claim() private {
         verifier.setExpectedSignalHash(registry.getHandleClaimSignalHash(HANDLE));
-        registry.claimHandle(HANDLE, proof(SESSION, 909), validPermit());
+        registry.claimHandle(HANDLE, proof(SESSION, 909));
     }
 
     function expectRevertCall(bytes memory callData, string memory message) private {
@@ -132,51 +114,19 @@ contract LibroRegistryTest {
     function testRejectsInvalidNormalization() public {
         setUp();
         expectRevertCall(
-            abi.encodeCall(registry.claimHandle, ("Alice", proof(SESSION, 909), validPermit())),
-            "uppercase handle accepted"
+            abi.encodeCall(registry.claimHandle, ("Alice", proof(SESSION, 909))), "uppercase handle accepted"
         );
-        expectRevertCall(
-            abi.encodeCall(registry.claimHandle, ("ab", proof(SESSION, 909), validPermit())),
-            "short handle accepted"
-        );
-    }
-
-    function testRejectsExpiredWrongAndReplayedPermit() public {
-        setUp();
-        LibroRegistry.HandleClaimPermit memory expired = permitFor(
-            HANDLE, SESSION, keccak256("expired"), 99, PERMIT_SIGNER_KEY
-        );
-        expectRevertCall(
-            abi.encodeCall(registry.claimHandle, (HANDLE, proof(SESSION, 909), expired)),
-            "expired permit accepted"
-        );
-
-        LibroRegistry.HandleClaimPermit memory wrong = permitFor(
-            HANDLE, SESSION, keccak256("wrong"), 1_000, 0xBAD
-        );
-        expectRevertCall(
-            abi.encodeCall(registry.claimHandle, (HANDLE, proof(SESSION, 909), wrong)),
-            "wrong permit accepted"
-        );
-
-        claim();
-        expectRevertCall(
-            abi.encodeCall(registry.claimHandle, (HANDLE, proof(SESSION, 909), validPermit())),
-            "claimed handle accepted"
-        );
+        expectRevertCall(abi.encodeCall(registry.claimHandle, ("ab", proof(SESSION, 909))), "short handle accepted");
     }
 
     function testRejectsDuplicateHandleAndDuplicateSession() public {
         setUp();
         claim();
+        expectRevertCall(abi.encodeCall(registry.claimHandle, (HANDLE, proof(SESSION, 909))), "claimed handle accepted");
         verifier.setExpectedNullifier(910);
         verifier.setExpectedSignalHash(registry.getHandleClaimSignalHash("alice_2"));
         expectRevertCall(
-            abi.encodeCall(
-                registry.claimHandle,
-                ("alice_2", proof(SESSION, 910), permitFor("alice_2", SESSION, keccak256("permit-2"), 1_000, PERMIT_SIGNER_KEY))
-            ),
-            "duplicate session accepted"
+            abi.encodeCall(registry.claimHandle, ("alice_2", proof(SESSION, 910))), "duplicate session accepted"
         );
     }
 
@@ -184,7 +134,7 @@ contract LibroRegistryTest {
         setUp();
         uint256 signalHash = 1_111;
         verifier.setExpectedSignalHash(signalHash);
-        registry.claimHandleAndRegisterHumanDocument(HANDLE, signalHash, proof(SESSION, 909), validPermit());
+        registry.claimHandleAndRegisterHumanDocument(HANDLE, signalHash, proof(SESSION, 909));
         bytes32 handleHash = keccak256(bytes(HANDLE));
         require(registry.verifyHumanDocument(signalHash, handleHash), "document missing");
     }
@@ -194,10 +144,7 @@ contract LibroRegistryTest {
         verifier.setExpectedSignalHash(1_111);
         verifier.setShouldReject(true);
         expectRevertCall(
-            abi.encodeCall(
-                registry.claimHandleAndRegisterHumanDocument,
-                (HANDLE, 1_111, proof(SESSION, 909), validPermit())
-            ),
+            abi.encodeCall(registry.claimHandleAndRegisterHumanDocument, (HANDLE, 1_111, proof(SESSION, 909))),
             "rejected proof accepted"
         );
         require(registry.handleSessionCommitments(keccak256(bytes(HANDLE))) == 0, "claim did not roll back");
@@ -253,9 +200,9 @@ contract LibroRegistryTest {
         private
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(
-            registry.AGENT_DOCUMENT_TYPEHASH(), registrationHash, signalHash, nonce, signedAt
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(registry.AGENT_DOCUMENT_TYPEHASH(), registrationHash, signalHash, nonce, signedAt)
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(AGENT_KEY, digest);
         return abi.encodePacked(r, s, v);
@@ -274,27 +221,12 @@ contract LibroRegistryTest {
         uint256 documentHash = 1_212;
         bytes32 nonce = keccak256("document");
         registry.registerAgentDocument(
-            registrationHash, documentHash, nonce, 100,
-            signAgentDocument(registrationHash, documentHash, nonce, 100)
+            registrationHash, documentHash, nonce, 100, signAgentDocument(registrationHash, documentHash, nonce, 100)
         );
         require(registry.verifyAgentDocument(documentHash, handleHash), "agent document missing");
         require(!registry.verifyAgentDocument(documentHash, keccak256("other")), "agent claimed other handle");
 
         registry.revokeAgent(registrationHash);
         require(!registry.verifyAgentDocument(documentHash, handleHash), "revoked agent still valid");
-    }
-
-    function testPermitSignerRotationAndTwoStepOwnership() public {
-        setUp();
-        address newSigner = vm.addr(0xCAFE);
-        registry.setHandlePermitSigner(newSigner);
-        require(registry.handlePermitSigner() == newSigner, "signer not rotated");
-
-        address newOwner = vm.addr(0xD00D);
-        registry.transferOwnership(newOwner);
-        expectRevertCall(abi.encodeCall(registry.acceptOwnership, ()), "non-pending owner accepted");
-        vm.prank(newOwner);
-        registry.acceptOwnership();
-        require(registry.owner() == newOwner, "ownership not accepted");
     }
 }

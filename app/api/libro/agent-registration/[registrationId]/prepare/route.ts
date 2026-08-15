@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import {
-  getLibroAgentServerConfig,
-  getLibroHandlePermitConfig,
-} from '@/lib/libro/config'
+import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import {
   createAgentRegistrationPayload,
   prepareAgentRegistration,
   type AgentRegistrationPayload,
 } from '@/lib/libro/agent'
-import { issueHandleClaimPermit } from '@/lib/libro/proof'
 import { getWorldIdServerConfig } from '@/lib/world-id/server'
 import {
   sessionIdToCommitment,
@@ -102,33 +98,11 @@ export async function PUT(
        WHERE "userId" = $1 AND handle_hash = $2 AND session_commitment = $3`,
       [user.id, row.handle_hash, row.session_commitment]
     )
-    let handlePermit
-    if (claim.rows.length === 0) {
-      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [1280068687, user.id])
-      const attempts = await client.query(
-        `SELECT COUNT(*)::int AS count FROM libro_handle_permits
-         WHERE "userId" = $1 AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
-        [user.id]
-      )
-      if (attempts.rows[0].count >= 10) return await fail('Too many handle claim attempts', 429)
-      handlePermit = await issueHandleClaimPermit({
-        handleHash: row.handle_hash,
-        sessionCommitment: row.session_commitment,
-        config,
-        permitConfig: getLibroHandlePermitConfig(),
-      })
-      await client.query(
-        `INSERT INTO libro_handle_permits
-          ("userId", handle_hash, session_commitment, permit_nonce, permit_deadline, purpose)
-         VALUES ($1, $2, $3, $4, to_timestamp($5), 'agent')`,
-        [user.id, row.handle_hash, row.session_commitment, handlePermit.nonce, handlePermit.deadline]
-      )
-    }
     const transaction = prepareAgentRegistration({
       result: validated,
       contractRegistration: recreated.contractRegistration,
       handle: row.handle,
-      handlePermit,
+      claimHandle: claim.rows.length === 0,
       config,
     })
     const proof = {
@@ -146,13 +120,6 @@ export async function PUT(
         responses: validated.responses,
         environment: validated.environment,
       },
-      ...(handlePermit ? {
-        handle_permit: {
-          nonce: handlePermit.nonce,
-          deadline: handlePermit.deadline.toString(),
-          signature: handlePermit.signature,
-        },
-      } : {}),
     }
     await client.query(
       'UPDATE libro_agent_registrations SET proof = $1, transaction = $2 WHERE id = $3',

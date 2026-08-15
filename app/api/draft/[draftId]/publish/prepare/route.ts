@@ -8,8 +8,8 @@ import {
   validateSessionCredentialResponses,
   validateWorldIdSessionResult,
 } from '@/lib/world-id/proof'
-import { getLibroHandlePermitConfig, getLibroServerConfig } from '@/lib/libro/config'
-import { issueHandleClaimPermit, prepareLibroRegistration } from '@/lib/libro/proof'
+import { getLibroServerConfig } from '@/lib/libro/config'
+import { prepareLibroRegistration } from '@/lib/libro/proof'
 import {
   assertChallengeCanBeUsed,
   assertDraftCanBePublished,
@@ -136,33 +136,6 @@ export async function PUT(
       [authenticatedUser.id, handleHash, challenge.session_commitment]
     )
     const needsClaim = claimResult.rows.length === 0
-    let handlePermit
-    if (needsClaim) {
-      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [1280068687, authenticatedUser.id])
-      const attempts = await client.query(
-        `SELECT COUNT(*)::int AS count FROM libro_handle_permits
-         WHERE "userId" = $1
-           AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
-        [authenticatedUser.id]
-      )
-      if (attempts.rows[0].count >= 10) return await fail('Too many handle claim attempts', 429)
-      try {
-        handlePermit = await issueHandleClaimPermit({
-          handleHash,
-          sessionCommitment: challenge.session_commitment as `0x${string}`,
-          config: libroConfig,
-          permitConfig: getLibroHandlePermitConfig(),
-        })
-        await client.query(
-          `INSERT INTO libro_handle_permits
-            ("userId", handle_hash, session_commitment, permit_nonce, permit_deadline, purpose)
-           VALUES ($1, $2, $3, $4, to_timestamp($5), 'human')`,
-          [authenticatedUser.id, handleHash, challenge.session_commitment, handlePermit.nonce, handlePermit.deadline]
-        )
-      } catch (error) {
-        return await fail(error instanceof Error ? error.message : 'Failed to issue handle permit', 500)
-      }
-    }
 
     let prepared
     try {
@@ -172,7 +145,7 @@ export async function PUT(
         handle: storedPublication.author_handle_libro,
         handleHash,
         config: libroConfig,
-        handlePermit,
+        claimHandle: needsClaim,
       })
     } catch (error) {
       return await fail(error instanceof Error ? error.message : 'Failed to prepare Libro registration')
@@ -198,16 +171,16 @@ export async function PUT(
     const registrationResult = await client.query(
       `INSERT INTO libro_publish_registrations
         ("userId", "draftId", "challengeId", signal_hash, contract_signal_hash, handle_hash,
-         session_commitment, session_nullifier, handle_permit, chain_id, registry_address, proof, transaction)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         session_commitment, session_nullifier, chain_id, registry_address, proof, transaction)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT ("challengeId") DO UPDATE
        SET "challengeId" = libro_publish_registrations."challengeId"
        RETURNING id, signal_hash, handle_hash, chain_id, registry_address, transaction, "publicationId"`,
       [
         authenticatedUser.id, draftId, challenge.id, prepared.signalHash,
         prepared.signalHashUint256, prepared.handleHash, prepared.sessionCommitment,
-        prepared.sessionNullifier, prepared.handlePermit || null, libroConfig.chainId,
-        libroConfig.registryAddress, proof, prepared.transaction,
+        prepared.sessionNullifier, libroConfig.chainId, libroConfig.registryAddress, proof,
+        prepared.transaction,
       ]
     )
     await client.query('COMMIT')

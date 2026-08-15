@@ -27,18 +27,18 @@ The registry constructor fixes:
 - World ID v4 verifier address
 - numeric `rpId` (`uint64`), derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_`
 
-Session requests have no action. They require user presence and use the canonical publication JSON as the credential signal.
+Session requests have no action and use the canonical publication JSON as the credential signal. Direct publication does not force an additional user-presence check; agent authorization does.
 
 ## Contract ABI
 
 ```solidity
-function claimHandleAndRegisterHumanDocument(string calldata handle, uint256 signalHash, WorldIdSessionProof calldata proof, HandleClaimPermit calldata permit) external;
+function claimHandleAndRegisterHumanDocument(string calldata handle, uint256 signalHash, WorldIdSessionProof calldata proof) external;
 function registerHumanDocument(bytes32 handleHash, uint256 signalHash, WorldIdSessionProof calldata proof) external;
 function verifyHumanDocument(uint256 signalHash, bytes32 handleHash) external view returns (bool);
 event HumanDocumentRegistered(uint256 indexed signalHash, bytes32 indexed handleHash, uint256 indexed sessionNullifier);
 ```
 
-Submission remains permissionless, but the proof must resolve to the permanent session commitment registered for the declared handle.
+Handle claims and submission are permissionless. An unclaimed normalized handle is permanently assigned to the first valid World ID session proof, and later proofs must resolve to that registered session commitment.
 
 The registry stores bidirectional handle/session mappings, consumes session nullifiers, and stores the handle for every document. Claims cannot be transferred or overwritten.
 

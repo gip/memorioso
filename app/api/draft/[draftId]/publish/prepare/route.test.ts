@@ -76,12 +76,10 @@ vi.mock('@/lib/libro/config', () => ({
     rpId: BigInt(1),
     rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
   }),
-  getLibroHandlePermitConfig: () => ({ privateKey: `0x${'33'.repeat(32)}` }),
 }))
 
 vi.mock('@/lib/libro/proof', () => ({
   prepareLibroRegistration: proofMock.prepareLibroRegistration,
-  issueHandleClaimPermit: vi.fn(),
 }))
 
 vi.mock('@/lib/publish-validation', () => ({
@@ -211,7 +209,10 @@ describe('publish prepare route', () => {
       success: true,
       handleHash: `0x${'aa'.repeat(32)}`,
     })
-    expect(proofMock.prepareLibroRegistration).toHaveBeenCalled()
+    expect(proofMock.prepareLibroRegistration).toHaveBeenCalledWith(expect.objectContaining({
+      handle: 'ada',
+      claimHandle: false,
+    }))
   })
 
   it('rejects a proof from another session', async () => {

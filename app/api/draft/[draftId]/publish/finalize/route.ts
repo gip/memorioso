@@ -141,7 +141,6 @@ export async function PUT(
          r.signal_hash,
          r.handle_hash,
          r.session_commitment,
-         r.handle_permit,
          r.chain_id,
          r.registry_address,
          r.transaction_hash,
@@ -388,24 +387,19 @@ export async function PUT(
         [userOpHash?.toLowerCase() || null, transactionHash.toLowerCase(), articleResult.rows[0].id, registrationId]
       )
 
-      if (registration.handle_permit) {
-        await client.query(
-          `INSERT INTO libro_handle_claims
-            ("userId", handle, handle_hash, session_commitment, permit_nonce, permit_deadline,
-             transaction_hash, finalized_at)
-           VALUES ($1, $2, $3, $4, $5, to_timestamp($6), $7, CURRENT_TIMESTAMP)
-           ON CONFLICT ("userId") DO NOTHING`,
-          [
-            authenticatedUser.id,
-            storedPublication.author_handle_libro,
-            registration.handle_hash,
-            registration.session_commitment,
-            registration.handle_permit.nonce,
-            registration.handle_permit.deadline,
-            transactionHash.toLowerCase(),
-          ]
-        )
-      }
+      await client.query(
+        `INSERT INTO libro_handle_claims
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         ON CONFLICT ("userId") DO NOTHING`,
+        [
+          authenticatedUser.id,
+          storedPublication.author_handle_libro,
+          registration.handle_hash,
+          registration.session_commitment,
+          transactionHash.toLowerCase(),
+        ]
+      )
 
       stage = 'commit'
       await client.query('COMMIT')

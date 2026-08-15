@@ -26,12 +26,6 @@ contract LibroRegistry {
         uint256[5] zeroKnowledgeProof;
     }
 
-    struct HandleClaimPermit {
-        bytes32 nonce;
-        uint64 deadline;
-        bytes signature;
-    }
-
     struct AgentRegistration {
         bytes32 handleHash;
         address controllerAddress;
@@ -54,9 +48,6 @@ contract LibroRegistry {
 
     uint256 public constant SCOPE_PUBLISH_DOCUMENT = 1;
 
-    bytes32 public constant HANDLE_CLAIM_TYPEHASH = keccak256(
-        "HandleClaim(bytes32 handleHash,uint256 sessionCommitment,bytes32 nonce,uint64 deadline,uint256 chainId,address registryAddress)"
-    );
     bytes32 public constant AGENT_REGISTRATION_TYPEHASH = keccak256(
         "LibroAgentRegistration(bytes32 handleHash,address controllerAddress,address agentAddress,uint256 scope,uint64 validFrom,uint64 expiresAt,bytes32 salt,uint256 chainId,address registryAddress)"
     );
@@ -70,13 +61,9 @@ contract LibroRegistry {
 
     IWorldIDVerifier public immutable worldIdVerifier;
     uint64 public immutable rpId;
-    address public owner;
-    address public pendingOwner;
-    address public handlePermitSigner;
 
     mapping(bytes32 => uint256) public handleSessionCommitments;
     mapping(uint256 => bytes32) public sessionCommitmentHandles;
-    mapping(bytes32 => bool) public usedHandlePermitNonces;
     mapping(uint256 => bool) public usedSessionNullifiers;
     mapping(uint256 => bytes32) public humanDocumentHandles;
     mapping(bytes32 => StoredAgentRegistration) public agentRegistrations;
@@ -84,9 +71,7 @@ contract LibroRegistry {
 
     event HandleClaimed(bytes32 indexed handleHash, uint256 indexed sessionCommitment);
     event HumanDocumentRegistered(
-        uint256 indexed documentSignalHash,
-        bytes32 indexed handleHash,
-        uint256 indexed sessionNullifier
+        uint256 indexed documentSignalHash, bytes32 indexed handleHash, uint256 indexed sessionNullifier
     );
     event AgentRegistered(
         bytes32 indexed registrationHash,
@@ -106,23 +91,14 @@ contract LibroRegistry {
         bytes32 documentNonce,
         uint64 signedAt
     );
-    event HandlePermitSignerUpdated(address indexed previousSigner, address indexed newSigner);
-    event OwnershipTransferStarted(address indexed previousOwner, address indexed pendingOwner);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
     error InvalidVerifier();
     error InvalidRpId();
-    error InvalidOwner();
-    error InvalidPermitSigner();
     error InvalidHandle();
     error InvalidSessionCommitment();
     error HandleAlreadyClaimed(bytes32 handleHash);
     error SessionAlreadyClaimed(uint256 sessionCommitment);
     error HandleNotClaimed(bytes32 handleHash);
     error SessionDoesNotOwnHandle(bytes32 handleHash);
-    error PermitExpired();
-    error PermitAlreadyUsed(bytes32 nonce);
-    error InvalidPermitSignature();
     error SessionNullifierAlreadyUsed(uint256 nullifier);
     error InvalidDocumentSignalHash();
     error DocumentAlreadyRegistered(uint256 documentSignalHash);
@@ -135,71 +111,49 @@ contract LibroRegistry {
     error UnauthorizedController();
     error InvalidAgentSignature();
     error InvalidSignatureLength();
-    error UnauthorizedOwner();
-    error UnauthorizedPendingOwner();
 
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert UnauthorizedOwner();
-        _;
-    }
-
-    constructor(address verifier, uint64 relyingPartyId, address permitSigner, address initialOwner) {
+    constructor(address verifier, uint64 relyingPartyId) {
         if (verifier == address(0)) revert InvalidVerifier();
         if (relyingPartyId == 0) revert InvalidRpId();
-        if (permitSigner == address(0)) revert InvalidPermitSigner();
-        if (initialOwner == address(0)) revert InvalidOwner();
 
         worldIdVerifier = IWorldIDVerifier(verifier);
         rpId = relyingPartyId;
-        handlePermitSigner = permitSigner;
-        owner = initialOwner;
     }
 
-    function claimHandle(
-        string calldata handle,
-        WorldIdSessionProof calldata proof,
-        HandleClaimPermit calldata permit
-    ) external {
+    function claimHandle(string calldata handle, WorldIdSessionProof calldata proof) external {
         bytes32 handleHash = hashHandle(handle);
-        _claimHandle(handleHash, proof.sessionCommitment, permit);
+        _claimHandle(handleHash, proof.sessionCommitment);
         _verifyAndConsumeSession(proof, getHandleClaimSignalHash(handle));
     }
 
     function claimHandleAndRegisterHumanDocument(
         string calldata handle,
         uint256 documentSignalHash,
-        WorldIdSessionProof calldata proof,
-        HandleClaimPermit calldata permit
+        WorldIdSessionProof calldata proof
     ) external {
         bytes32 handleHash = hashHandle(handle);
-        _claimHandle(handleHash, proof.sessionCommitment, permit);
+        _claimHandle(handleHash, proof.sessionCommitment);
         _registerHumanDocument(handleHash, documentSignalHash, proof);
     }
 
-    function registerHumanDocument(
-        bytes32 handleHash,
-        uint256 documentSignalHash,
-        WorldIdSessionProof calldata proof
-    ) external {
+    function registerHumanDocument(bytes32 handleHash, uint256 documentSignalHash, WorldIdSessionProof calldata proof)
+        external
+    {
         _registerHumanDocument(handleHash, documentSignalHash, proof);
     }
 
-    function registerAgent(
-        AgentRegistration calldata registration,
-        WorldIdSessionProof calldata proof
-    ) external {
+    function registerAgent(AgentRegistration calldata registration, WorldIdSessionProof calldata proof) external {
         _registerAgent(registration, proof);
     }
 
     function claimHandleAndRegisterAgent(
         string calldata handle,
         AgentRegistration calldata registration,
-        WorldIdSessionProof calldata proof,
-        HandleClaimPermit calldata permit
+        WorldIdSessionProof calldata proof
     ) external {
         bytes32 handleHash = hashHandle(handle);
         if (registration.handleHash != handleHash) revert InvalidRegistration();
-        _claimHandle(handleHash, proof.sessionCommitment, permit);
+        _claimHandle(handleHash, proof.sessionCommitment);
         _registerAgent(registration, proof);
     }
 
@@ -221,16 +175,20 @@ contract LibroRegistry {
         bytes calldata signature
     ) external {
         if (documentSignalHash == 0) revert InvalidDocumentSignalHash();
-        if (humanDocumentHandles[documentSignalHash] != bytes32(0)
-            || agentDocumentRegistrations[documentSignalHash] != bytes32(0)) {
+        if (
+            humanDocumentHandles[documentSignalHash] != bytes32(0)
+                || agentDocumentRegistrations[documentSignalHash] != bytes32(0)
+        ) {
             revert DocumentAlreadyRegistered(documentSignalHash);
         }
 
         StoredAgentRegistration memory registration = _requireActiveRegistration(registrationHash, signedAt);
         bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(AGENT_DOCUMENT_TYPEHASH, registrationHash, documentSignalHash, documentNonce, signedAt))
+            keccak256(
+                abi.encode(AGENT_DOCUMENT_TYPEHASH, registrationHash, documentSignalHash, documentNonce, signedAt)
+            )
         );
-        if (_recover(digest, signature, false) != registration.agentAddress) revert InvalidAgentSignature();
+        if (_recover(digest, signature) != registration.agentAddress) revert InvalidAgentSignature();
 
         agentDocumentRegistrations[documentSignalHash] = registrationHash;
         emit AgentDocumentRegistered(
@@ -249,11 +207,8 @@ contract LibroRegistry {
 
     function verifyAgent(bytes32 registrationHash, bytes32 handleHash) external view returns (bool) {
         StoredAgentRegistration memory registration = agentRegistrations[registrationHash];
-        return registration.handleHash == handleHash
-            && registration.agentAddress != address(0)
-            && !registration.revoked
-            && registration.validFrom <= block.timestamp
-            && block.timestamp <= registration.expiresAt;
+        return registration.handleHash == handleHash && registration.agentAddress != address(0) && !registration.revoked
+            && registration.validFrom <= block.timestamp && block.timestamp <= registration.expiresAt;
     }
 
     function verifyAgentDocument(uint256 documentSignalHash, bytes32 handleHash) external view returns (bool) {
@@ -264,18 +219,20 @@ contract LibroRegistry {
     }
 
     function getAgentRegistrationHash(AgentRegistration calldata registration) public view returns (bytes32) {
-        return keccak256(abi.encode(
-            AGENT_REGISTRATION_TYPEHASH,
-            registration.handleHash,
-            registration.controllerAddress,
-            registration.agentAddress,
-            registration.scope,
-            registration.validFrom,
-            registration.expiresAt,
-            registration.salt,
-            block.chainid,
-            address(this)
-        ));
+        return keccak256(
+            abi.encode(
+                AGENT_REGISTRATION_TYPEHASH,
+                registration.handleHash,
+                registration.controllerAddress,
+                registration.agentAddress,
+                registration.scope,
+                registration.validFrom,
+                registration.expiresAt,
+                registration.salt,
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     function getAgentRegistrationSignalHash(AgentRegistration calldata registration) public view returns (uint256) {
@@ -292,12 +249,9 @@ contract LibroRegistry {
         if (value.length < 3 || value.length > 32) revert InvalidHandle();
         for (uint256 i = 0; i < value.length; i++) {
             bytes1 char = value[i];
-            if (!(
-                (char >= 0x61 && char <= 0x7a)
-                    || (char >= 0x30 && char <= 0x39)
-                    || char == 0x5f
-                    || char == 0x2d
-            )) revert InvalidHandle();
+            if (!((char >= 0x61 && char <= 0x7a) || (char >= 0x30 && char <= 0x39) || char == 0x5f || char == 0x2d)) {
+                revert InvalidHandle();
+            }
         }
         return keccak256(value);
     }
@@ -306,65 +260,25 @@ contract LibroRegistry {
         return _domainSeparator();
     }
 
-    function setHandlePermitSigner(address newSigner) external onlyOwner {
-        if (newSigner == address(0)) revert InvalidPermitSigner();
-        address previousSigner = handlePermitSigner;
-        handlePermitSigner = newSigner;
-        emit HandlePermitSignerUpdated(previousSigner, newSigner);
-    }
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert InvalidOwner();
-        pendingOwner = newOwner;
-        emit OwnershipTransferStarted(owner, newOwner);
-    }
-
-    function acceptOwnership() external {
-        if (msg.sender != pendingOwner) revert UnauthorizedPendingOwner();
-        address previousOwner = owner;
-        owner = msg.sender;
-        pendingOwner = address(0);
-        emit OwnershipTransferred(previousOwner, msg.sender);
-    }
-
-    function _claimHandle(
-        bytes32 handleHash,
-        uint256 sessionCommitment,
-        HandleClaimPermit calldata permit
-    ) internal {
+    function _claimHandle(bytes32 handleHash, uint256 sessionCommitment) internal {
         if (sessionCommitment == 0) revert InvalidSessionCommitment();
         if (handleSessionCommitments[handleHash] != 0) revert HandleAlreadyClaimed(handleHash);
         if (sessionCommitmentHandles[sessionCommitment] != bytes32(0)) {
             revert SessionAlreadyClaimed(sessionCommitment);
         }
-        if (permit.deadline < block.timestamp) revert PermitExpired();
-        if (usedHandlePermitNonces[permit.nonce]) revert PermitAlreadyUsed(permit.nonce);
-
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-            HANDLE_CLAIM_TYPEHASH,
-            handleHash,
-            sessionCommitment,
-            permit.nonce,
-            permit.deadline,
-            block.chainid,
-            address(this)
-        )));
-        if (_recover(digest, permit.signature, true) != handlePermitSigner) revert InvalidPermitSignature();
-
-        usedHandlePermitNonces[permit.nonce] = true;
         handleSessionCommitments[handleHash] = sessionCommitment;
         sessionCommitmentHandles[sessionCommitment] = handleHash;
         emit HandleClaimed(handleHash, sessionCommitment);
     }
 
-    function _registerHumanDocument(
-        bytes32 handleHash,
-        uint256 documentSignalHash,
-        WorldIdSessionProof calldata proof
-    ) internal {
+    function _registerHumanDocument(bytes32 handleHash, uint256 documentSignalHash, WorldIdSessionProof calldata proof)
+        internal
+    {
         if (documentSignalHash == 0) revert InvalidDocumentSignalHash();
-        if (humanDocumentHandles[documentSignalHash] != bytes32(0)
-            || agentDocumentRegistrations[documentSignalHash] != bytes32(0)) {
+        if (
+            humanDocumentHandles[documentSignalHash] != bytes32(0)
+                || agentDocumentRegistrations[documentSignalHash] != bytes32(0)
+        ) {
             revert DocumentAlreadyRegistered(documentSignalHash);
         }
         _requireSessionOwnsHandle(handleHash, proof.sessionCommitment);
@@ -373,10 +287,7 @@ contract LibroRegistry {
         emit HumanDocumentRegistered(documentSignalHash, handleHash, nullifier);
     }
 
-    function _registerAgent(
-        AgentRegistration calldata registration,
-        WorldIdSessionProof calldata proof
-    ) internal {
+    function _registerAgent(AgentRegistration calldata registration, WorldIdSessionProof calldata proof) internal {
         _validateRegistration(registration);
         _requireSessionOwnsHandle(registration.handleHash, proof.sessionCommitment);
 
@@ -436,12 +347,9 @@ contract LibroRegistry {
 
     function _validateRegistration(AgentRegistration calldata registration) internal view {
         if (
-            registration.handleHash == bytes32(0)
-                || registration.controllerAddress == address(0)
-                || registration.agentAddress == address(0)
-                || registration.scope == 0
-                || registration.expiresAt < block.timestamp
-                || registration.validFrom > registration.expiresAt
+            registration.handleHash == bytes32(0) || registration.controllerAddress == address(0)
+                || registration.agentAddress == address(0) || registration.scope == 0
+                || registration.expiresAt < block.timestamp || registration.validFrom > registration.expiresAt
         ) revert InvalidRegistration();
     }
 
@@ -469,7 +377,7 @@ contract LibroRegistry {
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
-    function _recover(bytes32 digest, bytes calldata signature, bool permit) internal pure returns (address) {
+    function _recover(bytes32 digest, bytes calldata signature) internal pure returns (address) {
         if (signature.length != 65) revert InvalidSignatureLength();
         bytes32 r;
         bytes32 s;
@@ -480,19 +388,12 @@ contract LibroRegistry {
             v := byte(0, calldataload(add(signature.offset, 0x40)))
         }
         if (v < 27) v += 27;
-        if (v != 27 && v != 28) {
-            if (permit) revert InvalidPermitSignature();
-            revert InvalidAgentSignature();
-        }
+        if (v != 27 && v != 28) revert InvalidAgentSignature();
         if (uint256(s) > 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0) {
-            if (permit) revert InvalidPermitSignature();
             revert InvalidAgentSignature();
         }
         address signer = ecrecover(digest, v, r, s);
-        if (signer == address(0)) {
-            if (permit) revert InvalidPermitSignature();
-            revert InvalidAgentSignature();
-        }
+        if (signer == address(0)) revert InvalidAgentSignature();
         return signer;
     }
 

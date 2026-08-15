@@ -116,7 +116,6 @@ CREATE TABLE libro_publish_registrations (
     handle_hash VARCHAR(66) NOT NULL,
     session_commitment VARCHAR(66) NOT NULL,
     session_nullifier VARCHAR(78) NOT NULL,
-    handle_permit JSONB,
     chain_id INTEGER NOT NULL,
     registry_address VARCHAR(42) NOT NULL,
     proof JSONB NOT NULL,
@@ -134,25 +133,10 @@ CREATE TABLE libro_handle_claims (
     handle VARCHAR(32) NOT NULL UNIQUE,
     handle_hash VARCHAR(66) NOT NULL UNIQUE,
     session_commitment VARCHAR(66) NOT NULL UNIQUE,
-    permit_nonce VARCHAR(66) NOT NULL UNIQUE,
-    permit_deadline TIMESTAMPTZ NOT NULL,
     transaction_hash VARCHAR(66) NOT NULL UNIQUE,
     finalized_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE TABLE libro_handle_permits (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    handle_hash VARCHAR(66) NOT NULL,
-    session_commitment VARCHAR(66) NOT NULL,
-    permit_nonce VARCHAR(66) NOT NULL UNIQUE,
-    permit_deadline TIMESTAMPTZ NOT NULL,
-    purpose VARCHAR(16) NOT NULL CHECK (purpose IN ('human', 'agent')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_libro_handle_permits_user_created
-    ON libro_handle_permits("userId", created_at);
 
 CREATE INDEX idx_libro_publish_registrations_draft_user
     ON libro_publish_registrations("draftId", "userId");

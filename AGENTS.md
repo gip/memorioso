@@ -37,8 +37,7 @@ The app expects these environment variables in local and deployed environments:
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
   `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
-- `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`,
-  `LIBRO_HANDLE_PERMIT_PRIVATE_KEY`, and optional
+- `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`, and optional
   `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
   for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
   and default to `LIBRO_WORLD_CHAIN_RPC_URLS` in `libro/core`.

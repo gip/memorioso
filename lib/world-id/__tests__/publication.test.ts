@@ -179,6 +179,7 @@ describe('Libro registration helpers', () => {
       signalHash,
       handle: author.handle,
       handleHash: hashLibroHandle(author.handle),
+      claimHandle: true,
       config: {
         protocolVersion: LIBRO_PROTOCOL_VERSION,
         chainId: LIBRO_WORLD_CHAIN_ID,
@@ -200,8 +201,8 @@ describe('Libro registration helpers', () => {
     expect(prepared.transaction.chainId).toBe(480)
     expect(prepared.transaction.transactions[0].to).toBe('0x1111111111111111111111111111111111111111')
     expect(prepared.transaction.transactions[0].data).toMatch(/^0x/)
-    expect(decoded.functionName).toBe('registerHumanDocument')
-    expect(decoded.args[0]).toBe(hashLibroHandle(author.handle))
+    expect(decoded.functionName).toBe('claimHandleAndRegisterHumanDocument')
+    expect(decoded.args[0]).toBe(author.handle)
     expect(decoded.args[1]).toBe(BigInt(signalHash))
   })
 

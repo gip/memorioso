@@ -82,7 +82,7 @@ export async function PUT(
   let stage = 'lookup'
   try {
     const registrationResult = await pool.query(
-      `SELECT r.registration_hash, r.handle_hash, r.session_commitment, r.proof,
+      `SELECT r.registration_hash, r.handle_hash, r.session_commitment,
               r.finalized_at, r.transaction_hash, a.handle
        FROM libro_agent_registrations r
        INNER JOIN authors a ON a.id = r."authorId"
@@ -155,24 +155,19 @@ export async function PUT(
         [userOpHash.toLowerCase(), transactionHash.toLowerCase(), registrationId, authenticatedUser.id]
       )
 
-      if (pending.proof?.handle_permit) {
-        await client.query(
-          `INSERT INTO libro_handle_claims
-            ("userId", handle, handle_hash, session_commitment, permit_nonce, permit_deadline,
-             transaction_hash, finalized_at)
-           VALUES ($1, $2, $3, $4, $5, to_timestamp($6), $7, CURRENT_TIMESTAMP)
-           ON CONFLICT ("userId") DO NOTHING`,
-          [
-            authenticatedUser.id,
-            pending.handle,
-            pending.handle_hash,
-            pending.session_commitment,
-            pending.proof.handle_permit.nonce,
-            pending.proof.handle_permit.deadline,
-            transactionHash.toLowerCase(),
-          ]
-        )
-      }
+      await client.query(
+        `INSERT INTO libro_handle_claims
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         ON CONFLICT ("userId") DO NOTHING`,
+        [
+          authenticatedUser.id,
+          pending.handle,
+          pending.handle_hash,
+          pending.session_commitment,
+          transactionHash.toLowerCase(),
+        ]
+      )
 
       stage = 'commit'
       await client.query('COMMIT')

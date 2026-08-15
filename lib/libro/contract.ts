@@ -27,12 +27,6 @@ const sessionProofComponents = [
   { name: 'zeroKnowledgeProof', type: 'uint256[5]' },
 ] as const
 
-const handlePermitComponents = [
-  { name: 'nonce', type: 'bytes32' },
-  { name: 'deadline', type: 'uint64' },
-  { name: 'signature', type: 'bytes' },
-] as const
-
 const agentRegistrationComponents = [
   { name: 'handleHash', type: 'bytes32' },
   { name: 'controllerAddress', type: 'address' },
@@ -49,7 +43,6 @@ export const libroRegistryAbi = [
     inputs: [
       { name: 'handle', type: 'string' },
       { name: 'proof', type: 'tuple', components: sessionProofComponents },
-      { name: 'permit', type: 'tuple', components: handlePermitComponents },
     ], outputs: [],
   },
   {
@@ -58,7 +51,6 @@ export const libroRegistryAbi = [
       { name: 'handle', type: 'string' },
       { name: 'documentSignalHash', type: 'uint256' },
       { name: 'proof', type: 'tuple', components: sessionProofComponents },
-      { name: 'permit', type: 'tuple', components: handlePermitComponents },
     ], outputs: [],
   },
   {
@@ -82,7 +74,6 @@ export const libroRegistryAbi = [
       { name: 'handle', type: 'string' },
       { name: 'registration', type: 'tuple', components: agentRegistrationComponents },
       { name: 'proof', type: 'tuple', components: sessionProofComponents },
-      { name: 'permit', type: 'tuple', components: handlePermitComponents },
     ], outputs: [],
   },
   {

@@ -7,13 +7,13 @@ description: Use when building with Libro session-bound handles, World ID 4.0 se
 
 Use this skill when implementing or reviewing Libro registration and verification flows.
 
-Libro v1 binds one normalized handle to one World ID session commitment. Initial binding needs a short-lived Memorioso EIP-712 permit; ongoing human publications and agent authorizations require `verifySession(...)` for that commitment and exact signal. The full session ID never enters Libro data.
+Libro v1 permissionlessly binds one normalized handle to one World ID session commitment on a first-claim basis. Human publications and agent authorizations require `verifySession(...)` for that commitment and exact signal. The full session ID never enters Libro data.
 
 ## Workflow
 
 1. Build the publication payload with the Libro schema and canonical JSON key ordering.
 2. Use the canonical JSON string as the IDKit signal.
-3. Validate the session ID, commitment, RP nonce, environment, user presence, credential, and signal hash server-side.
+3. Validate the session ID, commitment, RP nonce, environment, credential, and signal hash server-side; require user presence only for flows whose policy explicitly needs it.
 4. Map the first session response into `WorldIdSessionProof` without retaining the full session ID.
 5. Claim-and-publish atomically on first use; otherwise call `registerHumanDocument(handleHash, signalHash, proof)`.
 6. Finalize only after the exact handle-bound event is confirmed on World Chain.

@@ -25,10 +25,6 @@ export type LibroAgentServerConfig = {
   rpcUrls: string[]
 }
 
-export type LibroHandlePermitConfig = {
-  privateKey: Hex
-}
-
 export type LibroRelayerConfig = {
   privateKey: Hex
 }
@@ -78,17 +74,6 @@ export function getLibroAgentServerConfig(): LibroAgentServerConfig {
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
     rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }
-}
-
-export function getLibroHandlePermitConfig(): LibroHandlePermitConfig {
-  const privateKey = requireEnv('LIBRO_HANDLE_PERMIT_PRIVATE_KEY')
-  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey) || /^0x0{64}$/.test(privateKey)) {
-    throw new Error('LIBRO_HANDLE_PERMIT_PRIVATE_KEY must be a valid non-zero 32-byte private key')
-  }
-  if (privateKey.toLowerCase() === process.env.WORLD_ID_RP_SIGNING_KEY?.toLowerCase()) {
-    throw new Error('LIBRO_HANDLE_PERMIT_PRIVATE_KEY must not reuse WORLD_ID_RP_SIGNING_KEY')
-  }
-  return { privateKey: privateKey as Hex }
 }
 
 export function getLibroRelayerConfig(): LibroRelayerConfig {

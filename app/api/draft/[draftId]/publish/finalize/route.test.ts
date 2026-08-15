@@ -90,7 +90,6 @@ function pendingRegistration() {
     signal_hash: signalHash,
     handle_hash: handleHash,
     session_commitment: `0x${'33'.repeat(32)}`,
-    handle_permit: null,
     chain_id: 480,
     registry_address: '0x1111111111111111111111111111111111111111',
     transaction_hash: transactionHash,
@@ -106,7 +105,6 @@ function lockedRegistration() {
     signal_hash: signalHash,
     handle_hash: handleHash,
     session_commitment: `0x${'33'.repeat(32)}`,
-    handle_permit: null,
     chain_id: 480,
     registry_address: '0x1111111111111111111111111111111111111111',
     proof: {

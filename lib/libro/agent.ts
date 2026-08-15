@@ -19,7 +19,7 @@ import {
 } from './contract'
 import type { LibroAgentServerConfig } from './config'
 import { hexToUint256, normalizeHex } from './encoding'
-import { mapWorldIdSessionProof, type LibroHandlePermit } from './proof'
+import { mapWorldIdSessionProof } from './proof'
 import {
   canonicalPublicationSignal,
   hashPublicationSignal,
@@ -173,15 +173,15 @@ export function prepareAgentRegistration(input: {
   result: IDKitResultSession
   contractRegistration: AgentRegistrationContractInput
   handle: string
-  handlePermit?: LibroHandlePermit
+  claimHandle: boolean
   config: LibroAgentServerConfig
 }): AgentRegistrationTransaction {
   const proof = mapWorldIdSessionProof(input.result)
-  const data = input.handlePermit
+  const data = input.claimHandle
     ? encodeFunctionData({
       abi: libroRegistryAbi,
       functionName: 'claimHandleAndRegisterAgent',
-      args: [input.handle, input.contractRegistration, proof, input.handlePermit],
+      args: [input.handle, input.contractRegistration, proof],
     })
     : encodeFunctionData({
       abi: libroRegistryAbi,

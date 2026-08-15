@@ -138,10 +138,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                     <Link href="/activity">My drafts</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/authors">My authors</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/info">Information</Link>
+                    <Link href="/profile">Profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={(event) => {

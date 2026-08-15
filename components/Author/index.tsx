@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { type Author as AuthorType, type PublicationInfo } from '@/lib/db/objects'
-import Link from 'next/link'
+import { type Author as AuthorType, type AuthorPublicationCounts } from '@/lib/db/objects'
 import { AgentRegistrationPanel } from './AgentRegistrationPanel'
-import { PublicationTimestamp } from '@/components/PublicationTimestamp'
-import { publicationPath } from '@/lib/publication-kind'
+import { AuthorPublications } from '@/components/AuthorPublications'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
-export const Author = ({ author, publicationInfos, redirect = null, self = false }: { author: AuthorType | null, publicationInfos: PublicationInfo[], redirect?: string | null, self?: boolean }) => {
+export const Author = ({ author, counts, redirect = null, self = false }: { author: AuthorType | null, counts: AuthorPublicationCounts, redirect?: string | null, self?: boolean }) => {
   const router = useRouter()
   const { status } = useWorldIdAuth()
   const [isEditing, setIsEditing] = useState(false)
@@ -132,42 +130,7 @@ export const Author = ({ author, publicationInfos, redirect = null, self = false
             )}
           </div>
         )}
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">
-            {publicationInfos.length === 0 && "This author has not published yet"}
-            {publicationInfos.length > 0 && publicationInfos.length <= 20 &&
-              `This author has ${publicationInfos.length} publication${publicationInfos.length !== 1 ? 's:' : '.'}`
-            }
-            {publicationInfos.length > 20 && "This author has 20+ publications:"}
-          </div>
-        </div>
-        <div className="space-y-4">
-          {publicationInfos.slice(0, 20).map(publicationInfo => (
-            <Link href={publicationPath(publicationInfo.publication_type, publicationInfo.id)} key={publicationInfo.id}>
-              <div className="flex items-center gap-2">
-                <span>
-                  {publicationInfo.publication_title.trim() ? (
-                    <span className="line-clamp-2 italic underline hover:text-blue-500">
-                      {publicationInfo.publication_title}
-                    </span>
-                  ) : (
-                    <span className="line-clamp-2 text-sm font-normal leading-snug hover:text-blue-500">
-                      {publicationInfo.publication_excerpt}
-                    </span>
-                  )}
-                  <br />
-                  <span className="text-xs text-blurple">{publicationInfo.authorship_label}</span>
-                  <br />
-                  <PublicationTimestamp
-                    className="text-xs"
-                    date={publicationInfo.publication_date}
-                    style="short"
-                  />
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <AuthorPublications authorId={author.id} counts={counts} />
         <AgentRegistrationPanel authorId={author.id} />
       </div>
     </>)

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { isAuthRequiredPath } from './auth-routes'
 
 describe('authenticated page routes', () => {
-  it.each(['/activity', '/activity/', '/authors', '/authors/', '/info', '/info/'])(
+  it.each(['/activity', '/activity/', '/profile', '/profile/'])(
     'requires authentication for %s',
     (pathname) => {
       expect(isAuthRequiredPath(pathname)).toBe(true)

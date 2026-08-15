@@ -1,4 +1,4 @@
-const AUTH_REQUIRED_PATHS = new Set(['/activity', '/authors', '/info'])
+const AUTH_REQUIRED_PATHS = new Set(['/activity', '/profile'])
 
 export function isAuthRequiredPath(pathname: string): boolean {
   const normalizedPath = pathname.length > 1

@@ -126,7 +126,6 @@ function result(sessionId = `session_${'11'.repeat(32)}${'22'.repeat(32)}`): IDK
     session_id: sessionId,
     nonce: validationMock.challenge.nonce,
     environment: 'production',
-    user_presence_completed: true,
     responses: [{
       identifier: 'proof_of_human',
       signal_hash: validationMock.challenge.signal_hash,
@@ -203,7 +202,7 @@ describe('publish prepare route', () => {
     })
   })
 
-  it('accepts the exact logged-in session and publication signal', async () => {
+  it('accepts the exact logged-in session and publication signal without requiring user presence', async () => {
     const response = await PUT(request(result()), context(validationMock.challenge.draftId))
     const body = await response.json()
 

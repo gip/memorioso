@@ -102,7 +102,6 @@ export async function PUT(
         environment: worldIdConfig.environment,
         signalHash: challenge.signal_hash,
         expectedSessionId: authenticatedUser.worldIdSessionId,
-        requireUserPresence: true,
       })
       credentialIdentifiers = validateSessionCredentialResponses(validatedResult.responses, challenge.signal_hash)
       if (sessionIdToCommitment(validatedResult.session_id) !== challenge.session_commitment.toLowerCase()) {

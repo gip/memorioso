@@ -730,7 +730,6 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           app_id={publishContext.appId}
           rp_context={publishContext.rpContext}
           existing_session_id={publishContext.existingSessionId}
-          require_user_presence={true}
           environment={publishContext.environment}
           constraints={worldIdConstraints}
           handleVerify={handleWorldIdResult}

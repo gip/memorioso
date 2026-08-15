@@ -172,6 +172,7 @@ async function connectExistingAuthor(
        SET world_id_session_nullifier = $2,
            world_id_credential_identifier = $3,
            world_id_session_commitment = $4,
+           libro_identity_status = 'session_bound',
            modified_at = CURRENT_TIMESTAMP
        WHERE world_id_session_id = $1
        RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
@@ -182,6 +183,7 @@ async function connectExistingAuthor(
        SET world_id_session_nullifier = $2,
            world_id_credential_identifier = $3,
            world_id_session_commitment = $5,
+           libro_identity_status = 'session_bound',
            modified_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND world_id_session_id = $4
        RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
@@ -261,6 +263,7 @@ async function createOrConnectAuthor(
              world_id_session_nullifier = $3,
              world_id_credential_identifier = $4,
              world_id_session_commitment = $5,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
@@ -280,6 +283,7 @@ async function createOrConnectAuthor(
          SET world_id_session_nullifier = $2,
              world_id_credential_identifier = $3,
              world_id_session_commitment = $4,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,
@@ -293,6 +297,7 @@ async function createOrConnectAuthor(
              world_id_session_nullifier = $3,
              world_id_credential_identifier = $4,
              world_id_session_commitment = $5,
+             libro_identity_status = 'session_bound',
              modified_at = CURRENT_TIMESTAMP
          WHERE id = $1 AND handle IS NULL
          RETURNING id, name, handle, world_id_session_id, world_id_credential_identifier`,

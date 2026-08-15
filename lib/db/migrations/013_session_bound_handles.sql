@@ -2,6 +2,30 @@
 -- Old Libro proof registrations are intentionally unsupported after this point.
 -- Retain only the signup author whose handle is the login handle. Drafts and
 -- publications belonging to secondary authors are destroyed as selected.
+-- Some pre-session accounts never populated users.handle. Select their primary
+-- author deterministically by preserved publication count, then draft count,
+-- then age, so the most valuable legacy identity survives the hard cutover.
+WITH ranked_authors AS (
+    SELECT
+        a."userId",
+        a.handle,
+        ROW_NUMBER() OVER (
+            PARTITION BY a."userId"
+            ORDER BY
+                (SELECT COUNT(*) FROM publications p WHERE p."authorId" = a.id) DESC,
+                (SELECT COUNT(*) FROM drafts d WHERE d."authorId" = a.id) DESC,
+                a.created_at ASC,
+                a.id ASC
+        ) AS rank
+    FROM authors a
+    INNER JOIN users u ON u.id = a."userId"
+    WHERE u.handle IS NULL
+)
+UPDATE users u
+SET handle = ranked.handle
+FROM ranked_authors ranked
+WHERE ranked."userId" = u.id AND ranked.rank = 1;
+
 DELETE FROM drafts d
 USING authors a, users u
 WHERE d."authorId" = a.id
@@ -25,8 +49,7 @@ USING users u
 WHERE a."userId" = u.id
   AND a.handle <> u.handle;
 
-ALTER TABLE users ALTER COLUMN handle SET NOT NULL;
-ALTER TABLE users ALTER COLUMN world_id_session_id SET NOT NULL;
+ALTER TABLE users ADD COLUMN libro_identity_status VARCHAR(16) NOT NULL DEFAULT 'legacy';
 ALTER TABLE users ADD CONSTRAINT users_id_handle_key UNIQUE (id, handle);
 
 DROP TRIGGER IF EXISTS enforce_authors_per_user_limit ON authors;
@@ -39,8 +62,21 @@ ALTER TABLE users ADD COLUMN world_id_session_commitment VARCHAR(66);
 UPDATE users
 SET world_id_session_commitment = '0x' || substring(world_id_session_id FROM 9 FOR 64)
 WHERE world_id_session_id ~ '^session_[0-9a-fA-F]{128}$';
-ALTER TABLE users ALTER COLUMN world_id_session_commitment SET NOT NULL;
 ALTER TABLE users ADD CONSTRAINT users_world_id_session_commitment_key UNIQUE (world_id_session_commitment);
+UPDATE users
+SET libro_identity_status = 'session_bound'
+WHERE handle IS NOT NULL
+  AND world_id_session_id ~ '^session_[0-9a-fA-F]{128}$'
+  AND world_id_session_commitment IS NOT NULL;
+ALTER TABLE users ALTER COLUMN libro_identity_status SET DEFAULT 'session_bound';
+ALTER TABLE users ADD CONSTRAINT users_session_bound_identity_complete CHECK (
+    libro_identity_status = 'legacy'
+    OR (
+        handle IS NOT NULL
+        AND world_id_session_id ~ '^session_[0-9a-fA-F]{128}$'
+        AND world_id_session_commitment IS NOT NULL
+    )
+);
 
 DROP TABLE IF EXISTS libro_agent_document_registrations CASCADE;
 DROP TABLE IF EXISTS libro_agent_registrations CASCADE;

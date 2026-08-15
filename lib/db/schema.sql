@@ -2,13 +2,22 @@ CREATE TABLE users
 (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
-  handle VARCHAR(32) NOT NULL UNIQUE,
-  world_id_session_id TEXT NOT NULL UNIQUE,
-  world_id_session_commitment VARCHAR(66) NOT NULL UNIQUE,
+  handle VARCHAR(32) UNIQUE,
+  world_id_session_id TEXT UNIQUE,
+  world_id_session_commitment VARCHAR(66) UNIQUE,
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),
+  libro_identity_status VARCHAR(16) NOT NULL DEFAULT 'session_bound',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT users_session_bound_identity_complete CHECK (
+    libro_identity_status = 'legacy'
+    OR (
+      handle IS NOT NULL
+      AND world_id_session_id ~ '^session_[0-9a-fA-F]{128}$'
+      AND world_id_session_commitment IS NOT NULL
+    )
+  )
 );
 ALTER TABLE users ADD CONSTRAINT users_id_handle_key UNIQUE (id, handle);
 

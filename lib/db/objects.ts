@@ -161,16 +161,50 @@ export const getProof = cache(async (publicationId: string): Promise<Proof | nul
   }
 })
 
-export const getPublicationInfoByAuthor = cache(async (authorId: string): Promise<PublicationInfo[]> => {
+export const getPublicationsByAuthor = cache(async (
+  authorId: string,
+  limit: number = 20,
+  offset: number = 0,
+  type: PublicationFeedKind = 'article'
+): Promise<PublicationInfo[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal, proof FROM publications WHERE "authorId" = $1 ORDER BY id DESC LIMIT 21',
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE "authorId" = $1
+         AND ($4 = 'all'
+           OR ($4 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
+           OR ($4 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL))
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $2 OFFSET $3`,
+      [authorId, limit, offset, type]
+    )
+
+    return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+})
+
+export type AuthorPublicationCounts = { article: number; short: number }
+
+export const getAuthorPublicationCounts = cache(async (authorId: string): Promise<AuthorPublicationCounts> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL) AS article,
+         COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL) AS short
+       FROM publications
+       WHERE "authorId" = $1`,
       [authorId]
     )
 
-    // TODO: Not efficient - we need to fix this
-    return rows.map(mapPublicationInfoRow)
+    return {
+      article: Number(rows[0]?.article ?? 0),
+      short: Number(rows[0]?.short ?? 0),
+    }
   } finally {
     client.release()
   }

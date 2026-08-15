@@ -1,9 +1,17 @@
 import { cacheLife, cacheTag } from 'next/cache'
-import { getProof, getPublication, getPublicationBySignalHash } from '@/lib/db/objects'
+import {
+  getAuthorPublicationCounts,
+  getProof,
+  getPublication,
+  getPublicationBySignalHash,
+  type AuthorPublicationCounts,
+} from '@/lib/db/objects'
 
 export const publicationCacheTag = (publicationId: string) => `publication:${publicationId}`
 export const publicationHashCacheTag = (signalHash: string) =>
   `publication-hash:${signalHash.toLowerCase()}`
+export const authorPublicationCountsCacheTag = (authorId: string) =>
+  `author-publication-counts:${authorId}`
 
 export async function getCachedPublication(publicationId: string) {
   'use cache'
@@ -43,4 +51,12 @@ export async function getCachedPublicationBySignalHash(signalHash: string) {
     cacheLife('minutes')
   }
   return result
+}
+
+export async function getCachedAuthorPublicationCounts(authorId: string): Promise<AuthorPublicationCounts> {
+  'use cache'
+
+  cacheTag(authorPublicationCountsCacheTag(authorId))
+  cacheLife('days')
+  return getAuthorPublicationCounts(authorId)
 }

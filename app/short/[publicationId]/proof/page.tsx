@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { CanonicalProofPage, canonicalPublicationMetadata } from '@/components/CanonicalPublicationPage'
+import { ProofSkeleton } from '@/components/Proof/ProofSkeleton'
 
 type Params = Promise<{ publicationId: string }>
 
@@ -16,7 +17,7 @@ async function ShortProof({ params }: { params: Params }) {
 
 export default function Page({ params }: { params: Params }) {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<ProofSkeleton />}>
       <ShortProof params={params} />
     </Suspense>
   )

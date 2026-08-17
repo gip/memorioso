@@ -15,3 +15,19 @@ Libro is a permissionless protocol for registering human-authored publications o
 ## Agents
 
 Handle owners can authorize agents to publish on their behalf, and those agents sign with EIP-712 rather than a World ID proof, so the contract keeps agent authorship semantically distinct from direct human authorship. Coding agents can make use of this by directly writing code that hits `LibroRegistry` (see `lib/libro/agent.ts`); an MCP is also available.
+
+## Database setup
+
+Set `DATABASE_URL_UNPOOLED` (preferred) or `DATABASE_URL` to a direct Postgres connection.
+
+For a brand-new, empty database, initialize the current schema and baseline the existing migration history:
+
+```sh
+pnpm db:init
+```
+
+The initializer is atomic and refuses to run when the public schema already contains application relations or recorded migrations. Use the migration command for an initialized database:
+
+```sh
+pnpm db:migrate
+```

@@ -9,8 +9,8 @@ const { Client } = pg
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const migrationsDirectory = path.join(projectRoot, 'lib/db/migrations')
-const migrationTable = 'memorioso_schema_migrations'
-const migrationLockId = '7165831947293471'
+export const migrationTable = 'memorioso_schema_migrations'
+export const migrationLockId = '7165831947293471'
 
 export function parseMigrationFileNames(fileNames) {
   const migrations = fileNames
@@ -77,7 +77,7 @@ export function buildMigrationPlan(migrations, appliedMigrations) {
   return migrations.filter((migration) => !appliedVersions.has(migration.version))
 }
 
-async function loadMigrations() {
+export async function loadMigrations() {
   const directoryEntries = await readdir(migrationsDirectory, { withFileTypes: true })
   const fileNames = directoryEntries.filter((entry) => entry.isFile()).map((entry) => entry.name)
   const migrations = parseMigrationFileNames(fileNames)
@@ -131,7 +131,7 @@ export function selectMigrationDatabaseUrl(environment = process.env) {
   }
 }
 
-function getDatabaseConnectionString() {
+export function getDatabaseConnectionString() {
   loadLocalEnvironment()
   return selectMigrationDatabaseUrl()
 }

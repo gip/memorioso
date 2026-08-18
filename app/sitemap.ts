@@ -15,6 +15,7 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: BASE_URL, changeFrequency: 'daily', priority: 1 },
   { url: `${BASE_URL}/latest`, changeFrequency: 'daily', priority: 0.8 },
   { url: `${BASE_URL}/how-it-works`, changeFrequency: 'monthly', priority: 0.6 },
+  { url: `${BASE_URL}/openship`, changeFrequency: 'weekly', priority: 0.5 },
   { url: `${BASE_URL}/privacy`, changeFrequency: 'monthly', priority: 0.3 },
   { url: `${BASE_URL}/terms`, changeFrequency: 'monthly', priority: 0.3 },
 ]

@@ -8,7 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/build-openship.mjs",
     "build": "next build",
+    "postinstall": "node scripts/build-openship.mjs --lenient",
+    "openship:build": "node scripts/build-openship.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",

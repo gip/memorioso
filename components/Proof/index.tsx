@@ -47,6 +47,11 @@ const credentialLabelFor = (identifier: string) =>
 const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
 const signalText = JSON.stringify(signalJson);`
 
+const contentHashFromSignal = (signalText: string): string | undefined => {
+  const parsed = JSON.parse(signalText) as { content_hash?: unknown }
+  return typeof parsed.content_hash === 'string' ? parsed.content_hash : undefined
+}
+
 const authorHref = (publication: PublicationType) =>
   `/@${publication.author_handle_libro}`
 
@@ -75,7 +80,8 @@ function buildWorldIdView(
   proof: Extract<ProofType, { protocol_version: '4.0' }>
 ): ProofView {
   const rpId = process.env.WORLD_ID_RP_ID || 'rp_...'
-  const code = `const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `const { keccak256, toBytes } = require('viem');
+const { hashSignal } = require('@worldcoin/idkit/hashing');
 
 ${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
@@ -94,8 +100,9 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
   throw new Error('Stored signal hash does not match the publication signal');
 }
 
+// Recompute the content hash from the publication text itself (not from the stored
+// signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
-  const { keccak256, toBytes } = require('viem');
   const publicationContent = ${JSON.stringify(publication.publication_content)};
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
   if (localContentHash !== signalJson.content_hash.toLowerCase()) {
@@ -117,6 +124,8 @@ const verifyResponse = await fetch('https://developer.worldcoin.org/api/v4/verif
 
 console.log(await verifyResponse.json());`
 
+  const contentHash = contentHashFromSignal(proof.signal_text)
+
   return {
     eyebrow: 'Proof',
     headline: 'Signed by a human',
@@ -130,10 +139,13 @@ console.log(await verifyResponse.json());`
     facts: [
       { label: 'Credential', value: credentialLabelFor(proof.credential_identifier) },
       { label: 'Signal hash', value: proof.signal_hash, copy: true },
+      ...(contentHash
+        ? [{ label: 'Content hash', value: contentHash, copy: true } satisfies Fact]
+        : []),
     ],
     code,
     codeNote:
-      'Recomputes the signal hash from the signed publication JSON, checks every World ID response is bound to it, then asks World’s verifier.',
+      'Recomputes the content hash from the publication text below, confirms it matches the hash that was signed, recomputes the signal hash from the signed publication JSON, checks every World ID response is bound to it, then asks World’s verifier.',
   }
 }
 
@@ -169,6 +181,8 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
   throw new Error('Stored signal hash does not match the publication signal');
 }
 
+// Recompute the content hash from the publication text itself (not from the stored
+// signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
   const publicationContent = ${JSON.stringify(publication.publication_content)};
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
@@ -197,6 +211,8 @@ if (!registered) {
 
 console.log({ registered, signalHash: expectedSignalHash });`
 
+  const contentHash = contentHashFromSignal(proof.signal_text)
+
   return {
     eyebrow: 'Proof',
     headline: 'Signed by a human',
@@ -209,6 +225,9 @@ console.log({ registered, signalHash: expectedSignalHash });`
     facts: [
       { label: 'Credential', value: `World ID ${credentialLabelFor(proof.credential_identifier)}` },
       { label: 'Signal hash', value: registration.signal_hash, copy: true },
+      ...(contentHash
+        ? [{ label: 'Content hash', value: contentHash, copy: true } satisfies Fact]
+        : []),
       {
         label: 'Registry',
         value: registration.registry_address,
@@ -224,7 +243,7 @@ console.log({ registered, signalHash: expectedSignalHash });`
     ],
     code,
     codeNote:
-      'Recomputes the signal hash from the signed publication JSON, then asks the registry contract on World Chain whether that hash is registered.',
+      'Recomputes the content hash from the publication text below, confirms it matches the hash that was signed, recomputes the signal hash from the signed publication JSON, then asks the registry contract on World Chain whether that hash is registered.',
   }
 }
 

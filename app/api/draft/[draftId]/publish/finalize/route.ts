@@ -3,7 +3,11 @@ import { revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
-import { publicationCacheTag, publicationHashCacheTag } from '@/lib/db/publication-cache'
+import {
+  authorPublicationCountsCacheTag,
+  publicationCacheTag,
+  publicationHashCacheTag,
+} from '@/lib/db/publication-cache'
 import {
   configureLibroWriteTransaction,
   describeDatabaseFailure,
@@ -406,6 +410,7 @@ export async function PUT(
       transactionOpen = false
       revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
+      revalidateTag(authorPublicationCountsCacheTag(storedPublication.author_id_libro), { expire: 0 })
 
       console.info('Finalized Libro publication', {
         requestId,

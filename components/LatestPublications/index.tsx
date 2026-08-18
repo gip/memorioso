@@ -44,9 +44,14 @@ export const LatestPublications = ({
   // Guards against a second fetch for the same page while one is in flight.
   const offsetRef = useRef(0)
   const isFetchingRef = useRef(false)
+  // Bumped every time the list resets. A response that comes back under a stale
+  // run id belongs to the previous list and must be dropped, or it appends a
+  // second copy of page one on top of the fresh list.
+  const runIdRef = useRef(0)
 
   const loadMore = useCallback(async () => {
     if (isFetchingRef.current) return
+    const runId = runIdRef.current
     isFetchingRef.current = true
     setIsLoading(true)
     try {
@@ -54,6 +59,7 @@ export const LatestPublications = ({
         `/api/publications/latest?limit=${pageSize}&offset=${offsetRef.current}&type=${type}`
       )
       const response = await raw.json() as LatestResponse
+      if (runId !== runIdRef.current) return
       if (response.success && response.publications) {
         offsetRef.current += response.publications.length
         setPublications(previous => [...previous, ...response.publications!])
@@ -63,15 +69,18 @@ export const LatestPublications = ({
       }
     } catch (error) {
       console.error('Failed to fetch latest publications:', error)
-      setHasMore(false)
+      if (runId === runIdRef.current) setHasMore(false)
     } finally {
-      isFetchingRef.current = false
-      setIsLoading(false)
-      setLoaded(true)
+      if (runId === runIdRef.current) {
+        isFetchingRef.current = false
+        setIsLoading(false)
+        setLoaded(true)
+      }
     }
   }, [pageSize, type])
 
   useEffect(() => {
+    runIdRef.current += 1
     setPublications([])
     setLoaded(false)
     setHasMore(true)

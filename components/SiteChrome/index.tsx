@@ -45,6 +45,22 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
     })
   }
 
+  const handleBack = () => {
+    // A freshly signed publication is the end of the publish flow, not a step
+    // inside it. Walking back from there would replay the steps the user just
+    // finished, so send them home instead. Read the query off the location
+    // rather than useSearchParams: this component wraps every route, and the
+    // hook would opt the whole app out of prerendering.
+    const isFreshlySigned =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('signed') === '1'
+    if (isFreshlySigned) {
+      router.replace('/')
+      return
+    }
+    router.back()
+  }
+
   const handleSignOut = () => {
     setAccountError(null)
     signOut().catch((error) => {
@@ -74,7 +90,7 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => router.back()}
+                onClick={handleBack}
                 className="h-9 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground"
               >
                 <ArrowLeft className="h-4 w-4" />

@@ -43,9 +43,14 @@ export const AuthorPublications = ({ authorId, counts }: AuthorPublicationsProps
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const offsetRef = useRef(0)
   const isFetchingRef = useRef(false)
+  // Bumped every time the list resets (tab switch, remount). A response that comes
+  // back under a stale run id belongs to the previous list and must be dropped, or
+  // it appends a second copy of page one on top of the fresh list.
+  const runIdRef = useRef(0)
 
   const loadMore = useCallback(async (tab: PublicationKind) => {
     if (isFetchingRef.current) return
+    const runId = runIdRef.current
     isFetchingRef.current = true
     setIsLoading(true)
     try {
@@ -53,6 +58,7 @@ export const AuthorPublications = ({ authorId, counts }: AuthorPublicationsProps
         `/api/author/${authorId}/publications?limit=${PAGE_SIZE}&offset=${offsetRef.current}&type=${tab}`
       )
       const response = await raw.json() as PublicationsResponse
+      if (runId !== runIdRef.current) return
       if (response.success && response.publications) {
         offsetRef.current += response.publications.length
         setPublications(previous => [...previous, ...response.publications!])
@@ -62,15 +68,18 @@ export const AuthorPublications = ({ authorId, counts }: AuthorPublicationsProps
       }
     } catch (error) {
       console.error('Failed to fetch author publications:', error)
-      setHasMore(false)
+      if (runId === runIdRef.current) setHasMore(false)
     } finally {
-      isFetchingRef.current = false
-      setIsLoading(false)
-      setLoaded(true)
+      if (runId === runIdRef.current) {
+        isFetchingRef.current = false
+        setIsLoading(false)
+        setLoaded(true)
+      }
     }
   }, [authorId])
 
   useEffect(() => {
+    runIdRef.current += 1
     setPublications([])
     setLoaded(false)
     setHasMore(true)

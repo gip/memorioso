@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Check, Link2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -18,7 +20,10 @@ export const Author = ({ author, counts, redirect = null, self = false }: { auth
   const [editBio, setEditBio] = useState(author?.bio || '')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
   const canEdit = self && status === 'authenticated'
+  const profileUrl = author ? `${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}` : ''
 
   useEffect(() => {
     if (redirect) {
@@ -26,11 +31,30 @@ export const Author = ({ author, counts, redirect = null, self = false }: { auth
     }
   }, [redirect, router])
 
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
   const startEditing = () => {
     setEditName(author?.name || '')
     setEditBio(author?.bio || '')
     setError(null)
     setIsEditing(true)
+  }
+
+  const copyProfileUrl = async () => {
+    if (!profileUrl) return
+    try {
+      await navigator.clipboard.writeText(profileUrl)
+      setCopied(true)
+      setCopyFailed(false)
+    } catch {
+      // No clipboard access (insecure origin, denied permission). Fall back to
+      // showing the URL so the reader can still select and copy it by hand.
+      setCopyFailed(true)
+    }
   }
 
   const handleSave = async () => {
@@ -62,13 +86,11 @@ export const Author = ({ author, counts, redirect = null, self = false }: { auth
 
   if (author) {
     const isNameValid = editName.trim().length >= 3 && editName.trim().length <= 100
-    return (<>
-      <div className="pt-4">
-        <div className="text-xs italic text-center text-gray-500">This author was created by a human on Memorioso. Publications are labeled as direct human work or human-authorized agent work.<br />The author identity itself is human-controlled.</div>
-      </div>
+    return (
       <div className="space-y-8 py-8">
         {canEdit && isEditing ? (
-          <div className="space-y-4 max-w-md mx-auto">
+          <div className="mx-auto max-w-md space-y-4">
+            <h1 className="text-lg font-semibold tracking-tight">Edit profile</h1>
             {error && <div className="text-sm text-destructive">{error}</div>}
             <div className="flex flex-col gap-1">
               <Input
@@ -79,20 +101,22 @@ export const Author = ({ author, counts, redirect = null, self = false }: { auth
                   }
                 }}
                 placeholder="Name"
+                aria-label="Display name"
               />
-              <span className="text-xs text-gray-500 italic">Name must be 3-100 characters</span>
+              <span className="text-xs text-muted-foreground">Name must be 3-100 characters</span>
             </div>
             <div className="flex flex-col gap-1">
               <Textarea
                 value={editBio}
                 onChange={(e) => setEditBio(e.target.value.slice(0, 2000))}
                 placeholder="Bio"
+                aria-label="Bio"
               />
-              <span className="text-xs text-gray-500 italic">Bio is optional</span>
+              <span className="text-xs text-muted-foreground">Bio is optional</span>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Handle: @{author.handle} <span className="text-xs italic">(fixed at signup)</span>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              @{author.handle} <span className="text-xs">· fixed at signup</span>
+            </p>
             <div className="flex space-x-2">
               <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>Cancel</Button>
               <Button onClick={handleSave} disabled={!isNameValid || isSaving}>
@@ -101,39 +125,39 @@ export const Author = ({ author, counts, redirect = null, self = false }: { auth
             </div>
           </div>
         ) : (
-          <div className="space-y-4 text-center">
-            <div>
-              <span className="text-xs">Author: </span>
-              <span className="text-3xl">{author.name}</span>
+          <header className="space-y-4 border-b pb-8 text-center">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-semibold tracking-tight">{author.name}</h1>
+              <p className="text-sm text-blurple">@{author.handle}</p>
             </div>
-            <div>
-              <span className="text-xs">Bio: </span>
-              <span className="text-md">{author.bio}</span>
-            </div>
-            <div className="text-xm">
-              <span className="text-xs">Handle: </span>
-              <a href={`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`} className="text-sm text-blurple hover:underline">
-                {`@${author.handle}`}
-              </a>
-            </div>
-            <div className="text-xm">
-              <span className="text-xs">Link: </span>
-              <span className="text-xm text-blurple">
-                <a href={`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`} className="text-sm text-burple hover:underline">
-                  {`${process.env.NEXT_PUBLIC_APP_URL}/@${author.handle}`}
-                </a></span>
-            </div>
-            {canEdit && (
-              <div>
-                <Button variant="outline" size="sm" onClick={startEditing}>Edit profile</Button>
-              </div>
+            {author.bio && (
+              <p className="mx-auto max-w-prose text-sm leading-relaxed text-muted-foreground">{author.bio}</p>
             )}
-          </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={copyProfileUrl}>
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+                {copied ? 'Link copied' : 'Copy link'}
+              </Button>
+              {canEdit && (
+                <Button variant="outline" size="sm" onClick={startEditing}>Edit profile</Button>
+              )}
+            </div>
+            {copyFailed && (
+              <p className="mx-auto max-w-full break-all text-xs text-muted-foreground">{profileUrl}</p>
+            )}
+            <p className="mx-auto max-w-prose text-xs leading-relaxed text-muted-foreground">
+              Human-controlled identity. Each publication is labeled as direct human work or
+              human-authorized agent work.{' '}
+              <Link href="/how-it-works" className="text-blurple underline-offset-2 hover:underline">
+                How it works
+              </Link>
+            </p>
+          </header>
         )}
         <AuthorPublications authorId={author.id} counts={counts} />
         <AgentRegistrationPanel authorId={author.id} />
       </div>
-    </>)
+    )
   }
 
   return <div className="space-y-4 py-4">Author not found</div>

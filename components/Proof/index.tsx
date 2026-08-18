@@ -19,6 +19,16 @@ import { publicationPathFor } from '@/lib/publication-kind'
 const WORLD_CHAIN_ID = 480
 const WORLD_CHAIN_EXPLORER = 'https://worldscan.org'
 
+// What the generated script needs to run. The floors are the versions this app
+// itself signs and verifies with; `worldchain` reached viem in 2.21.10.
+const VIEM_MIN_VERSION = '^2.21.10'
+const IDKIT_MIN_VERSION = '^4.2.2'
+
+const scriptHeader = (filename: string) => `// Requirements: Node 22 or later, run as an ES module (.mjs).
+//
+//   npm install viem@${VIEM_MIN_VERSION} @worldcoin/idkit@${IDKIT_MIN_VERSION}
+//   node ${filename}`
+
 type Fact = {
   label: string
   value: string
@@ -129,8 +139,8 @@ function buildWorldIdView(
   proof: Extract<ProofType, { protocol_version: '4.0' }>
 ): ProofView {
   const rpId = process.env.WORLD_ID_RP_ID || 'rp_...'
-  const code = `const { keccak256, toBytes } = require('viem');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { keccak256, toBytes } from 'viem';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 ${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
@@ -205,9 +215,9 @@ function buildLibroView(
   }
 ): ProofView {
   const registration = proof.libro_registration
-  const code = `const { createPublicClient, fallback, http, keccak256, toBytes } = require('viem');
-const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { createPublicClient, fallback, http, keccak256, toBytes } from 'viem';
+import { worldchain } from 'viem/chains';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 const libroRegistryAbi = [{
   type: 'function',
@@ -302,9 +312,9 @@ function buildAgentView(
 ): ProofView {
   const registration = proof.agent_registration
   const document = proof.agent_document_signature
-  const code = `const { createPublicClient, fallback, http, recoverTypedDataAddress } = require('viem');
-const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { createPublicClient, fallback, http, recoverTypedDataAddress } from 'viem';
+import { worldchain } from 'viem/chains';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 const libroRegistryAbi = [{
   type: 'function',
@@ -467,6 +477,7 @@ export const Proof = ({
   const publicationTitle = publication.publication_title.trim()
   const title = publicationTitle || extractReadableText(publication.publication_content.html)
   const publicationHref = publicationPathFor(publication, publicationId)
+  const scriptFilename = `verify-${publicationId}.mjs`
 
   return (
     <article className="pb-16 pt-8">
@@ -512,7 +523,7 @@ export const Proof = ({
           {view.codeNote && (
             <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">{view.codeNote}</p>
           )}
-          <CodeCard code={view.code} filename={`verify-${publicationId}.js`} />
+          <CodeCard code={`${scriptHeader(scriptFilename)}\n\n${view.code}`} filename={scriptFilename} />
         </section>
       )}
 

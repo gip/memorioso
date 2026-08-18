@@ -19,6 +19,16 @@ import { publicationPathFor } from '@/lib/publication-kind'
 const WORLD_CHAIN_ID = 480
 const WORLD_CHAIN_EXPLORER = 'https://worldscan.org'
 
+// What the generated script needs to run. The floors are the versions this app
+// itself signs and verifies with; `worldchain` reached viem in 2.21.10.
+const VIEM_MIN_VERSION = '^2.21.10'
+const IDKIT_MIN_VERSION = '^4.2.2'
+
+const scriptHeader = (filename: string) => `// Requirements: Node 22 or later, run as an ES module (.mjs).
+//
+//   npm install viem@${VIEM_MIN_VERSION} @worldcoin/idkit@${IDKIT_MIN_VERSION}
+//   node ${filename}`
+
 type Fact = {
   label: string
   value: string
@@ -46,6 +56,55 @@ const credentialLabelFor = (identifier: string) =>
 
 const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
 const signalText = JSON.stringify(signalJson);`
+
+const CONTENT_LINE_WIDTH = 78
+
+// Split a long string into pieces that concatenate back to the exact original,
+// preferring to break after a tag or at a space so the HTML stays readable.
+const chunkForDisplay = (value: string, width: number): string[] => {
+  const chars = Array.from(value)
+  if (chars.length === 0) return ['']
+
+  const chunks: string[] = []
+  let index = 0
+
+  while (index < chars.length) {
+    if (chars.length - index <= width) {
+      chunks.push(chars.slice(index).join(''))
+      break
+    }
+
+    const window = chars.slice(index, index + width)
+    const afterTag = window.lastIndexOf('>')
+    const afterSpace = window.lastIndexOf(' ')
+    const breakAt =
+      afterTag > width / 2 ? afterTag + 1 : afterSpace > width / 2 ? afterSpace + 1 : width
+
+    chunks.push(window.slice(0, breakAt).join(''))
+    index += breakAt
+  }
+
+  return chunks
+}
+
+// The whole publication text is inlined so a reader can see that every word of it
+// feeds the hash. Wrapping it across concatenated lines keeps that visible instead
+// of hiding it in one endless line.
+const publicationContentDeclaration = (
+  content: PublicationType['publication_content'],
+  indent: string
+) => {
+  const entries = Object.entries(content).map(([key, value]) => {
+    if (typeof value !== 'string') {
+      return `${indent}  ${JSON.stringify(key)}: ${JSON.stringify(value)}`
+    }
+
+    const chunks = chunkForDisplay(value, CONTENT_LINE_WIDTH).map((chunk) => JSON.stringify(chunk))
+    return `${indent}  ${JSON.stringify(key)}:\n${indent}    ${chunks.join(` +\n${indent}    `)}`
+  })
+
+  return `const publicationContent = {\n${entries.join(',\n')}\n${indent}};`
+}
 
 const contentHashFromSignal = (signalText: string): string | undefined => {
   const parsed = JSON.parse(signalText) as { content_hash?: unknown }
@@ -80,8 +139,8 @@ function buildWorldIdView(
   proof: Extract<ProofType, { protocol_version: '4.0' }>
 ): ProofView {
   const rpId = process.env.WORLD_ID_RP_ID || 'rp_...'
-  const code = `const { keccak256, toBytes } = require('viem');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { keccak256, toBytes } from 'viem';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 ${signalJsonDeclaration(proof.signal_text)}
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
@@ -103,7 +162,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 // Recompute the content hash from the publication text itself (not from the stored
 // signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
-  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  ${publicationContentDeclaration(publication.publication_content, '  ')}
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
   if (localContentHash !== signalJson.content_hash.toLowerCase()) {
     throw new Error('Publication content does not match the signed content hash');
@@ -156,9 +215,9 @@ function buildLibroView(
   }
 ): ProofView {
   const registration = proof.libro_registration
-  const code = `const { createPublicClient, fallback, http, keccak256, toBytes } = require('viem');
-const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { createPublicClient, fallback, http, keccak256, toBytes } from 'viem';
+import { worldchain } from 'viem/chains';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 const libroRegistryAbi = [{
   type: 'function',
@@ -184,7 +243,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 // Recompute the content hash from the publication text itself (not from the stored
 // signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
-  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  ${publicationContentDeclaration(publication.publication_content, '  ')}
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
   if (localContentHash !== signalJson.content_hash.toLowerCase()) {
     throw new Error('Publication content does not match the signed content hash');
@@ -253,9 +312,9 @@ function buildAgentView(
 ): ProofView {
   const registration = proof.agent_registration
   const document = proof.agent_document_signature
-  const code = `const { createPublicClient, fallback, http, recoverTypedDataAddress } = require('viem');
-const { worldchain } = require('viem/chains');
-const { hashSignal } = require('@worldcoin/idkit/hashing');
+  const code = `import { createPublicClient, fallback, http, recoverTypedDataAddress } from 'viem';
+import { worldchain } from 'viem/chains';
+import { hashSignal } from '@worldcoin/idkit/hashing';
 
 const libroRegistryAbi = [{
   type: 'function',
@@ -418,6 +477,7 @@ export const Proof = ({
   const publicationTitle = publication.publication_title.trim()
   const title = publicationTitle || extractReadableText(publication.publication_content.html)
   const publicationHref = publicationPathFor(publication, publicationId)
+  const scriptFilename = `verify-${publicationId}.mjs`
 
   return (
     <article className="pb-16 pt-8">
@@ -463,7 +523,7 @@ export const Proof = ({
           {view.codeNote && (
             <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">{view.codeNote}</p>
           )}
-          <CodeCard code={view.code} filename={`verify-${publicationId}.js`} />
+          <CodeCard code={`${scriptHeader(scriptFilename)}\n\n${view.code}`} filename={scriptFilename} />
         </section>
       )}
 

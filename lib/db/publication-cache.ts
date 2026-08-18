@@ -4,7 +4,11 @@ import {
   getProof,
   getPublication,
   getPublicationBySignalHash,
+  getSitemapAuthors,
+  getSitemapPublications,
   type AuthorPublicationCounts,
+  type SitemapAuthor,
+  type SitemapPublication,
 } from '@/lib/db/objects'
 
 export const publicationCacheTag = (publicationId: string) => `publication:${publicationId}`
@@ -12,6 +16,7 @@ export const publicationHashCacheTag = (signalHash: string) =>
   `publication-hash:${signalHash.toLowerCase()}`
 export const authorPublicationCountsCacheTag = (authorId: string) =>
   `author-publication-counts:${authorId}`
+export const sitemapCacheTag = 'sitemap'
 
 export async function getCachedPublication(publicationId: string) {
   'use cache'
@@ -59,4 +64,20 @@ export async function getCachedAuthorPublicationCounts(authorId: string): Promis
   cacheTag(authorPublicationCountsCacheTag(authorId))
   cacheLife('days')
   return getAuthorPublicationCounts(authorId)
+}
+
+export async function getCachedSitemapPublications(): Promise<SitemapPublication[]> {
+  'use cache'
+
+  cacheTag(sitemapCacheTag)
+  cacheLife('days')
+  return getSitemapPublications()
+}
+
+export async function getCachedSitemapAuthors(): Promise<SitemapAuthor[]> {
+  'use cache'
+
+  cacheTag(sitemapCacheTag)
+  cacheLife('days')
+  return getSitemapAuthors()
 }

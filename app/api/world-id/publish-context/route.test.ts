@@ -138,6 +138,25 @@ describe('publish context route', () => {
     expect(firstParams[5]).toContain('"world_id_proof_type":"session"')
   })
 
+  it('keeps the signed payload small for a large article body', async () => {
+    const largeHtml = `<p>${'word '.repeat(20_000)}</p>`
+    dbMock.query.mockImplementation(async (query: string) => {
+      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
+      if (query.includes('FROM drafts')) return {
+        rows: [{ ...draftRow, content: { html: largeHtml } }],
+      }
+      return { rows: [] }
+    })
+
+    const response = await POST(request({ draftId: draftRow.id }))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(largeHtml.length).toBeGreaterThan(100_000)
+    expect(body.signalText.length).toBeLessThan(2_000)
+    expect(body.signalText).not.toContain('word')
+    expect(JSON.parse(body.signalText).content_hash).toMatch(/^0x[0-9a-f]{64}$/)
+  })
+
   it('accepts an empty title while keeping it in the signed payload', async () => {
     dbMock.query.mockImplementation(async (query: string) => {
       if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }

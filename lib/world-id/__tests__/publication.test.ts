@@ -136,6 +136,25 @@ describe('World ID publication signals', () => {
     expect(signal.publication_title).toBe('A human note')
   })
 
+  it('keeps the Libro v1 IDKit signal small no matter how large the article body is', () => {
+    const largeContent = { html: `<p>${'word '.repeat(20_000)}</p>` }
+    const signal = createLibroPublicationV1({
+      author,
+      title: 'A human note',
+      subtitle: 'On signatures',
+      content: largeContent,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    const signalText = canonicalPublicationSignal(signal)
+
+    expect(largeContent.html.length).toBeGreaterThan(100_000)
+    expect(signalText.length).toBeLessThan(2_000)
+    expect(signalText).not.toContain('word')
+    expect(JSON.parse(signalText).content_hash).toMatch(/^0x[0-9a-f]{64}$/)
+  })
+
   it('keeps optional title fields present as normalized empty strings', () => {
     const signal = createLibroPublicationV1({
       author,

@@ -7,9 +7,12 @@ import {
   formatLibroPublicationMinute,
   hasMeaningfulPublicationBody,
   hasPublishablePublication,
+  hashLibroPublicationContent,
   hashPublicationSignal,
   hashLibroHandle,
   isSimpleTextPublication,
+  LIBRO_AGENT_PROTOCOL_VERSION,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
   LIBRO_EMBED_SCHEMA_V1,
   LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_PROTOCOL_VERSION,
@@ -21,6 +24,7 @@ import {
   parseLibroPublicationV1,
   parseLibroTextTags,
   serializeManifestForHtml,
+  type LibroAgentPublicationV1Payload,
   type LibroEmbedManifestV1,
   type LibroPublicationV1Payload,
 } from './index'
@@ -195,5 +199,51 @@ describe('Libro embed manifests', () => {
     const serialized = serializeManifestForHtml(unsafe)
     expect(serialized).not.toContain('</script>')
     expect(JSON.parse(serialized).publication.publication_content.html).toContain('</script>')
+  })
+})
+
+describe('Compact publication signal', () => {
+  it('signs a content hash instead of the full article body', () => {
+    const signalText = canonicalPublicationSignal(publication)
+    const signalJson = JSON.parse(signalText)
+    expect(signalJson.content_hash).toBe(hashLibroPublicationContent(publication.publication_content))
+    expect(signalJson.publication_content).toBeUndefined()
+    expect(signalText).not.toContain('Hello')
+    expect(signalText).not.toContain('publication_content')
+  })
+
+  it('keeps the signed signal small no matter how large the article body is', () => {
+    const largeContent = { html: `<p>${'word '.repeat(20_000)}</p>` }
+    expect(largeContent.html.length).toBeGreaterThan(100_000)
+    const largePublication: LibroPublicationV1Payload = { ...publication, publication_content: largeContent }
+    const signalText = canonicalPublicationSignal(largePublication)
+    expect(signalText.length).toBeLessThan(2_000)
+    expect(signalText).not.toContain('word')
+  })
+
+  it('still binds the proof to the exact article body via the content hash', () => {
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication))
+    const swapped = { ...publication, publication_content: { html: '<p>Swapped body</p>' } }
+    expect(hashPublicationSignal(canonicalPublicationSignal(swapped))).not.toBe(signalHash)
+  })
+
+  it('leaves non-Libro-V1 publication signals as full canonical JSON', () => {
+    const agentPublication: LibroAgentPublicationV1Payload = {
+      publication_schema: LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+      libro_agent_protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      authorship_claim: 'human_authorized_agent',
+      author_id_libro: 'author-1',
+      publication_date: '2026-07-21T12:00:00.000Z',
+      author_name_libro: 'Ada',
+      author_handle_libro: 'ada',
+      author_handle_hash_libro: hashLibroHandle('ada'),
+      author_bio_libro: '',
+      publication_title: '',
+      publication_content: { html: '<p>Agent-authored text.</p>' },
+      publication_subtitle: '',
+      agent_address: `0x${'33'.repeat(20)}`,
+      agent_registration_hash: `0x${'44'.repeat(32)}`,
+    }
+    expect(canonicalPublicationSignal(agentPublication)).toContain('Agent-authored text.')
   })
 })

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { assertDraftCanBePublished, type PublishDraftRow } from './publish-validation'
+import {
+  assertDraftCanBePublished,
+  assertDraftMatchesChallenge,
+  type PublishChallengeRow,
+  type PublishDraftRow,
+} from './publish-validation'
+import { canonicalPublicationSignal, createLibroPublicationV1, hashPublicationSignal } from './world-id/publication'
 
 const draft: PublishDraftRow = {
   id: 'draft-1',
@@ -12,6 +18,29 @@ const draft: PublishDraftRow = {
   author_handle: 'ada',
   author_bio: null,
   publicationType: 'short',
+}
+
+function challengeForDraft(row: PublishDraftRow): PublishChallengeRow {
+  const publication = createLibroPublicationV1({
+    author: { id: row.authorId, name: row.author_name, handle: row.author_handle, bio: row.author_bio || '' },
+    title: row.title,
+    subtitle: row.subtitle || '',
+    content: row.content,
+    publicationDate: '2026-07-21T12:00:00.000Z',
+  })
+  const signalText = canonicalPublicationSignal(publication)
+  return {
+    id: 'challenge-1',
+    userId: 1,
+    draftId: row.id,
+    nonce: '0x1',
+    session_commitment: '0x2',
+    signal_text: signalText,
+    signal_hash: hashPublicationSignal(signalText),
+    publication,
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    consumed_at: null,
+  }
 }
 
 describe('publish draft validation', () => {
@@ -37,5 +66,29 @@ describe('publish draft validation', () => {
       title: 'Title only',
       content: { html: '<p><br></p>' },
     })).toThrow('Article body is required')
+  })
+})
+
+describe('assertDraftMatchesChallenge', () => {
+  it('accepts a draft that still matches the challenge it was signed against', () => {
+    const challenge = challengeForDraft(draft)
+    expect(() => assertDraftMatchesChallenge(draft, challenge)).not.toThrow()
+  })
+
+  it('rejects a draft whose content changed after the challenge was created', () => {
+    const challenge = challengeForDraft(draft)
+    const editedDraft: PublishDraftRow = { ...draft, content: { html: '<p>Edited after signing</p>' } }
+    expect(() => assertDraftMatchesChallenge(editedDraft, challenge))
+      .toThrow('Draft, author, or publication content changed after proof challenge creation')
+  })
+
+  it('rejects a challenge whose stored publication was tampered with', () => {
+    const challenge = challengeForDraft(draft)
+    const tamperedChallenge: PublishChallengeRow = {
+      ...challenge,
+      publication: { ...challenge.publication, publication_title: 'Swapped title' },
+    }
+    expect(() => assertDraftMatchesChallenge(draft, tamperedChallenge))
+      .toThrow('Draft, author, or publication content changed after proof challenge creation')
   })
 })

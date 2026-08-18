@@ -94,6 +94,15 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
   throw new Error('Stored signal hash does not match the publication signal');
 }
 
+if (signalJson.content_hash) {
+  const { keccak256, toBytes } = require('viem');
+  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
+  if (localContentHash !== signalJson.content_hash.toLowerCase()) {
+    throw new Error('Publication content does not match the signed content hash');
+  }
+}
+
 for (const response of idkitResult.responses) {
   if (!response.signal_hash || response.signal_hash.toLowerCase() !== localSignalHash) {
     throw new Error('World ID response was not bound to this publication signal');
@@ -135,7 +144,7 @@ function buildLibroView(
   }
 ): ProofView {
   const registration = proof.libro_registration
-  const code = `const { createPublicClient, fallback, http } = require('viem');
+  const code = `const { createPublicClient, fallback, http, keccak256, toBytes } = require('viem');
 const { worldchain } = require('viem/chains');
 const { hashSignal } = require('@worldcoin/idkit/hashing');
 
@@ -158,6 +167,14 @@ const handleHash = ${JSON.stringify(registration.handle_hash)};
 const localSignalHash = hashSignal(signalText).toLowerCase();
 if (localSignalHash !== expectedSignalHash.toLowerCase()) {
   throw new Error('Stored signal hash does not match the publication signal');
+}
+
+if (signalJson.content_hash) {
+  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
+  if (localContentHash !== signalJson.content_hash.toLowerCase()) {
+    throw new Error('Publication content does not match the signed content hash');
+  }
 }
 
 const client = createPublicClient({

@@ -47,6 +47,55 @@ const credentialLabelFor = (identifier: string) =>
 const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
 const signalText = JSON.stringify(signalJson);`
 
+const CONTENT_LINE_WIDTH = 78
+
+// Split a long string into pieces that concatenate back to the exact original,
+// preferring to break after a tag or at a space so the HTML stays readable.
+const chunkForDisplay = (value: string, width: number): string[] => {
+  const chars = Array.from(value)
+  if (chars.length === 0) return ['']
+
+  const chunks: string[] = []
+  let index = 0
+
+  while (index < chars.length) {
+    if (chars.length - index <= width) {
+      chunks.push(chars.slice(index).join(''))
+      break
+    }
+
+    const window = chars.slice(index, index + width)
+    const afterTag = window.lastIndexOf('>')
+    const afterSpace = window.lastIndexOf(' ')
+    const breakAt =
+      afterTag > width / 2 ? afterTag + 1 : afterSpace > width / 2 ? afterSpace + 1 : width
+
+    chunks.push(window.slice(0, breakAt).join(''))
+    index += breakAt
+  }
+
+  return chunks
+}
+
+// The whole publication text is inlined so a reader can see that every word of it
+// feeds the hash. Wrapping it across concatenated lines keeps that visible instead
+// of hiding it in one endless line.
+const publicationContentDeclaration = (
+  content: PublicationType['publication_content'],
+  indent: string
+) => {
+  const entries = Object.entries(content).map(([key, value]) => {
+    if (typeof value !== 'string') {
+      return `${indent}  ${JSON.stringify(key)}: ${JSON.stringify(value)}`
+    }
+
+    const chunks = chunkForDisplay(value, CONTENT_LINE_WIDTH).map((chunk) => JSON.stringify(chunk))
+    return `${indent}  ${JSON.stringify(key)}:\n${indent}    ${chunks.join(` +\n${indent}    `)}`
+  })
+
+  return `const publicationContent = {\n${entries.join(',\n')}\n${indent}};`
+}
+
 const contentHashFromSignal = (signalText: string): string | undefined => {
   const parsed = JSON.parse(signalText) as { content_hash?: unknown }
   return typeof parsed.content_hash === 'string' ? parsed.content_hash : undefined
@@ -103,7 +152,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 // Recompute the content hash from the publication text itself (not from the stored
 // signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
-  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  ${publicationContentDeclaration(publication.publication_content, '  ')}
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
   if (localContentHash !== signalJson.content_hash.toLowerCase()) {
     throw new Error('Publication content does not match the signed content hash');
@@ -184,7 +233,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 // Recompute the content hash from the publication text itself (not from the stored
 // signal) and check it against the hash that was actually signed.
 if (signalJson.content_hash) {
-  const publicationContent = ${JSON.stringify(publication.publication_content)};
+  ${publicationContentDeclaration(publication.publication_content, '  ')}
   const localContentHash = keccak256(toBytes(JSON.stringify(publicationContent))).toLowerCase();
   if (localContentHash !== signalJson.content_hash.toLowerCase()) {
     throw new Error('Publication content does not match the signed content hash');

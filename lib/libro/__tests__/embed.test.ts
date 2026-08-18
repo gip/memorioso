@@ -105,6 +105,16 @@ describe('Libro embed generation', () => {
     expect(buildLibroEmbedSnippet(manifest)).toContain('data-libro-claim="human-authorized-agent"')
   })
 
+  it('signs a compact content-hash commitment but keeps the manifest and embed carrying the full article body', () => {
+    const signalText = proof().signal_text!
+    expect(JSON.parse(signalText).content_hash).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(signalText).not.toContain('publication_content')
+
+    const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
+    expect(manifest.publication.publication_content).toEqual(publication.publication_content)
+    expect(buildLibroEmbedSnippet(manifest)).toContain('Hello <strong>human</strong>')
+  })
+
   it('builds a self-contained simple text embed', () => {
     const manifest = buildLibroEmbedManifest({ ...publication, version: '3' } as PublicationRecord, proof(), '42')
     const snippet = buildLibroEmbedSnippet(manifest)

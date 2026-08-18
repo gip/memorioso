@@ -75,32 +75,22 @@ export function buildLibroEmbedManifest(
     ? proof.libro_registration.handle_hash
     : proof.agent_registration.handle_hash
 
-  let signedValue: unknown
-  try {
-    signedValue = JSON.parse(signalText)
-  } catch {
-    throw new LibroEmbedUnavailableError('Stored publication signal is not valid JSON')
-  }
-
+  const { version: _version, ...storedPublication } = publication
   let signedPublication
   try {
-    signedPublication = parseLibroPublication(signedValue)
+    signedPublication = parseLibroPublication(storedPublication)
   } catch (error) {
-    throw new LibroEmbedUnavailableError(error instanceof Error ? error.message : 'Unsupported signed publication')
+    throw new LibroEmbedUnavailableError(error instanceof Error ? error.message : 'Unsupported stored publication')
   }
 
   const canonicalSignal = canonicalPublicationSignal(signedPublication)
   if (canonicalSignal !== signalText) {
-    throw new LibroEmbedUnavailableError('Stored publication signal is not canonical')
+    throw new LibroEmbedUnavailableError('Stored publication does not match its signed signal')
   }
 
   const expectedSignalHash = hashPublicationSignal(canonicalSignal)
   if (normalizeUint256Hex(signalHash, 'proof signal_hash') !== expectedSignalHash) {
     throw new LibroEmbedUnavailableError('Stored proof signal hash does not match its signed signal')
-  }
-  const { version: _version, ...storedPublication } = publication
-  if (canonicalPublicationSignal(storedPublication) !== canonicalSignal) {
-    throw new LibroEmbedUnavailableError('Stored publication does not match its signed signal')
   }
 
   if (!/^0x[0-9a-fA-F]{64}$/.test(transactionHash)) {

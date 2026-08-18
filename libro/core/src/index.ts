@@ -65,6 +65,10 @@ export type LibroPublicationV1Payload = {
   publication_subtitle: string
 }
 
+export type LibroPublicationSignalCommitmentV1 = Omit<LibroPublicationV1Payload, 'publication_content'> & {
+  content_hash: Hex
+}
+
 export type LibroAgentPublicationV1Payload = {
   publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
   libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
@@ -332,7 +336,27 @@ export function canonicalStringify(input: JsonInput): string {
   return JSON.stringify(canonicalizeJson(input))
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function hashLibroPublicationContent(content: { html: string }): Hex {
+  return keccak256(toBytes(canonicalStringify(content as unknown as JsonInput))).toLowerCase() as Hex
+}
+
+function buildLibroPublicationSignalCommitment(
+  publication: LibroPublicationV1Payload
+): LibroPublicationSignalCommitmentV1 {
+  const { publication_content, ...rest } = publication
+  return { ...rest, content_hash: hashLibroPublicationContent(publication_content) }
+}
+
 export function canonicalPublicationSignal(publication: LibroPublicationV1Payload | Record<string, unknown>): string {
+  if (isRecord(publication) && publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V1) {
+    return canonicalStringify(
+      buildLibroPublicationSignalCommitment(publication as LibroPublicationV1Payload) as unknown as JsonInput
+    )
+  }
   return canonicalStringify(publication as unknown as JsonInput)
 }
 
@@ -362,10 +386,6 @@ export function normalizeUint256Hex(value: string, fieldName: string): Hex {
     throw new Error(`${fieldName} must be a uint256`)
   }
   return `0x${parsed.toString(16).padStart(64, '0')}` as Hex
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function requireString(record: Record<string, unknown>, field: string): string {

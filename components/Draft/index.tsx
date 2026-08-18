@@ -445,7 +445,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       setPublishStatus(null)
       publishHostVerifyError.current = null
       clearLocalDraft()
-      router.push(`${publicationPath(response.publicationType || draft?.publicationType || 'article', response.publicationId)}?signed=1`)
+      // Replace, not push: the draft is consumed and its local copy is gone, so
+      // leaving it in history only gives Back a dead editor to return to.
+      router.replace(`${publicationPath(response.publicationType || draft?.publicationType || 'article', response.publicationId)}?signed=1`)
       return true
     } catch (reason) {
       if (reason instanceof FinalizePublicationError && reason.retryable) {

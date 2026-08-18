@@ -54,6 +54,8 @@ CREATE TABLE publications (
     subtitle VARCHAR(255),
     date TIMESTAMPTZ NOT NULL,
     version VARCHAR(255) NOT NULL,
+    access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
+    access_price_usd NUMERIC(10, 6) CHECK (access_price_usd IS NULL OR access_price_usd > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,6 +65,39 @@ CREATE INDEX idx_publications_world_id_signal_hash
 
 CREATE INDEX idx_publications_agent_document_signal_hash
     ON publications ((LOWER(proof->'agent_document_signature'->>'document_signal_hash')));
+
+-- One settled x402 payment unlocks one publication for one payer, forever.
+-- A row is reserved before the transfer is broadcast (settled_at NULL) and completed
+-- once the receipt confirms, so a crash between the two cannot take money without
+-- granting access. The unique authorization_nonce doubles as the broadcast lock.
+CREATE TABLE publication_access_grants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "publicationId" BIGINT NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+    payer_address VARCHAR(42) NOT NULL,
+    scheme VARCHAR(16) NOT NULL,
+    network VARCHAR(32) NOT NULL,
+    asset_address VARCHAR(42) NOT NULL,
+    amount NUMERIC(78, 0) NOT NULL,
+    valid_before TIMESTAMPTZ NOT NULL,
+    authorization_nonce VARCHAR(66) NOT NULL UNIQUE,
+    transaction_hash VARCHAR(66),
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    settled_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Partial, so a failed attempt never permanently bars a payer from retrying.
+CREATE UNIQUE INDEX idx_publication_access_grants_settled_payer
+    ON publication_access_grants("publicationId", LOWER(payer_address))
+    WHERE settled_at IS NOT NULL;
+
+CREATE INDEX idx_publication_access_grants_publication
+    ON publication_access_grants("publicationId");
+
+CREATE INDEX idx_publication_access_grants_unsettled
+    ON publication_access_grants(valid_before)
+    WHERE settled_at IS NULL;
 
 CREATE TABLE drafts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -74,6 +109,7 @@ CREATE TABLE drafts (
     subtitle VARCHAR(255),
     content JSONB NOT NULL,
     history JSONB NOT NULL,
+    access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -12,6 +12,7 @@ import {
   isWorldIdV4Proof,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
 } from '@/lib/publication-status'
+import { buildPublicationTeaser } from '@/lib/access/teaser'
 import { CodeCard } from './CodeCard'
 import { CopyValue } from './CopyValue'
 import { publicationPathFor } from '@/lib/publication-kind'
@@ -400,10 +401,13 @@ export const Proof = ({
   publication,
   proof,
   publicationId,
+  showSignal = true,
 }: {
   publication: PublicationType
   proof: ProofType | null
   publicationId: string
+  /** The verification snippets quote the canonical signal, which is the body verbatim. */
+  showSignal?: boolean
 }) => {
   const view = isLegacyPublication(publication)
     ? buildUnavailableView(publication)
@@ -416,7 +420,10 @@ export const Proof = ({
     : buildUnavailableView(publication)
 
   const publicationTitle = publication.publication_title.trim()
-  const title = publicationTitle || extractReadableText(publication.publication_content.html)
+  const bodyText = showSignal
+    ? extractReadableText(publication.publication_content.html)
+    : buildPublicationTeaser(publication.publication_content.html, 80)
+  const title = publicationTitle || bodyText
   const publicationHref = publicationPathFor(publication, publicationId)
 
   return (
@@ -460,10 +467,20 @@ export const Proof = ({
       {view.code && (
         <section className="mt-9">
           <h2 className="spectral text-[20px] font-semibold tracking-tight text-foreground">Check it yourself</h2>
-          {view.codeNote && (
-            <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">{view.codeNote}</p>
+          {showSignal ? (
+            <>
+              {view.codeNote && (
+                <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">{view.codeNote}</p>
+              )}
+              <CodeCard code={view.code} filename={`verify-${publicationId}.js`} />
+            </>
+          ) : (
+            <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">
+              Every hash, signature, and transaction above is public and checkable on
+              World Chain. The signed text itself is gated, so the runnable snippet
+              appears once you can read the publication.
+            </p>
           )}
-          <CodeCard code={view.code} filename={`verify-${publicationId}.js`} />
         </section>
       )}
 

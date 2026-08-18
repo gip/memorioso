@@ -74,6 +74,7 @@ describe('draft route', () => {
       draft.id,
       7,
       'editing',
+      null,
     ])
     expect(dbMock.release).toHaveBeenCalled()
     expect(body).toMatchObject({
@@ -110,6 +111,7 @@ describe('draft route', () => {
       draft.id,
       7,
       'editing',
+      null,
     ])
     expect(body).toMatchObject({ success: true })
   })

@@ -3,6 +3,7 @@ import {
   getAuthorPublicationCounts,
   getProof,
   getPublication,
+  getPublicationAccess,
   getPublicationBySignalHash,
   type AuthorPublicationCounts,
 } from '@/lib/db/objects'
@@ -37,6 +38,24 @@ export async function getCachedProof(publicationId: string) {
     cacheLife('minutes')
   }
   return proof
+}
+
+/**
+ * Deliberately a separate query rather than a column on getCachedPublication:
+ * getPublication spreads `signal` into PublicationRecord, and buildLibroEmbedManifest
+ * re-parses that object as a signed payload. An extra key there breaks every manifest.
+ */
+export async function getCachedPublicationAccess(publicationId: string) {
+  'use cache'
+
+  cacheTag(publicationCacheTag(publicationId))
+  const access = await getPublicationAccess(publicationId)
+  if (access) {
+    cacheLife('max')
+  } else {
+    cacheLife('minutes')
+  }
+  return access
 }
 
 export async function getCachedPublicationBySignalHash(signalHash: string) {

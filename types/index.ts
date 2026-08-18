@@ -11,6 +11,9 @@ import type {
 
 export type PublicationKind = 'short' | 'article'
 
+/** Whether a publication is readable by anyone, or only by verified humans and x402 payers. */
+export type PublicationAccess = 'public' | 'gated'
+
 export type Author = {
     id: string
     name: string
@@ -73,6 +76,7 @@ export type Author = {
     publication_excerpt: string
     authorship_label: 'Signed by a human' | 'Human-authorized agent'
     publication_type: PublicationKind
+    access: PublicationAccess
   }
   
   export type LegacyProof = {

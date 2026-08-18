@@ -30,6 +30,10 @@ export function publicationPath(kind: PublicationKind, publicationId: string | n
   return `/${kind}/${publicationId}`
 }
 
+export function publicationContentPath(publicationId: string | number): string {
+  return `/api/publications/${publicationId}/content`
+}
+
 export function publicationProofPath(kind: PublicationKind, publicationId: string | number): string {
   return `${publicationPath(kind, publicationId)}/proof`
 }

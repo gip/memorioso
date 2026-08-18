@@ -37,7 +37,7 @@ function decodePayload(value: string): AuthSessionPayload | null {
       payload.v !== 1 ||
       typeof payload.userId !== 'number' ||
       typeof payload.worldIdSessionId !== 'string' ||
-      !payload.worldIdSessionId.startsWith('session_') ||
+      payload.worldIdSessionId.length === 0 ||
       typeof payload.iat !== 'number' ||
       typeof payload.exp !== 'number'
     ) {

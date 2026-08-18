@@ -1,60 +1,52 @@
-import { Header } from '@/components/Header'
-import { Footer } from '@/components/Footer'
-import { getLatestPublications } from '@/lib/db/objects'
-import { Card, CardContent } from "@/components/ui/card"
 import Link from 'next/link'
-import { timeAgo } from '@/lib/time'
+import { LatestPublications } from '@/components/LatestPublications'
 import { Divider } from '@/components/Divider'
+import type { PublicationFeedKind } from '@/lib/publication-kind'
+import { Suspense } from 'react'
 
-export const dynamic = 'force-dynamic'
+const tabs: Array<{ label: string; type: PublicationFeedKind; href: string }> = [
+  { label: 'Articles', type: 'article', href: '/latest' },
+  { label: 'Shorts', type: 'short', href: '/latest?type=short' },
+  { label: 'All', type: 'all', href: '/latest?type=all' },
+]
 
-const Page = async () => {
-  const publications = await getLatestPublications()
+const LatestContent = async ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => {
+  const { type: requestedType } = await searchParams
+  const type: PublicationFeedKind = requestedType === 'short' || requestedType === 'all'
+    ? requestedType
+    : 'article'
 
   return (
-    <>
-      <Header />
-      <div className="text-center mt-4">
-        <h1 className="text-5xl">
-          For Human Creativity
-        </h1>
-        <Divider animate={false} />
+    <main className="py-8">
+      <div className="text-center">
+        <h1 className="text-5xl">For Human Creativity</h1>
+        <Divider animate />
       </div>
-      <div className="w-[90%] mx-auto">
-        <main className="w-full">
-          <div className="text-left p-4 flex items-start gap-2">
-            <h2 className="text-2xl font-bold">Latest Publications</h2>
-          </div>
-          <div className="space-y-6 py-4">
-            {publications.map(publication => (
-              <Link href={`/p/${publication.id}`} key={publication.id}>
-                <Card className="shadow-sm w-full cursor-pointer my-4">
-                  <CardContent className="py-2 px-3">
-                    <div className="flex flex-col gap-1">
-                      <div className="text-sm font-medium line-clamp-1">
-                        {publication.publication_title}
-                      </div>
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        {publication.publication_subtitle && (
-                          <div className="flex items-center gap-2">
-                            <span className="line-clamp-1">{publication.publication_subtitle}</span>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground italic text-right">
-                          Published {timeAgo(publication.publication_date)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </main>
-      </div>
-      <Footer />
-    </>
+      <nav aria-label="Publication type" className="mb-5 flex gap-5 border-b">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.type}
+            href={tab.href}
+            aria-current={tab.type === type ? 'page' : undefined}
+            className={`border-b-2 px-1 py-3 text-sm ${
+              tab.type === type
+                ? 'border-blurple font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
+      <LatestPublications key={type} type={type} pageSize={20} showHeading={false} />
+    </main>
   )
 }
 
-export default Page 
+const Page = ({ searchParams }: { searchParams: Promise<{ type?: string }> }) => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <LatestContent searchParams={searchParams} />
+  </Suspense>
+)
+
+export default Page

@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Loader2, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 
+import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import type { FeedItemD } from '@/components/FeedItem'
 import { FeedItem } from '@/components/FeedItem'
 
@@ -12,6 +15,9 @@ type FeedStatus = 'loading' | 'ready'
 export const Feed = () => {
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading')
   const [feedItems, setFeedItems] = useState<FeedItemD[]>([])
+  const [feedError, setFeedError] = useState<string | null>(null)
+  const [draftToDelete, setDraftToDelete] = useState<FeedItemD | null>(null)
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const router = useRouter()
   
   useEffect(() => {
@@ -21,7 +27,7 @@ export const Feed = () => {
         const response = await raw.json();
         if(response.success) {
           const drafts = response.drafts;
-          setFeedItems(drafts)
+          setFeedItems(drafts.slice(0, 5))
           setFeedStatus('ready')
         }
       } catch (error) {
@@ -32,29 +38,59 @@ export const Feed = () => {
     fetchData();
   }, []);
 
+  const deleteDraft = async (draft: FeedItemD) => {
+    setDeletingDraftId(draft.id)
+    setFeedError(null)
+    try {
+      const raw = await fetch(`/api/draft/${draft.id}`, { method: 'DELETE' })
+      const response = await raw.json() as { success?: boolean; message?: string }
+      if (!raw.ok || !response.success) {
+        throw new Error(response.message || 'Failed to delete draft')
+      }
+
+      setFeedItems(previous => previous.filter(item => item.id !== draft.id))
+      setDraftToDelete(null)
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : 'Failed to delete draft')
+    } finally {
+      setDeletingDraftId(null)
+    }
+  }
+
   const EmptyFeed = () => (
-    <div className="w-[90%] mx-auto py-8 text-center">
-      <h3 className="text-xl font-semibold mb-2">No drafts yet</h3>
-      <p className="text-muted-foreground mb-4">Start writing your first draft to get started</p>
+    <div className="py-6 text-center">
+      <p className="text-muted-foreground mb-4">You have no drafts yet.</p>
       <Button onClick={() => router.push('/d/new')}>
-        Create New Draft
+        Start writing
       </Button>
     </div>
   )
 
   const FeedContent = () => (
-    <div className="w-[90%] mx-auto space-y-2 py-4">
+    <div className="space-y-3">
       {feedItems && feedItems.length > 0 ? (
-        <>
-          {feedItems.map((item) => (
-            <FeedItem key={item.id} item={item} />
-          ))}
-          <div className="text-center pt-8">
-            <Button onClick={() => router.push('/d/new')}>
-              Create New Draft
+        feedItems.map((item) => (
+          <div key={item.id} className="relative [&>a]:pr-14">
+            <FeedItem item={item} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDraftToDelete(item)}
+              disabled={deletingDraftId === item.id}
+            >
+              {deletingDraftId === item.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              <span className="sr-only">
+                {deletingDraftId === item.id ? 'Deleting…' : 'Delete'}
+              </span>
             </Button>
           </div>
-        </>
+        ))
       ) : (
         <EmptyFeed />
       )}
@@ -62,28 +98,42 @@ export const Feed = () => {
   )
 
   const FeedLoading = () => (
-    <div className="w-[90%] mx-auto space-y-2 py-4">
+    <div className="space-y-3">
       <FeedItem item={null} />
       <FeedItem item={null} />
     </div>
   )
 
+  // Width and section spacing come from the surrounding page container.
   return (
-    <>      
-      <div className="w-[90%] mx-auto">
-        <main className="w-full">
-          <div className="text-left p-4 flex items-start gap-2">
-            <h2 className="text-2xl font-bold">Your Drafts</h2>
-            {/* <Link href="/d/new" className="hover:bg-gray-300 bg-gray-200 p-1 rounded-md mt-1">
-              <Plus size={10} />
-            </Link> */}
-          </div>
-          {feedStatus === 'loading' &&
-              <FeedLoading />}
-          {feedStatus === 'ready' &&
-            <FeedContent />}
-        </main>
+    <div>
+      <div className="mb-3 flex items-baseline justify-between gap-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Your Drafts
+        </h2>
+        <Link href="/activity" className="text-xs text-blurple hover:underline">
+          View activity
+        </Link>
       </div>
-    </>
+      {feedError && !draftToDelete && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {feedError}
+        </p>
+      )}
+      {feedStatus === 'loading' && <FeedLoading />}
+      {feedStatus === 'ready' && <FeedContent />}
+      <DeleteDraftDialog
+        open={draftToDelete !== null}
+        draftTitle={draftToDelete?.title}
+        errorMessage={feedError}
+        isDeleting={deletingDraftId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDraftToDelete(null)
+        }}
+        onConfirm={() => {
+          if (draftToDelete) deleteDraft(draftToDelete)
+        }}
+      />
+    </div>
   )
 }

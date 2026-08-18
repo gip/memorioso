@@ -1,12 +1,28 @@
 import { pool } from './index'
 import { cache } from 'react'
 import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
+import { extractReadableText } from '@libro/core'
+import {
+  publicationKindFromTitle,
+  type PublicationFeedKind,
+} from '@/lib/publication-kind'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
 type PublicationRow = {
   signal: Omit<PublicationRecord, 'version'>
   version: string
+}
+
+type PublicationInfoRow = {
+  id: string
+  signal: Omit<PublicationRecord, 'version'>
+  proof: Proof
+}
+
+export type PublicationBySignalHash = {
+  publicationId: string
+  publication: PublicationRecord
 }
 
 export function mapPublicationRow(row: PublicationRow): PublicationRecord {
@@ -16,11 +32,28 @@ export function mapPublicationRow(row: PublicationRow): PublicationRecord {
   }
 }
 
+export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo {
+  return {
+    id: row.id,
+    author_id_libro: row.signal.author_id_libro,
+    publication_date: row.signal.publication_date,
+    author_name_libro: row.signal.author_name_libro,
+    publication_title: row.signal.publication_title,
+    publication_subtitle: row.signal.publication_subtitle,
+    publication_excerpt: extractReadableText(row.signal.publication_content.html),
+    authorship_label: 'proof_type' in row.proof
+      && row.proof.proof_type === 'human_authorized_agent_signature'
+      ? 'Human-authorized agent'
+      : 'Signed by a human',
+    publication_type: publicationKindFromTitle(row.signal.publication_title),
+  }
+}
+
 export const getAuthor = cache(async (authorId: string): Promise<Author | null> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT a.id, a.name, a.bio, a.handle
+      `SELECT a.id, a.name, a.bio, a.handle, a."userId"
        FROM authors a
        WHERE a.id = $1`,
       [authorId]
@@ -36,7 +69,7 @@ export const getAuthorByHandle = cache(async (handle: string): Promise<Author | 
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT a.id, a.name, a.bio, a.handle
+      `SELECT a.id, a.name, a.bio, a.handle, a."userId"
        FROM authors a
        WHERE a.handle = $1`,
       [handle]
@@ -83,6 +116,33 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
   }
 })
 
+export const getPublicationBySignalHash = cache(async (
+  signalHash: string
+): Promise<PublicationBySignalHash | null> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal, version
+       FROM publications
+       WHERE LOWER(proof->>'signal_hash') = $1
+          OR LOWER(proof->'agent_document_signature'->>'document_signal_hash') = $1
+       LIMIT 1`,
+      [signalHash]
+    )
+
+    if (rows.length === 0) {
+      return null
+    }
+
+    return {
+      publicationId: String(rows[0].id),
+      publication: mapPublicationRow(rows[0]),
+    }
+  } finally {
+    client.release()
+  }
+})
+
 export const getProof = cache(async (publicationId: string): Promise<Proof | null> => {
   const client = await pool.connect()
   try {
@@ -101,45 +161,97 @@ export const getProof = cache(async (publicationId: string): Promise<Proof | nul
   }
 })
 
-export const getPublicationInfoByAuthor = cache(async (authorId: string): Promise<PublicationInfo[]> => {
+export const getPublicationsByAuthor = cache(async (
+  authorId: string,
+  limit: number = 20,
+  offset: number = 0,
+  type: PublicationFeedKind = 'article'
+): Promise<PublicationInfo[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal FROM publications WHERE "authorId" = $1 ORDER BY id DESC LIMIT 21',
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE "authorId" = $1
+         AND ($4 = 'all'
+           OR ($4 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
+           OR ($4 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL))
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $2 OFFSET $3`,
+      [authorId, limit, offset, type]
+    )
+
+    return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+})
+
+export type AuthorPublicationCounts = { article: number; short: number }
+
+export const getAuthorPublicationCounts = cache(async (authorId: string): Promise<AuthorPublicationCounts> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL) AS article,
+         COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL) AS short
+       FROM publications
+       WHERE "authorId" = $1`,
       [authorId]
     )
 
-    // TODO: Not efficient - we need to fix this
-    return rows.map(row => ({
-      id: row.id,
-      author_id_libro: row.signal.author_id_libro,
-      publication_date: row.signal.publication_date,
-      author_name_libro: row.signal.author_name_libro,
-      publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle
-    }))
+    return {
+      article: Number(rows[0]?.article ?? 0),
+      short: Number(rows[0]?.short ?? 0),
+    }
   } finally {
     client.release()
   }
 })
 
-export const getLatestPublications = cache(async (limit: number = 20): Promise<PublicationInfo[]> => {
+export const getLatestPublications = cache(async (
+  limit: number = 20,
+  offset: number = 0,
+  type: PublicationFeedKind = 'article'
+): Promise<PublicationInfo[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      'SELECT id, signal FROM publications ORDER BY (signal->>\'publication_date\')::timestamp DESC LIMIT $1',
-      [limit]
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE $3 = 'all'
+          OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
+          OR ($3 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL)
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset, type]
     )
 
-    return rows.map(row => ({
-      id: row.id,
-      author_id_libro: row.signal.author_id_libro,
-      publication_date: row.signal.publication_date,
-      author_name_libro: row.signal.author_name_libro,
-      publication_title: row.signal.publication_title,
-      publication_subtitle: row.signal.publication_subtitle
-    }))
+    return rows.map(mapPublicationInfoRow)
   } finally {
     client.release()
   }
 })
+
+export const getPublicationsByUser = async (
+  userId: number,
+  limit: number = 5,
+  offset: number = 0
+): Promise<PublicationInfo[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal, proof
+       FROM publications
+       WHERE "userId" = $1
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    )
+
+    return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+}

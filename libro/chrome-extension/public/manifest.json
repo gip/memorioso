@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Libro Verifier",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "incognito": "not_allowed",
+  "description": "Verify and sign human-signed text through Libro without leaving the page.",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "contextMenus", "clipboardWrite"],
+  "host_permissions": [
+    "https://worldchain-mainnet.gateway.tenderly.co/*",
+    "https://480.rpc.thirdweb.com/*",
+    "https://worldchain-mainnet.g.alchemy.com/*",
+    "https://bridge.worldcoin.org/*",
+    "https://www.memorioso.xyz/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Scan this page with Libro",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}

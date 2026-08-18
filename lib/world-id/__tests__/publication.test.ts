@@ -1,15 +1,45 @@
 import { describe, expect, it } from 'vitest'
-import type { IDKitResult } from '@worldcoin/idkit'
-import { canonicalStringify, createPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '../publication'
+import type { IDKitResult, IDKitResultSession } from '@worldcoin/idkit'
+import { decodeFunctionData } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import {
+  canonicalStringify,
+  createLibroPublicationV1,
+  createPublicationV2,
+  canonicalPublicationSignal,
+  hashPublicationSignal,
+} from '../publication'
 import { validateWorldIdV4Result } from '../proof'
 import { mapPublicationRow } from '../../db/objects'
 import {
+  LIBRO_AGENT_AUTHORSHIP_CLAIM,
+  LIBRO_AGENT_PROTOCOL_VERSION,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_PROTOCOL_VERSION,
+  LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_WORLD_CHAIN_ID,
+  libroRegistryAbi,
+} from '../../libro/contract'
+import { rpIdToUint64 } from '../../libro/encoding'
+import { prepareLibroRegistration } from '../../libro/proof'
+import { hashLibroHandle } from '@libro/core'
+import {
+  createAgentDocumentTypedData,
+  createAgentRegistrationPayload,
+  createLibroAgentPublicationV1,
+  createPrincipalAuthorHash,
+  LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
+  parseAgentPublicationPayload,
+  recoverAgentDocumentSigner,
+} from '../../libro/agent'
+import {
   getCredentialIdentifierForPublication,
+  isLibroAgentProof,
   isLegacyPublication,
   LEGACY_VERIFICATION_UNAVAILABLE_MESSAGE,
 } from '../../publication-status'
 import type { JsonValue } from '../../json'
-import type { PublicationRecord, WorldIdProofV4 } from '../../../types'
+import type { LibroAgentProofV1, PublicationRecord, WorldIdProofV4 } from '../../../types'
 
 const content = { html: '<p>Hello human world.</p>' }
 const author = {
@@ -37,8 +67,9 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     action: 'written-by-a-human-v4',
     nonce: 'nonce123',
     environment: 'production',
+    user_presence_completed: true,
     responses: [{
-      identifier: 'passport',
+      identifier: 'proof_of_human',
       signal_hash: signalHash,
       proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
       nullifier: '0xabc',
@@ -47,6 +78,24 @@ function result(signalHash: string, overrides: Partial<IDKitResult> = {}): IDKit
     }],
     ...overrides,
   } as IDKitResult
+}
+
+function sessionResult(signalHash: string): IDKitResultSession {
+  return {
+    protocol_version: '4.0',
+    session_id: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
+    nonce: '0x123',
+    environment: 'production',
+    user_presence_completed: true,
+    responses: [{
+      identifier: 'proof_of_human',
+      signal_hash: signalHash,
+      proof: ['1', '2', '3', '4', '5'],
+      session_nullifier: ['0xabc', '0xdef'],
+      issuer_schema_id: 1,
+      expires_at_min: 1770000000,
+    }],
+  }
 }
 
 describe('World ID publication signals', () => {
@@ -66,9 +115,212 @@ describe('World ID publication signals', () => {
   it('does not put the actual credential result into the signed signal', () => {
     const signalText = canonicalPublicationSignal(publication())
 
-    expect(signalText).toContain('"world_id_credential_policy":"document_or_orb"')
+    expect(signalText).toContain('"world_id_credential_policy":"orb"')
     expect(signalText).not.toContain('credential_identifier')
     expect(signalText).not.toContain('passport')
+  })
+
+  it('creates a Libro v1 publication schema without changing authorship fields', () => {
+    const signal = createLibroPublicationV1({
+      author,
+      title: 'A human note',
+      subtitle: 'On signatures',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(signal.publication_schema).toBe(LIBRO_PUBLICATION_SCHEMA_V1)
+    expect(signal.libro_protocol_version).toBe(LIBRO_PROTOCOL_VERSION)
+    expect(signal.author_id_libro).toBe(author.id)
+    expect(signal.publication_title).toBe('A human note')
+  })
+
+  it('keeps the Libro v1 IDKit signal small no matter how large the article body is', () => {
+    const largeContent = { html: `<p>${'word '.repeat(20_000)}</p>` }
+    const signal = createLibroPublicationV1({
+      author,
+      title: 'A human note',
+      subtitle: 'On signatures',
+      content: largeContent,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    const signalText = canonicalPublicationSignal(signal)
+
+    expect(largeContent.html.length).toBeGreaterThan(100_000)
+    expect(signalText.length).toBeLessThan(2_000)
+    expect(signalText).not.toContain('word')
+    expect(JSON.parse(signalText).content_hash).toMatch(/^0x[0-9a-f]{64}$/)
+  })
+
+  it('keeps optional title fields present as normalized empty strings', () => {
+    const signal = createLibroPublicationV1({
+      author,
+      title: '   ',
+      subtitle: null,
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(signal.publication_title).toBe('')
+    expect(signal.publication_subtitle).toBe('')
+    expect(canonicalPublicationSignal(signal)).toContain('"publication_title":""')
+    expect(canonicalPublicationSignal(signal)).toContain('"publication_subtitle":""')
+  })
+})
+
+describe('Libro registration helpers', () => {
+  it('maps a World ID v4 response into registry calldata', () => {
+    const action = 'written-by-a-human-v4-03b18435-96c5-46e6-91c5-cd4ac1abb197'
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication({ action })))
+    const validated = validateWorldIdV4Result(result(signalHash, {
+      action,
+      nonce: '0x123',
+      responses: [{
+        identifier: 'proof_of_human',
+        signal_hash: signalHash,
+        proof: ['1', '2', '3', '4', '5'],
+        nullifier: '0xabc',
+        issuer_schema_id: 9303,
+        expires_at_min: 1770000000,
+      }],
+    } as Partial<IDKitResult>), {
+      action,
+      nonce: '0x123',
+      environment: 'production',
+      signalHash,
+    })
+    const prepared = prepareLibroRegistration({
+      result: sessionResult(signalHash),
+      signalHash,
+      handle: author.handle,
+      handleHash: hashLibroHandle(author.handle),
+      claimHandle: true,
+      config: {
+        protocolVersion: LIBRO_PROTOCOL_VERSION,
+        chainId: LIBRO_WORLD_CHAIN_ID,
+        registryAddress: '0x1111111111111111111111111111111111111111',
+        rpId: BigInt(1),
+        rpcUrls: ['https://worldchain-mainnet.g.alchemy.com/public'],
+      },
+    })
+    const decoded = decodeFunctionData({
+      abi: libroRegistryAbi,
+      data: prepared.transaction.transactions[0].data,
+    })
+
+    expect(prepared.signalHash).toBe(signalHash)
+    expect(prepared.signalHashUint256).toBe(BigInt(signalHash).toString())
+    expect(prepared.proof.sessionNullifier[0]).toBe(BigInt('0xabc').toString())
+    expect(prepared.proof.nonce).toBe(BigInt('0x123').toString())
+    expect(prepared.proof.zeroKnowledgeProof).toEqual(['1', '2', '3', '4', '5'])
+    expect(prepared.transaction.chainId).toBe(480)
+    expect(prepared.transaction.transactions[0].to).toBe('0x1111111111111111111111111111111111111111')
+    expect(prepared.transaction.transactions[0].data).toMatch(/^0x/)
+    expect(decoded.functionName).toBe('claimHandleAndRegisterHumanDocument')
+    expect(decoded.args[0]).toBe(author.handle)
+    expect(decoded.args[1]).toBe(BigInt(signalHash))
+  })
+
+  it('validates rp ids', () => {
+    expect(rpIdToUint64('rp_81220394c70700e2')).toBe(BigInt('9305003717630034146'))
+    expect(() => rpIdToUint64('rp_b8a20e4bc9a21acd00')).toThrow('WORLD_ID_RP_ID must be in')
+    expect(() => rpIdToUint64('b8a20e4bc9a21acd')).toThrow('WORLD_ID_RP_ID must be in')
+  })
+})
+
+describe('Libro agent authorization helpers', () => {
+  it('creates a stable agent registration signal hash', () => {
+    const registration = createAgentRegistrationPayload({
+      handleHash: hashLibroHandle(author.handle),
+      controllerAddress: '0x1111111111111111111111111111111111111111',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      scope: LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
+      validFrom: '2026-05-13T12:00:00.000Z',
+      expiresAt: '2026-06-13T12:00:00.000Z',
+      salt: '0x3333333333333333333333333333333333333333333333333333333333333333',
+      chainId: LIBRO_WORLD_CHAIN_ID,
+      registryAddress: '0x4444444444444444444444444444444444444444',
+    })
+
+    expect(registration.payload.schema).toBe('libro-agent-registration-v1')
+    expect(registration.payload.handle_hash).toBe(hashLibroHandle(author.handle))
+    expect(registration.registrationHash).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(registration.signalHash).toBe(hashPublicationSignal(registration.registrationHash))
+  })
+
+  it('creates an agent publication schema distinct from direct human authorship', () => {
+    const agentPublication = createLibroAgentPublicationV1({
+      author,
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+    })
+    const humanPublication = createLibroPublicationV1({
+      author,
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      action: 'written-by-a-human-v4',
+    })
+
+    expect(agentPublication.publication_schema).toBe(LIBRO_AGENT_PUBLICATION_SCHEMA_V1)
+    expect(agentPublication.libro_agent_protocol_version).toBe(LIBRO_AGENT_PROTOCOL_VERSION)
+    expect(agentPublication.authorship_claim).toBe(LIBRO_AGENT_AUTHORSHIP_CLAIM)
+    expect(canonicalPublicationSignal(agentPublication)).not.toBe(canonicalPublicationSignal(humanPublication))
+  })
+
+  it('recovers the EIP-712 document signer', async () => {
+    const account = privateKeyToAccount('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    const typedData = createAgentDocumentTypedData({
+      chainId: LIBRO_WORLD_CHAIN_ID,
+      registryAddress: '0x4444444444444444444444444444444444444444',
+      registrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+      documentSignalHash: '0x5555555555555555555555555555555555555555555555555555555555555555',
+      documentNonce: '0x6666666666666666666666666666666666666666666666666666666666666666',
+      signedAt: 1770000000,
+    })
+    const signature = await account.signTypedData(typedData)
+
+    await expect(recoverAgentDocumentSigner({ typedData, signature })).resolves.toBe(account.address)
+  })
+
+  it('only accepts HTML publication content for agent documents', () => {
+    expect(parseAgentPublicationPayload({
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+    }).content).toEqual(content)
+
+    expect(() => parseAgentPublicationPayload({
+      title: 'A delegated note',
+      content: {
+        type: 'doc',
+        content: [],
+      },
+    })).toThrow('Publication content HTML is required')
+  })
+
+  it('accepts valid shorts and articles for agent documents', () => {
+    expect(parseAgentPublicationPayload({ title: '', subtitle: '', content })).toMatchObject({
+      title: '',
+      subtitle: '',
+    })
+    expect(() => parseAgentPublicationPayload({
+      title: 'Title only',
+      content: { html: '<p><br></p>' },
+    })).toThrow('Article body is required')
+    expect(() => parseAgentPublicationPayload({
+      title: '   ',
+      content: { html: '<p><br></p>' },
+    })).toThrow('Shorts can contain only plain text and line breaks')
   })
 })
 
@@ -90,7 +342,7 @@ describe('publication version compatibility', () => {
     }
     const v4Proof: WorldIdProofV4 = {
       protocol_version: '4.0',
-      action: 'written-by-a-human-v4',
+      proof_type: 'session',
       nonce: 'nonce123',
       signal_text: canonicalPublicationSignal(publication()),
       signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
@@ -112,7 +364,7 @@ describe('publication version compatibility', () => {
     }
     const v4Proof: WorldIdProofV4 = {
       protocol_version: '4.0',
-      action: 'written-by-a-human-v4',
+      proof_type: 'session',
       nonce: 'nonce123',
       signal_text: canonicalPublicationSignal(publication()),
       signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication())),
@@ -125,10 +377,50 @@ describe('publication version compatibility', () => {
     expect(isLegacyPublication(v2Publication)).toBe(false)
     expect(getCredentialIdentifierForPublication(v2Publication, v4Proof)).toBe('passport')
   })
+
+  it('distinguishes human-authorized agent proofs from direct World ID proofs', () => {
+    const proof: LibroAgentProofV1 = {
+      proof_type: 'human_authorized_agent_signature',
+      protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      agent_registration: {
+        proof_type: 'session',
+        signal: '0x1234',
+        signal_hash: '0x1234',
+        registration_hash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+        handle_hash: hashLibroHandle(author.handle),
+        payload: {},
+        credential_identifier: 'passport',
+        credential_identifiers: ['passport'],
+        idkit_result: {},
+        chain_id: LIBRO_WORLD_CHAIN_ID,
+        registry_address: '0x4444444444444444444444444444444444444444',
+        user_op_hash: '0x1',
+        transaction_hash: '0x2',
+        registered_at: '2026-05-13T12:00:00.000Z',
+      },
+      agent_document_signature: {
+        document_signal_text: '{}',
+        document_signal_hash: '0x5555555555555555555555555555555555555555555555555555555555555555',
+        document_nonce: '0x6666666666666666666666666666666666666666666666666666666666666666',
+        signed_at: '2026-05-13T12:00:00.000Z',
+        agent_address: '0x2222222222222222222222222222222222222222',
+        signature_type: 'eip712',
+        signature: '0x1234',
+        chain_id: LIBRO_WORLD_CHAIN_ID,
+        registry_address: '0x4444444444444444444444444444444444444444',
+        user_op_hash: '0x3',
+        transaction_hash: '0x4',
+        registered_at: '2026-05-13T12:00:00.000Z',
+      },
+    }
+
+    expect(isLibroAgentProof(proof)).toBe(true)
+    expect(getCredentialIdentifierForPublication({ ...publication(), version: '4' }, proof)).toBeNull()
+  })
 })
 
 describe('World ID v4 result validation', () => {
-  it('accepts v4 document-or-orb results bound to the signal hash', () => {
+  it('accepts v4 proof-of-human results bound to the signal hash', () => {
     const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
 
     expect(() => validateWorldIdV4Result(result(signalHash), {
@@ -139,6 +431,28 @@ describe('World ID v4 result validation', () => {
     })).not.toThrow()
   })
 
+  it('rejects document credentials', () => {
+    const signalHash = hashPublicationSignal(canonicalPublicationSignal(publication()))
+
+    for (const identifier of ['selfie', 'passport', 'mnc']) {
+      expect(() => validateWorldIdV4Result(result(signalHash, {
+        responses: [{
+          identifier,
+          signal_hash: signalHash,
+          proof: ['0x1', '0x2', '0x3', '0x4', '0x5'],
+          nullifier: '0xabc',
+          issuer_schema_id: 9303,
+          expires_at_min: 1770000000,
+        }],
+      } as Partial<IDKitResult>), {
+        action: 'written-by-a-human-v4',
+        nonce: 'nonce123',
+        environment: 'production',
+        signalHash,
+      })).toThrow(`Unsupported World ID credential: ${identifier}`)
+    }
+  })
+
   it('rejects legacy v3 results', () => {
     expect(() => validateWorldIdV4Result({
       protocol_version: '3.0',
@@ -146,7 +460,7 @@ describe('World ID v4 result validation', () => {
       action: 'written-by-a-human-v4',
       environment: 'production',
       responses: [],
-    } as IDKitResult, {
+    } as unknown as IDKitResult, {
       action: 'written-by-a-human-v4',
       nonce: 'nonce123',
       environment: 'production',

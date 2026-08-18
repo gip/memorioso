@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Libro Verifier — settings</title>
+    <link rel="stylesheet" href="/src/options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img class="mark" src="/icon-128.png" alt="" />
+        <div>
+          <h1>Libro Verifier settings</h1>
+          <p>How pages are verified, and which World Chain endpoints confirm them.</p>
+        </div>
+      </header>
+
+      <section class="section">
+        <h2>Automatic verification</h2>
+        <label class="switch" for="auto-scan">
+          <input id="auto-scan" type="checkbox" />
+          <span>
+            <strong>Verify every page as it loads</strong>
+            <span class="hint">Otherwise pages are verified only when you open the Libro popup.</span>
+          </span>
+        </label>
+        <p id="auto-message" class="message" aria-live="polite"></p>
+        <p class="note">
+          Chrome will ask to let the extension read every https page. Verification then runs on page
+          load, so a page you visit can cause the extension to fetch a manifest from an origin you
+          approved and to ask your World Chain endpoints about the signals it claims. Confirmed
+          registrations are cached so the same document is not looked up twice; turning this off
+          clears that cache and hands the permission back.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>Manifest origins</h2>
+        <p class="note">
+          Memorioso manifests are trusted by default. Add a publisher origin only when you want Libro
+          to retrieve signed manifests from that site; private-network destinations are never allowed.
+        </p>
+        <p id="api-origin" class="trusted-origin"></p>
+        <ul id="manifest-origins" class="endpoints"></ul>
+        <form id="add-manifest-origin" class="add">
+          <label for="manifest-origin">Add a manifest origin</label>
+          <div class="row">
+            <input id="manifest-origin" name="manifest-origin" type="url" placeholder="https://publisher.example.com" required />
+            <button type="submit">Allow</button>
+          </div>
+          <p id="manifest-message" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <h2>World Chain endpoints</h2>
+      <p class="note">
+        One endpoint producing the exact registration event below its finalized head is enough to
+        verify a block. Endpoints that prune old transactions cannot confirm older publications on
+        their own, which is why more than one is queried.
+      </p>
+
+      <ul id="endpoints" class="endpoints"></ul>
+
+      <form id="add" class="add">
+        <label for="url">Add an endpoint</label>
+        <div class="row">
+          <input id="url" name="url" type="url" placeholder="https://worldchain-rpc.example.com" required />
+          <button type="submit">Add</button>
+        </div>
+        <p id="message" class="message" aria-live="polite"></p>
+      </form>
+
+      <button id="reset" class="reset" type="button">Restore built-in endpoints</button>
+
+      <footer>
+        Added endpoints need permission to be contacted; Chrome will ask when you add one. Custom
+        endpoints must serve World Chain (chain id 480) and support eth_getTransactionReceipt.
+      </footer>
+    </main>
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

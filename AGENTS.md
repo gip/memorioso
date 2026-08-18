@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project Overview
 
-Memorioso is a Next.js App Router application for human-authored publications. Users sign in with World ID 4.0, create authors and drafts, sign publication payloads through IDKit proof verification, and store publication/proof data in Postgres.
+Memorioso is a Next.js App Router application for human-authored publications. Users sign in with World ID 4.0, create authors and drafts, sign publication payloads through IDKit proof verification, register publication/proof data on World Chain through Libro registries, and store publication/proof data in Postgres.
 
 Core stack:
 
@@ -13,6 +13,7 @@ Core stack:
 - Raw Postgres queries through `pg`.
 - TipTap editor for draft/publication content.
 - World ID 4.0 IDKit session proofs for login and publication proofs for publishing.
+- Libro protocol contracts under `libro/contracts`, currently using Foundry.
 
 ## Commands
 
@@ -22,8 +23,10 @@ Use pnpm in this repo; `pnpm-lock.yaml` is the lockfile.
 - `pnpm build` builds the app.
 - `pnpm start` serves a production build.
 - `pnpm lint` runs the configured Next lint command.
+- `pnpm test` runs the Vitest suite.
+- `forge test` from `libro/contracts` runs Libro contract tests.
 
-There is no test suite configured at the time this file was written. For non-trivial changes, run at least `pnpm lint` and, when environment variables and services are available, `pnpm build`.
+For non-trivial changes, run the narrowest relevant checks. For app or protocol helper changes, run at least `pnpm lint` and `pnpm test`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits. For contract changes, run `forge test` from `libro/contracts`.
 
 ## Required Environment
 
@@ -32,8 +35,12 @@ The app expects these environment variables in local and deployed environments:
 - `DATABASE_URL` for Postgres.
 - `SESSION_SECRET` for the signed Memorioso session cookie.
 - `NEXT_PUBLIC_APP_URL` for public links.
-- `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
-  `WORLD_ID_PUBLISH_ACTION`, and `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
+- `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
+  `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
+- `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`, and optional
+  `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
+  for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
+  and default to `LIBRO_WORLD_CHAIN_RPC_URLS` in `libro/core`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -45,7 +52,9 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `components/Editor/` contains the TipTap editor and editor-specific CSS.
 - `lib/auth-user.ts` and `lib/auth-session.ts` contain the World ID backed app session helpers.
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
+- `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
+- `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
 
@@ -79,14 +88,18 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 
 - Draft publishing depends on exact agreement between the draft record and the signed publication payload.
 - Preserve the `PublicationV1` field names in `types/index.ts`, including `author_id_libro`, `author_name_libro`, `publication_title`, `publication_content`, and related fields.
-- IDKit publication verification uses action `written-by-a-human-v4` and the canonical publication JSON as the signal. Changing payload shape or serialization affects proof validity.
+- IDKit publication verification uses per-challenge actions shaped as `written-by-a-human-v4-<challengeId>` and the canonical publication JSON as the signal. Changing payload shape or serialization affects proof validity.
 - Published data stores the proof, signal, content, title, subtitle, version, and date in `publications`.
 - Publication dates are validated server-side to be no later than now and no older than five minutes at publish time.
+- Direct human publications use `LibroRegistry.verifySession(...)` with the registered handle's session commitment and exact canonical publication signal.
+- Human-authorized agents are registered in the same registry by the handle owner's session, then sign documents with EIP-712. Keep this proof class semantically separate from direct human authorship.
+- Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address. Derive the constructor `rpId` from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`.
+- On-chain verification queries every configured endpoint in parallel and treats one matching handle-bound registration event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
 
 ## Frontend Notes
 
 - The editor supports both editable drafts and read-only publications through `components/Editor/index.tsx`.
-- Draft content is currently stored as `{ html: string }` in normal editor usage, while types also allow structured TipTap content. Preserve both forms unless doing a coordinated data migration.
+- Draft and publication content is stored as `{ html: string }`. Structured TipTap JSON can be reintroduced later if a coordinated migration needs it.
 - Public author URLs prefer handles under `/a/[authorId]`; UUID author paths redirect to handle paths when possible.
 - Shared layout wraps pages in `WorldIdAuthProvider` and Vercel Analytics.
 
@@ -96,3 +109,13 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Do not revert unrelated user changes.
 - Run the narrowest useful verification command available for the change. For most code changes, that is `pnpm lint`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits.
 - If verification cannot run because services or environment variables are missing, state that clearly in the final response.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

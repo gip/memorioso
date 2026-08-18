@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Diamond as DiamondIcon } from 'lucide-react'
 import {
@@ -13,7 +14,35 @@ import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 export const Diamond = ({ atBottom = true }) => {
   const router = useRouter()
-  const { user, signInWithWorldId, signOut } = useWorldIdAuth()
+  const {
+    user,
+    error: worldIdError,
+    isWorldAppLoginPending,
+    signInWithWorldId,
+    signOut,
+  } = useWorldIdAuth()
+  const [authError, setAuthError] = useState<string | null>(null)
+  const authMessage = authError || worldIdError
+
+  const handleSignIn = () => {
+    setAuthError(null)
+    signInWithWorldId().catch((error) => {
+      setAuthError(error instanceof Error ? error.message : 'Could not start World ID login')
+    })
+  }
+
+  const handleSignOut = () => {
+    setAuthError(null)
+    signOut().catch((error) => {
+      setAuthError(error instanceof Error ? error.message : 'Failed to log out')
+    })
+  }
+
+  useEffect(() => {
+    if (user) {
+      setAuthError(null)
+    }
+  }, [user])
 
   return (
     <DropdownMenu>
@@ -27,24 +56,48 @@ export const Diamond = ({ atBottom = true }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {authMessage && (
+          <div
+            role="alert"
+            className="max-w-56 break-words px-2 py-1.5 text-xs text-destructive"
+          >
+            {authMessage}
+          </div>
+        )}
+        {!authMessage && isWorldAppLoginPending && (
+          <div className="max-w-56 break-words px-2 py-1.5 text-xs text-muted-foreground">
+            Waiting for World App verification.
+          </div>
+        )}
         {!user && (
-          <DropdownMenuItem onClick={() => signInWithWorldId()}>
-            Login
+          <DropdownMenuItem onSelect={(event) => {
+            event.preventDefault()
+            handleSignIn()
+          }}>
+            Log in
           </DropdownMenuItem>
         )}
         {user && (
           <>
+            {user.handle && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Logged in as @{user.handle}
+              </div>
+            )}
             <DropdownMenuItem onClick={() => router.push('/d/new')}>
               New draft
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/a/new')}>
-              New author
+            <DropdownMenuItem onClick={() => router.push('/')}>
+              My drafts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/info')}>
-              Information
+            <DropdownMenuItem onClick={() => router.push('/profile')}>
+              Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => signOut()}>
-              Logout
+            <DropdownMenuItem onSelect={(event) => {
+              event.preventDefault()
+              handleSignOut()
+            }}>
+              Log out
             </DropdownMenuItem>
           </>
         )}

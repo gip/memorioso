@@ -7,8 +7,6 @@ Allow: /terms
 
 # Disallow private routes
 Disallow: /api/
-Disallow: /p/
-Disallow: /a/
 Disallow: /d/
 Disallow: /info
 

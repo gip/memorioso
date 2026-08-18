@@ -3,7 +3,8 @@
 OLD
 
 # dependencies
-/node_modules
+node_modules/
+.pnpm-store/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -17,6 +18,11 @@ OLD
 
 # production
 /build
+/libro/contracts/out/
+/libro/contracts/cache/
+/libro/contracts/broadcast/
+/libro/chrome-extension/dist/
+/libro/chrome-extension/dist-stage/
 
 # misc
 .DS_Store
@@ -40,3 +46,4 @@ yarn-error.log*
 next-env.d.ts
 
 .env
+.gstack/

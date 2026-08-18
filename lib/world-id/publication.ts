@@ -1,5 +1,13 @@
-import { hashSignal } from '@worldcoin/idkit-core/hashing'
-import type { Author, ContentOrHtml, PublicationV2 } from '@/types'
+import {
+  canonicalizeJson,
+  canonicalStringify,
+  canonicalPublicationSignal as canonicalLibroSignal,
+  hashPublicationSignal as hashLibroSignal,
+  normalizeOptionalPublicationText,
+  hashLibroHandle,
+} from '@libro/core'
+import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
+import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
 import {
   DEFAULT_WORLD_ID_PUBLISH_ACTION,
   PUBLICATION_SCHEMA_V2,
@@ -7,41 +15,16 @@ import {
   WORLD_ID_PROTOCOL_VERSION,
 } from './constants'
 
-type JsonPrimitive = string | number | boolean | null
-type JsonInput = JsonPrimitive | JsonInput[] | { [key: string]: JsonInput | undefined }
-
 export type PublicationDraftInput = {
   author: Pick<Author, 'id' | 'name' | 'handle' | 'bio'>
   title: string
   subtitle?: string | null
-  content: ContentOrHtml
+  content: PublicationContent
   publicationDate: string
   action?: string
 }
 
-export function canonicalizeJson(input: JsonInput): JsonInput {
-  if (Array.isArray(input)) {
-    return input.map((item) => canonicalizeJson(item))
-  }
-
-  if (input !== null && typeof input === 'object') {
-    return Object.keys(input)
-      .sort()
-      .reduce<{ [key: string]: JsonInput }>((acc, key) => {
-        const value = input[key]
-        if (value !== undefined) {
-          acc[key] = canonicalizeJson(value)
-        }
-        return acc
-      }, {})
-  }
-
-  return input
-}
-
-export function canonicalStringify(input: JsonInput): string {
-  return JSON.stringify(canonicalizeJson(input))
-}
+export { canonicalizeJson, canonicalStringify }
 
 export function createPublicationV2({
   author,
@@ -61,16 +44,32 @@ export function createPublicationV2({
     author_name_libro: author.name,
     author_handle_libro: author.handle,
     author_bio_libro: author.bio || '',
-    publication_title: title,
+    publication_title: normalizeOptionalPublicationText(title),
     publication_content: content,
-    publication_subtitle: subtitle || '',
+    publication_subtitle: normalizeOptionalPublicationText(subtitle),
   }
 }
 
-export function canonicalPublicationSignal(publication: PublicationV2): string {
-  return canonicalStringify(publication as unknown as JsonInput)
+export function createLibroPublicationV1(input: PublicationDraftInput): LibroPublicationV1 {
+  const publication = createPublicationV2(input)
+  const { world_id_action: _legacyAction, ...sessionPublication } = publication
+  return {
+    ...sessionPublication,
+    publication_schema: LIBRO_PUBLICATION_SCHEMA_V1,
+    libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    world_id_proof_type: 'session',
+    author_handle_hash_libro: hashLibroHandle(input.author.handle),
+  }
+}
+
+export function isLibroPublicationV1(publication: PublicationV2 | LibroPublicationV1): publication is LibroPublicationV1 {
+  return 'libro_protocol_version' in publication && publication.libro_protocol_version === LIBRO_PROTOCOL_VERSION
+}
+
+export function canonicalPublicationSignal(publication: PublicationV2 | LibroPublicationV1 | LibroAgentPublicationV1): string {
+  return canonicalLibroSignal(publication as unknown as Record<string, unknown>)
 }
 
 export function hashPublicationSignal(signalText: string): string {
-  return hashSignal(signalText).toLowerCase()
+  return hashLibroSignal(signalText)
 }

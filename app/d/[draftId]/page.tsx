@@ -1,17 +1,28 @@
-import { Header } from '@/components/Header'
 import { Draft } from '@/components/Draft'
-import { Footer } from '@/components/Footer'
+import { isPublicationKind } from '@/lib/publication-kind'
+import { Suspense } from 'react'
 
-const Page = async ({ params }: { params: Promise<{ draftId: string }> }) => {
+const DraftContent = async ({ params, searchParams }: {
+  params: Promise<{ draftId: string }>
+  searchParams: Promise<{ type?: string }>
+}) => {
 
   const resolvedParams = await params
   const draftIdParam: string | null = !resolvedParams.draftId || resolvedParams.draftId === 'new' ? null : resolvedParams.draftId
 
-  return (<>
-    <Header />
-    <Draft draftId={draftIdParam} />
-    <Footer />
-  </>)
+  const { type } = await searchParams
+  const initialType = isPublicationKind(type) ? type : null
+
+  return <Draft draftId={draftIdParam} initialType={initialType} />
 }
+
+const Page = ({ params, searchParams }: {
+  params: Promise<{ draftId: string }>
+  searchParams: Promise<{ type?: string }>
+}) => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <DraftContent params={params} searchParams={searchParams} />
+  </Suspense>
+)
 
 export default Page

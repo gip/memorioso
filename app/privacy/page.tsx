@@ -1,9 +1,6 @@
-import { Header } from '@/components/Header'
-
 const PrivacyPage = () => {
-    return (<>
-        <Header />
-        <main className="max-w-3xl mx-auto py-12 px-4">
+    return (
+        <main className="py-12">
             <h1 className="text-3xl font-bold mb-8">Privacy Policy</h1>
   
         <section className="space-y-6">
@@ -66,7 +63,7 @@ const PrivacyPage = () => {
           </div>
         </section>
       </main>
-    </>)
+    )
   }
   
   export default PrivacyPage

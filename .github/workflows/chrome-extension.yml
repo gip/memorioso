@@ -1,0 +1,51 @@
+name: Chrome extension
+
+on:
+  pull_request:
+    paths:
+      - 'libro/chrome-extension/**'
+      - 'libro/core/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/chrome-extension.yml'
+  push:
+    branches: [main, stage]
+    paths:
+      - 'libro/chrome-extension/**'
+      - 'libro/core/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/chrome-extension.yml'
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @libro/core check
+      - run: pnpm --filter @libro/chrome-extension check
+      - run: pnpm --filter @libro/chrome-extension test
+      - run: pnpm test
+      - run: pnpm lint
+      - run: pnpm extension:build
+      - run: pnpm extension:build:stage
+      - name: Package and validate manifests
+        run: |
+          test "$(node -p "require('./libro/chrome-extension/dist/manifest.json').version")" = "$(node -p "require('./libro/chrome-extension/package.json').version")"
+          test "$(node -p "require('./libro/chrome-extension/dist/manifest.json').minimum_chrome_version")" = "116"
+          (cd libro/chrome-extension/dist && zip -qr ../libro-verifier.zip .)
+          (cd libro/chrome-extension/dist-stage && zip -qr ../libro-verifier-stage.zip .)
+          unzip -t libro/chrome-extension/libro-verifier.zip
+          unzip -t libro/chrome-extension/libro-verifier-stage.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libro-chrome-extensions
+          path: |
+            libro/chrome-extension/libro-verifier.zip
+            libro/chrome-extension/libro-verifier-stage.zip

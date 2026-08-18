@@ -1,0 +1,11 @@
+packages:
+  - "."
+  - "libro/core"
+  - "libro/chrome-extension"
+
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@worldcoin/idkit-core@4.2.1'
+  - '@worldcoin/idkit@4.2.0'

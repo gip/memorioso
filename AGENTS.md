@@ -44,7 +44,8 @@ The app expects these environment variables in local and deployed environments:
 - `X402_PAY_TO_ADDRESS`, `X402_ASSET_ADDRESS`, `X402_ASSET_NAME`, `X402_ASSET_VERSION`,
   `X402_DEFAULT_PRICE_USD`, and `X402_RELAYER_PRIVATE_KEY` for gated publications. Only
   read when something is actually gated, so a deployment with no gated publications does
-  not need them.
+  not need them. Missing them does not break a gated publication either: the read path
+  goes through `tryGetPublicationAccessConfig` and falls back to sign-in only.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -124,6 +125,11 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   `'use cache'` scope — a request API inside a cached scope can pass `next build` and only
   fail at runtime. Do not reach for `'use cache: private'` here: it caches the unlocked body
   in browser memory and is unavailable in route handlers.
+- The advertised price comes from `effectivePriceUsd`, which returns null when the x402
+  env is absent. Read paths must handle that null — the wall drops its payment offer and
+  the content/manifest routes answer 403 instead of a 402 nobody could satisfy. Throwing
+  there instead takes down the whole article page for anonymous readers, since the gate
+  renders inside a streamed Suspense boundary with no error boundary of its own.
 - x402 settles without a facilitator, because none serves World Chain. The payer signs an
   EIP-3009 `TransferWithAuthorization` for USDC (`0x79A02482A880bCE3F13e09Da970dC34db4CD24d1`,
   6 decimals, EIP-712 domain `name: "USDC"`, `version: "2"`), and `X402_RELAYER_PRIVATE_KEY`

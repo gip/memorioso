@@ -60,6 +60,30 @@ export function getPublicationAccessConfig(): PublicationAccessConfig {
   }
 }
 
+let warnedUnconfigured = false
+
+/**
+ * x402 is opt-in per deployment: a gated publication in a deployment without the
+ * payment env is sign-in only, not broken. Readers of such a publication must still
+ * get the wall instead of a server error, so callers on a read path use this and
+ * treat `null` as "no payment offer to advertise".
+ */
+export function tryGetPublicationAccessConfig(): PublicationAccessConfig | null {
+  try {
+    return getPublicationAccessConfig()
+  } catch (error) {
+    if (!warnedUnconfigured) {
+      warnedUnconfigured = true
+      console.warn(
+        `x402 payments are unavailable, gated publications are sign-in only: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+    return null
+  }
+}
+
 /**
  * Deliberately not LIBRO_RELAYER_PRIVATE_KEY. Two independent senders on one EOA race
  * on the account nonce, and the settlement is the side that costs a payer money.

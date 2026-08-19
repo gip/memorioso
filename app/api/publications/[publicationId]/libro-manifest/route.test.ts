@@ -71,6 +71,19 @@ describe('libro manifest API', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
+  it('answers 403 for a gated manifest when the deployment takes no payments', async () => {
+    delete process.env.X402_PAY_TO_ADDRESS
+    mocks.getCachedPublicationAccess.mockResolvedValue({ access: 'gated', priceUsd: null })
+    mocks.resolvePublicationAccess.mockResolvedValue({ allowed: false, priceUsd: null })
+
+    const response = await GET(request(), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(JSON.stringify(body)).not.toContain('The whole body')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+  })
+
   it('serves a gated manifest to a reader with access, but never publicly cacheable', async () => {
     mocks.getCachedPublicationAccess.mockResolvedValue({ access: 'gated', priceUsd: null })
     mocks.resolvePublicationAccess.mockResolvedValue({ allowed: true, reason: 'payment' })

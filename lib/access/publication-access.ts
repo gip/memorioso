@@ -2,7 +2,7 @@ import { cookies, headers } from 'next/headers'
 import type { NextRequest } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getCachedPublicationAccess } from '@/lib/db/publication-cache'
-import { getPublicationAccessConfig } from '@/lib/access/config'
+import { tryGetPublicationAccessConfig } from '@/lib/access/config'
 import {
   ACCESS_TOKEN_HEADER,
   accessCookieName,
@@ -13,9 +13,10 @@ export type AccessReason = 'public' | 'session' | 'payment'
 
 export type AccessDecision =
   | { allowed: true; reason: AccessReason }
-  | { allowed: false; priceUsd: string }
+  /** `priceUsd` is null when this deployment cannot take payments: sign-in only. */
+  | { allowed: false; priceUsd: string | null }
 
-export type GatedPricing = { priceUsd: string }
+export type GatedPricing = { priceUsd: string | null }
 
 async function readAccessToken(
   publicationId: string,
@@ -61,6 +62,13 @@ export async function resolvePublicationAccess(
   return { allowed: false, priceUsd: effectivePriceUsd(record.priceUsd) }
 }
 
-export function effectivePriceUsd(priceUsd: string | null | undefined): string {
-  return priceUsd || getPublicationAccessConfig().defaultPriceUsd
+/**
+ * The advertised price, or null when x402 is not configured here. A per-publication
+ * price is still meaningless without the payTo/asset env, so an unconfigured
+ * deployment advertises no price at all rather than one nobody can pay.
+ */
+export function effectivePriceUsd(priceUsd: string | null | undefined): string | null {
+  const config = tryGetPublicationAccessConfig()
+  if (!config) return null
+  return priceUsd || config.defaultPriceUsd
 }

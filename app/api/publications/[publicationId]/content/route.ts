@@ -106,10 +106,21 @@ export async function GET(request: NextRequest, { params }: { params: Params }):
   }
 
   const access = await getCachedPublicationAccess(publicationId)
+  const priceUsd = effectivePriceUsd(access?.priceUsd)
+  if (priceUsd === null) {
+    // No payment env here, so there are no requirements to quote. 403 rather than a
+    // 402 the caller could never satisfy.
+    return NextResponse.json({
+      success: false,
+      message: 'This publication is gated. Sign in with World ID on Memorioso to read it; '
+        + 'this deployment does not accept x402 payments.',
+    }, { status: 403, headers: BASE_HEADERS })
+  }
+
   const requirements = buildPaymentRequirements({
     resource: contentResource(request, publicationId),
     description: describe(publication),
-    priceUsd: effectivePriceUsd(access?.priceUsd),
+    priceUsd,
   })
 
   const header = request.headers.get(PAYMENT_HEADER)

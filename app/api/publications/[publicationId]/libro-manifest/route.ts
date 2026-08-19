@@ -44,11 +44,20 @@ export async function GET(request: NextRequest, { params }: { params: Params }):
   if (isGated) {
     const decision = await resolvePublicationAccess(publicationId, request)
     if (!decision.allowed) {
+      const priceUsd = effectivePriceUsd(access?.priceUsd)
+      if (priceUsd === null) {
+        // No payment env here, so there are no requirements to quote.
+        return NextResponse.json({
+          message: 'This publication is gated. Sign in with World ID on Memorioso to read it; '
+            + 'this deployment does not accept x402 payments.',
+        }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } })
+      }
+
       // 402 rather than 403: an agent that lands here can pay and retry.
       const requirements = buildPaymentRequirements({
         resource: new URL(publicationContentPath(publicationId), request.nextUrl.origin).toString(),
         description: `Libro manifest for publication ${publicationId} on Memorioso`,
-        priceUsd: effectivePriceUsd(access?.priceUsd),
+        priceUsd,
       })
       return NextResponse.json(
         paymentRequiredBody(requirements, 'This publication is gated'),

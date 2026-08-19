@@ -142,6 +142,20 @@ describe('publication content API', () => {
     expect(JSON.stringify(body)).not.toContain('The whole body')
   })
 
+  // Without payment env there are no requirements to quote, so a 402 would be a
+  // promise the deployment cannot keep.
+  it('answers 403 rather than 402 when the deployment takes no payments', async () => {
+    delete process.env.X402_PAY_TO_ADDRESS
+    mocks.resolvePublicationAccess.mockResolvedValue({ allowed: false, priceUsd: null })
+
+    const response = await GET(request(), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.success).toBe(false)
+    expect(JSON.stringify(body)).not.toContain('The whole body')
+  })
+
   it('uses the per-publication price when one is set', async () => {
     mocks.getCachedPublicationAccess.mockResolvedValue({ access: 'gated', priceUsd: '0.25' })
     mocks.resolvePublicationAccess.mockResolvedValue({ allowed: false, priceUsd: '0.25' })

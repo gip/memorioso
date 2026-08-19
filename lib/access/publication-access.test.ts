@@ -91,4 +91,21 @@ describe('effectivePriceUsd', () => {
     expect(effectivePriceUsd('0.25')).toBe('0.25')
     expect(effectivePriceUsd(null)).toBe('0.05')
   })
+
+  // A deployment with no x402 env still serves gated publications: sign-in only.
+  // Throwing here used to take down the whole article page for anonymous readers.
+  it('advertises no price when the deployment cannot take payments', () => {
+    delete process.env.X402_PAY_TO_ADDRESS
+
+    expect(effectivePriceUsd(null)).toBeNull()
+    expect(effectivePriceUsd('0.25')).toBeNull()
+  })
+})
+
+describe('resolvePublicationAccess without x402 configuration', () => {
+  it('denies without a price instead of throwing', async () => {
+    delete process.env.X402_ASSET_ADDRESS
+
+    expect(await resolvePublicationAccess('42', request())).toEqual({ allowed: false, priceUsd: null })
+  })
 })

@@ -19,7 +19,8 @@ export const UnlockDialog = ({
   priceUsd,
 }: {
   contentEndpoint: string
-  priceUsd: string
+  /** Null when this deployment takes no x402 payments: sign-in is the only way in. */
+  priceUsd: string | null
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const { status, signInWithWorldId } = useWorldIdAuth()
@@ -53,14 +54,16 @@ export const UnlockDialog = ({
               Signing in also gives you an author handle, so you can publish
               human-signed writing of your own.
             </p>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3">
-              <p className="font-medium text-foreground">Reading as an agent?</p>
-              <p className="mt-1">
-                Fetch <code className="break-all text-xs">{contentEndpoint}</code> and pay{' '}
-                ${priceUsd} in USDC over x402. The endpoint answers{' '}
-                <code className="text-xs">402</code> with its payment requirements.
-              </p>
-            </div>
+            {priceUsd && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3">
+                <p className="font-medium text-foreground">Reading as an agent?</p>
+                <p className="mt-1">
+                  Fetch <code className="break-all text-xs">{contentEndpoint}</code> and pay{' '}
+                  ${priceUsd} in USDC over x402. The endpoint answers{' '}
+                  <code className="text-xs">402</code> with its payment requirements.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

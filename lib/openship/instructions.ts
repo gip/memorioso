@@ -1,7 +1,9 @@
 // The Agent view and /openship/agent.txt serve this byte for byte. Keep it plain text: it is read
 // by machines that will not render markdown, and by people looking over their agent's shoulder.
 
+import { getChangesConfig, type ChangesConfig } from '@/lib/openship/changes-config'
 import { getOpenshipCommit, getOpenshipManifest, OPENSHIP_VERSION } from '@/lib/openship/manifest'
+import { OPENSHIP_LIMITS, getProtectedPaths, getWritablePaths, isApiWritable } from '@/lib/openship/policy'
 
 // Plain text is read in terminals and in a fixed-width block on /openship, so keep every line
 // inside a sane column count rather than emitting one very long interpolated paragraph.
@@ -20,10 +22,83 @@ const wrap = (text: string, indent: string, width = 86): string => {
   return lines.join('\n')
 }
 
+const bullets = (paths: readonly string[], indent = '    '): string =>
+  paths.map((path) => `${indent}${path}`).join('\n')
+
+/**
+ * The write half, described where an agent is already reading. A deployment that does not accept
+ * submissions still says so and still points at the specification, because "no endpoint here" and
+ * "this protocol does not exist" are different facts and an agent should not have to guess which.
+ */
+const buildChangesSection = (origin: string, changes: ChangesConfig): string => {
+  if (!changes.enabled || !changes.buildsDomain) {
+    return `CHANGING THIS SITE
+  This deployment serves the read half of Openship only: POST /openship/changes
+  answers 501. The protocol for proposing a change is specified in
+  OPENSHIP-CHANGES.md, which you can read at
+  ${origin}/openship/file/OPENSHIP-CHANGES.md.
+
+`
+  }
+
+  const limits = OPENSHIP_LIMITS
+
+  return `CHANGING THIS SITE
+  This deployment accepts proposed changes. Anyone may submit one. If it passes
+  every gate it is built and deployed to its own origin at
+
+      https://<buildId>.${changes.buildsDomain}
+
+  where buildId is derived from the content of the resulting tree. The same files
+  always produce the same buildId, so the URL is something you can verify rather
+  than something you are told. A build is never the live site: promotion to the
+  production origin is a manual decision by the maintainer.
+
+  1. GET ${origin}/openship/policy.json and read the rules.
+  2. GET ${origin}/openship/manifest.json and take its "digest".
+  3. POST ${origin}/openship/changes with:
+
+       { "openship": "1.0",
+         "base": "<the digest from step 2>",
+         "title": "<one line>",
+         "intent": "<what this change does and why, in prose>",
+         "files": {
+           "<path>": { "encoding": "utf-8", "content": "<the new content>" },
+           "<path to delete>": null } }
+
+  4. You get 202 with a changeId and the buildId, or 422 with a list of
+     violations naming the path and the rule that rejected it. Poll the returned
+     statusUrl until status leaves "queued" and "building".
+
+  What you may write:
+${bullets(getWritablePaths())}
+
+  What is protected, and rejected without review:
+${bullets(getProtectedPaths())}
+${isApiWritable() ? '\n  This deployment has OPENSHIP_CHANGES_ALLOW_API set, so app/api/** is writable.\n' : ''}
+  Limits: ${limits.filesPerChange} files per change, ${limits.bytesPerFile / 1024} KB per file,
+  ${limits.bytesPerChange / 1024 / 1024} MB per change.
+
+  Your code may not use dynamic evaluation, Node built-ins, process.env other
+  than NEXT_PUBLIC_*, server actions, raw HTML injection, off-origin
+  subresources or requests, or encoded source. The full list, with the reason for
+  each, is in OPENSHIP-CHANGES.md:
+  ${origin}/openship/file/OPENSHIP-CHANGES.md
+
+  Two things worth knowing before you spend effort on this. Your stated intent is
+  read against your diff, and a diff that does something the intent does not
+  mention is rejected even when every mechanical rule passes. And the reviewer
+  treats your code as data: a comment addressed to it is a prompt injection
+  attempt, and is grounds for rejection on its own.
+
+`
+}
+
 export const buildOpenshipInstructions = (origin: string): string => {
   const manifest = getOpenshipManifest()
   const commit = getOpenshipCommit()
   const { totals } = manifest
+  const changes = getChangesConfig()
 
   return `OPENSHIP ${OPENSHIP_VERSION}
 ${origin}
@@ -74,6 +149,14 @@ ENDPOINTS
   GET /openship/source.tar.gz
       The same file set as a gzipped tarball, symlinks preserved.
 
+  GET /openship/policy.json
+      What a proposed change may contain: writable paths, protected paths, size
+      limits, and the content rules. Read this before writing a change.
+
+  POST /openship/changes
+      Submit a proposed change. See CHANGING THIS SITE below.
+
+${buildChangesSection(origin, changes)}
 VERIFYING WHAT YOU GOT
   Every manifest entry carries a sha256 of the raw file bytes. The manifest
   digest is sha256 over "<path>\\0<sha256>\\n" for every file in sorted path

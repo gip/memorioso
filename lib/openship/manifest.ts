@@ -46,6 +46,10 @@ export const OPENSHIP_ENDPOINTS = {
   archive: '/openship/source.tar.gz',
   instructions: '/openship/agent.txt',
   page: '/openship',
+  // The write half. Advertised unconditionally so a client can discover the rules even where this
+  // deployment does not accept submissions; POST answers 501 there.
+  policy: '/openship/policy.json',
+  changes: '/openship/changes',
 } as const
 
 let filesCache: OpenshipFile[] | null = null

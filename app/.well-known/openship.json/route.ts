@@ -25,6 +25,10 @@ export function GET(): NextResponse {
         archive: absolute(OPENSHIP_ENDPOINTS.archive),
         instructions: absolute(OPENSHIP_ENDPOINTS.instructions),
         page: absolute(OPENSHIP_ENDPOINTS.page),
+        policy: absolute(OPENSHIP_ENDPOINTS.policy),
+        // Present whether or not this deployment accepts submissions: a client learns which from
+        // /openship/policy.json rather than from the absence of a member.
+        changes: absolute(OPENSHIP_ENDPOINTS.changes),
       },
       null,
       2

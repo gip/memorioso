@@ -40,11 +40,11 @@ export const OPENSHIP_STRUCTURE: readonly OpenshipDirectory[] = [
   { path: 'lib/world-id/', purpose: 'IDKit request, proof, and publication helpers.' },
   { path: 'lib/libro/', purpose: 'Libro ABIs, config, encoding, registration, and agent authorization.' },
   { path: 'lib/db/', purpose: 'Postgres pool, SQL schema, migrations, and cached read helpers.' },
-  { path: 'lib/openship/', purpose: 'The Openship manifest and bundle served by this endpoint.' },
+  { path: 'lib/openship/', purpose: 'The Openship manifest and bundle served by this endpoint, plus the change policy and validator.' },
   { path: 'libro/contracts/', purpose: 'Foundry sources and tests for the LibroRegistry contract.' },
   { path: 'libro/core/', purpose: 'Shared Libro verification package consumed by the app and extension.' },
   { path: 'libro/chrome-extension/', purpose: 'Chrome extension that verifies Libro publications in the browser.' },
-  { path: 'scripts/', purpose: 'Database init/migrate tooling and this Openship build step.' },
+  { path: 'scripts/', purpose: 'Database init/migrate tooling, this Openship build step, and the change build worker.' },
   { path: 'types/', purpose: 'Publication, proof, author, and JSON content shapes.' },
   { path: 'public/', purpose: 'Static assets and generated Openship archive.' },
 ]

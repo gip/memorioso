@@ -39,3 +39,18 @@ export const openshipOrigin = (): string => {
     return ''
   }
 }
+
+/**
+ * For the Changes endpoints, which are dynamic. Same CORS posture as the read half, but nothing
+ * here is immutable: a change's status is the one Openship response that is expected to move.
+ */
+export const openshipDynamicJson = (body: unknown, status = 200): NextResponse =>
+  NextResponse.json(body, {
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-PAYMENT',
+      'Cache-Control': 'no-store',
+    },
+  })

@@ -23,6 +23,8 @@ vi.mock('next/cache', () => ({
 vi.mock('@/lib/db/publication-cache', () => ({
   publicationCacheTag: (id: string) => `publication:${id}`,
   publicationHashCacheTag: (hash: string) => `publication-hash:${hash}`,
+  authorPublicationCountsCacheTag: (authorId: string) => `author-publication-counts:${authorId}`,
+  sitemapCacheTag: 'sitemap',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -119,6 +121,10 @@ describe('Libro agent document finalize route', () => {
     )
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
       `publication-hash:${documentSignalHash}`,
+      { expire: 0 }
+    )
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      'author-publication-counts:b2a1e9b0-6125-4dfa-b772-6e989eb93f05',
       { expire: 0 }
     )
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[

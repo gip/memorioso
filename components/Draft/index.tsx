@@ -174,6 +174,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [isEditingDisabled, setIsEditingDisabled] = useState<boolean>(false)
   const router = useRouter()
   const [authors, setAuthors] = useState<Author[]>([])
+  const [areAuthorsLoaded, setAreAuthorsLoaded] = useState(false)
   const [initialContent, setInitialContent] = useState<Object | null>(null)
   const [initialTitle, setInitialTitle] = useState<string>('')
   const [initialSubtitle, setInitialSubtitle] = useState<string>('')
@@ -293,6 +294,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       const response = await raw.json()
       if (response.success) {
         setAuthors(response.authors)
+        setAreAuthorsLoaded(true)
       }
     } catch (error) {
       console.error('Failed to fetch authors:', error)
@@ -306,19 +308,20 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     fetchAuthors()
   }, [fetchAuthors, status])
 
-  // Every login owns exactly one author; attach it to new drafts. Also
-  // re-runs once `loading` flips false: fetchDraft's setDraft(response.data)
-  // can land after this effect already fired and clobber authorId back to
-  // whatever was persisted (e.g. null from a pre-authors-loaded autosave),
-  // so re-check once the fetched draft is in place instead of relying on
-  // effect ordering between the two async requests.
+  // Every login owns exactly one author; attach it to new drafts. Keyed on the
+  // current authorId so any later reset re-attaches: fetchDraft's
+  // setDraft(response.data) can land after this effect already fired and
+  // clobber authorId back to whatever was persisted (e.g. null from a
+  // pre-authors-loaded autosave), and choosing a publication type replaces the
+  // draft object outright. Re-checking on the value instead of on effect
+  // ordering keeps the publish button reachable in both cases.
   useEffect(() => {
     if (!user || authors.length === 0) return
     setDraft((prev) => {
       if (!prev || prev.authorId) return prev
       return { ...prev, authorId: authors[0].id }
     })
-  }, [authors, user, loading])
+  }, [authors, user, loading, draft?.authorId])
 
   const handleSave = async () => {
     try {
@@ -444,7 +447,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       setPublishStatus(null)
       publishHostVerifyError.current = null
       clearLocalDraft()
-      router.push(`${publicationPath(response.publicationType || draft?.publicationType || 'article', response.publicationId)}?signed=1`)
+      // Replace, not push: the draft is consumed and its local copy is gone, so
+      // leaving it in history only gives Back a dead editor to return to.
+      router.replace(`${publicationPath(response.publicationType || draft?.publicationType || 'article', response.publicationId)}?signed=1`)
       return true
     } catch (reason) {
       if (reason instanceof FinalizePublicationError && reason.retryable) {
@@ -694,7 +699,15 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
               key={kind}
               type="button"
               onClick={() => {
-                setDraft({ title: '', subtitle: '', content: { html: '' }, publicationType: kind })
+                // Keep any author already attached; dropping it here would leave
+                // the publish confirmation disabled until a reload.
+                setDraft((prev) => ({
+                  title: '',
+                  subtitle: '',
+                  content: { html: '' },
+                  publicationType: kind,
+                  authorId: prev?.authorId,
+                }))
                 setHasChosenType(true)
                 router.replace(`/d/new?type=${kind}`)
               }}
@@ -866,6 +879,8 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
                   {' '}@{selectedAuthor.handle}
                 </span>
               </div>
+            ) : !areAuthorsLoaded ? (
+              <p className="text-sm text-muted-foreground">Loading your author profile…</p>
             ) : authors.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 This account has no author profile yet, so it cannot publish.

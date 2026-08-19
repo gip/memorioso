@@ -6,6 +6,7 @@ import { buildGatedTeaser } from '@/lib/access/teaser'
 import {
   publicationKindFromTitle,
   type PublicationFeedKind,
+  type PublicationKind,
 } from '@/lib/publication-kind'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
@@ -290,6 +291,67 @@ export const getPublicationsByUser = async (
     )
 
     return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+}
+
+// Google caps a single sitemap at 50,000 URLs. Newest publications win if we ever exceed it;
+// split with generateSitemaps before that becomes a real ceiling.
+export const SITEMAP_MAX_PUBLICATIONS = 40000
+
+export type SitemapPublication = {
+  id: string
+  kind: PublicationKind
+  lastModified: Date
+}
+
+export type SitemapAuthor = {
+  handle: string
+  lastModified: Date
+}
+
+export const getSitemapPublications = async (
+  limit: number = SITEMAP_MAX_PUBLICATIONS
+): Promise<SitemapPublication[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal->>'publication_title' AS title, modified_at
+       FROM publications
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $1`,
+      [limit]
+    )
+
+    return rows.map((row) => ({
+      id: String(row.id),
+      kind: publicationKindFromTitle(row.title),
+      lastModified: row.modified_at,
+    }))
+  } finally {
+    client.release()
+  }
+}
+
+// An author page lists that author's publications, so a new publication changes the page
+// even when the profile row itself is untouched.
+export const getSitemapAuthors = async (): Promise<SitemapAuthor[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT a.handle,
+              GREATEST(a.modified_at, COALESCE(MAX(p.modified_at), a.modified_at)) AS modified_at
+       FROM authors a
+       LEFT JOIN publications p ON p."authorId" = a.id
+       GROUP BY a.id, a.handle, a.modified_at
+       ORDER BY a.handle`
+    )
+
+    return rows.map((row) => ({
+      handle: row.handle as string,
+      lastModified: row.modified_at,
+    }))
   } finally {
     client.release()
   }

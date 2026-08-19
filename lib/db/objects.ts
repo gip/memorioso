@@ -1,7 +1,8 @@
 import { pool } from './index'
 import { cache } from 'react'
-import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
+import { Author, PublicationAccess, PublicationRecord, Proof, PublicationInfo } from '@/types'
 import { extractReadableText } from '@libro/core'
+import { buildGatedTeaser } from '@/lib/access/teaser'
 import {
   publicationKindFromTitle,
   type PublicationFeedKind,
@@ -19,6 +20,12 @@ type PublicationInfoRow = {
   id: string
   signal: Omit<PublicationRecord, 'version'>
   proof: Proof
+  access: PublicationAccess
+}
+
+export type PublicationAccessRecord = {
+  access: PublicationAccess
+  priceUsd: string | null
 }
 
 export type PublicationBySignalHash = {
@@ -34,6 +41,9 @@ export function mapPublicationRow(row: PublicationRow): PublicationRecord {
 }
 
 export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo {
+  const access: PublicationAccess = row.access === 'gated' ? 'gated' : 'public'
+  const html = row.signal.publication_content.html
+
   return {
     id: row.id,
     author_id_libro: row.signal.author_id_libro,
@@ -41,7 +51,11 @@ export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo 
     author_name_libro: row.signal.author_name_libro,
     publication_title: row.signal.publication_title,
     publication_subtitle: row.signal.publication_subtitle,
-    publication_excerpt: extractReadableText(row.signal.publication_content.html),
+    // Feeds are public, so a gated body never leaves the server in full.
+    publication_excerpt: access === 'gated'
+      ? buildGatedTeaser(html)
+      : extractReadableText(html),
+    access,
     authorship_label: 'proof_type' in row.proof
       && row.proof.proof_type === 'human_authorized_agent_signature'
       ? 'Human-authorized agent'
@@ -162,6 +176,31 @@ export const getProof = cache(async (publicationId: string): Promise<Proof | nul
   }
 })
 
+export const getPublicationAccess = cache(async (
+  publicationId: string
+): Promise<PublicationAccessRecord | null> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      'SELECT access, access_price_usd FROM publications WHERE id = $1',
+      [publicationId]
+    )
+
+    if (rows.length === 0) {
+      return null
+    }
+
+    return {
+      access: rows[0].access === 'gated' ? 'gated' : 'public',
+      priceUsd: rows[0].access_price_usd === null || rows[0].access_price_usd === undefined
+        ? null
+        : String(rows[0].access_price_usd),
+    }
+  } finally {
+    client.release()
+  }
+})
+
 export const getPublicationsByAuthor = cache(async (
   authorId: string,
   limit: number = 20,
@@ -171,7 +210,7 @@ export const getPublicationsByAuthor = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE "authorId" = $1
          AND ($4 = 'all'
@@ -219,7 +258,7 @@ export const getLatestPublications = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE $3 = 'all'
           OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
@@ -243,7 +282,7 @@ export const getPublicationsByUser = async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE "userId" = $1
        ORDER BY (signal->>'publication_date')::timestamp DESC

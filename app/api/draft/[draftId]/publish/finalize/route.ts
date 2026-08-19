@@ -364,8 +364,8 @@ export async function PUT(
       stage = 'write_publication'
       const articleResult = await client.query(
         `INSERT INTO publications
-          ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ("userId", "authorId", proof, signal, content, version, title, subtitle, date, access)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id`,
         [
           authenticatedUser.id,
@@ -377,6 +377,7 @@ export async function PUT(
           storedPublication.publication_title,
           storedPublication.publication_subtitle,
           storedPublication.publication_date,
+          draft.access,
         ]
       )
 

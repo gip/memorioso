@@ -41,6 +41,11 @@ The app expects these environment variables in local and deployed environments:
   `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
   for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
   and default to `LIBRO_WORLD_CHAIN_RPC_URLS` in `libro/core`.
+- `X402_PAY_TO_ADDRESS`, `X402_ASSET_ADDRESS`, `X402_ASSET_NAME`, `X402_ASSET_VERSION`,
+  `X402_DEFAULT_PRICE_USD`, and `X402_RELAYER_PRIVATE_KEY` for gated publications. Only
+  read when something is actually gated, so a deployment with no gated publications does
+  not need them. Missing them does not break a gated publication either: the read path
+  goes through `tryGetPublicationAccessConfig` and falls back to sign-in only.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -54,6 +59,8 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
 - `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
+- `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
+- `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
 - `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
@@ -95,6 +102,44 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Human-authorized agents are registered in the same registry by the handle owner's session, then sign documents with EIP-712. Keep this proof class semantically separate from direct human authorship.
 - Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address. Derive the constructor `rpId` from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`.
 - On-chain verification queries every configured endpoint in parallel and treats one matching handle-bound registration event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
+
+## Gated Publications
+
+- Access is opt-in per publication and lives in `publications.access` / `drafts.access`.
+  It must never enter `publications.signal`: that JSONB is the signed payload whose hash is
+  registered on chain, and one extra key breaks `parseLibroPublication` and every manifest.
+- Only articles can be gated. A teaser of a short is the whole short.
+- Two things get a reader through the wall: any signed-in Memorioso user (every account is
+  bound to a verified World ID session, so being signed in already proves personhood), or a
+  settled x402 payment recorded in `publication_access_grants`.
+- The signed body is reachable from more places than the article page. All of them are gated:
+  the proof page's verification snippet, `/hash/[signalHash]`, the inline embed manifest,
+  `/api/publications/[id]/libro-manifest`, and `publication_excerpt` in every feed
+  (`mapPublicationInfoRow` truncates gated rows to a teaser). Adding a new surface that reads
+  `publication_content` means adding a new access check.
+- The teaser is derived from `extractReadableText` and rendered as plain text, never as
+  truncated HTML: cutting markup risks unbalanced tags, and an image in the opening block
+  would leak outright.
+- Gating decisions are cacheable (`getCachedPublicationAccess`, keyed only by id); *viewer*
+  access is not. Keep `resolvePublicationAccess` inside a Suspense boundary and out of any
+  `'use cache'` scope — a request API inside a cached scope can pass `next build` and only
+  fail at runtime. Do not reach for `'use cache: private'` here: it caches the unlocked body
+  in browser memory and is unavailable in route handlers.
+- The advertised price comes from `effectivePriceUsd`, which returns null when the x402
+  env is absent. Read paths must handle that null — the wall drops its payment offer and
+  the content/manifest routes answer 403 instead of a 402 nobody could satisfy. Throwing
+  there instead takes down the whole article page for anonymous readers, since the gate
+  renders inside a streamed Suspense boundary with no error boundary of its own.
+- x402 settles without a facilitator, because none serves World Chain. The payer signs an
+  EIP-3009 `TransferWithAuthorization` for USDC (`0x79A02482A880bCE3F13e09Da970dC34db4CD24d1`,
+  6 decimals, EIP-712 domain `name: "USDC"`, `version: "2"`), and `X402_RELAYER_PRIVATE_KEY`
+  submits it. That key is deliberately separate from `LIBRO_RELAYER_PRIVATE_KEY`: two senders
+  on one EOA race on the account nonce, and settlement is the side that costs a payer money.
+- Requirements advertise `network: "eip155:480"` because World Chain has no entry in the x402
+  v1 named-network registry; `world-chain` is also accepted on input.
+- Settlement order is reserve → broadcast → complete. The unique `authorization_nonce` is
+  claimed before anything reaches the chain, so a replay cannot double-spend and a crash
+  mid-settlement cannot take money without recording the grant.
 
 ## Frontend Notes
 

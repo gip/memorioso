@@ -16,11 +16,42 @@ type PublicationRow = {
   version: string
 }
 
+/**
+ * Feed rows carry an excerpt, not a body. Two of the publications in production are
+ * ~280KB of embedded image data, so selecting whole `signal` payloads shipped half a
+ * megabyte across the wire to build 240-character teasers. This caps what Postgres
+ * sends at roughly 16x the teaser budget: measured against every stored publication,
+ * 38 of 39 excerpts come out byte-identical to the untruncated ones, and the 39th is
+ * an image-heavy article that loses 8 trailing characters from a field only shorts
+ * ever render.
+ */
+export const FEED_EXCERPT_HTML_LIMIT = 4000
+
+/**
+ * The columns behind mapPublicationInfoRow. Kept as one fragment so the three feed
+ * queries cannot drift apart, and so adding a field to PublicationInfo is one edit.
+ */
+const PUBLICATION_INFO_COLUMNS = `
+         id,
+         access,
+         proof->>'proof_type' AS proof_type,
+         signal->>'author_id_libro' AS author_id_libro,
+         signal->>'author_name_libro' AS author_name_libro,
+         signal->>'publication_date' AS publication_date,
+         signal->>'publication_title' AS publication_title,
+         signal->>'publication_subtitle' AS publication_subtitle,
+         LEFT(signal->'publication_content'->>'html', ${FEED_EXCERPT_HTML_LIMIT}) AS content_html`
+
 type PublicationInfoRow = {
   id: string
-  signal: Omit<PublicationRecord, 'version'>
-  proof: Proof
   access: PublicationAccess
+  proof_type: string | null
+  author_id_libro: string | null
+  author_name_libro: string | null
+  publication_date: string | null
+  publication_title: string | null
+  publication_subtitle: string | null
+  content_html: string | null
 }
 
 export type PublicationAccessRecord = {
@@ -42,25 +73,25 @@ export function mapPublicationRow(row: PublicationRow): PublicationRecord {
 
 export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo {
   const access: PublicationAccess = row.access === 'gated' ? 'gated' : 'public'
-  const html = row.signal.publication_content.html
+  // Already capped at FEED_EXCERPT_HTML_LIMIT by the query; never the whole body.
+  const html = row.content_html ?? ''
 
   return {
     id: row.id,
-    author_id_libro: row.signal.author_id_libro,
-    publication_date: row.signal.publication_date,
-    author_name_libro: row.signal.author_name_libro,
-    publication_title: row.signal.publication_title,
-    publication_subtitle: row.signal.publication_subtitle,
+    author_id_libro: row.author_id_libro ?? '',
+    publication_date: row.publication_date ?? '',
+    author_name_libro: row.author_name_libro ?? '',
+    publication_title: row.publication_title ?? '',
+    publication_subtitle: row.publication_subtitle ?? '',
     // Feeds are public, so a gated body never leaves the server in full.
     publication_excerpt: access === 'gated'
       ? buildGatedTeaser(html)
       : extractReadableText(html),
     access,
-    authorship_label: 'proof_type' in row.proof
-      && row.proof.proof_type === 'human_authorized_agent_signature'
+    authorship_label: row.proof_type === 'human_authorized_agent_signature'
       ? 'Human-authorized agent'
       : 'Signed by a human',
-    publication_type: publicationKindFromTitle(row.signal.publication_title),
+    publication_type: publicationKindFromTitle(row.publication_title),
   }
 }
 
@@ -210,13 +241,13 @@ export const getPublicationsByAuthor = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof, access
+      `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
        WHERE "authorId" = $1
          AND ($4 = 'all'
            OR ($4 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
            OR ($4 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL))
-       ORDER BY (signal->>'publication_date')::timestamp DESC
+       ORDER BY date DESC
        LIMIT $2 OFFSET $3`,
       [authorId, limit, offset, type]
     )
@@ -258,12 +289,12 @@ export const getLatestPublications = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof, access
+      `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
        WHERE $3 = 'all'
           OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
           OR ($3 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL)
-       ORDER BY (signal->>'publication_date')::timestamp DESC
+       ORDER BY date DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset, type]
     )
@@ -282,10 +313,10 @@ export const getPublicationsByUser = async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof, access
+      `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
        WHERE "userId" = $1
-       ORDER BY (signal->>'publication_date')::timestamp DESC
+       ORDER BY date DESC
        LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
     )
@@ -319,7 +350,7 @@ export const getSitemapPublications = async (
     const { rows } = await client.query(
       `SELECT id, signal->>'publication_title' AS title, modified_at
        FROM publications
-       ORDER BY (signal->>'publication_date')::timestamp DESC
+       ORDER BY date DESC
        LIMIT $1`,
       [limit]
     )

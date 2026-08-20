@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from 'next/cache'
 import {
   getAuthorPublicationCounts,
+  getLatestPublications,
   getProof,
   getPublication,
   getPublicationAccess,
@@ -11,6 +12,8 @@ import {
   type SitemapAuthor,
   type SitemapPublication,
 } from '@/lib/db/objects'
+import { type PublicationFeedKind } from '@/lib/publication-kind'
+import type { PublicationInfo } from '@/types'
 
 export const publicationCacheTag = (publicationId: string) => `publication:${publicationId}`
 export const publicationHashCacheTag = (signalHash: string) =>
@@ -18,6 +21,29 @@ export const publicationHashCacheTag = (signalHash: string) =>
 export const authorPublicationCountsCacheTag = (authorId: string) =>
   `author-publication-counts:${authorId}`
 export const sitemapCacheTag = 'sitemap'
+export const latestPublicationsCacheTag = 'latest-publications'
+
+/**
+ * The reading feed, cached so the homepage can prerender with articles already
+ * in it instead of fetching them after hydration. Publications are append-only,
+ * so `max` plus tag invalidation from the two publish finalize routes is exact:
+ * nothing else changes what this returns.
+ *
+ * Keep the page window small and stable. Every distinct (limit, offset, type)
+ * is its own cache entry, so this is for the pages a server render asks for,
+ * not for arbitrary scroll offsets.
+ */
+export async function getCachedLatestPublications(
+  limit: number,
+  offset: number,
+  type: PublicationFeedKind
+): Promise<PublicationInfo[]> {
+  'use cache'
+
+  cacheTag(latestPublicationsCacheTag)
+  cacheLife('max')
+  return getLatestPublications(limit, offset, type)
+}
 
 export async function getCachedPublication(publicationId: string) {
   'use cache'

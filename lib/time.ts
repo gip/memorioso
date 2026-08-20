@@ -84,3 +84,25 @@ export const fmtDate = (
     ...(timeZone ? { timeZone } : {}),
   });
 }
+
+/**
+ * Compact absolute date, e.g. "Aug 20, 2026". Formatted in UTC by default so a
+ * prerendered or cached render and the client's first render agree. Feeds show
+ * `timeAgo` instead, but that reads the current time, which a cached scope
+ * cannot do; this is what those rows render until hydration swaps it in.
+ */
+export const fmtShortDate = (
+  date: Date | string | number,
+  { timeZone = 'UTC' }: { timeZone?: string } = {}
+): string => {
+  const parsed = new Date(date);
+  if (isNaN(parsed.getTime())) {
+    return '';
+  }
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone,
+  });
+}

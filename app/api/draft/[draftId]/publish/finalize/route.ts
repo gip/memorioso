@@ -5,6 +5,7 @@ import { isHex } from 'viem'
 import { pool } from '@/lib/db'
 import {
   authorPublicationCountsCacheTag,
+  latestPublicationsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
   sitemapCacheTag,
@@ -414,6 +415,7 @@ export async function PUT(
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(storedPublication.author_id_libro), { expire: 0 })
       revalidateTag(sitemapCacheTag, { expire: 0 })
+      revalidateTag(latestPublicationsCacheTag, { expire: 0 })
 
       console.info('Finalized Libro publication', {
         requestId,

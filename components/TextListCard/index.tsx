@@ -2,6 +2,7 @@
 // surface: serif title, optional subtitle, and a meta row that is either the
 // "Signed by a human" chip (signed) or an "Unsigned draft" marker.
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { MemMark } from '@/components/MemMark'
 import { VerifiedChip } from '@/components/VerifiedChip'
@@ -13,7 +14,7 @@ type TextListCardProps = {
   signed?: boolean
   authorshipLabel?: string
   /** Trailing meta for signed items, e.g. "@caleb · 3 days ago" or "Caleb North · 2h ago". */
-  metaText?: string
+  metaText?: ReactNode
   href?: string
   onClick?: () => void
 }

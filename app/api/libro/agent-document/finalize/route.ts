@@ -14,6 +14,10 @@ import {
   describeDatabaseFailure,
   rollbackAndRelease,
 } from '@/lib/db/resilience'
+import {
+  createAgentDocumentFinalizationTypedData,
+  recoverAgentDocumentFinalizationSigner,
+} from '@/lib/libro/agent'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentDocumentRegistered } from '@/lib/libro/server'
 import type { LibroAgentProofV1, LibroAgentPublicationV1 } from '@/types'
@@ -23,6 +27,13 @@ type FinalizeAgentDocumentRequest = {
   documentRegistrationId?: string
   userOpHash?: string
   transactionHash?: string
+  signedAt?: number
+  signature?: string
+}
+
+function isFreshSignedAt(signedAt: number): boolean {
+  const now = Math.floor(Date.now() / 1000)
+  return Number.isInteger(signedAt) && signedAt <= now + 60 && signedAt >= now - 10 * 60
 }
 
 function failureResponse(error: unknown, stage: string): NextResponse {
@@ -55,7 +66,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     }, { status: 500 })
   }
 
-  const { documentRegistrationId, userOpHash, transactionHash } =
+  const { documentRegistrationId, userOpHash, transactionHash, signedAt, signature } =
     await req.json().catch(() => ({})) as FinalizeAgentDocumentRequest
 
   if (!documentRegistrationId || !userOpHash || !transactionHash) {
@@ -72,10 +83,32 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     }, { status: 400 })
   }
 
+  if (transactionHash.length !== 66) {
+    return NextResponse.json({
+      success: false,
+      message: 'Transaction hash must be a 32-byte hex string',
+    }, { status: 400 })
+  }
+
+  if (typeof signedAt !== 'number' || !signature || !isHex(signature)) {
+    return NextResponse.json({
+      success: false,
+      message: 'Agent finalization signature and signed timestamp are required',
+    }, { status: 401 })
+  }
+
+  if (!isFreshSignedAt(signedAt)) {
+    return NextResponse.json({
+      success: false,
+      message: 'Agent finalization signature is stale',
+    }, { status: 401 })
+  }
+
   let stage = 'lookup'
   try {
     const pendingResult = await pool.query(
-      `SELECT d.document_signal_hash, d.handle_hash, d.finalized_at, d."publicationId", p.signal
+      `SELECT d.document_signal_hash, d.handle_hash, d.finalized_at, d."publicationId",
+              d.registration_hash, d.document_nonce, d.agent_address, p.signal
        FROM libro_agent_document_registrations d
        LEFT JOIN publications p ON p.id = d."publicationId"
        WHERE d.id = $1`,
@@ -85,6 +118,39 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     if (pendingResult.rows.length === 0) {
       return NextResponse.json({ success: false, message: 'Agent document registration not found' }, { status: 404 })
     }
+
+    // Finalize writes a publication, so it must prove possession of the same agent key that
+    // signed the document at prepare time. Knowing the registration id is not authority.
+    stage = 'verify_agent_signature'
+    const pending = pendingResult.rows[0]
+    let finalizationSigner: string
+    try {
+      finalizationSigner = await recoverAgentDocumentFinalizationSigner({
+        typedData: createAgentDocumentFinalizationTypedData({
+          chainId: agentConfig.chainId,
+          registryAddress: agentConfig.registryAddress,
+          registrationHash: pending.registration_hash,
+          documentSignalHash: pending.document_signal_hash,
+          documentNonce: pending.document_nonce,
+          transactionHash,
+          signedAt,
+        }),
+        signature,
+      })
+    } catch {
+      return NextResponse.json({
+        success: false,
+        message: 'Agent finalization signature is invalid',
+      }, { status: 401 })
+    }
+    if (finalizationSigner.toLowerCase() !== String(pending.agent_address).toLowerCase()) {
+      return NextResponse.json({
+        success: false,
+        message: 'Agent finalization signature does not match the registered agent',
+      }, { status: 401 })
+    }
+
+    stage = 'lookup'
     if (pendingResult.rows[0].finalized_at && pendingResult.rows[0].publicationId) {
       return NextResponse.json({
         success: true,
@@ -138,6 +204,9 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       }
 
       const documentRegistration = documentResult.rows[0]
+      if (String(documentRegistration.agent_address).toLowerCase() !== finalizationSigner.toLowerCase()) {
+        return await fail('Agent finalization signature does not match the registered agent', 401)
+      }
       if (documentRegistration.finalized_at) {
         if (documentRegistration.publicationId) {
           await client.query('COMMIT')

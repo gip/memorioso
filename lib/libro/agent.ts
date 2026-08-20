@@ -34,6 +34,8 @@ export const LIBRO_AGENT_REGISTRATION_TYPE =
   'LibroAgentRegistration(bytes32 handleHash,address controllerAddress,address agentAddress,uint256 scope,uint64 validFrom,uint64 expiresAt,bytes32 salt,uint256 chainId,address registryAddress)' as const
 export const LIBRO_AGENT_DOCUMENT_TYPE =
   'AgentDocument(bytes32 registrationHash,uint256 documentSignalHash,bytes32 documentNonce,uint64 signedAt)' as const
+export const LIBRO_AGENT_DOCUMENT_FINALIZATION_TYPE =
+  'AgentDocumentFinalization(bytes32 registrationHash,uint256 documentSignalHash,bytes32 documentNonce,bytes32 transactionHash,uint64 signedAt)' as const
 export const LIBRO_AGENT_REGISTRATION_TYPEHASH = keccak256(toBytes(LIBRO_AGENT_REGISTRATION_TYPE))
 
 export type AgentRegistrationPayload = {
@@ -74,6 +76,30 @@ export type AgentDocumentTypedData = {
     registrationHash: Hex
     documentSignalHash: bigint
     documentNonce: Hex
+    signedAt: bigint
+  }
+}
+
+/**
+ * Off-chain assertion that the agent key which signed a prepared document is also the
+ * party finalizing it. The registry never sees this one; it exists so finalize cannot be
+ * driven by anyone who merely learns a pending document registration id.
+ */
+export type AgentDocumentFinalizationTypedData = {
+  domain: TypedDataDomain
+  types: { AgentDocumentFinalization: [
+    { name: 'registrationHash'; type: 'bytes32' },
+    { name: 'documentSignalHash'; type: 'uint256' },
+    { name: 'documentNonce'; type: 'bytes32' },
+    { name: 'transactionHash'; type: 'bytes32' },
+    { name: 'signedAt'; type: 'uint64' },
+  ] }
+  primaryType: 'AgentDocumentFinalization'
+  message: {
+    registrationHash: Hex
+    documentSignalHash: bigint
+    documentNonce: Hex
+    transactionHash: Hex
     signedAt: bigint
   }
 }
@@ -240,6 +266,40 @@ export function createAgentDocumentTypedData(input: {
 
 export async function recoverAgentDocumentSigner(input: {
   typedData: AgentDocumentTypedData; signature: string
+}): Promise<Address> {
+  return recoverTypedDataAddress({ ...input.typedData, signature: normalizeHex(input.signature, 'signature') })
+}
+
+export function createAgentDocumentFinalizationTypedData(input: {
+  chainId: number; registryAddress: string; registrationHash: string
+  documentSignalHash: string; documentNonce: string; transactionHash: string
+  signedAt: number | bigint
+}): AgentDocumentFinalizationTypedData {
+  return {
+    domain: {
+      name: 'LibroRegistry', version: '1', chainId: input.chainId,
+      verifyingContract: assertAddress(input.registryAddress, 'registry_address'),
+    },
+    types: { AgentDocumentFinalization: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'documentNonce', type: 'bytes32' },
+      { name: 'transactionHash', type: 'bytes32' },
+      { name: 'signedAt', type: 'uint64' },
+    ] },
+    primaryType: 'AgentDocumentFinalization',
+    message: {
+      registrationHash: assertBytes32(input.registrationHash, 'registration_hash'),
+      documentSignalHash: hexToUint256(input.documentSignalHash, 'document_signal_hash'),
+      documentNonce: assertBytes32(input.documentNonce, 'document_nonce'),
+      transactionHash: assertBytes32(input.transactionHash, 'transaction_hash'),
+      signedAt: BigInt(input.signedAt),
+    },
+  }
+}
+
+export async function recoverAgentDocumentFinalizationSigner(input: {
+  typedData: AgentDocumentFinalizationTypedData; signature: string
 }): Promise<Address> {
   return recoverTypedDataAddress({ ...input.typedData, signature: normalizeHex(input.signature, 'signature') })
 }

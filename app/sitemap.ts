@@ -1,8 +1,4 @@
 import type { MetadataRoute } from 'next'
-import {
-  getCachedSitemapAuthors,
-  getCachedSitemapPublications,
-} from '@/lib/db/publication-cache'
 import { publicationPath } from '@/lib/publication-kind'
 
 // Matches the canonical URLs emitted in metadata (app/layout.tsx, CanonicalPublicationPage).
@@ -21,6 +17,16 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // The sitemap is prerendered at build time, and some build hosts (previews,
+  // Openship sandbox builds) have no database. Without one there is nothing to
+  // enumerate, so emit the static routes alone instead of failing the build.
+  if (!process.env.DATABASE_URL) {
+    return STATIC_ROUTES
+  }
+
+  const { getCachedSitemapAuthors, getCachedSitemapPublications } = await import(
+    '@/lib/db/publication-cache'
+  )
   const [publications, authors] = await Promise.all([
     getCachedSitemapPublications(),
     getCachedSitemapAuthors(),

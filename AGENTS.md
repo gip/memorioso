@@ -32,7 +32,10 @@ For non-trivial changes, run the narrowest relevant checks. For app or protocol 
 
 The app expects these environment variables in local and deployed environments:
 
-- `DATABASE_URL` for Postgres.
+- `DATABASE_URL` for Postgres. `next build` must succeed without it: the `pg` pool in
+  `lib/db/index.ts` is created on first use rather than on import, and the two build-time
+  reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
+  static routes and an empty feed. Any new prerendered read needs the same guard.
 - `SESSION_SECRET` for the signed Memorioso session cookie.
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and

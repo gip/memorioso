@@ -8,7 +8,7 @@ import {
 } from '@/lib/world-id/publication'
 import { isJsonEqual } from '@/lib/json'
 import type { JsonValue } from '@/lib/json'
-import type { LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
+import type { LibroPublicationV1, PublicationAccess, PublicationContent, PublicationV2 } from '@/types'
 import { type PublicationKind, validatePublicationForKind } from '@/lib/publication-kind'
 
 type PublishChallengeLookup = {
@@ -41,6 +41,8 @@ export type PublishDraftRow = {
   author_handle: string
   author_bio: string | null
   publicationType: PublicationKind
+  /** Not part of the signed payload, so it never participates in challenge matching. */
+  access: PublicationAccess
 }
 
 export async function getLockedPublishChallenge(
@@ -71,6 +73,7 @@ export async function getLockedDraftForPublish(
       d.content,
       d.status,
       d.publication_type AS "publicationType",
+      d.access,
       d."authorId",
       a.name AS author_name,
       a.handle AS author_handle,

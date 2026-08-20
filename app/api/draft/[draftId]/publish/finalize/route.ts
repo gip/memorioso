@@ -7,6 +7,7 @@ import {
   authorPublicationCountsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
+  sitemapCacheTag,
 } from '@/lib/db/publication-cache'
 import {
   configureLibroWriteTransaction,
@@ -363,8 +364,8 @@ export async function PUT(
       stage = 'write_publication'
       const articleResult = await client.query(
         `INSERT INTO publications
-          ("userId", "authorId", proof, signal, content, version, title, subtitle, date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ("userId", "authorId", proof, signal, content, version, title, subtitle, date, access)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id`,
         [
           authenticatedUser.id,
@@ -376,6 +377,7 @@ export async function PUT(
           storedPublication.publication_title,
           storedPublication.publication_subtitle,
           storedPublication.publication_date,
+          draft.access,
         ]
       )
 
@@ -411,6 +413,7 @@ export async function PUT(
       revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(storedPublication.author_id_libro), { expire: 0 })
+      revalidateTag(sitemapCacheTag, { expire: 0 })
 
       console.info('Finalized Libro publication', {
         requestId,

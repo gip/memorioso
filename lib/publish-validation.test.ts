@@ -18,6 +18,7 @@ const draft: PublishDraftRow = {
   author_handle: 'ada',
   author_bio: null,
   publicationType: 'short',
+  access: 'public',
 }
 
 function challengeForDraft(row: PublishDraftRow): PublishChallengeRow {

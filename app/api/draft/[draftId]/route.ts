@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db' 
 import { getAuthenticatedUser } from '@/lib/auth-user'
+import { isPublicationAccess, validateAccessForKind } from '@/lib/access/draft-access'
+import { publicationKindFromTitle } from '@/lib/publication-kind'
 
 export async function GET(req: NextRequest, context: { params: Promise<{ draftId: string }> }): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser();
@@ -46,7 +48,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
   }
 
   const { draftId } = await context.params;
-  const { id, title, subtitle, content, history, authorId } = await req.json();
+  const { id, title, subtitle, content, history, authorId, access } = await req.json();
   const normalizedAuthorId = authorId ?? null;
 
   if (draftId !== id) {
@@ -59,6 +61,10 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
 
   if (normalizedAuthorId !== null && typeof normalizedAuthorId !== 'string') {
     return NextResponse.json({ success: false, message: "Author ID must be a string" }, { status: 400 });
+  }
+
+  if (access !== undefined && !isPublicationAccess(access)) {
+    return NextResponse.json({ success: false, message: "Access must be public or gated" }, { status: 400 });
   }
 
   const client = await pool.connect();
@@ -74,14 +80,27 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
       }
     }
 
+    if (access !== undefined) {
+      const kindResult = await client.query(
+        'SELECT publication_type FROM drafts WHERE id = $1 AND "userId" = $2',
+        [id, authenticatedUser.id]
+      );
+      const kind = kindResult.rows[0]?.publication_type ?? publicationKindFromTitle(title);
+      const accessError = validateAccessForKind(access, kind);
+      if (accessError) {
+        return NextResponse.json({ success: false, message: accessError }, { status: 400 });
+      }
+    }
+
     const historyValue = history ?? { history: null };
 
     const draftResult = await client.query(
       `UPDATE drafts
-       SET title = $1, subtitle = $2, content = $3, history = $4, "authorId" = $5
+       SET title = $1, subtitle = $2, content = $3, history = $4, "authorId" = $5,
+           access = COALESCE($9, access)
        WHERE id = $6 AND "userId" = $7 AND status = $8
        RETURNING *, publication_type AS "publicationType"`,
-      [title, subtitle, content, historyValue, normalizedAuthorId, id, authenticatedUser.id, 'editing']
+      [title, subtitle, content, historyValue, normalizedAuthorId, id, authenticatedUser.id, 'editing', access ?? null]
     );
 
     if (draftResult.rows.length === 0) {

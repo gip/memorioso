@@ -1,10 +1,12 @@
 import { pool } from './index'
 import { cache } from 'react'
-import { Author, PublicationRecord, Proof, PublicationInfo } from '@/types'
+import { Author, PublicationAccess, PublicationRecord, Proof, PublicationInfo } from '@/types'
 import { extractReadableText } from '@libro/core'
+import { buildGatedTeaser } from '@/lib/access/teaser'
 import {
   publicationKindFromTitle,
   type PublicationFeedKind,
+  type PublicationKind,
 } from '@/lib/publication-kind'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
@@ -18,6 +20,12 @@ type PublicationInfoRow = {
   id: string
   signal: Omit<PublicationRecord, 'version'>
   proof: Proof
+  access: PublicationAccess
+}
+
+export type PublicationAccessRecord = {
+  access: PublicationAccess
+  priceUsd: string | null
 }
 
 export type PublicationBySignalHash = {
@@ -33,6 +41,9 @@ export function mapPublicationRow(row: PublicationRow): PublicationRecord {
 }
 
 export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo {
+  const access: PublicationAccess = row.access === 'gated' ? 'gated' : 'public'
+  const html = row.signal.publication_content.html
+
   return {
     id: row.id,
     author_id_libro: row.signal.author_id_libro,
@@ -40,7 +51,11 @@ export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo 
     author_name_libro: row.signal.author_name_libro,
     publication_title: row.signal.publication_title,
     publication_subtitle: row.signal.publication_subtitle,
-    publication_excerpt: extractReadableText(row.signal.publication_content.html),
+    // Feeds are public, so a gated body never leaves the server in full.
+    publication_excerpt: access === 'gated'
+      ? buildGatedTeaser(html)
+      : extractReadableText(html),
+    access,
     authorship_label: 'proof_type' in row.proof
       && row.proof.proof_type === 'human_authorized_agent_signature'
       ? 'Human-authorized agent'
@@ -161,6 +176,31 @@ export const getProof = cache(async (publicationId: string): Promise<Proof | nul
   }
 })
 
+export const getPublicationAccess = cache(async (
+  publicationId: string
+): Promise<PublicationAccessRecord | null> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      'SELECT access, access_price_usd FROM publications WHERE id = $1',
+      [publicationId]
+    )
+
+    if (rows.length === 0) {
+      return null
+    }
+
+    return {
+      access: rows[0].access === 'gated' ? 'gated' : 'public',
+      priceUsd: rows[0].access_price_usd === null || rows[0].access_price_usd === undefined
+        ? null
+        : String(rows[0].access_price_usd),
+    }
+  } finally {
+    client.release()
+  }
+})
+
 export const getPublicationsByAuthor = cache(async (
   authorId: string,
   limit: number = 20,
@@ -170,7 +210,7 @@ export const getPublicationsByAuthor = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE "authorId" = $1
          AND ($4 = 'all'
@@ -218,7 +258,7 @@ export const getLatestPublications = cache(async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE $3 = 'all'
           OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
@@ -242,7 +282,7 @@ export const getPublicationsByUser = async (
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, signal, proof
+      `SELECT id, signal, proof, access
        FROM publications
        WHERE "userId" = $1
        ORDER BY (signal->>'publication_date')::timestamp DESC
@@ -251,6 +291,67 @@ export const getPublicationsByUser = async (
     )
 
     return rows.map(mapPublicationInfoRow)
+  } finally {
+    client.release()
+  }
+}
+
+// Google caps a single sitemap at 50,000 URLs. Newest publications win if we ever exceed it;
+// split with generateSitemaps before that becomes a real ceiling.
+export const SITEMAP_MAX_PUBLICATIONS = 40000
+
+export type SitemapPublication = {
+  id: string
+  kind: PublicationKind
+  lastModified: Date
+}
+
+export type SitemapAuthor = {
+  handle: string
+  lastModified: Date
+}
+
+export const getSitemapPublications = async (
+  limit: number = SITEMAP_MAX_PUBLICATIONS
+): Promise<SitemapPublication[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, signal->>'publication_title' AS title, modified_at
+       FROM publications
+       ORDER BY (signal->>'publication_date')::timestamp DESC
+       LIMIT $1`,
+      [limit]
+    )
+
+    return rows.map((row) => ({
+      id: String(row.id),
+      kind: publicationKindFromTitle(row.title),
+      lastModified: row.modified_at,
+    }))
+  } finally {
+    client.release()
+  }
+}
+
+// An author page lists that author's publications, so a new publication changes the page
+// even when the profile row itself is untouched.
+export const getSitemapAuthors = async (): Promise<SitemapAuthor[]> => {
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT a.handle,
+              GREATEST(a.modified_at, COALESCE(MAX(p.modified_at), a.modified_at)) AS modified_at
+       FROM authors a
+       LEFT JOIN publications p ON p."authorId" = a.id
+       GROUP BY a.id, a.handle, a.modified_at
+       ORDER BY a.handle`
+    )
+
+    return rows.map((row) => ({
+      handle: row.handle as string,
+      lastModified: row.modified_at,
+    }))
   } finally {
     client.release()
   }

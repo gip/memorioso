@@ -38,7 +38,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-import { type PublicationContent } from '@/types'
+import { type PublicationAccess, type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 import { clearLocalDraft, readLocalDraft, writeLocalDraft } from '@/lib/local-draft'
 import {
@@ -68,6 +68,7 @@ type DraftData = {
   authorId?: string
   history?: unknown
   publicationType: PublicationKind
+  access?: PublicationAccess
 }
 
 type PublishContext = {
@@ -165,6 +166,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     subtitle: '',
     content: { html: '' },
     publicationType: initialType || 'article',
+    access: 'public',
   })
   const [originalDraft, setOriginalDraft] = useState<DraftData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
@@ -884,6 +886,35 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
                 This account has no author profile yet, so it cannot publish.
               </p>
             ) : null}
+            {isAuthenticated && draft?.publicationType === 'article' && (
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-foreground">Who can read it</span>
+                  <div className="flex rounded-md border border-zinc-200 p-0.5 text-xs">
+                    {(['public', 'gated'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={(draft?.access || 'public') === option}
+                        onClick={() => setDraft((prev) => prev ? { ...prev, access: option } : prev)}
+                        className={`rounded px-2.5 py-1 transition-colors ${
+                          (draft?.access || 'public') === option
+                            ? 'bg-foreground text-background'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {option === 'public' ? 'Anyone' : 'Verified humans'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {(draft?.access || 'public') === 'public'
+                    ? 'Anyone can read the full text.'
+                    : 'Everyone sees the title and opening lines. The rest opens for readers signed in with World ID, or for agents that pay over x402.'}
+                </p>
+              </div>
+            )}
             {isAuthenticated && (
               isMiniKitInstalled === undefined ? (
                 <p className="text-sm text-muted-foreground">Checking World wallet availability…</p>

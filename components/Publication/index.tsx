@@ -20,13 +20,13 @@ import {
   buildLibroEmbedSnippet,
   buildLibroTextSnippet,
   sanitizeLibroEmbedHtml,
-  sanitizeShortPublicationHtml,
 } from '@/lib/libro/embed'
 import { CopyEmbedButton } from './CopyEmbedButton'
 import { ShareButtons } from './ShareButtons'
 import { FreshPublicationNotice } from './FreshPublicationNotice'
 import { getPublicationKind } from '@/lib/publication-kind'
-import { Suspense } from 'react'
+import { ArticleProse, ShortProse } from './prose'
+import { Suspense, type ReactNode } from 'react'
 
 const AuthorshipMark = ({
   isAgentAuthored,
@@ -154,11 +154,14 @@ export const Publication = ({
   proof,
   proofLink,
   embedManifest,
+  bodySlot,
 }: {
   publication: PublicationType
   proof?: ProofType | null
   proofLink?: string
   embedManifest?: LibroEmbedManifestV1 | null
+  /** Rendered in place of the body when access has to be decided per request. */
+  bodySlot?: ReactNode
 }) => {
   const content = publication.publication_content.html
   const title = publication.publication_title.trim()
@@ -174,7 +177,7 @@ export const Publication = ({
   const shareTextSnippet = embedManifest && isSimpleTextPublication(embedManifest.publication) ? textSnippet : null
   const presentationContent = embedManifest ? sanitizeLibroEmbedHtml(content) : content
 
-  const publicationBody = embedManifest && manifestId ? (
+  const publicationBody = bodySlot || (embedManifest && manifestId ? (
     <div
       className="libro-human-signed publication-prose spectral text-[19px] leading-[1.72] text-zinc-900"
       data-libro-claim="human-signed"
@@ -183,11 +186,8 @@ export const Publication = ({
       dangerouslySetInnerHTML={{ __html: presentationContent }}
     />
   ) : (
-    <div
-      className="publication-prose spectral text-[19px] leading-[1.72] text-zinc-900"
-      dangerouslySetInnerHTML={{ __html: presentationContent }}
-    />
-  )
+    <ArticleProse html={presentationContent} />
+  ))
 
   if (publicationKind === 'short') {
     return (
@@ -211,10 +211,7 @@ export const Publication = ({
             shareTextSnippet={shareTextSnippet}
             compact
           />
-          <div
-            className="space-y-4 text-[clamp(21px,4vw,28px)] leading-[1.55] tracking-[-0.01em] text-foreground"
-            dangerouslySetInnerHTML={{ __html: sanitizeShortPublicationHtml(content) }}
-          />
+          {bodySlot || <ShortProse html={content} />}
           <div className="mt-8 border-t border-zinc-100 pt-5">
             <PublicationByline
               authorHref={authorHref}

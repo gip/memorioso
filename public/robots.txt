@@ -11,4 +11,4 @@ Disallow: /d/
 Disallow: /info
 
 # Sitemap
-Sitemap: /sitemap.xml
+Sitemap: https://memorioso.xyz/sitemap.xml

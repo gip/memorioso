@@ -66,6 +66,18 @@ CREATE INDEX idx_publications_world_id_signal_hash
 CREATE INDEX idx_publications_agent_document_signal_hash
     ON publications ((LOWER(proof->'agent_document_signature'->>'document_signal_hash')));
 
+-- Feeds sort newest-first on `date`, which both publish paths fill from the signed
+-- payload's publication_date. Sorting on the JSONB value instead cannot be indexed:
+-- text-to-timestamp casting is STABLE, not IMMUTABLE.
+CREATE INDEX idx_publications_date
+    ON publications(date DESC);
+
+CREATE INDEX idx_publications_author_date
+    ON publications("authorId", date DESC);
+
+CREATE INDEX idx_publications_user_date
+    ON publications("userId", date DESC);
+
 -- One settled x402 payment unlocks one publication for one payer, forever.
 -- A row is reserved before the transfer is broadcast (settled_at NULL) and completed
 -- once the receipt confirms, so a crash between the two cannot take money without

@@ -38,6 +38,7 @@ vi.mock('@/lib/db/publication-cache', () => ({
   publicationHashCacheTag: (hash: string) => `publication-hash:${hash}`,
   authorPublicationCountsCacheTag: (authorId: string) => `author-publication-counts:${authorId}`,
   sitemapCacheTag: 'sitemap',
+  latestPublicationsCacheTag: 'latest-publications',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -206,6 +207,12 @@ describe('Libro publication finalize route', () => {
     )
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
       'author-publication-counts:8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
+      { expire: 0 }
+    )
+    // The homepage feed is prerendered from this tag; a new publication that
+    // does not clear it stays invisible on / until the next deploy.
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
+      'latest-publications',
       { expire: 0 }
     )
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[

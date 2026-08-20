@@ -20,7 +20,7 @@ import { YourDraftsMenuGroup } from '@/components/YourDraftsButton'
 import { isAuthRequiredPath } from '@/lib/auth-routes'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
-export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
+const SiteChromeShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname() || '/'
   const router = useRouter()
   const {
@@ -206,4 +206,15 @@ export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
       </div>
     </div>
   )
+}
+
+// The Openship pages address agents and readers arriving from outside the app,
+// so they render bare: no header, sidebar, or footer.
+const isBarePath = (pathname: string) =>
+  pathname === '/openship' || pathname.startsWith('/openship/')
+
+export const SiteChrome = ({ children }: { children: React.ReactNode }) => {
+  const pathname = usePathname() || '/'
+  if (isBarePath(pathname)) return <>{children}</>
+  return <SiteChromeShell>{children}</SiteChromeShell>
 }

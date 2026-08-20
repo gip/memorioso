@@ -32,7 +32,10 @@ For non-trivial changes, run the narrowest relevant checks. For app or protocol 
 
 The app expects these environment variables in local and deployed environments:
 
-- `DATABASE_URL` for Postgres.
+- `DATABASE_URL` for Postgres. `next build` must succeed without it: the `pg` pool in
+  `lib/db/index.ts` is created on first use rather than on import, and the two build-time
+  reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
+  static routes and an empty feed. Any new prerendered read needs the same guard.
 - `SESSION_SECRET` for the signed Memorioso session cookie.
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
@@ -46,6 +49,10 @@ The app expects these environment variables in local and deployed environments:
   read when something is actually gated, so a deployment with no gated publications does
   not need them. Missing them does not break a gated publication either: the read path
   goes through `tryGetPublicationAccessConfig` and falls back to sign-in only.
+
+Openship Changes is off unless `OPENSHIP_CHANGES_ENABLED=1` and `OPENSHIP_BUILDS_DOMAIN` are both
+set; the build host additionally needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`,
+`ANTHROPIC_API_KEY`, and `OPENSHIP_SANDBOX`. See `.env.example` and `OPENSHIP-CHANGES.md`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -61,6 +68,10 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
+- `lib/openship/` contains the Openship read half (manifest, bundle) and the Changes write half
+  (`policy.ts`, `change.ts`, `validate.ts`).
+- `scripts/openship-worker.mjs` is the build host for accepted changes; `scripts/openship-review.mjs`
+  is its model review gate.
 - `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
@@ -141,6 +152,31 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Settlement order is reserve → broadcast → complete. The unique `authorization_nonce` is
   claimed before anything reaches the chain, so a replay cannot double-spend and a crash
   mid-settlement cannot take money without recording the grant.
+## Openship Changes
+
+The write half of Openship lets anyone submit a patch that, if it passes every gate, is built and
+deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. `OPENSHIP.md` specifies the transport and
+`OPENSHIP-CHANGES.md` specifies the rules. Both are protected paths: a submission cannot edit them.
+
+- `OPENSHIP-CHANGES.md` is prose and `lib/openship/policy.ts` is code. They are asserted to agree by
+  `lib/openship/policy.test.ts`. Change both or neither.
+- Gates 1 to 5 are pure functions in `lib/openship/validate.ts` and run inside `POST
+  /openship/changes`, so a bad submission is rejected in one round trip. Gates 6 to 8 run in
+  `scripts/openship-worker.mjs`, which re-runs 1 to 5 first from the same module.
+- `buildId` is the first 12 hex characters of the digest of the **resulting** tree, computed exactly
+  as `OPENSHIP.md` defines it. Do not derive it from the submitter, the time, or a counter: it being
+  content-addressed is what lets anyone verify that a build's origin matches the source it serves.
+- The worker's one load-bearing property is that submitted code runs in a container with no secret
+  and, past install, no network, while `VERCEL_TOKEN` stays in the worker process and is only passed
+  to `vercel deploy --prebuilt`, which never runs submitted code. Preserve that split.
+- `getChangesConfig()` refuses to enable submissions when `OPENSHIP_BUILDS_DOMAIN` is the production
+  host or a subdomain of it. Subdomains share cookie scope. This is a correctness constraint, not a
+  preference.
+- The pattern rules in `policy.ts` and the review in `openship-review.mjs` are filters, not the
+  security boundary. Do not add a rule and conclude that something is now safe; the isolation of the
+  build sandbox and the builds origin is what makes a defeated filter cheap.
+- Adding a writable path means widening what a stranger can execute. `WRITABLE` is an allowlist so
+  that a forgotten rule fails closed; keep it that way.
 
 ## Frontend Notes
 

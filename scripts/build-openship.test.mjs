@@ -10,7 +10,11 @@ const GENERATED = path.join(REPO_ROOT, 'lib', 'openship', 'generated', 'bundle.t
 
 // The generated module is written by `prebuild`/`postinstall`; regenerate so the test is
 // self-contained rather than dependent on install order.
-execFileSync('node', [path.join(REPO_ROOT, 'scripts', 'build-openship.mjs')], { cwd: REPO_ROOT })
+execFileSync(
+  'node',
+  ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', path.join(REPO_ROOT, 'scripts', 'build-openship.mjs')],
+  { cwd: REPO_ROOT }
+)
 
 const module_ = readFileSync(GENERATED, 'utf8')
 
@@ -24,21 +28,30 @@ const files = JSON.parse(readExport('OPENSHIP_FILES_JSON'))
 const bundle = JSON.parse(gunzipSync(Buffer.from(readExport('OPENSHIP_BUNDLE_GZIP_BASE64'), 'base64')).toString())
 
 describe('openship payload', () => {
-  // The security boundary: the file list comes from `git ls-files`, so nothing ignored can appear.
-  // If this ever fails, the build is publishing something it should not.
+  // The security boundary: the file list is the allowlist in openship.json, so a path nobody
+  // listed is a path nobody serves. If this ever fails, the build is publishing something it
+  // should not.
   it('never includes ignored or untracked paths', () => {
     const forbidden = /(^|\/)(\.env\.local|\.env$|\.vercel|\.gstack|node_modules|\.next)(\/|$)/
     const leaked = files.map(file => file.path).filter(filePath => forbidden.test(filePath))
     expect(leaked).toEqual([])
   })
 
-  it('matches git ls-files exactly', () => {
-    const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: REPO_ROOT, maxBuffer: 64 * 1024 * 1024 })
-      .toString()
-      .split('\0')
-      .filter(Boolean)
-      .sort()
-    expect(files.map(file => file.path)).toEqual(tracked)
+  it('matches openship.json exactly', () => {
+    const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, 'openship.json'), 'utf8'))
+    const declared = manifest.files.map(entry => entry.path).sort()
+    expect(files.map(file => file.path)).toEqual(declared)
+  })
+
+  // openship.json describes the tree and is not part of it, so it never appears in its own file
+  // list — which is also what keeps the digest a function of the source rather than of a
+  // description of the source.
+  it('does not publish the manifest itself', () => {
+    expect(files.map(file => file.path)).not.toContain('openship.json')
+  })
+
+  it('reports where the file set came from', () => {
+    expect(readExport('OPENSHIP_FILE_SET')).toBe('manifest')
   })
 
   it('publishes env var names without values', () => {

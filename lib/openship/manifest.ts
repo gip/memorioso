@@ -7,16 +7,12 @@ import {
   OPENSHIP_COMMIT,
   OPENSHIP_DIGEST,
   OPENSHIP_ENV_KEYS,
+  OPENSHIP_FILE_SET,
   OPENSHIP_FILES_JSON,
   OPENSHIP_GENERATED_AT,
+  OPENSHIP_PROJECT_JSON,
   OPENSHIP_TOTALS,
 } from '@/lib/openship/generated/bundle'
-import {
-  OPENSHIP_PROJECT,
-  OPENSHIP_SETUP,
-  OPENSHIP_STACK,
-  OPENSHIP_STRUCTURE,
-} from '@/lib/openship/project'
 
 export const OPENSHIP_VERSION = '1.0'
 
@@ -39,6 +35,44 @@ export type OpenshipCommit = {
   dirty: boolean
 }
 
+export type OpenshipDirectory = {
+  path: string
+  purpose: string
+}
+
+/**
+ * The hand-authored half of the manifest, read from the checked-in openship.json at build time.
+ * `repository` is optional: a project need not have a remote, and a tree retrieved over Openship
+ * has no way to know one.
+ */
+export type OpenshipProject = {
+  name: string
+  description: string
+  homepage?: string
+  repository?: string
+  license?: string
+}
+
+export type OpenshipSetup = {
+  packageManager: string
+  node: string
+  steps: readonly string[]
+  commands: Readonly<Record<string, string>>
+}
+
+export type OpenshipProjectMetadata = {
+  project: OpenshipProject
+  stack: readonly string[]
+  structure: readonly OpenshipDirectory[]
+  setup: OpenshipSetup
+  /** Paths and basenames that are on disk but deliberately not part of the source. */
+  ignore: readonly string[]
+  ignoreNames: readonly string[]
+}
+
+/** Where the published file set came from. `none` means the payload is empty. */
+export type OpenshipFileSet = 'manifest' | 'git' | 'none'
+
 export const OPENSHIP_ENDPOINTS = {
   manifest: '/openship/manifest.json',
   bundle: '/openship/bundle.json',
@@ -59,23 +93,46 @@ export const getOpenshipFiles = (): OpenshipFile[] => {
   return filesCache
 }
 
-export const getOpenshipCommit = (): OpenshipCommit => OPENSHIP_COMMIT as OpenshipCommit
+/** `null` when this tree is not under version control. Callers must handle that rather than fake it. */
+export const getOpenshipCommit = (): OpenshipCommit | null =>
+  OPENSHIP_COMMIT as OpenshipCommit | null
 
-export const getOpenshipManifest = () => ({
-  openship: OPENSHIP_VERSION,
-  generatedAt: OPENSHIP_GENERATED_AT,
-  digest: OPENSHIP_DIGEST,
-  commit: getOpenshipCommit(),
-  project: OPENSHIP_PROJECT,
-  stack: OPENSHIP_STACK,
-  structure: OPENSHIP_STRUCTURE,
-  setup: OPENSHIP_SETUP,
-  // Names only, never values. Fill these in yourself; the app has no fallback secrets.
-  env: OPENSHIP_ENV_KEYS,
-  endpoints: OPENSHIP_ENDPOINTS,
-  totals: OPENSHIP_TOTALS,
-  files: getOpenshipFiles(),
-})
+let projectCache: OpenshipProjectMetadata | null = null
+
+export const getOpenshipProjectMetadata = (): OpenshipProjectMetadata => {
+  projectCache ??= JSON.parse(OPENSHIP_PROJECT_JSON) as OpenshipProjectMetadata
+  return projectCache
+}
+
+export const getOpenshipProject = (): OpenshipProject => getOpenshipProjectMetadata().project
+
+export const getOpenshipFileSet = (): OpenshipFileSet => OPENSHIP_FILE_SET as OpenshipFileSet
+
+export const getOpenshipManifest = () => {
+  const commit = getOpenshipCommit()
+  const metadata = getOpenshipProjectMetadata()
+
+  return {
+    openship: OPENSHIP_VERSION,
+    generatedAt: OPENSHIP_GENERATED_AT,
+    digest: OPENSHIP_DIGEST,
+    // Omitted rather than sent empty when there is no git checkout, per OPENSHIP.md. `fileSet`
+    // says where the file list came from, so the absence is reported rather than merely implied.
+    ...(commit ? { commit } : {}),
+    fileSet: getOpenshipFileSet(),
+    project: metadata.project,
+    stack: metadata.stack,
+    structure: metadata.structure,
+    setup: metadata.setup,
+    ignore: metadata.ignore,
+    ignoreNames: metadata.ignoreNames,
+    // Names only, never values. Fill these in yourself; the app has no fallback secrets.
+    env: OPENSHIP_ENV_KEYS,
+    endpoints: OPENSHIP_ENDPOINTS,
+    totals: OPENSHIP_TOTALS,
+    files: getOpenshipFiles(),
+  }
+}
 
 type BundleEntry = { encoding: OpenshipEncoding; content: string }
 type Bundle = { files: Record<string, BundleEntry> }

@@ -19,6 +19,7 @@ import {
   type ResultingTree,
 } from '@/lib/openship/change'
 import type { OpenshipFile } from '@/lib/openship/manifest'
+import { matchesAny } from '@/lib/openship/paths'
 import {
   getProtectedPaths,
   getWritablePaths,
@@ -49,19 +50,6 @@ const violation = (
   message: string,
   extra: { path?: string; line?: number } = {}
 ): Violation => ({ gate, rule, message, ...extra })
-
-/** `a/b/**` matches `a/b` and anything under it; `a/b**` matches any path starting `a/b`. */
-const matchesPattern = (filePath: string, pattern: string): boolean => {
-  if (pattern.endsWith('/**')) {
-    const prefix = pattern.slice(0, -3)
-    return filePath === prefix || filePath.startsWith(`${prefix}/`)
-  }
-  if (pattern.endsWith('**')) return filePath.startsWith(pattern.slice(0, -2))
-  return filePath === pattern
-}
-
-const matchesAny = (filePath: string, patterns: readonly string[]): boolean =>
-  patterns.some((pattern) => matchesPattern(filePath, pattern))
 
 /**
  * A framework resolves `route.ts` and `route.tsx` to the same route, so protection is applied to

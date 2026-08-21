@@ -69,9 +69,13 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
 - `lib/openship/` contains the Openship read half (manifest, bundle) and the Changes write half
-  (`policy.ts`, `change.ts`, `validate.ts`).
+  (`policy.ts`, `change.ts`, `validate.ts`), plus `paths.ts`, the one path-pattern matcher.
 - `scripts/openship-worker.mjs` is the build host for accepted changes; `scripts/openship-review.mjs`
   is its model review gate.
+- `openship.json` is the checked-in manifest: the hand-authored project metadata plus the allowlist
+  of every file the repository consists of. It is generated and committed like a lockfile —
+  `pnpm openship:manifest` regenerates the file list, `pnpm openship:check` verifies it against
+  disk, and `pnpm test` fails when the two disagree. It does not list itself.
 - `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.

@@ -34,6 +34,8 @@ const PROTECTED = [
   'libro/**',
   'middleware**',
   'next.config**',
+  // The checked-in file list. A submission that could edit it could publish or hide any path.
+  'openship.json',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',

@@ -84,6 +84,7 @@ These are rejected without review.
 | `.env*` | Secrets. Nothing in a submission may name them. |
 | `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | A change may not add, remove, or move a dependency. The build installs from the committed lockfile with `--frozen-lockfile --ignore-scripts`. |
 | `next.config.*`, `tsconfig.json`, `tailwind.config.*`, `postcss.config.*`, `eslint.config.*`, `vitest.config.*`, `vercel.json` | Build and deploy configuration. These execute during the build and decide what the gates below even test. |
+| `openship.json` | The checked-in list of every file in the repository. A submission that could edit it could publish or hide any path. It is regenerated from the resulting tree by the build host. |
 | `scripts/**` | The build and validation tooling, including this protocol's own pipeline. |
 | `lib/**` | Data access, authentication, World ID, Libro, and the policy that judges this submission. |
 | `libro/**` | Contracts and the verification package. |

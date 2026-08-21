@@ -1,0 +1,1169 @@
+{
+  "openship": "1.0",
+  "project": {
+    "name": "Memorioso",
+    "description": "A Next.js application for human-authored publications. Users sign in with World ID 4.0, write drafts, sign publication payloads through IDKit proof verification, and register the publication and its proof on World Chain through the Libro registry.",
+    "homepage": "https://memorioso.xyz",
+    "repository": "https://github.com/memorioso/memorioso",
+    "license": "See LICENSE in the source tree if present; otherwise all rights reserved."
+  },
+  "stack": [
+    "Next.js 16 App Router (cacheComponents enabled)",
+    "React 19",
+    "TypeScript 5.7",
+    "Tailwind CSS 3 with shadcn-style primitives in components/ui",
+    "Postgres via raw SQL through pg (no ORM)",
+    "TipTap 2 for draft and publication content",
+    "World ID 4.0 IDKit for session proofs and publication proofs",
+    "viem for World Chain reads and writes",
+    "Foundry for the Libro contracts",
+    "Vitest for tests"
+  ],
+  "structure": [
+    {
+      "path": "app/",
+      "purpose": "App Router pages, layouts, and route handlers."
+    },
+    {
+      "path": "app/api/",
+      "purpose": "JSON API endpoints for auth, authors, drafts, and publishing."
+    },
+    {
+      "path": "components/",
+      "purpose": "Feature components and shared UI primitives."
+    },
+    {
+      "path": "components/ui/",
+      "purpose": "shadcn-style primitives (button, dialog, select, ...)."
+    },
+    {
+      "path": "components/Editor/",
+      "purpose": "TipTap editor and editor-specific CSS."
+    },
+    {
+      "path": "lib/auth-user.ts",
+      "purpose": "Server-side authenticated user lookup."
+    },
+    {
+      "path": "lib/world-id/",
+      "purpose": "IDKit request, proof, and publication helpers."
+    },
+    {
+      "path": "lib/libro/",
+      "purpose": "Libro ABIs, config, encoding, registration, and agent authorization."
+    },
+    {
+      "path": "lib/db/",
+      "purpose": "Postgres pool, SQL schema, migrations, and cached read helpers."
+    },
+    {
+      "path": "lib/openship/",
+      "purpose": "The Openship manifest and bundle served by this endpoint, plus the change policy and validator."
+    },
+    {
+      "path": "libro/contracts/",
+      "purpose": "Foundry sources and tests for the LibroRegistry contract."
+    },
+    {
+      "path": "libro/core/",
+      "purpose": "Shared Libro verification package consumed by the app and extension."
+    },
+    {
+      "path": "libro/chrome-extension/",
+      "purpose": "Chrome extension that verifies Libro publications in the browser."
+    },
+    {
+      "path": "scripts/",
+      "purpose": "Database init/migrate tooling, this Openship build step, and the change build worker."
+    },
+    {
+      "path": "types/",
+      "purpose": "Publication, proof, author, and JSON content shapes."
+    },
+    {
+      "path": "public/",
+      "purpose": "Static assets and generated Openship archive."
+    }
+  ],
+  "setup": {
+    "packageManager": "pnpm@10.34.5",
+    "node": "24.x",
+    "steps": [
+      "Write every file from the manifest to disk, preserving its path.",
+      "Save /openship/manifest.json as openship.json at the repository root. It is a superset of the checked-in manifest, so the build reads it as-is.",
+      "Run `pnpm install` at the repository root (this is a pnpm workspace; see pnpm-workspace.yaml).",
+      "Run `pnpm openship:check` to confirm the tree you wrote matches the manifest exactly.",
+      "Copy .env.example to .env.local and fill in real values. The app fails loudly on missing env vars by design.",
+      "Run `pnpm db:init` against an empty Postgres database, or `pnpm db:migrate` against an initialized one.",
+      "Run `pnpm dev` for the dev server, `pnpm build` for a production build."
+    ],
+    "commands": {
+      "install": "pnpm install",
+      "dev": "pnpm dev",
+      "build": "pnpm build",
+      "test": "pnpm test",
+      "lint": "pnpm lint",
+      "manifest": "pnpm openship:manifest",
+      "contracts": "cd libro/contracts && forge test"
+    }
+  },
+  "ignore": [
+    ".claude/**",
+    ".gstack/**",
+    ".next/**",
+    ".pnpm-store/**",
+    ".vercel/**",
+    ".yarn/**",
+    "build/**",
+    "coverage/**",
+    "lib/openship/generated/**",
+    "libro/chrome-extension/dist/**",
+    "libro/chrome-extension/dist-stage/**",
+    "libro/contracts/broadcast/**",
+    "libro/contracts/cache/**",
+    "libro/contracts/out/**",
+    "out/**",
+    "public/openship/**",
+    ".env**"
+  ],
+  "ignoreNames": [
+    "node_modules",
+    ".git",
+    ".DS_Store",
+    "next-env.d.ts",
+    "tsconfig.tsbuildinfo"
+  ],
+  "files": [
+    {
+      "path": ".env.example"
+    },
+    {
+      "path": ".eslintrc.json"
+    },
+    {
+      "path": ".github/workflows/chrome-extension.yml"
+    },
+    {
+      "path": ".gitignore"
+    },
+    {
+      "path": "AGENTS.md"
+    },
+    {
+      "path": "CLAUDE.md",
+      "type": "symlink",
+      "target": "AGENTS.md"
+    },
+    {
+      "path": "OPENSHIP-CHANGES.md"
+    },
+    {
+      "path": "OPENSHIP.md"
+    },
+    {
+      "path": "README.md"
+    },
+    {
+      "path": "app/.well-known/openship.json/route.ts"
+    },
+    {
+      "path": "app/[authorHandle]/page.tsx"
+    },
+    {
+      "path": "app/activity/page.tsx"
+    },
+    {
+      "path": "app/api/activity/publications/route.test.ts"
+    },
+    {
+      "path": "app/api/activity/publications/route.ts"
+    },
+    {
+      "path": "app/api/auth/handle/route.ts"
+    },
+    {
+      "path": "app/api/auth/logout/route.ts"
+    },
+    {
+      "path": "app/api/auth/session/route.ts"
+    },
+    {
+      "path": "app/api/auth/world-id/context/route.ts"
+    },
+    {
+      "path": "app/api/auth/world-id/verify/route.test.ts"
+    },
+    {
+      "path": "app/api/auth/world-id/verify/route.ts"
+    },
+    {
+      "path": "app/api/author/[authorId]/publications/route.ts"
+    },
+    {
+      "path": "app/api/author/[authorId]/route.ts"
+    },
+    {
+      "path": "app/api/authors/route.test.ts"
+    },
+    {
+      "path": "app/api/authors/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/finalize/route.test.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/finalize/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/prepare/route.test.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/prepare/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/relay/route.test.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/relay/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/route.test.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/route.ts"
+    },
+    {
+      "path": "app/api/draft/route.test.ts"
+    },
+    {
+      "path": "app/api/draft/route.ts"
+    },
+    {
+      "path": "app/api/drafts/route.ts"
+    },
+    {
+      "path": "app/api/extension/auth/context/route.test.ts"
+    },
+    {
+      "path": "app/api/extension/auth/context/route.ts"
+    },
+    {
+      "path": "app/api/extension/auth/session/route.ts"
+    },
+    {
+      "path": "app/api/extension/auth/verify/route.test.ts"
+    },
+    {
+      "path": "app/api/extension/auth/verify/route.ts"
+    },
+    {
+      "path": "app/api/extension/signatures/[signingId]/route.ts"
+    },
+    {
+      "path": "app/api/extension/signatures/route.test.ts"
+    },
+    {
+      "path": "app/api/extension/signatures/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-document/context/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-document/finalize/route.test.ts"
+    },
+    {
+      "path": "app/api/libro/agent-document/finalize/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-document/prepare/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-registration/[registrationId]/finalize/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-registration/[registrationId]/prepare/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-registration/[registrationId]/revoke/finalize/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-registration/[registrationId]/revoke/route.ts"
+    },
+    {
+      "path": "app/api/libro/agent-registration/route.ts"
+    },
+    {
+      "path": "app/api/publications/[publicationId]/content/route.test.ts"
+    },
+    {
+      "path": "app/api/publications/[publicationId]/content/route.ts"
+    },
+    {
+      "path": "app/api/publications/[publicationId]/libro-manifest/route.test.ts"
+    },
+    {
+      "path": "app/api/publications/[publicationId]/libro-manifest/route.ts"
+    },
+    {
+      "path": "app/api/publications/latest/route.test.ts"
+    },
+    {
+      "path": "app/api/publications/latest/route.ts"
+    },
+    {
+      "path": "app/api/world-id/publish-context/route.test.ts"
+    },
+    {
+      "path": "app/api/world-id/publish-context/route.ts"
+    },
+    {
+      "path": "app/api/worldid/rp-context/route.ts"
+    },
+    {
+      "path": "app/api/worldid/verify/route.ts"
+    },
+    {
+      "path": "app/article/[publicationId]/loading.tsx"
+    },
+    {
+      "path": "app/article/[publicationId]/not-found.tsx"
+    },
+    {
+      "path": "app/article/[publicationId]/page.tsx"
+    },
+    {
+      "path": "app/article/[publicationId]/proof/page.tsx"
+    },
+    {
+      "path": "app/authors/page.tsx"
+    },
+    {
+      "path": "app/d/[draftId]/page.tsx"
+    },
+    {
+      "path": "app/error.tsx"
+    },
+    {
+      "path": "app/global-error.tsx"
+    },
+    {
+      "path": "app/globals.css"
+    },
+    {
+      "path": "app/hash/[signalHash]/loading.tsx"
+    },
+    {
+      "path": "app/hash/[signalHash]/not-found.tsx"
+    },
+    {
+      "path": "app/hash/[signalHash]/page.tsx"
+    },
+    {
+      "path": "app/how-it-works/page.tsx"
+    },
+    {
+      "path": "app/info/page.tsx"
+    },
+    {
+      "path": "app/latest/page.tsx"
+    },
+    {
+      "path": "app/layout.tsx"
+    },
+    {
+      "path": "app/not-found.tsx"
+    },
+    {
+      "path": "app/openship/agent.txt/route.ts"
+    },
+    {
+      "path": "app/openship/bundle.json/route.ts"
+    },
+    {
+      "path": "app/openship/changes/[changeId]/route.ts"
+    },
+    {
+      "path": "app/openship/changes/route.test.ts"
+    },
+    {
+      "path": "app/openship/changes/route.ts"
+    },
+    {
+      "path": "app/openship/file/[...path]/route.test.ts"
+    },
+    {
+      "path": "app/openship/file/[...path]/route.ts"
+    },
+    {
+      "path": "app/openship/layout.tsx"
+    },
+    {
+      "path": "app/openship/manifest.json/route.test.ts"
+    },
+    {
+      "path": "app/openship/manifest.json/route.ts"
+    },
+    {
+      "path": "app/openship/page.tsx"
+    },
+    {
+      "path": "app/openship/policy.json/route.ts"
+    },
+    {
+      "path": "app/page.tsx"
+    },
+    {
+      "path": "app/privacy/page.tsx"
+    },
+    {
+      "path": "app/profile/page.tsx"
+    },
+    {
+      "path": "app/providers.tsx"
+    },
+    {
+      "path": "app/short/[publicationId]/loading.tsx"
+    },
+    {
+      "path": "app/short/[publicationId]/not-found.tsx"
+    },
+    {
+      "path": "app/short/[publicationId]/page.tsx"
+    },
+    {
+      "path": "app/short/[publicationId]/proof/page.tsx"
+    },
+    {
+      "path": "app/sitemap.ts"
+    },
+    {
+      "path": "app/terms/page.tsx"
+    },
+    {
+      "path": "components.json"
+    },
+    {
+      "path": "components/Activity/index.tsx"
+    },
+    {
+      "path": "components/Author/AgentRegistrationPanel.tsx"
+    },
+    {
+      "path": "components/Author/index.tsx"
+    },
+    {
+      "path": "components/AuthorPublications/index.tsx"
+    },
+    {
+      "path": "components/CanonicalPublicationPage/index.tsx"
+    },
+    {
+      "path": "components/DeleteDraftDialog/index.tsx"
+    },
+    {
+      "path": "components/Diamond/index.tsx"
+    },
+    {
+      "path": "components/Divider/index.tsx"
+    },
+    {
+      "path": "components/Draft/index.tsx"
+    },
+    {
+      "path": "components/Editor/editor.css"
+    },
+    {
+      "path": "components/Editor/index.tsx"
+    },
+    {
+      "path": "components/ErrorState/index.tsx"
+    },
+    {
+      "path": "components/Feed/index.tsx"
+    },
+    {
+      "path": "components/FeedItem/index.tsx"
+    },
+    {
+      "path": "components/Footer/index.tsx"
+    },
+    {
+      "path": "components/HomeActions/index.tsx"
+    },
+    {
+      "path": "components/HomeDrafts/index.tsx"
+    },
+    {
+      "path": "components/HumanSeal/index.tsx"
+    },
+    {
+      "path": "components/LatestPublications/LoadMore.tsx"
+    },
+    {
+      "path": "components/LatestPublications/PublicationCard.tsx"
+    },
+    {
+      "path": "components/LatestPublications/index.tsx"
+    },
+    {
+      "path": "components/MemMark/index.tsx"
+    },
+    {
+      "path": "components/Openship/index.tsx"
+    },
+    {
+      "path": "components/Profile/index.tsx"
+    },
+    {
+      "path": "components/Proof/CodeCard.tsx"
+    },
+    {
+      "path": "components/Proof/CopyValue.tsx"
+    },
+    {
+      "path": "components/Proof/ProofSkeleton.tsx"
+    },
+    {
+      "path": "components/Proof/index.tsx"
+    },
+    {
+      "path": "components/Publication/ArticleSkeleton.tsx"
+    },
+    {
+      "path": "components/Publication/BodySkeleton.tsx"
+    },
+    {
+      "path": "components/Publication/CopyEmbedButton.tsx"
+    },
+    {
+      "path": "components/Publication/FreshPublicationNotice.tsx"
+    },
+    {
+      "path": "components/Publication/GatedBody.tsx"
+    },
+    {
+      "path": "components/Publication/ShareButtons.tsx"
+    },
+    {
+      "path": "components/Publication/ShortSkeleton.tsx"
+    },
+    {
+      "path": "components/Publication/UnlockDialog.tsx"
+    },
+    {
+      "path": "components/Publication/index.tsx"
+    },
+    {
+      "path": "components/Publication/prose.tsx"
+    },
+    {
+      "path": "components/Publication/skeleton-parts.tsx"
+    },
+    {
+      "path": "components/PublicationNotFound/index.tsx"
+    },
+    {
+      "path": "components/PublicationTimestamp/index.tsx"
+    },
+    {
+      "path": "components/RelativeTime/index.tsx"
+    },
+    {
+      "path": "components/ShortEditor/index.tsx"
+    },
+    {
+      "path": "components/SiteChrome/RightPanePortal.tsx"
+    },
+    {
+      "path": "components/SiteChrome/index.tsx"
+    },
+    {
+      "path": "components/TextListCard/index.tsx"
+    },
+    {
+      "path": "components/VerifiedChip/index.tsx"
+    },
+    {
+      "path": "components/WorldIdLoginDialog/index.tsx"
+    },
+    {
+      "path": "components/YourDraftsButton/index.tsx"
+    },
+    {
+      "path": "components/ui/alert.tsx"
+    },
+    {
+      "path": "components/ui/button.tsx"
+    },
+    {
+      "path": "components/ui/card.tsx"
+    },
+    {
+      "path": "components/ui/dialog.tsx"
+    },
+    {
+      "path": "components/ui/dropdown-menu.tsx"
+    },
+    {
+      "path": "components/ui/input.tsx"
+    },
+    {
+      "path": "components/ui/select.tsx"
+    },
+    {
+      "path": "components/ui/separator.tsx"
+    },
+    {
+      "path": "components/ui/skeleton.tsx"
+    },
+    {
+      "path": "components/ui/textarea.tsx"
+    },
+    {
+      "path": "lib/__tests__/auth-session.test.ts"
+    },
+    {
+      "path": "lib/__tests__/handle.test.ts"
+    },
+    {
+      "path": "lib/__tests__/local-draft.test.ts"
+    },
+    {
+      "path": "lib/access/config.ts"
+    },
+    {
+      "path": "lib/access/draft-access.test.ts"
+    },
+    {
+      "path": "lib/access/draft-access.ts"
+    },
+    {
+      "path": "lib/access/grants.ts"
+    },
+    {
+      "path": "lib/access/publication-access.test.ts"
+    },
+    {
+      "path": "lib/access/publication-access.ts"
+    },
+    {
+      "path": "lib/access/teaser.test.ts"
+    },
+    {
+      "path": "lib/access/teaser.ts"
+    },
+    {
+      "path": "lib/auth-routes.test.ts"
+    },
+    {
+      "path": "lib/auth-routes.ts"
+    },
+    {
+      "path": "lib/auth-session.ts"
+    },
+    {
+      "path": "lib/auth-types.ts"
+    },
+    {
+      "path": "lib/auth-user.ts"
+    },
+    {
+      "path": "lib/authors.ts"
+    },
+    {
+      "path": "lib/db/index.ts"
+    },
+    {
+      "path": "lib/db/migrations/001_world_id_4.sql"
+    },
+    {
+      "path": "lib/db/migrations/002_libro_registration.sql"
+    },
+    {
+      "path": "lib/db/migrations/003_libro_agent_authorization.sql"
+    },
+    {
+      "path": "lib/db/migrations/005_libro_publish_action_hash.sql"
+    },
+    {
+      "path": "lib/db/migrations/006_libro_extension_signing.sql"
+    },
+    {
+      "path": "lib/db/migrations/007_libro_extension_signup.sql"
+    },
+    {
+      "path": "lib/db/migrations/008_libro_extension_hardening.sql"
+    },
+    {
+      "path": "lib/db/migrations/009_one_finalized_publication_per_draft.sql"
+    },
+    {
+      "path": "lib/db/migrations/010_publication_types.sql"
+    },
+    {
+      "path": "lib/db/migrations/011_multiple_authors.sql"
+    },
+    {
+      "path": "lib/db/migrations/012_publication_signal_hash_indexes.sql"
+    },
+    {
+      "path": "lib/db/migrations/013_session_bound_handles.sql"
+    },
+    {
+      "path": "lib/db/migrations/014_permissionless_handle_claims.sql"
+    },
+    {
+      "path": "lib/db/migrations/015_publication_access.sql"
+    },
+    {
+      "path": "lib/db/migrations/016_publication_feed_ordering.sql"
+    },
+    {
+      "path": "lib/db/migrations/017_openship_changes.sql"
+    },
+    {
+      "path": "lib/db/objects.test.ts"
+    },
+    {
+      "path": "lib/db/objects.ts"
+    },
+    {
+      "path": "lib/db/openship-changes.ts"
+    },
+    {
+      "path": "lib/db/publication-cache.ts"
+    },
+    {
+      "path": "lib/db/resilience.test.ts"
+    },
+    {
+      "path": "lib/db/resilience.ts"
+    },
+    {
+      "path": "lib/db/schema.sql"
+    },
+    {
+      "path": "lib/draft-events.ts"
+    },
+    {
+      "path": "lib/extension-auth.test.ts"
+    },
+    {
+      "path": "lib/extension-auth.ts"
+    },
+    {
+      "path": "lib/handle.ts"
+    },
+    {
+      "path": "lib/json.ts"
+    },
+    {
+      "path": "lib/libro/__tests__/client.test.ts"
+    },
+    {
+      "path": "lib/libro/__tests__/embed.test.ts"
+    },
+    {
+      "path": "lib/libro/__tests__/inline.test.ts"
+    },
+    {
+      "path": "lib/libro/__tests__/relay.test.ts"
+    },
+    {
+      "path": "lib/libro/agent.ts"
+    },
+    {
+      "path": "lib/libro/client.ts"
+    },
+    {
+      "path": "lib/libro/config.ts"
+    },
+    {
+      "path": "lib/libro/contract.ts"
+    },
+    {
+      "path": "lib/libro/embed.ts"
+    },
+    {
+      "path": "lib/libro/encoding.ts"
+    },
+    {
+      "path": "lib/libro/finalize-client.test.ts"
+    },
+    {
+      "path": "lib/libro/finalize-client.ts"
+    },
+    {
+      "path": "lib/libro/inline.ts"
+    },
+    {
+      "path": "lib/libro/proof.ts"
+    },
+    {
+      "path": "lib/libro/relay.ts"
+    },
+    {
+      "path": "lib/libro/server.ts"
+    },
+    {
+      "path": "lib/local-draft.ts"
+    },
+    {
+      "path": "lib/openship/change.ts"
+    },
+    {
+      "path": "lib/openship/changes-config.test.ts"
+    },
+    {
+      "path": "lib/openship/changes-config.ts"
+    },
+    {
+      "path": "lib/openship/http.ts"
+    },
+    {
+      "path": "lib/openship/instructions.ts"
+    },
+    {
+      "path": "lib/openship/manifest.ts"
+    },
+    {
+      "path": "lib/openship/paths.ts"
+    },
+    {
+      "path": "lib/openship/policy.test.ts"
+    },
+    {
+      "path": "lib/openship/policy.ts"
+    },
+    {
+      "path": "lib/openship/validate.test.ts"
+    },
+    {
+      "path": "lib/openship/validate.ts"
+    },
+    {
+      "path": "lib/publication-kind.test.ts"
+    },
+    {
+      "path": "lib/publication-kind.ts"
+    },
+    {
+      "path": "lib/publication-status.ts"
+    },
+    {
+      "path": "lib/publish-validation.test.ts"
+    },
+    {
+      "path": "lib/publish-validation.ts"
+    },
+    {
+      "path": "lib/time.test.ts"
+    },
+    {
+      "path": "lib/time.ts"
+    },
+    {
+      "path": "lib/utils.ts"
+    },
+    {
+      "path": "lib/world-id/__tests__/publication.test.ts"
+    },
+    {
+      "path": "lib/world-id/author-auth.ts"
+    },
+    {
+      "path": "lib/world-id/client-auth.tsx"
+    },
+    {
+      "path": "lib/world-id/constants.ts"
+    },
+    {
+      "path": "lib/world-id/proof.ts"
+    },
+    {
+      "path": "lib/world-id/publication.ts"
+    },
+    {
+      "path": "lib/world-id/server.ts"
+    },
+    {
+      "path": "lib/x402/eip3009.ts"
+    },
+    {
+      "path": "lib/x402/requirements.test.ts"
+    },
+    {
+      "path": "lib/x402/requirements.ts"
+    },
+    {
+      "path": "lib/x402/settle.ts"
+    },
+    {
+      "path": "lib/x402/types.ts"
+    },
+    {
+      "path": "lib/x402/verify.test.ts"
+    },
+    {
+      "path": "lib/x402/verify.ts"
+    },
+    {
+      "path": "libro/chrome-extension/.env.example"
+    },
+    {
+      "path": "libro/chrome-extension/README.md"
+    },
+    {
+      "path": "libro/chrome-extension/options.html"
+    },
+    {
+      "path": "libro/chrome-extension/package.json"
+    },
+    {
+      "path": "libro/chrome-extension/popup.html"
+    },
+    {
+      "path": "libro/chrome-extension/public/icon-128.png"
+    },
+    {
+      "path": "libro/chrome-extension/public/icon-16.png"
+    },
+    {
+      "path": "libro/chrome-extension/public/icon-32.png"
+    },
+    {
+      "path": "libro/chrome-extension/public/icon-48.png"
+    },
+    {
+      "path": "libro/chrome-extension/public/manifest.json"
+    },
+    {
+      "path": "libro/chrome-extension/sidepanel.html"
+    },
+    {
+      "path": "libro/chrome-extension/src/auto-discovery.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/auto-discovery.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/auto-scan.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/auto-scan.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/capture.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/capture.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/content.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/manifest-access.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/manifest-fetch.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/manifest-fetch.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/options.css"
+    },
+    {
+      "path": "libro/chrome-extension/src/options.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/popup.css"
+    },
+    {
+      "path": "libro/chrome-extension/src/popup.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/retry.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/retry.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/rpc-settings.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/rpc-settings.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/security.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/security.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/service-worker.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/shared.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/sidepanel.css"
+    },
+    {
+      "path": "libro/chrome-extension/src/sidepanel.test.tsx"
+    },
+    {
+      "path": "libro/chrome-extension/src/sidepanel.tsx"
+    },
+    {
+      "path": "libro/chrome-extension/src/verification-cache.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/verification-cache.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/verifier.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/verifier.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/world-id-dialog.test.tsx"
+    },
+    {
+      "path": "libro/chrome-extension/src/world-id-dialog.tsx"
+    },
+    {
+      "path": "libro/chrome-extension/tsconfig.json"
+    },
+    {
+      "path": "libro/chrome-extension/vite.config.ts"
+    },
+    {
+      "path": "libro/chrome-extension/vite.content.config.ts"
+    },
+    {
+      "path": "libro/contracts/foundry.toml"
+    },
+    {
+      "path": "libro/contracts/src/LibroRegistry.sol"
+    },
+    {
+      "path": "libro/contracts/test/LibroRegistry.t.sol"
+    },
+    {
+      "path": "libro/core/package.json"
+    },
+    {
+      "path": "libro/core/src/index.test.ts"
+    },
+    {
+      "path": "libro/core/src/index.ts"
+    },
+    {
+      "path": "libro/core/src/verify-chain.test.ts"
+    },
+    {
+      "path": "libro/core/tsconfig.json"
+    },
+    {
+      "path": "libro/core/vitest.config.ts"
+    },
+    {
+      "path": "libro/skill/SKILL.md"
+    },
+    {
+      "path": "libro/skill/references/embed.md"
+    },
+    {
+      "path": "libro/skill/references/protocol.md"
+    },
+    {
+      "path": "next.config.mjs"
+    },
+    {
+      "path": "package.json"
+    },
+    {
+      "path": "pnpm-lock.yaml"
+    },
+    {
+      "path": "pnpm-workspace.yaml"
+    },
+    {
+      "path": "postcss.config.js"
+    },
+    {
+      "path": "public/apple-touch-icon.png"
+    },
+    {
+      "path": "public/favicon-16x16.png"
+    },
+    {
+      "path": "public/favicon-32x32.png"
+    },
+    {
+      "path": "public/favicon-48x48.png"
+    },
+    {
+      "path": "public/favicon.ico"
+    },
+    {
+      "path": "public/logo.png"
+    },
+    {
+      "path": "public/robots.txt"
+    },
+    {
+      "path": "scripts/build-openship.mjs"
+    },
+    {
+      "path": "scripts/build-openship.test.mjs"
+    },
+    {
+      "path": "scripts/init-db.mjs"
+    },
+    {
+      "path": "scripts/init-db.test.mjs"
+    },
+    {
+      "path": "scripts/migrate-db.mjs"
+    },
+    {
+      "path": "scripts/migrate-db.test.mjs"
+    },
+    {
+      "path": "scripts/openship-manifest.mjs"
+    },
+    {
+      "path": "scripts/openship-manifest.test.mjs"
+    },
+    {
+      "path": "scripts/openship-resolve.mjs"
+    },
+    {
+      "path": "scripts/openship-review.mjs"
+    },
+    {
+      "path": "scripts/openship-worker.mjs"
+    },
+    {
+      "path": "tailwind.config.js"
+    },
+    {
+      "path": "tsconfig.json"
+    },
+    {
+      "path": "types/index.ts"
+    },
+    {
+      "path": "vitest.config.ts"
+    },
+    {
+      "path": "vitest.setup.ts"
+    }
+  ]
+}

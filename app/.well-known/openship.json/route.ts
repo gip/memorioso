@@ -2,23 +2,26 @@ import type { NextResponse } from 'next/server'
 import { openshipOrigin, openshipResponse } from '@/lib/openship/http'
 import {
   getOpenshipCommit,
+  getOpenshipProject,
   OPENSHIP_ENDPOINTS,
   OPENSHIP_VERSION,
 } from '@/lib/openship/manifest'
-import { OPENSHIP_PROJECT } from '@/lib/openship/project'
 
 // Discovery document. Deliberately tiny: an agent that knows only the origin starts here.
 export function GET(): NextResponse {
   const origin = openshipOrigin()
   const absolute = (endpoint: string) => `${origin}${endpoint}`
+  const project = getOpenshipProject()
+  const commit = getOpenshipCommit()
 
   return openshipResponse(
     JSON.stringify(
       {
         openship: OPENSHIP_VERSION,
-        name: OPENSHIP_PROJECT.name,
-        description: OPENSHIP_PROJECT.description,
-        commit: getOpenshipCommit().sha,
+        name: project.name,
+        description: project.description,
+        // Omitted, not nulled, when this tree is not under version control.
+        ...(commit ? { commit: commit.sha } : {}),
         manifest: absolute(OPENSHIP_ENDPOINTS.manifest),
         bundle: absolute(OPENSHIP_ENDPOINTS.bundle),
         file: absolute(OPENSHIP_ENDPOINTS.file),

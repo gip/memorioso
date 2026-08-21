@@ -71,7 +71,8 @@ client that follows them needs no knowledge of the layout above.
 ```
 
 `openship`, `name`, and `manifest` are REQUIRED. `file` is a URI template with a single `{path}`
-expansion. Absent optional endpoints MUST be omitted rather than sent as null.
+expansion. Absent optional endpoints MUST be omitted rather than sent as null. `commit` is
+OPTIONAL and MUST be omitted where the served tree is not under version control.
 
 ### Manifest — `/openship/manifest.json`
 
@@ -83,11 +84,14 @@ Everything about the project except file contents.
   "generatedAt": "2026-08-18T22:48:45.874Z",
   "digest": "sha256:213f44e6…",
   "commit": { "sha": "9b927a2…", "ref": "stage", "committedAt": "2026-08-18T15:27:58-07:00", "dirty": false },
+  "fileSet": "manifest",
   "project": { "name": "…", "description": "…", "homepage": "…", "repository": "…", "license": "…" },
   "stack": ["Next.js 16 App Router", "React 19", "…"],
   "structure": [{ "path": "app/", "purpose": "App Router pages, layouts, and route handlers." }],
   "setup": { "packageManager": "pnpm@10.34.5", "node": "24.x", "steps": ["…"], "commands": { "install": "pnpm install" } },
   "env": ["DATABASE_URL", "SESSION_SECRET"],
+  "ignore": ["node_modules/**", ".next/**", ".env**"],
+  "ignoreNames": ["node_modules", ".git"],
   "endpoints": { "manifest": "/openship/manifest.json", "…": "…" },
   "totals": { "files": 275, "bytes": 1407212 },
   "files": [
@@ -110,8 +114,94 @@ carry `path`, `size`, `sha256`, and `encoding`.
 `env` MUST contain variable **names only**. A server MUST NOT publish environment variable values,
 even placeholder ones.
 
-`commit.dirty` signals that the payload was built from a working tree with uncommitted changes, so
-`commit.sha` does not identify the served source. Clients SHOULD surface this rather than ignore it.
+`commit` is OPTIONAL. A server whose tree is not under version control MUST omit it rather than
+send empty or invented values; `digest` is what identifies a build, and `commit` is only ever a
+convenience pointer into a history that may not exist. Where it is present, `commit.dirty` signals
+that the payload was built from a working tree with uncommitted changes, so `commit.sha` does not
+identify the served source. Clients SHOULD surface this rather than ignore it.
+
+`project.repository` is OPTIONAL for the same reason: a project need not have a remote, and a tree
+retrieved over Openship has no way to learn one. Omit it rather than guess.
+
+`fileSet` names the source the file list was derived from — `manifest` where it came from the
+checked-in manifest described below, `git` where it came from a version control index. It is how a
+client sees that a server which publishes no `commit` is nevertheless publishing a declared file
+set rather than the output of an unfiltered directory walk.
+
+### Manifest source — `openship.json`
+
+A server MUST determine its file set from an explicit declaration rather than by walking a
+directory. The reference form of that declaration is a file named `openship.json`, checked into the
+repository root, carrying the hand-authored half of the manifest and the list of every file the
+project consists of:
+
+```json
+{
+  "openship": "1.0",
+  "project": { "name": "…", "description": "…" },
+  "stack": ["…"], "structure": [{ "path": "app/", "purpose": "…" }], "setup": { "…": "…" },
+  "ignore": ["node_modules/**", ".next/**", ".env**"],
+  "ignoreNames": ["node_modules", ".git", ".DS_Store"],
+  "files": [
+    { "path": "app/page.tsx" },
+    { "path": "CLAUDE.md", "type": "symlink", "target": "AGENTS.md" }
+  ]
+}
+```
+
+`files` is an **allowlist**. A path it does not name is not published, so a forgotten rule fails
+closed and a secret that nobody declared cannot be served even by mistake.
+
+Sizes and hashes are deliberately absent: they are derived from the bytes on disk at build time, so
+a committed manifest can never disagree with the files beside it, and it changes only when a path is
+added, removed, or renamed. A server MAY carry `size` and `sha256` anyway — `/openship/manifest.json`
+does — and a reader that finds them SHOULD verify them rather than trust them.
+
+Because `/openship/manifest.json` is a superset of this file, a client reconstructing a repository
+can save the served manifest as `openship.json` verbatim and have a working source of truth. That is
+what lets a retrieved copy build, serve its own Openship endpoints, and report the same `digest` as
+the deployment it came from, with no version control anywhere in the loop.
+
+#### The manifest is not in the tree it describes
+
+`openship.json` MUST NOT appear in its own `files` array, and is not part of the `digest`. Two
+reasons, one practical and one structural:
+
+- An entry for itself would have to contain its own hash, which has no fixed point.
+- A `digest` that covered the manifest would no longer be a function of the source alone. A server
+  that regenerates the manifest when applying a change would move the digest by regenerating it, and
+  the content-addressed `buildId` in the Changes extension would stop being predictable from the
+  submission.
+
+So the manifest describes the tree the way an index describes a book. Every other file on disk is
+either in `files` or matched by `ignore`/`ignoreNames`.
+
+#### Completeness
+
+`ignore` uses the same `/`-separated prefix grammar as the policy document: a trailing `/**` matches
+a directory and its descendants. `ignoreNames` lists **basenames** pruned at any depth, which the
+prefix grammar cannot express and which a workspace with a `node_modules` under every package needs.
+
+`files` takes precedence over both. That is what lets `.env**` be ignored wholesale while
+`.env.example` — a declared, published file — survives.
+
+A client that has written a tree SHOULD verify that the files on disk and the paths in `files` are
+**the same set**, treating any difference in either direction as an error: a file on disk that
+nothing declares or ignores, or a declared path with nothing on disk, means the retrieval is
+incomplete or the manifest is wrong. This is the one integrity check that needs neither the network
+nor a version control system.
+
+Two rules make that check survive an honest retrieval:
+
+- An entry declared `"type": "symlink"` is satisfied by a **regular file** holding the target's
+  content, as well as by an actual link to the declared target. The bundle and file endpoints serve
+  a symlink's resolved content precisely so a client that ignores `type` still gets a working tree,
+  and such a client MUST NOT then fail its own verification. The reverse does not hold: a path
+  declared as a regular file that is a link on disk is a substitution the manifest never described.
+- Where an entry carries `size` or `sha256`, a client SHOULD verify them against the bytes on disk.
+  Where it carries neither, nothing is claimed about the contents and nothing is checked. This is
+  what makes a manifest saved from `/openship/manifest.json` a full offline integrity check of the
+  retrieval, while a checked-in `openship.json` stays a statement about paths alone.
 
 ### Bundle — `/openship/bundle.json`
 
@@ -304,6 +394,17 @@ impersonate.
 digest = "sha256:" + SHA256( concat over files of ( path + "\0" + sha256_hex + "\n" ) )
 ```
 
+Three things pin this down:
+
+- The file set is **the manifest's `files` array** — never a directory walk, and never the output of
+  a version control command consulted at digest time. `openship.json` itself is excluded, as
+  described under "Manifest source".
+- The order is ascending by the path's UTF-8 bytes. Recursively walking the directory and sorting
+  the result produces the same list, so a client may derive it either way.
+- `sha256_hex` is over the file's raw bytes. Nothing else about a file — its size, media type,
+  transport encoding, or symlink status — enters the digest, so two servers that make different
+  choices about how to *serve* the same bytes still agree on what they are serving.
+
 Two deployments reporting the same digest served the same source. A client SHOULD verify each file
 against its `sha256` after decoding, and MAY compare the recomputed digest against the published one.
 
@@ -320,9 +421,16 @@ revalidation.
 ## What a server must not publish
 
 A server MUST publish only files it intends to be public, and MUST determine that set from an
-explicit source of truth rather than by walking a directory. The reference implementation uses
-`git ls-files`, which excludes ignored files by construction — secrets in an untracked `.env.local`,
-build output, and dependency directories cannot appear in the manifest even by mistake.
+explicit source of truth rather than by walking a directory. The reference implementation uses the
+`files` allowlist in `openship.json`, falling back to `git ls-files` where no manifest is present.
+
+Both fail closed, but not in the same way, and the difference is worth stating. `git ls-files`
+excludes ignored files *by construction*: a secret never added to the index cannot be published,
+because there is no edit that would publish it. A checked-in manifest is an allowlist, so an
+undeclared file is still unpublished — but declaring one is a single line of JSON. A server that
+uses a manifest SHOULD therefore refuse to publish paths that are secrets by shape, whatever the
+manifest says. The reference implementation refuses `.env*` (excepting `.env.example`, which carries
+names without values), `node_modules/**`, and `.git/**` outright.
 
 A server MUST NOT publish environment variable values, credentials, private keys, or deployment
 configuration. Serving source under Openship makes it public in every practical sense; treat the
@@ -346,9 +454,11 @@ This is not part of Openship 1.0 and is not implemented.
 
 Memorioso implements this specification:
 
-- `scripts/build-openship.mjs` — builds the payload from `git ls-files` at build time.
-- `lib/openship/manifest.ts` — composes the manifest and provides the file lookup.
-- `lib/openship/project.ts` — the hand-authored metadata a machine cannot derive.
+- `openship.json` — the checked-in manifest: hand-authored metadata plus the file allowlist.
+- `scripts/openship-manifest.mjs` — regenerates and verifies it against the working tree.
+- `scripts/build-openship.mjs` — builds the payload from that file set at build time.
+- `lib/openship/manifest.ts` — composes the served manifest and provides the file lookup.
+- `lib/openship/paths.ts` — the one path-pattern matcher, shared with the change policy.
 - `app/.well-known/openship.json/`, `app/openship/*/` — the endpoints.
 - `app/openship/page.tsx` — the human-facing page.
 

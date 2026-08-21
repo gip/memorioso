@@ -111,7 +111,8 @@ PROJECT
   ${manifest.project.name}
 ${wrap(manifest.project.description, '  ')}
 
-  Commit    ${commit.sha || 'unknown'}${commit.dirty ? ' (dirty tree at build time)' : ''}
+${commit ? `  Commit    ${commit.sha}${commit.dirty ? ' (dirty tree at build time)' : ''}\n` : '  Commit    none (this tree is not under version control)\n'}\
+  Source    ${manifest.fileSet === 'manifest' ? 'openship.json' : manifest.fileSet}
   Files     ${totals.files}
   Size      ${totals.bytes} bytes
   Digest    ${manifest.digest}
@@ -120,8 +121,12 @@ THE SHORT VERSION
   1. GET ${origin}/openship/bundle.json
   2. For each entry in .files, write the decoded content to that path.
      Entries with "encoding": "base64" are base64; "utf-8" entries are literal.
-  3. pnpm install
-  4. cp .env.example .env.local and fill in real values.
+  3. Save ${origin}/openship/manifest.json as openship.json at the repository
+     root. It is a superset of the checked-in manifest, so the build reads it
+     as-is, and it is what makes your copy able to serve its own source.
+  4. pnpm install
+  5. pnpm openship:check — confirms your tree matches the manifest exactly.
+  6. cp .env.example .env.local and fill in real values.
 
   Or, if you have a shell:
      curl -sL ${origin}/openship/source.tar.gz | tar xz
@@ -173,9 +178,12 @@ NOTES BEFORE YOU BUILD
     yours to supply.
   - AGENTS.md at the repository root is the guide for coding agents working in
     this codebase. Read it before changing anything.
-  - What you retrieve has no git history. The build works without it, but this
-    project's own Openship endpoints derive from \`git ls-files\`, so they stay
-    empty in your copy until you run \`git init && git add -A\`.
+  - What you retrieve has no git history, and needs none. The file set comes
+    from openship.json, so your copy builds, serves its own Openship endpoints,
+    and reports the same digest as this one. Commit metadata is simply absent.
+  - openship.json is the checked-in list of every file in the repository. It
+    does not list itself. \`pnpm openship:check\` verifies that the files on disk
+    and the files in the manifest are the same set, and fails if they are not.
 
   Required environment variables:
 ${manifest.env.map((key) => `    ${key}`).join('\n')}

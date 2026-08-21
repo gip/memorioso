@@ -125,15 +125,11 @@ const buildTree = async (cwd) => {
       command: 'corepack enable && pnpm install --frozen-lockfile --ignore-scripts --prefer-offline',
       network: true,
     },
-    // The Openship payload is derived from `git ls-files` and is not in the tree we just wrote, so
-    // it has to be regenerated. Doing so is also what makes this build serve its own source: a
-    // build of a change can itself be retrieved and changed.
-    {
-      name: 'openship',
-      command:
-        'git init -q && git add -A && git -c user.email=build@openship -c user.name=openship ' +
-        'commit -qm "openship build" && node scripts/build-openship.mjs',
-    },
+    // The Openship payload is generated, not source, so it is not in the tree we just wrote and
+    // has to be regenerated. Doing so is what makes this build serve its own source: a build of a
+    // change can itself be retrieved and changed. It needs no git — the file set comes from the
+    // openship.json that materialize() wrote.
+    { name: 'openship', command: 'node scripts/build-openship.mjs' },
     { name: 'typecheck', command: 'pnpm exec tsc --noEmit' },
     { name: 'lint', command: 'pnpm lint' },
     { name: 'test', command: 'pnpm test' },
@@ -221,6 +217,33 @@ const materialize = async (cwd, manifest, bundle, patch) => {
     await mkdir(path.dirname(absolute), { recursive: true })
     await writeFile(absolute, body)
   }
+
+  // The checked-in manifest is the file set, so the build host writes one describing exactly the
+  // tree it just materialised. Every entry is a plain file: applyChange never produces a symlink,
+  // and the bundle serves a symlink's resolved content, so what landed on disk is a regular file
+  // even where the base manifest declared a link. Declaring it honestly is what lets
+  // `pnpm openship:check` pass inside the sandbox.
+  //
+  // openship.json is not in files[] — it describes the tree rather than belonging to it — which is
+  // also why regenerating it here cannot move the digest the endpoint already computed.
+  const { project, stack, structure, setup, ignore, ignoreNames } = manifest
+  await writeFile(
+    path.join(cwd, 'openship.json'),
+    `${JSON.stringify(
+      {
+        openship: manifest.openship,
+        project,
+        stack,
+        structure,
+        setup,
+        ignore,
+        ignoreNames,
+        files: [...contents.keys()].sort().map((filePath) => ({ path: filePath })),
+      },
+      null,
+      2
+    )}\n`
+  )
 
   await mkdir(path.join(cwd, '.vercel'), { recursive: true })
   // projectId and orgId identify the project; neither is a credential. The token is not written.

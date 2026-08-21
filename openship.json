@@ -109,6 +109,7 @@
   },
   "ignore": [
     ".claude/**",
+    ".env**",
     ".gstack/**",
     ".next/**",
     ".pnpm-store/**",
@@ -117,14 +118,14 @@
     "build/**",
     "coverage/**",
     "lib/openship/generated/**",
-    "libro/chrome-extension/dist/**",
     "libro/chrome-extension/dist-stage/**",
+    "libro/chrome-extension/dist/**",
     "libro/contracts/broadcast/**",
     "libro/contracts/cache/**",
     "libro/contracts/out/**",
     "out/**",
     "public/openship/**",
-    ".env**"
+    "vercel.json"
   ],
   "ignoreNames": [
     "node_modules",

@@ -99,32 +99,40 @@ const ignoreOf = (manifest) => ({
  * Compares the manifest's file set against disk. Returns a list of human-readable problems; an
  * empty list means the two are in bijection.
  */
-export const verifyManifest = (manifest, root = REPO_ROOT) => {
+const collect = (manifest, root) => {
   const problems = []
-  if (!manifest) return ['openship.json is missing. Run `pnpm openship:manifest` to create it.']
-  if (!Array.isArray(manifest.files)) return ['openship.json has no `files` array.']
+  const report = (kind, message) => problems.push({ kind, message })
+
+  if (!manifest) {
+    return [{ kind: 'invalid', message: 'openship.json is missing. Run `pnpm openship:manifest` to create it.' }]
+  }
+  if (!Array.isArray(manifest.files)) {
+    return [{ kind: 'invalid', message: 'openship.json has no `files` array.' }]
+  }
 
   const { ignore, ignoreNames } = ignoreOf(manifest)
   const declared = new Map()
 
   for (const entry of manifest.files) {
     if (!entry || typeof entry.path !== 'string' || entry.path.length === 0) {
-      problems.push(`openship.json has a files[] entry with no path: ${JSON.stringify(entry)}`)
+      report('invalid', `openship.json has a files[] entry with no path: ${JSON.stringify(entry)}`)
       continue
     }
     if (entry.path === MANIFEST_NAME) {
-      problems.push(
+      report(
+        'invalid',
         'openship.json lists itself. The manifest describes the tree and is not part of it; ' +
           'remove the entry.'
       )
       continue
     }
     if (declared.has(entry.path)) {
-      problems.push(`openship.json lists ${entry.path} twice.`)
+      report('invalid', `openship.json lists ${entry.path} twice.`)
       continue
     }
     if (isRefused(entry.path)) {
-      problems.push(
+      report(
+        'invalid',
         `openship.json lists ${entry.path}. Openship publishes every file it lists, and this path ` +
           'is refused outright. Remove it.'
       )
@@ -140,7 +148,8 @@ export const verifyManifest = (manifest, root = REPO_ROOT) => {
   for (const filePath of onDisk.keys()) {
     if (declared.has(filePath)) continue
     if (matchesAny(filePath, ignore)) continue
-    problems.push(
+    report(
+      'undeclared',
       `${filePath} is on disk but not in openship.json. Add it, add it to \`ignore\`, or run ` +
         '`pnpm openship:manifest`.'
     )
@@ -149,7 +158,7 @@ export const verifyManifest = (manifest, root = REPO_ROOT) => {
   for (const [filePath, entry] of declared) {
     const actual = onDisk.get(filePath)
     if (!actual) {
-      problems.push(`${filePath} is in openship.json but not on disk.`)
+      report('missing', `${filePath} is in openship.json but not on disk.`)
       continue
     }
     const declaredType = entry.type ?? 'file'
@@ -159,7 +168,8 @@ export const verifyManifest = (manifest, root = REPO_ROOT) => {
     // `type` still reconstructs a working tree, so a retrieval that did exactly that must verify.
     if (declaredType === 'symlink') {
       if (actual.type === 'symlink' && entry.target !== actual.target) {
-        problems.push(
+        report(
+          'type',
           `${filePath} is declared as a symlink to ${entry.target} but points at ${actual.target}.`
         )
       }
@@ -169,7 +179,8 @@ export const verifyManifest = (manifest, root = REPO_ROOT) => {
     // The reverse is not tolerated: a path declared as a regular file that is a link on disk is a
     // substitution the manifest never described, and the link may leave the tree entirely.
     if (actual.type === 'symlink') {
-      problems.push(
+      report(
+        'type',
         `${filePath} is declared as a regular file but is a symlink to ${actual.target} on disk.`
       )
     }
@@ -179,6 +190,17 @@ export const verifyManifest = (manifest, root = REPO_ROOT) => {
 
   return problems
 }
+
+/**
+ * Problems as `{ kind, message }`. `kind` is what lets a caller decide severity: an `undeclared`
+ * file — on disk, named by neither `files` nor `ignore` — is never published, so it is a hygiene
+ * signal rather than a correctness failure. Everything else means the manifest and the tree
+ * genuinely disagree about a path the manifest claims to describe.
+ */
+export const verifyManifestDetailed = (manifest, root = REPO_ROOT) => collect(manifest, root)
+
+export const verifyManifest = (manifest, root = REPO_ROOT) =>
+  collect(manifest, root).map((problem) => problem.message)
 
 /**
  * Sizes and hashes are optional in a checked-in manifest — they are derived at build time, so
@@ -200,16 +222,21 @@ const verifyContents = (declared, onDisk, root) => {
     // file endpoint serve, so following the link is the correct read either way.
     const body = readFileSync(path.join(root, filePath))
     if (hasSize && body.length !== entry.size) {
-      problems.push(`${filePath} is ${body.length} bytes but the manifest declares ${entry.size}.`)
+      problems.push({
+        kind: 'content',
+        message: `${filePath} is ${body.length} bytes but the manifest declares ${entry.size}.`,
+      })
       continue
     }
     if (hasHash) {
       const actual = createHash('sha256').update(body).digest('hex')
       if (actual !== entry.sha256) {
-        problems.push(
-          `${filePath} hashes to ${actual.slice(0, 12)}… but the manifest declares ` +
-            `${entry.sha256.slice(0, 12)}…. The retrieval is corrupt or the file was modified.`
-        )
+        problems.push({
+          kind: 'content',
+          message:
+            `${filePath} hashes to ${actual.slice(0, 12)}… but the manifest declares ` +
+            `${entry.sha256.slice(0, 12)}…. The retrieval is corrupt or the file was modified.`,
+        })
       }
     }
   }

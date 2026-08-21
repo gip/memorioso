@@ -16,7 +16,7 @@ import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, rmSync
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync, constants } from 'node:zlib'
-import { readManifest, verifyManifest } from './openship-manifest.mjs'
+import { readManifest, verifyManifestDetailed } from './openship-manifest.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const GENERATED_DIR = path.join(REPO_ROOT, 'lib', 'openship', 'generated')
@@ -255,29 +255,44 @@ const writeArchive = (paths) => {
   })
 }
 
+const describe = (problems, headline) =>
+  `[openship] ${headline} (${problems.length} problem${problems.length === 1 ? '' : 's'}):\n` +
+  problems.slice(0, 10).map((problem) => `[openship]   - ${problem.message}`).join('\n') +
+  '\n[openship] Run `pnpm openship:manifest` to regenerate the file list.'
+
 /**
  * A manifest that disagrees with disk means the payload is not the source. Fatal where shipping the
  * wrong file set would go unnoticed; a warning locally, where the fix is one command away.
+ *
+ * An *undeclared* file — on disk, named by neither `files` nor `ignore` — is the one case that
+ * never blocks. `files` is an allowlist, so an undeclared file is simply not published: there is
+ * nothing incorrect about the payload, only something stale about the manifest. Build platforms
+ * materialise files into the workspace that were never in the repository (Vercel writes a
+ * `vercel.json` from project settings), and a deployment that dies because the platform added a
+ * file it owns is a deployment that dies for no reason.
  */
 const checkManifest = (lenient) => {
   const manifest = readManifest(REPO_ROOT)
   if (!manifest) return
 
-  const problems = verifyManifest(manifest, REPO_ROOT)
+  const problems = verifyManifestDetailed(manifest, REPO_ROOT)
   if (problems.length === 0) return
 
-  const detail = problems.slice(0, 10).map((problem) => `[openship]   - ${problem}`).join('\n')
-  const summary =
-    `[openship] openship.json disagrees with the working tree (${problems.length} problem` +
-    `${problems.length === 1 ? '' : 's'}):\n${detail}\n` +
-    '[openship] Run `pnpm openship:manifest` to regenerate the file list.'
+  const undeclared = problems.filter((problem) => problem.kind === 'undeclared')
+  const blocking = problems.filter((problem) => problem.kind !== 'undeclared')
 
-  if (!lenient) {
-    console.error(summary)
+  if (!lenient && blocking.length > 0) {
+    console.error(describe(blocking, 'openship.json disagrees with the working tree'))
     console.error('[openship] This is a deployment build, so refusing to ship a manifest that lies.')
     process.exit(1)
   }
-  console.warn(summary)
+
+  if (blocking.length > 0) console.warn(describe(blocking, 'openship.json disagrees with the working tree'))
+  if (undeclared.length > 0) {
+    console.warn(
+      describe(undeclared, 'openship.json does not list every file on disk, so these are not published')
+    )
+  }
 }
 
 const main = () => {

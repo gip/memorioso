@@ -10,6 +10,7 @@ import {
   REPO_ROOT,
   scanTree,
   verifyManifest,
+  verifyManifestDetailed,
 } from './openship-manifest.mjs'
 
 const temporary = []
@@ -207,5 +208,30 @@ describe('paths refused outright', () => {
   it('still publishes .env.example', () => {
     const root = fixture({ files: [{ path: '.env.example' }] }, { '.env.example': 'KEY=' })
     expect(verifyManifest(readManifest(root), root)).toEqual([])
+  })
+})
+
+// A deployment build treats `undeclared` as non-blocking and everything else as fatal. Build
+// platforms write files into the workspace that were never in the repository — Vercel materialises
+// a vercel.json from project settings — and an undeclared file is never published anyway, so it
+// must not be able to kill a deploy. A manifest that names a file which is not there must.
+describe('problem severity', () => {
+  it('classifies an extra file on disk as undeclared', () => {
+    const root = fixture({ files: [{ path: 'a.txt' }] }, { 'a.txt': 'a', 'injected.json': '{}' })
+    expect(verifyManifestDetailed(readManifest(root), root)).toEqual([
+      { kind: 'undeclared', message: expect.stringContaining('injected.json') },
+    ])
+  })
+
+  it('classifies a manifest entry with nothing on disk as blocking', () => {
+    const root = fixture({ files: [{ path: 'a.txt' }, { path: 'ghost.txt' }] }, { 'a.txt': 'a' })
+    const kinds = verifyManifestDetailed(readManifest(root), root).map(problem => problem.kind)
+    expect(kinds).toEqual(['missing'])
+    expect(kinds).not.toContain('undeclared')
+  })
+
+  it('ignores the platform-generated vercel.json', () => {
+    const manifest = readManifest(REPO_ROOT)
+    expect(manifest.ignore).toContain('vercel.json')
   })
 })

@@ -1,5 +1,6 @@
 {
   "openship": "1.0",
+  "capability": "sources",
   "project": {
     "name": "Memorioso",
     "description": "A Next.js application for human-authored publications. Users sign in with World ID 4.0, write drafts, sign publication payloads through IDKit proof verification, and register the publication and its proof on World Chain through the Libro registry.",
@@ -156,13 +157,10 @@
       "target": "AGENTS.md"
     },
     {
-      "path": "OPENSHIP-CHANGES.md"
-    },
-    {
-      "path": "OPENSHIP.md"
-    },
-    {
       "path": "README.md"
+    },
+    {
+      "path": "app/.well-known/openship.json/route.test.ts"
     },
     {
       "path": "app/.well-known/openship.json/route.ts"
@@ -382,6 +380,9 @@
     },
     {
       "path": "app/openship/bundle.json/route.ts"
+    },
+    {
+      "path": "app/openship/changes/[changeId]/route.test.ts"
     },
     {
       "path": "app/openship/changes/[changeId]/route.ts"
@@ -813,6 +814,15 @@
       "path": "lib/local-draft.ts"
     },
     {
+      "path": "lib/openship/candidate.test.ts"
+    },
+    {
+      "path": "lib/openship/candidate.ts"
+    },
+    {
+      "path": "lib/openship/change-status.test.ts"
+    },
+    {
       "path": "lib/openship/change.ts"
     },
     {
@@ -826,6 +836,9 @@
     },
     {
       "path": "lib/openship/instructions.ts"
+    },
+    {
+      "path": "lib/openship/lifecycle.test.ts"
     },
     {
       "path": "lib/openship/manifest.ts"
@@ -1150,6 +1163,96 @@
     },
     {
       "path": "scripts/openship-worker.mjs"
+    },
+    {
+      "path": "scripts/verify-openship-skill.mjs"
+    },
+    {
+      "path": "skills/openship/SKILL.md"
+    },
+    {
+      "path": "skills/openship/UPSTREAM.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/changes-submission.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/changes-violation.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/sources-manifest.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/systems.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/changes-accepted.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/changes-policy.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/changes-status.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/changes-submission.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/changes-violation.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/sources-bundle.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/sources-manifest.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/systems.json"
+    },
+    {
+      "path": "skills/openship/references/openship-changes.md"
+    },
+    {
+      "path": "skills/openship/references/openship-sources.md"
+    },
+    {
+      "path": "skills/openship/references/openship-systems.md"
+    },
+    {
+      "path": "skills/openship/references/openship.md"
+    },
+    {
+      "path": "skills/openship/references/schemas/changes-accepted.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/changes-policy.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/changes-status.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/changes-submission.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/changes-violation.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/discovery.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/sources-bundle.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/sources-manifest.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/systems.schema.json"
     },
     {
       "path": "tailwind.config.js"

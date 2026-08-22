@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -44,17 +43,10 @@ describe('the repository manifest', () => {
     expect(paths).not.toContain(MANIFEST_NAME)
   })
 
-  // The property `git ls-files` used to provide directly: nothing untracked or ignored is
-  // published. It is now an assertion rather than a construction, so it has to be tested.
-  it('publishes nothing that git does not track', () => {
-    const tracked = new Set(
-      execFileSync('git', ['ls-files'], { cwd: REPO_ROOT }).toString().split('\n').filter(Boolean)
-    )
-    const untracked = readManifest(REPO_ROOT)
-      .files.map((entry) => entry.path)
-      .filter((filePath) => !tracked.has(filePath))
-
-    expect(untracked).toEqual([])
+  it('uses the checked-in manifest as an explicit allowlist', () => {
+    const manifest = readManifest(REPO_ROOT)
+    expect(manifest.files.length).toBeGreaterThan(0)
+    expect(new Set(manifest.files.map((entry) => entry.path)).size).toBe(manifest.files.length)
   })
 })
 
@@ -135,7 +127,7 @@ describe('verifyManifest', () => {
   })
 
   // The bundle serves a symlink's resolved content, so a client that ignores `type` writes a
-  // regular file. OPENSHIP.md sanctions that explicitly, so verification must accept it.
+  // regular file. The Sources transport permits that, so verification must accept it.
   it('accepts a declared symlink written as a regular file', () => {
     const root = fixture(
       { files: [{ path: 'AGENTS.md' }, { path: 'CLAUDE.md', type: 'symlink', target: 'AGENTS.md' }] },

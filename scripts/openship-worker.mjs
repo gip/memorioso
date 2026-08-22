@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The build host. Gates 6, 7, and 8 of OPENSHIP-CHANGES.md.
+// The build host for Memorioso's OpenShip Changes provider.
 //
 // Run it as:
 //   node --import ./scripts/openship-resolve.mjs scripts/openship-worker.mjs [--once]
@@ -22,6 +22,7 @@ import {
   updateOpenshipChangeStatus,
 } from '@/lib/db/openship-changes'
 import { buildIdOf } from '@/lib/openship/change'
+import { candidateSourcesMatch } from '@/lib/openship/candidate'
 import { validateChange } from '@/lib/openship/validate'
 import { reviewChange } from './openship-review.mjs'
 
@@ -49,7 +50,7 @@ class GateFailure extends Error {
 
 /**
  * Refuses to start rather than silently running submitted code on the host. Every one of these is
- * a condition OPENSHIP-CHANGES.md states as a requirement, so the check belongs here and not in a
+ * a condition the OpenShip Changes contract states as a requirement, so the check belongs here, not in a
  * paragraph someone reads once.
  */
 const checkConfiguration = () => {
@@ -185,14 +186,67 @@ const deploy = async (cwd, buildId) => {
   return `https://${alias}`
 }
 
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+/**
+ * A candidate is not publicly ready until its own Sources manifest proves that it serves the
+ * accepted resulting digest. The alias can take a few seconds to become reachable, so verification
+ * retries boundedly and fails the change closed if the origin never agrees.
+ */
+const verifyCandidateSources = async (candidateOrigin, expectedDigest) => {
+  let lastProblem = 'candidate did not answer'
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    try {
+      const response = await fetch(`${candidateOrigin}/openship/manifest.json`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        lastProblem = `HTTP ${response.status}`
+      } else {
+        const manifest = await response.json()
+        if (candidateSourcesMatch(manifest, expectedDigest)) {
+          return
+        }
+        lastProblem = `reported ${manifest?.digest ?? 'no digest'} as ${manifest?.capability ?? 'no capability'}`
+      }
+    } catch (error) {
+      lastProblem = error instanceof Error ? error.message : String(error)
+    }
+    if (attempt < 12) await delay(Math.min(attempt * 1000, 5000))
+  }
+  throw new GateFailure(
+    'verify',
+    `Candidate Sources did not report ${expectedDigest}: ${lastProblem}`
+  )
+}
+
 // --- Orchestration -----------------------------------------------------------------------------
 
 /** The base tree, fetched over the same public endpoints any other client would use. */
 const fetchBase = async () => {
-  const [manifest, bundle] = await Promise.all([
-    fetch(`${SOURCE_ORIGIN}/openship/manifest.json`).then((response) => response.json()),
-    fetch(`${SOURCE_ORIGIN}/openship/bundle.json`).then((response) => response.json()),
+  const [manifestResponse, bundleResponse] = await Promise.all([
+    fetch(`${SOURCE_ORIGIN}/openship/manifest.json`),
+    fetch(`${SOURCE_ORIGIN}/openship/bundle.json`),
   ])
+  if (!manifestResponse.ok || !bundleResponse.ok) {
+    throw new GateFailure(
+      'source',
+      `Could not fetch base Sources (${manifestResponse.status}, ${bundleResponse.status}).`
+    )
+  }
+  const [manifest, bundle] = await Promise.all([
+    manifestResponse.json(),
+    bundleResponse.json(),
+  ])
+  if (
+    manifest?.openship !== '1.0' ||
+    manifest?.capability !== 'sources' ||
+    bundle?.openship !== '1.0' ||
+    bundle?.capability !== 'sources' ||
+    manifest.digest !== bundle.digest
+  ) {
+    throw new GateFailure('source', 'The base Sources manifest and bundle do not agree.')
+  }
   return { manifest, bundle }
 }
 
@@ -232,6 +286,7 @@ const materialize = async (cwd, manifest, bundle, patch) => {
     `${JSON.stringify(
       {
         openship: manifest.openship,
+        capability: 'sources',
         project,
         stack,
         structure,
@@ -265,6 +320,7 @@ const processChange = async (change) => {
   // built against a tree its author never read.
   const submission = {
     openship: '1.0',
+    capability: 'changes',
     base: change.base,
     title: change.title,
     intent: change.intent,
@@ -326,11 +382,13 @@ const processChange = async (change) => {
 
     log('  gate 8 · deploy')
     const url = await deploy(cwd, change.buildId)
+    log('  gate 8 · verify candidate Sources')
+    await verifyCandidateSources(url, change.digest)
     await updateOpenshipChangeStatus(change.changeId, 'deployed', {
       url,
       reason: review.concerns.length > 0 ? `Approved with notes: ${review.concerns.join('; ')}` : null,
     })
-    log(`  deployed ${url}`)
+    log(`  ready ${url}`)
   } finally {
     await rm(cwd, { recursive: true, force: true })
   }

@@ -1,5 +1,6 @@
 // Composes the Openship manifest from the generated payload plus the hand-authored project
-// metadata, and provides the lookups the route handlers use. See OPENSHIP.md for the contract.
+// metadata, and provides the lookups the route handlers use. The canonical contract is vendored
+// under skills/openship/references/openship-sources.md.
 
 import { gunzipSync } from 'node:zlib'
 import {
@@ -80,10 +81,12 @@ export const OPENSHIP_ENDPOINTS = {
   archive: '/openship/source.tar.gz',
   instructions: '/openship/agent.txt',
   page: '/openship',
+  skill: '/openship/file/skills/openship/SKILL.md',
   // The write half. Advertised unconditionally so a client can discover the rules even where this
   // deployment does not accept submissions; POST answers 501 there.
   policy: '/openship/policy.json',
   changes: '/openship/changes',
+  changeStatus: '/openship/changes/{changeId}',
 } as const
 
 let filesCache: OpenshipFile[] | null = null
@@ -114,9 +117,10 @@ export const getOpenshipManifest = () => {
 
   return {
     openship: OPENSHIP_VERSION,
+    capability: 'sources' as const,
     generatedAt: OPENSHIP_GENERATED_AT,
     digest: OPENSHIP_DIGEST,
-    // Omitted rather than sent empty when there is no git checkout, per OPENSHIP.md. `fileSet`
+    // Omitted rather than sent empty when there is no git checkout. `fileSet`
     // says where the file list came from, so the absence is reported rather than merely implied.
     ...(commit ? { commit } : {}),
     fileSet: getOpenshipFileSet(),
@@ -128,7 +132,6 @@ export const getOpenshipManifest = () => {
     ignoreNames: metadata.ignoreNames,
     // Names only, never values. Fill these in yourself; the app has no fallback secrets.
     env: OPENSHIP_ENV_KEYS,
-    endpoints: OPENSHIP_ENDPOINTS,
     totals: OPENSHIP_TOTALS,
     files: getOpenshipFiles(),
   }

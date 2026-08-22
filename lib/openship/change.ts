@@ -16,6 +16,7 @@ export type OpenshipChangeFiles = Record<string, OpenshipChangeEntry | null>
 
 export type OpenshipChangeSubmission = {
   openship?: string
+  capability?: string
   base?: string
   title?: string
   intent?: string
@@ -29,6 +30,30 @@ export type OpenshipChangeStatus =
   | 'deployed'
   | 'rejected'
   | 'failed'
+
+export type OpenshipPublicChangeStatus =
+  | 'pending'
+  | 'processing'
+  | 'ready'
+  | 'rejected'
+  | 'failed'
+
+export const publicChangeStatus = (
+  status: OpenshipChangeStatus
+): { status: OpenshipPublicChangeStatus; phase?: OpenshipChangeStatus } => {
+  switch (status) {
+    case 'queued':
+      return { status: 'pending', phase: status }
+    case 'building':
+    case 'reviewing':
+      return { status: 'processing', phase: status }
+    case 'deployed':
+      return { status: 'ready', phase: status }
+    case 'rejected':
+    case 'failed':
+      return { status }
+  }
+}
 
 export type OpenshipChangeRecord = {
   changeId: string
@@ -49,7 +74,7 @@ export type OpenshipChangeRecord = {
 const sha256 = (input: Buffer | string): string => createHash('sha256').update(input).digest('hex')
 
 /**
- * The digest defined in OPENSHIP.md: sha256 over `path\0sha256\n` for every file in ascending path
+ * The Sources digest: sha256 over `path\0sha256\n` for every file in ascending path
  * order. Computed here from a resulting tree that has never touched disk.
  */
 export const digestOfFiles = (files: Pick<OpenshipFile, 'path' | 'sha256'>[]): string =>

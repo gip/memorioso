@@ -78,6 +78,8 @@ describe('openship payload', () => {
   })
 
   it('has a bundle key set equal to the manifest file set', () => {
+    expect(bundle.openship).toBe('1.0')
+    expect(bundle.capability).toBe('sources')
     expect(Object.keys(bundle.files).sort()).toEqual(files.map(file => file.path).sort())
     expect(bundle.digest).toBe(readExport('OPENSHIP_DIGEST'))
   })

@@ -14,8 +14,10 @@
     "openship:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-openship.mjs",
     "openship:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs --write",
     "openship:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs",
+    "openship:skill": "node scripts/verify-openship-skill.mjs",
     "openship:worker": "node --import ./scripts/openship-resolve.mjs scripts/openship-worker.mjs",
     "start": "next start",
+    "pretest": "node scripts/verify-openship-skill.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "db:init": "node scripts/init-db.mjs",
@@ -61,6 +63,7 @@
     "sanitize-html": "2.17.6",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
+    "tldts": "^7.4.10",
     "viem": "^2.21.10"
   },
   "devDependencies": {

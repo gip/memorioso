@@ -1,25 +1,24 @@
 import type { NextResponse } from 'next/server'
 import { getOpenshipChange } from '@/lib/db/openship-changes'
 import { buildUrl, getChangesConfig } from '@/lib/openship/changes-config'
+import { publicChangeStatus } from '@/lib/openship/change'
 import { openshipDynamicJson, openshipOrigin } from '@/lib/openship/http'
-import { OPENSHIP_CHANGES_VERSION } from '@/lib/openship/policy'
 
-// Status of one submitted change. The only Openship response that is expected to move, hence
-// no-store rather than the immutable caching the read half uses.
+// Status of one submitted change. Public state is mapped from provider-internal worker phases.
 
 type Params = Promise<{ changeId: string }>
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Params }
 ): Promise<NextResponse> {
   const { changeId } = await params
   // Checked before the query so a malformed id is a 404 rather than a database error.
   if (!UUID.test(changeId)) {
     return openshipDynamicJson(
-      { openship: '1.0', error: 'not_found', message: `No change "${changeId}".` },
+      { openship: '1.0', capability: 'changes', error: 'not_found', message: `No change "${changeId}".` },
       404
     )
   }
@@ -27,31 +26,44 @@ export async function GET(
   const record = await getOpenshipChange(changeId)
   if (!record) {
     return openshipDynamicJson(
-      { openship: '1.0', error: 'not_found', message: `No change "${changeId}".` },
+      { openship: '1.0', capability: 'changes', error: 'not_found', message: `No change "${changeId}".` },
       404
     )
   }
 
   const config = getChangesConfig()
+  const candidateOrigin =
+    record.url ?? (config.buildsDomain ? buildUrl(config.buildsDomain, record.buildId) : null)
+
+  if (!candidateOrigin) {
+    return openshipDynamicJson(
+      {
+        openship: '1.0',
+        capability: 'changes',
+        error: 'candidate_unavailable',
+        message: 'This provider has no candidate origin configured.',
+      },
+      503
+    )
+  }
 
   return openshipDynamicJson({
     openship: '1.0',
-    changes: OPENSHIP_CHANGES_VERSION,
+    capability: 'changes',
     changeId: record.changeId,
     buildId: record.buildId,
     base: record.base,
     digest: record.digest,
     title: record.title,
-    status: record.status,
+    ...publicChangeStatus(record.status),
     reason: record.reason,
     // The URL is derivable from the buildId before the build exists, so it is published from the
     // moment a change is queued. `deployed` is what says it answers.
-    url:
-      record.url ??
-      (config.buildsDomain ? buildUrl(config.buildsDomain, record.buildId) : null),
+    candidateOrigin,
     filesChanged: record.filesChanged,
     submittedAt: record.submittedAt,
     updatedAt: record.updatedAt,
-    policy: `${openshipOrigin()}/openship/policy.json`,
+    statusUrl: `${openshipOrigin(request)}/openship/changes/${record.changeId}`,
+    policy: `${openshipOrigin(request)}/openship/policy.json`,
   })
 }

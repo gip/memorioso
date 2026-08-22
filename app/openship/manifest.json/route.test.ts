@@ -8,10 +8,11 @@ describe('GET /openship/manifest.json', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('application/json; charset=utf-8')
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate')
 
     const manifest = await response.json()
     expect(manifest.openship).toBe('1.0')
+    expect(manifest.capability).toBe('sources')
     expect(manifest.project.name).toBe('Memorioso')
     expect(manifest.stack.length).toBeGreaterThan(0)
     expect(manifest.structure.length).toBeGreaterThan(0)
@@ -49,7 +50,7 @@ describe('GET /openship/manifest.json', () => {
     expect(JSON.stringify(manifest)).not.toContain('replace-with-a-generated-secret')
   })
 
-  it('computes the digest as specified in OPENSHIP.md', async () => {
+  it('computes the OpenShip Sources digest', async () => {
     const manifest = await GET().json()
     const expected =
       'sha256:' +

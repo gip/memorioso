@@ -50,9 +50,10 @@ The app expects these environment variables in local and deployed environments:
   not need them. Missing them does not break a gated publication either: the read path
   goes through `tryGetPublicationAccessConfig` and falls back to sign-in only.
 
-Openship Changes is off unless `OPENSHIP_CHANGES_ENABLED=1` and `OPENSHIP_BUILDS_DOMAIN` are both
+OpenShip Changes is off unless `OPENSHIP_CHANGES_ENABLED=1` and `OPENSHIP_BUILDS_DOMAIN` are both
 set; the build host additionally needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`,
-`ANTHROPIC_API_KEY`, and `OPENSHIP_SANDBOX`. See `.env.example` and `OPENSHIP-CHANGES.md`.
+`ANTHROPIC_API_KEY`, and `OPENSHIP_SANDBOX`. See `.env.example`, the advertised policy endpoint,
+and `skills/openship/references/openship-changes.md`.
 
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
@@ -156,19 +157,19 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Settlement order is reserve → broadcast → complete. The unique `authorization_nonce` is
   claimed before anything reaches the chain, so a replay cannot double-spend and a crash
   mid-settlement cannot take money without recording the grant.
-## Openship Changes
+## OpenShip Changes
 
-The write half of Openship lets anyone submit a patch that, if it passes every gate, is built and
-deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. `OPENSHIP.md` specifies the transport and
-`OPENSHIP-CHANGES.md` specifies the rules. Both are protected paths: a submission cannot edit them.
+The write half of OpenShip lets anyone submit a patch that, if it passes every gate, is built and
+deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. The vendored v1 protocol package lives at
+`skills/openship/` and is protected: a submission cannot edit it.
 
-- `OPENSHIP-CHANGES.md` is prose and `lib/openship/policy.ts` is code. They are asserted to agree by
-  `lib/openship/policy.test.ts`. Change both or neither.
+- `skills/openship/references/openship-changes.md` defines the portable contract;
+  `lib/openship/policy.ts` publishes Memorioso's provider-specific writable paths and gates.
 - Gates 1 to 5 are pure functions in `lib/openship/validate.ts` and run inside `POST
   /openship/changes`, so a bad submission is rejected in one round trip. Gates 6 to 8 run in
   `scripts/openship-worker.mjs`, which re-runs 1 to 5 first from the same module.
 - `buildId` is the first 12 hex characters of the digest of the **resulting** tree, computed exactly
-  as `OPENSHIP.md` defines it. Do not derive it from the submitter, the time, or a counter: it being
+  as OpenShip Sources defines it. Do not derive it from the submitter, the time, or a counter: it being
   content-addressed is what lets anyone verify that a build's origin matches the source it serves.
 - The worker's one load-bearing property is that submitted code runs in a container with no secret
   and, past install, no network, while `VERCEL_TOKEN` stays in the worker process and is only passed

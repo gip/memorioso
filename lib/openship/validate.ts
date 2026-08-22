@@ -1,4 +1,4 @@
-// Gates 1 to 5 of OPENSHIP-CHANGES.md: envelope, paths, size, content, tree.
+// Memorioso's synchronous Changes gates: envelope, paths, size, content, tree.
 //
 // Every rule here is a pure function of the submission and the base manifest, which is what lets
 // the endpoint answer a bad submission immediately instead of queueing a build that will fail. The
@@ -6,7 +6,7 @@
 // because a gate that only ever runs in one place is a gate with one place to go wrong.
 //
 // This file is not the security boundary. See "What actually protects the site" in
-// OPENSHIP-CHANGES.md.
+// the vendored OpenShip Changes contract.
 
 import {
   applyChange,
@@ -23,7 +23,6 @@ import { matchesAny } from '@/lib/openship/paths'
 import {
   getProtectedPaths,
   getWritablePaths,
-  OPENSHIP_CHANGES_VERSION,
   OPENSHIP_CONTENT_RULES,
   OPENSHIP_LIMITS,
   OPENSHIP_MAX_BASE64_LITERAL,
@@ -113,6 +112,15 @@ const validateEnvelope = (submission: OpenshipChangeSubmission, baseDigest: stri
       violation('envelope', 'openship', `Expected "openship": "1.0"; got ${JSON.stringify(submission.openship)}.`)
     )
   }
+  if (submission.capability !== 'changes') {
+    found.push(
+      violation(
+        'envelope',
+        'capability',
+        `Expected "capability": "changes"; got ${JSON.stringify(submission.capability)}.`
+      )
+    )
+  }
   if (typeof submission.base !== 'string' || submission.base.length === 0) {
     found.push(violation('envelope', 'base', 'A submission must carry the manifest digest it applies to.'))
   } else if (submission.base !== baseDigest) {
@@ -188,7 +196,7 @@ export const validateChange = (
     }
     if (isProtected(filePath, protectedPaths)) {
       pathViolations.push(
-        violation('path', 'protected', 'This path is protected. See OPENSHIP-CHANGES.md.', {
+        violation('path', 'protected', 'This path is protected. See the advertised Changes policy.', {
           path: filePath,
         })
       )
@@ -343,5 +351,3 @@ export const validateChange = (
 
   return { ok: true, tree, patch, changedPaths: [...patch.keys()].sort() }
 }
-
-export const OPENSHIP_CHANGES = OPENSHIP_CHANGES_VERSION

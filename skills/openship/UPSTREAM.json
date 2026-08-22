@@ -1,0 +1,9 @@
+{
+  "openship": "1.0",
+  "package": "openship",
+  "source": "https://github.com/openshipdev/openship/tree/main/skills/openship",
+  "packageDigest": "sha256:eb22daa90600cf98365266e6e3d227baa6fc76751a3e57ed10cad1cd99574cce",
+  "digestExcludes": [
+    "UPSTREAM.json"
+  ]
+}

@@ -7,9 +7,9 @@ import {
   OPENSHIP_VERSION,
 } from '@/lib/openship/manifest'
 
-// Discovery document. Deliberately tiny: an agent that knows only the origin starts here.
-export function GET(): NextResponse {
-  const origin = openshipOrigin()
+// The v1 front door. Memorioso implements Sources and Changes, deliberately not Systems.
+export function GET(request: Request): NextResponse {
+  const origin = openshipOrigin(request)
   const absolute = (endpoint: string) => `${origin}${endpoint}`
   const project = getOpenshipProject()
   const commit = getOpenshipCommit()
@@ -18,20 +18,25 @@ export function GET(): NextResponse {
     JSON.stringify(
       {
         openship: OPENSHIP_VERSION,
-        name: project.name,
-        description: project.description,
-        // Omitted, not nulled, when this tree is not under version control.
+        capability: 'discovery',
+        project,
         ...(commit ? { commit: commit.sha } : {}),
-        manifest: absolute(OPENSHIP_ENDPOINTS.manifest),
-        bundle: absolute(OPENSHIP_ENDPOINTS.bundle),
-        file: absolute(OPENSHIP_ENDPOINTS.file),
-        archive: absolute(OPENSHIP_ENDPOINTS.archive),
-        instructions: absolute(OPENSHIP_ENDPOINTS.instructions),
+        skill: absolute(OPENSHIP_ENDPOINTS.skill),
+        capabilities: {
+          sources: {
+            manifest: absolute(OPENSHIP_ENDPOINTS.manifest),
+            bundle: absolute(OPENSHIP_ENDPOINTS.bundle),
+            file: absolute(OPENSHIP_ENDPOINTS.file),
+            archive: absolute(OPENSHIP_ENDPOINTS.archive),
+            instructions: absolute(OPENSHIP_ENDPOINTS.instructions),
+          },
+          changes: {
+            policy: absolute(OPENSHIP_ENDPOINTS.policy),
+            submit: absolute(OPENSHIP_ENDPOINTS.changes),
+            status: absolute(OPENSHIP_ENDPOINTS.changeStatus),
+          },
+        },
         page: absolute(OPENSHIP_ENDPOINTS.page),
-        policy: absolute(OPENSHIP_ENDPOINTS.policy),
-        // Present whether or not this deployment accepts submissions: a client learns which from
-        // /openship/policy.json rather than from the absence of a member.
-        changes: absolute(OPENSHIP_ENDPOINTS.changes),
       },
       null,
       2

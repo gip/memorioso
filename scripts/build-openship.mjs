@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates the Openship payload that app/openship/* serves. See OPENSHIP.md.
+// Generates the OpenShip Sources payload that app/openship/* serves.
 //
 // The file set comes from openship.json — the checked-in manifest — and never from an unfiltered
 // filesystem walk. That is what keeps .env.local, .vercel/, .gstack/, node_modules/, and .next/
@@ -155,7 +155,7 @@ const readEntry = (relativePath) => {
 }
 
 // One digest over the whole payload, so a client can compare two deployments with a single value.
-// Defined in OPENSHIP.md; `entries` arrives sorted by path, which is what makes it canonical.
+// Defined by OpenShip Sources; `entries` arrives sorted by path, which makes it canonical.
 const digestOf = (entries) =>
   'sha256:' + sha256(entries.map((entry) => `${entry.path}\0${entry.sha256}\n`).join(''))
 
@@ -178,6 +178,7 @@ const buildPayload = () => {
   const commit = readCommit()
   const bundle = {
     openship: '1.0',
+    capability: 'sources',
     generatedAt,
     ...(commit ? { commit } : {}),
     digest,
@@ -217,7 +218,7 @@ const emptyPayload = () => ({
   envKeys: [],
   totals: { files: 0, bytes: 0 },
   bundleGzip: gzipSync(
-    Buffer.from(JSON.stringify({ openship: '1.0', generatedAt: '', digest: '', files: {} }))
+    Buffer.from(JSON.stringify({ openship: '1.0', capability: 'sources', generatedAt: '', digest: '', files: {} }))
   ),
 })
 

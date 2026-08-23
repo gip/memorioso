@@ -832,6 +832,9 @@
       "path": "lib/openship/changes-config.ts"
     },
     {
+      "path": "lib/openship/conformance.test.ts"
+    },
+    {
       "path": "lib/openship/http.ts"
     },
     {
@@ -1163,9 +1166,6 @@
     },
     {
       "path": "scripts/openship-worker.mjs"
-    },
-    {
-      "path": "scripts/verify-openship-skill.mjs"
     },
     {
       "path": "skills/openship/SKILL.md"

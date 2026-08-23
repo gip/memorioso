@@ -3,7 +3,12 @@
 //
 // Nothing here decides whether a change is permitted. That is lib/openship/validate.ts.
 
-import { createHash } from 'node:crypto'
+import {
+  assertSafePath,
+  computeSourcesDigest,
+  decodeOpenShipBase64,
+  sha256Hex,
+} from '@openshipdev/protocol'
 import type { OpenshipEncoding, OpenshipFile } from '@/lib/openship/manifest'
 
 export type OpenshipChangeEntry = {
@@ -71,19 +76,17 @@ export type OpenshipChangeRecord = {
   updatedAt: string
 }
 
-const sha256 = (input: Buffer | string): string => createHash('sha256').update(input).digest('hex')
+const sha256 = (input: Buffer | string): string => sha256Hex(
+  typeof input === 'string' ? input : new Uint8Array(input)
+)
 
 /**
  * The Sources digest: sha256 over `path\0sha256\n` for every file in ascending path
  * order. Computed here from a resulting tree that has never touched disk.
  */
 export const digestOfFiles = (files: Pick<OpenshipFile, 'path' | 'sha256'>[]): string =>
-  'sha256:' +
-  sha256(
-    [...files]
-      .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
-      .map((file) => `${file.path}\0${file.sha256}\n`)
-      .join('')
+  computeSourcesDigest(
+    [...files].sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path))) as OpenshipFile[]
   )
 
 /**
@@ -98,22 +101,17 @@ export const buildIdOf = (digest: string): string => digest.replace(/^sha256:/, 
 // Repository paths are ASCII, and deliberately narrow. An allowlist avoids having to enumerate
 // the control characters, backslashes, and separators that mean one thing to this check and
 // another to a filesystem: anything not named here is simply not a path.
-const SAFE_PATH = /^[A-Za-z0-9._@+()\[\]-]+(?:\/[A-Za-z0-9._@+()\[\]-]+)*$/
-
 /**
  * Rejects anything that is not a plain repository-relative path before it reaches a comparison
  * against the allowlist. A path that normalises to something different from what was submitted is
  * rejected rather than corrected, so no rule ever sees a path the author did not write.
  */
 export const normalizePath = (input: string): string | null => {
-  if (typeof input !== 'string' || input.length === 0 || input.length > 512) return null
-  if (input !== input.normalize('NFC')) return null
-  if (!SAFE_PATH.test(input)) return null
-  // SAFE_PATH already excludes empty segments and a leading or trailing slash, but `.` and `..` are
-  // made of characters it allows, so they still have to be named.
-  const segments = input.split('/')
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) return null
-  return input
+  try {
+    return assertSafePath(input)
+  } catch {
+    return null
+  }
 }
 
 /** The path with its final extension removed, used to catch `route.ts` shadowing `route.tsx`. */
@@ -134,13 +132,11 @@ export const decodeEntry = (entry: OpenshipChangeEntry): Buffer | null => {
   if (entry.encoding === 'utf-8') return Buffer.from(entry.content, 'utf8')
   if (entry.encoding !== 'base64') return null
 
-  const decoded = Buffer.from(entry.content, 'base64')
-  const stripped = entry.content.replace(/\s+/g, '')
-  const canonical = decoded.toString('base64')
-  if (stripped === canonical) return decoded
-  // Accept unpadded base64, which is what several HTTP clients emit.
-  if (stripped === canonical.replace(/=+$/, '')) return decoded
-  return null
+  try {
+    return Buffer.from(decodeOpenShipBase64(entry.content))
+  } catch {
+    return null
+  }
 }
 
 export type ResultingTree = {

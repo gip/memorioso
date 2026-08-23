@@ -29,6 +29,7 @@ import {
   OPENSHIP_MEDIA_EXTENSIONS,
   OPENSHIP_TEXT_EXTENSIONS,
 } from '@/lib/openship/policy'
+import { OpenShipValidationError, validateChangesSubmission } from '@openshipdev/protocol'
 
 export type Violation = {
   /** The gate that rejected it, for the author and for the reviewer's context. */
@@ -106,24 +107,24 @@ const scanContent = (filePath: string, body: Buffer): Violation[] => {
 
 const validateEnvelope = (submission: OpenshipChangeSubmission, baseDigest: string): Violation[] => {
   const found: Violation[] = []
-
-  if (submission.openship !== '1.0') {
-    found.push(
-      violation('envelope', 'openship', `Expected "openship": "1.0"; got ${JSON.stringify(submission.openship)}.`)
-    )
+  try {
+    validateChangesSubmission(submission)
+  } catch (error) {
+    const canonical = error instanceof OpenShipValidationError ? error : null
+    const canonicalPath = canonical?.path ?? ''
+    const rule = canonicalPath.endsWith('.encoding') || canonicalPath.endsWith('.content')
+      ? 'encoding'
+      : canonicalPath.startsWith('$.files.')
+        ? 'shape'
+        : canonicalPath.replace(/^\$\.?/, '') || 'document'
+    found.push(violation(
+      'envelope',
+      rule,
+      canonical?.message ?? 'The Changes document is malformed.'
+    ))
+    return found
   }
-  if (submission.capability !== 'changes') {
-    found.push(
-      violation(
-        'envelope',
-        'capability',
-        `Expected "capability": "changes"; got ${JSON.stringify(submission.capability)}.`
-      )
-    )
-  }
-  if (typeof submission.base !== 'string' || submission.base.length === 0) {
-    found.push(violation('envelope', 'base', 'A submission must carry the manifest digest it applies to.'))
-  } else if (submission.base !== baseDigest) {
+  if (submission.base !== baseDigest) {
     found.push(
       violation(
         'envelope',
@@ -132,29 +133,23 @@ const validateEnvelope = (submission: OpenshipChangeSubmission, baseDigest: stri
       )
     )
   }
-  if (typeof submission.title !== 'string' || submission.title.trim().length === 0) {
+  if (submission.title!.trim().length === 0) {
     found.push(violation('envelope', 'title', 'A submission must carry a title.'))
-  } else if (submission.title.length > OPENSHIP_LIMITS.titleChars) {
+  } else if (submission.title!.length > OPENSHIP_LIMITS.titleChars) {
     found.push(
       violation('envelope', 'title', `A title may be at most ${OPENSHIP_LIMITS.titleChars} characters.`)
     )
   }
   // The reviewer reads this against the diff, so an empty one is not a formality to skip.
-  if (typeof submission.intent !== 'string' || submission.intent.trim().length < 20) {
+  if (submission.intent!.trim().length < 20) {
     found.push(
       violation('envelope', 'intent', 'Describe what the change does and why, in at least 20 characters.')
     )
-  } else if (submission.intent.length > OPENSHIP_LIMITS.intentChars) {
+  } else if (submission.intent!.length > OPENSHIP_LIMITS.intentChars) {
     found.push(
       violation('envelope', 'intent', `An intent may be at most ${OPENSHIP_LIMITS.intentChars} characters.`)
     )
   }
-  if (!submission.files || typeof submission.files !== 'object' || Array.isArray(submission.files)) {
-    found.push(violation('envelope', 'files', 'A submission must carry a "files" object.'))
-  } else if (Object.keys(submission.files).length === 0) {
-    found.push(violation('envelope', 'files', 'A submission must change at least one file.'))
-  }
-
   return found
 }
 

@@ -16,6 +16,7 @@ import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, rmSync
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync, constants } from 'node:zlib'
+import { computeSourcesDigest } from '@openshipdev/protocol'
 import { readManifest, verifyManifestDetailed } from './openship-manifest.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -156,8 +157,7 @@ const readEntry = (relativePath) => {
 
 // One digest over the whole payload, so a client can compare two deployments with a single value.
 // Defined by OpenShip Sources; `entries` arrives sorted by path, which makes it canonical.
-const digestOf = (entries) =>
-  'sha256:' + sha256(entries.map((entry) => `${entry.path}\0${entry.sha256}\n`).join(''))
+const digestOf = (entries) => computeSourcesDigest(entries)
 
 const buildPayload = () => {
   const manifest = readManifest(REPO_ROOT)

@@ -14,10 +14,10 @@
     "openship:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-openship.mjs",
     "openship:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs --write",
     "openship:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs",
-    "openship:skill": "node scripts/verify-openship-skill.mjs",
+    "openship:skill": "openship verify-skill skills/openship",
     "openship:worker": "node --import ./scripts/openship-resolve.mjs scripts/openship-worker.mjs",
     "start": "next start",
-    "pretest": "node scripts/verify-openship-skill.mjs",
+    "pretest": "openship verify-skill skills/openship",
     "lint": "eslint .",
     "test": "vitest run",
     "db:init": "node scripts/init-db.mjs",
@@ -28,6 +28,7 @@
     "extension:test": "pnpm --filter @libro/chrome-extension test"
   },
   "dependencies": {
+    "@openshipdev/protocol": "file:../../YYC/openship/packages/protocol",
     "@libro/core": "workspace:*",
     "@radix-ui/react-dialog": "1.1.5",
     "@radix-ui/react-dropdown-menu": "2.1.5",

@@ -11,9 +11,9 @@ importers:
       '@libro/core':
         specifier: workspace:*
         version: link:libro/core
-      '@openshipdev/protocol':
-        specifier: file:../../YYC/openship/packages/protocol
-        version: file:../../YYC/openship/packages/protocol
+      '@openship/protocol':
+        specifier: 0.0.1
+        version: 0.0.1
       '@radix-ui/react-dialog':
         specifier: 1.1.5
         version: 1.1.5(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -604,8 +604,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@openshipdev/protocol@file:../../YYC/openship/packages/protocol':
-    resolution: {directory: ../../YYC/openship/packages/protocol, type: directory}
+  '@openship/protocol@0.0.1':
+    resolution: {integrity: sha512-qg8S5BG6WTG75dEHHqBp6NJIHzAU+WL2+9PZDdTYStPXPXMPhfadlpvAe5PelRraXRRqoxLMmamUkrqFOPgSZA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -4035,7 +4035,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@openshipdev/protocol@file:../../YYC/openship/packages/protocol':
+  '@openship/protocol@0.0.1':
     dependencies:
       '@noble/hashes': 2.3.0
 

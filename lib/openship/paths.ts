@@ -1,7 +1,7 @@
 // The canonical exact and `/**` grammar comes from OpenShip. Memorioso additionally retains the
 // suffix-only `**` form for private source-ignore rules; it is never advertised as protocol policy.
 
-import { matchOpenShipPattern } from '@openshipdev/protocol'
+import { matchOpenShipPattern } from '@openship/protocol'
 
 /**
  * `a/b/**` is the OpenShip v1 selector. The suffix-only `a/b**` form remains for Memorioso's

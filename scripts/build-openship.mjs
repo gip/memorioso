@@ -16,7 +16,7 @@ import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, rmSync
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync, constants } from 'node:zlib'
-import { computeSourcesDigest } from '@openshipdev/protocol'
+import { computeSourcesDigest } from '@openship/protocol'
 import { readManifest, verifyManifestDetailed } from './openship-manifest.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

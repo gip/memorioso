@@ -1186,6 +1186,9 @@
       "path": "skills/openship/references/examples/invalid/sources-manifest.json"
     },
     {
+      "path": "skills/openship/references/examples/invalid/systems-ownership.json"
+    },
+    {
       "path": "skills/openship/references/examples/invalid/systems.json"
     },
     {

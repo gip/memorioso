@@ -29,7 +29,7 @@ import {
   OPENSHIP_MEDIA_EXTENSIONS,
   OPENSHIP_TEXT_EXTENSIONS,
 } from '@/lib/openship/policy'
-import { OpenShipValidationError, validateChangesSubmission } from '@openshipdev/protocol'
+import { OpenShipValidationError, validateChangesSubmission } from '@openship/protocol'
 
 export type Violation = {
   /** The gate that rejected it, for the author and for the reviewer's context. */

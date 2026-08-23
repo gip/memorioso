@@ -8,7 +8,7 @@ import {
   computeSourcesDigest,
   decodeOpenShipBase64,
   sha256Hex,
-} from '@openshipdev/protocol'
+} from '@openship/protocol'
 import type { OpenshipEncoding, OpenshipFile } from '@/lib/openship/manifest'
 
 export type OpenshipChangeEntry = {

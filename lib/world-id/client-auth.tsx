@@ -22,8 +22,6 @@ import {
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
 import { isWorldIdSessionId, WORLD_ID_LOGIN_CREDENTIALS } from '@/lib/world-id/constants'
 import { normalizeUserHandle } from '@/lib/handle'
-import { draftKeySecretFromLogin, publishLoginSecret } from '@/lib/draft-crypto/login-secret'
-import { probeSessionNullifier } from '@/lib/draft-crypto/nullifier-probe'
 import { WorldIdLoginDialog } from '@/components/WorldIdLoginDialog'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
@@ -261,13 +259,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const handleVerify = useCallback(async (result: IDKitResultSession) => {
-    // TEMPORARY: Phase 0 of encrypted drafts. Console-only, never leaves the device.
-    await probeSessionNullifier(result)
-
-    // Drafts are encrypted with a key derived from this proof, and this is the
-    // only moment the material exists. Take it before the result is handed off.
-    const draftKeySecret = draftKeySecretFromLogin(result)
-
     if (!activeContext) {
       const message = 'World ID login context is missing'
       setError(message)
@@ -299,7 +290,6 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setPendingLogin(null)
     setUser(body.user)
     setStatus('authenticated')
-    if (draftKeySecret) publishLoginSecret(draftKeySecret)
   }, [activeContext, pendingLogin])
 
   const signOut = useCallback(async () => {

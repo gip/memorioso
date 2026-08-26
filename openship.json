@@ -484,6 +484,9 @@
       "path": "components/DraftLockNotice/index.tsx"
     },
     {
+      "path": "components/DraftPassphrase/index.tsx"
+    },
+    {
       "path": "components/Editor/editor.css"
     },
     {
@@ -742,6 +745,9 @@
       "path": "lib/db/migrations/018_encrypted_drafts.sql"
     },
     {
+      "path": "lib/db/migrations/019_draft_passphrase_wrapper.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
@@ -769,16 +775,7 @@
       "path": "lib/draft-crypto/index.ts"
     },
     {
-      "path": "lib/draft-crypto/login-secret.test.ts"
-    },
-    {
-      "path": "lib/draft-crypto/login-secret.ts"
-    },
-    {
       "path": "lib/draft-crypto/migrate.ts"
-    },
-    {
-      "path": "lib/draft-crypto/nullifier-probe.ts"
     },
     {
       "path": "lib/draft-crypto/provider.tsx"

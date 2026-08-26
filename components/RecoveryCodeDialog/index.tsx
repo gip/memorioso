@@ -41,7 +41,7 @@ export const RecoveryCodeDialog = () => {
           </DialogTitle>
           <DialogDescription>
             Your drafts are encrypted on your device. This code is the only way back into them if
-            signing in ever stops unlocking them. We cannot show it again, and we cannot recover it.
+            you forget your passphrase. We cannot show it again, and we cannot recover it.
           </DialogDescription>
         </DialogHeader>
 

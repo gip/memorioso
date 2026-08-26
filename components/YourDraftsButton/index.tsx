@@ -20,6 +20,9 @@ import {
   DRAFT_SHORTCUT_UPDATED_EVENT,
   type DraftShortcutUpdate,
 } from '@/lib/draft-events'
+import { useDraftKey } from '@/lib/draft-crypto/provider'
+import { LOCKED_DRAFT_TITLE, revealDraftRows } from '@/lib/draft-crypto/rows'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type DraftsResponse = {
   success?: boolean
@@ -43,6 +46,9 @@ const useDraftShortcuts = () => {
   const requestInFlightRef = useRef(false)
   const controllerRef = useRef<AbortController | null>(null)
   const liveUpdatesRef = useRef(new Map<string, DraftShortcutUpdate>())
+  const { key: draftKey } = useDraftKey()
+  const { user } = useWorldIdAuth()
+  const userId = user?.id ?? null
 
   const loadDrafts = useCallback(async () => {
     if (requestInFlightRef.current) return
@@ -54,10 +60,14 @@ const useDraftShortcuts = () => {
       const raw = await fetch('/api/drafts', { signal: controller.signal })
       const response = await raw.json() as DraftsResponse
       if (raw.ok && response.success && response.drafts) {
-        setDrafts(response.drafts.slice(0, 5).map(draft => ({
+        const revealed = await revealDraftRows(response.drafts.slice(0, 5), draftKey, userId)
+        setDrafts(revealed.map(draft => ({
           ...draft,
+          title: draft.locked ? LOCKED_DRAFT_TITLE : draft.title,
+          // A live update comes from the open editor, where the draft is already
+          // decrypted, so it wins over a row this device could not read.
           ...liveUpdatesRef.current.get(draft.id),
-        })))
+        })) as FeedItemD[])
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -69,7 +79,7 @@ const useDraftShortcuts = () => {
         if (!controller.signal.aborted) setLoaded(true)
       }
     }
-  }, [])
+  }, [draftKey, userId])
 
   useEffect(() => {
     const updateShortcut = (event: Event) => {

@@ -13,7 +13,7 @@ import { prepareLibroRegistration } from '@/lib/libro/proof'
 import {
   assertChallengeCanBeUsed,
   assertDraftCanBePublished,
-  assertDraftMatchesChallenge,
+  assertChallengeMatchesAuthor,
   assertPublicationDateIsFresh,
   getLockedDraftForPublish,
   getLockedPublishChallenge,
@@ -117,7 +117,7 @@ export async function PUT(
     let storedPublication
     try {
       assertDraftCanBePublished(draft)
-      storedPublication = assertDraftMatchesChallenge(draft, challenge)
+      storedPublication = assertChallengeMatchesAuthor(draft, challenge)
       assertPublicationDateIsFresh(storedPublication)
       if (!isLibroPublicationV1(storedPublication)) {
         throw new Error('Legacy publication challenges are not supported')

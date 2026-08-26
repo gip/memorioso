@@ -208,6 +208,12 @@
       "path": "app/api/authors/route.ts"
     },
     {
+      "path": "app/api/draft-keys/route.test.ts"
+    },
+    {
+      "path": "app/api/draft-keys/route.ts"
+    },
+    {
       "path": "app/api/draft/[draftId]/publish/finalize/route.test.ts"
     },
     {
@@ -475,6 +481,9 @@
       "path": "components/Draft/index.tsx"
     },
     {
+      "path": "components/DraftLockNotice/index.tsx"
+    },
+    {
       "path": "components/Editor/editor.css"
     },
     {
@@ -569,6 +578,9 @@
     },
     {
       "path": "components/PublicationTimestamp/index.tsx"
+    },
+    {
+      "path": "components/RecoveryCodeDialog/index.tsx"
     },
     {
       "path": "components/RelativeTime/index.tsx"
@@ -727,6 +739,9 @@
       "path": "lib/db/migrations/017_openship_changes.sql"
     },
     {
+      "path": "lib/db/migrations/018_encrypted_drafts.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
@@ -748,7 +763,46 @@
       "path": "lib/db/schema.sql"
     },
     {
+      "path": "lib/draft-crypto/index.test.ts"
+    },
+    {
+      "path": "lib/draft-crypto/index.ts"
+    },
+    {
+      "path": "lib/draft-crypto/login-secret.test.ts"
+    },
+    {
+      "path": "lib/draft-crypto/login-secret.ts"
+    },
+    {
+      "path": "lib/draft-crypto/migrate.ts"
+    },
+    {
+      "path": "lib/draft-crypto/nullifier-probe.ts"
+    },
+    {
+      "path": "lib/draft-crypto/provider.tsx"
+    },
+    {
+      "path": "lib/draft-crypto/rows.test.ts"
+    },
+    {
+      "path": "lib/draft-crypto/rows.ts"
+    },
+    {
+      "path": "lib/draft-crypto/store.ts"
+    },
+    {
+      "path": "lib/draft-crypto/unlock.ts"
+    },
+    {
       "path": "lib/draft-events.ts"
+    },
+    {
+      "path": "lib/draft-storage.test.ts"
+    },
+    {
+      "path": "lib/draft-storage.ts"
     },
     {
       "path": "lib/extension-auth.test.ts"

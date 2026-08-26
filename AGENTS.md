@@ -67,6 +67,8 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
 - `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
 - `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
+- `lib/draft-crypto/` contains browser-side draft encryption: the WebCrypto primitives, the key
+  wrappers and unlock flow, the per-device key cache, and the row helpers every draft surface reads through.
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
 - `lib/openship/` contains the Openship read half (manifest, bundle) and the Changes write half
@@ -119,6 +121,40 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - The agent publish flow carries no Memorioso session, so every step of it must be authorized by the agent key itself. `prepare` recovers the `AgentDocument` signature and `finalize` recovers a second, freshly timestamped `AgentDocumentFinalization` signature bound to the broadcast transaction hash. Do not treat a document registration id as authority: it is a lookup key, not a credential.
 - Libro registries should be deployed with the WorldIDVerifier proxy address, not the implementation address. Derive the constructor `rpId` from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_` as `uint64`.
 - On-chain verification queries every configured endpoint in parallel and treats one matching handle-bound registration event as proof. Do not reduce it to a single endpoint: `worldchain-mainnet.g.alchemy.com/public` prunes its transaction index after roughly six hours, so it answers `eth_getTransactionReceipt` with null for older publications, which is indistinguishable from an unregistered signal.
+
+## Encrypted Drafts
+
+- Draft prose is encrypted in the browser. An `encryption = 'v1'` row carries only
+  `drafts.ciphertext`; `title`, `subtitle`, and `content` are null, and
+  `drafts_encryption_shape_check` enforces that a row is one shape or the other, so prose can
+  never survive beside the ciphertext that replaced it.
+- The envelope is AES-256-GCM over `{title, subtitle, content}` with `draftId` and `userId` as
+  additional data, so a row cannot be transplanted onto another draft or another author. That
+  binding is why the client picks the draft UUID on create rather than taking one back from the
+  server.
+- The key is a random per-author DEK, wrapped twice in `user_draft_key_wrappers`: `worldid`
+  derives its KEK from `responses[0].session_nullifier[1]` of a session login, and `recovery`
+  from a code shown exactly once. Index `[0]` is stored as `users.world_id_session_nullifier`;
+  `[1]` is stored nowhere, which is the whole reason it is usable. Do not persist it.
+- This hardens data at rest. It is not a defence against the running server, which sees the
+  login proof on its way to the World ID verifier.
+- The unwrapped DEK is cached per device in IndexedDB as a non-extractable `CryptoKey`
+  (`lib/draft-crypto/store.ts`) and cleared on sign-out. A login is the only moment the World ID
+  secret exists, so `lib/draft-crypto/login-secret.ts` hands it from `handleVerify` to
+  `DraftKeyProvider` and it is consumed once.
+- Publishing is the one place the server needs prose: `POST /api/world-id/publish-context` takes
+  it from the browser that just decrypted it. From there the challenge row is the authority —
+  it is locked `FOR UPDATE` and single-use — so `finalize` writes `publications.content` from
+  `storedPublication.publication_content`, not from the draft. `assertChallengeMatchesAuthor`
+  still checks the author fields, which are plaintext and can still drift.
+- `world_id_publish_challenges` holds that prose in the clear by necessity. It is the last
+  readable copy in the database, so `cleanupFinishedPublishChallenges` sweeps consumed and
+  abandoned rows. Adding a new place that stores draft prose means adding a sweep for it too.
+- Every draft-reading surface goes through `revealDraftRow` / `revealDraftRows`
+  (`lib/draft-crypto/rows.ts`); a row that will not decrypt comes back `locked`, never as an
+  error. A new surface that lists or opens drafts must use them.
+- The extension's inline-signing drafts stay `encryption = 'none'`: the server writes them and
+  publishes them in one flow, and there is no browser holding a key at that point.
 
 ## Gated Publications
 

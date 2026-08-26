@@ -3,6 +3,7 @@ import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { isPublicationKind } from '@/lib/publication-kind'
 import { isPublicationAccess, validateAccessForKind } from '@/lib/access/draft-access'
+import { draftStorageColumns, isDraftId, parseDraftStorageFields } from '@/lib/draft-storage'
 
 export async function POST(req: NextRequest) {
   const authenticatedUser = await getAuthenticatedUser();
@@ -11,11 +12,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
   }
 
-  const { title, subtitle, content, history, authorId, publicationType, access } = await req.json();
+  const body = await req.json();
+  const { history, authorId, publicationType, access, id } = body;
   const normalizedAuthorId = authorId ?? null;
 
   if (normalizedAuthorId !== null && typeof normalizedAuthorId !== 'string') {
     return NextResponse.json({ success: false, message: "Author ID must be a string" }, { status: 400 });
+  }
+
+  const storage = parseDraftStorageFields(body);
+  if (!storage.ok) {
+    return NextResponse.json({ success: false, message: storage.message }, { status: 400 });
+  }
+
+  // An encrypted draft is sealed against its own id, so the client picks the id
+  // rather than encrypting a second time once the server has assigned one.
+  if (id !== undefined && id !== null && !isDraftId(id)) {
+    return NextResponse.json({ success: false, message: "Draft ID must be a UUID" }, { status: 400 });
+  }
+  if (storage.fields.encryption === 'v1' && !isDraftId(id)) {
+    return NextResponse.json({ success: false, message: "Encrypted drafts require a client-generated draft ID" }, { status: 400 });
   }
 
   const normalizedPublicationType = publicationType ?? 'article';
@@ -47,12 +63,26 @@ export async function POST(req: NextRequest) {
     }
 
     const history0 = history || { history: null };
+    const columns = draftStorageColumns(storage.fields);
 
     const draftResult = await client.query(
-      `INSERT INTO drafts ("userId", status, publication_type, title, subtitle, content, history, "authorId", access)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO drafts (id, "userId", status, publication_type, title, subtitle, content, ciphertext, encryption, history, "authorId", access)
+       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *, publication_type AS "publicationType"`,
-      [authenticatedUser.id, 'editing', normalizedPublicationType, title, subtitle, content, history0, normalizedAuthorId, normalizedAccess]
+      [
+        id ?? null,
+        authenticatedUser.id,
+        'editing',
+        normalizedPublicationType,
+        columns.title,
+        columns.subtitle,
+        columns.content,
+        columns.ciphertext,
+        columns.encryption,
+        history0,
+        normalizedAuthorId,
+        normalizedAccess,
+      ]
     );
 
     const draft = draftResult.rows[0];

@@ -85,7 +85,7 @@ vi.mock('@/lib/libro/proof', () => ({
 vi.mock('@/lib/publish-validation', () => ({
   assertChallengeCanBeUsed: vi.fn(),
   assertDraftCanBePublished: vi.fn(),
-  assertDraftMatchesChallenge: vi.fn(() => ({
+  assertChallengeMatchesAuthor: vi.fn(() => ({
     publication_schema: 'libro-publication-v1',
     libro_protocol_version: 'libro-v1',
     publication_date: new Date().toISOString(),

@@ -1,15 +1,6 @@
 import type { PoolClient } from 'pg'
-import {
-  canonicalPublicationSignal,
-  createLibroPublicationV1,
-  createPublicationV2,
-  hashPublicationSignal,
-  isLibroPublicationV1,
-} from '@/lib/world-id/publication'
-import { isJsonEqual } from '@/lib/json'
-import type { JsonValue } from '@/lib/json'
-import type { LibroPublicationV1, PublicationAccess, PublicationContent, PublicationV2 } from '@/types'
-import { type PublicationKind, validatePublicationForKind } from '@/lib/publication-kind'
+import type { LibroPublicationV1, PublicationAccess, PublicationV2 } from '@/types'
+import type { PublicationKind } from '@/lib/publication-kind'
 
 type PublishChallengeLookup = {
   challengeId: string
@@ -30,11 +21,13 @@ export type PublishChallengeRow = {
   consumed_at: string | Date | null
 }
 
+/**
+ * What is still readable about a draft once its prose is encrypted. Title,
+ * subtitle, and content are deliberately absent: the publish challenge already
+ * holds the signed publication, and it is the only copy that matters here.
+ */
 export type PublishDraftRow = {
   id: string
-  title: string
-  subtitle: string | null
-  content: PublicationContent
   status: string
   authorId: string
   author_name: string
@@ -43,6 +36,27 @@ export type PublishDraftRow = {
   publicationType: PublicationKind
   /** Not part of the signed payload, so it never participates in challenge matching. */
   access: PublicationAccess
+}
+
+/**
+ * Removes publish challenges that have finished doing their job.
+ *
+ * A challenge holds the publication in the clear — it has to, since it is what
+ * the proof is taken over — so it is the one place draft prose still sits
+ * readable in the database. Consumed rows are redundant the moment the
+ * publication exists; expired rows are abandoned publishes. Neither should
+ * outlive its purpose by long.
+ *
+ * The expiry window is deliberately generous: finalize accepts an expired
+ * challenge, because a slow chain registration should not cost an author their
+ * publication.
+ */
+export async function cleanupFinishedPublishChallenges(client: PoolClient): Promise<void> {
+  await client.query(
+    `DELETE FROM world_id_publish_challenges
+     WHERE consumed_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
+        OR (consumed_at IS NULL AND expires_at < CURRENT_TIMESTAMP - INTERVAL '1 day')`
+  )
 }
 
 export async function getLockedPublishChallenge(
@@ -68,9 +82,6 @@ export async function getLockedDraftForPublish(
   const { rows } = await client.query(
     `SELECT
       d.id,
-      d.title,
-      d.subtitle,
-      d.content,
       d.status,
       d.publication_type AS "publicationType",
       d.access,
@@ -103,14 +114,6 @@ export function assertDraftCanBePublished(draft: PublishDraftRow): void {
   if (draft.status !== 'editing') {
     throw new Error('Only editing drafts can be published')
   }
-
-  const error = validatePublicationForKind({
-    kind: draft.publicationType,
-    title: draft.title,
-    subtitle: draft.subtitle,
-    content: draft.content,
-  })
-  if (error) throw new Error(error)
 }
 
 export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroPublicationV1): void {
@@ -123,43 +126,32 @@ export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroP
   }
 }
 
-export function assertDraftMatchesChallenge(
+/**
+ * Confirms the challenge still belongs to this draft's author, and returns the
+ * publication it holds.
+ *
+ * Encrypted drafts move the authority for what is being published into the
+ * challenge: it is created from the prose the author's browser decrypted, it is
+ * locked FOR UPDATE, and it is consumed once. There is no readable draft left to
+ * re-derive it from, and re-deriving it never guarded the prose anyway — only
+ * the author fields, which are still plaintext and still worth checking, because
+ * a handle that changed after the challenge was signed would put a name on the
+ * publication that its proof does not support.
+ */
+export function assertChallengeMatchesAuthor(
   draft: PublishDraftRow,
   challenge: PublishChallengeRow
 ): PublicationV2 | LibroPublicationV1 {
-  const storedPublication = challenge.publication
-  const publicationInput = {
-    author: {
-      id: draft.authorId,
-      name: draft.author_name,
-      handle: draft.author_handle,
-      bio: draft.author_bio || '',
-    },
-    title: draft.title,
-    subtitle: draft.subtitle || '',
-    content: draft.content,
-    publicationDate: storedPublication.publication_date,
-  }
-  const validationError = validatePublicationForKind({
-    kind: draft.publicationType,
-    title: draft.title,
-    subtitle: draft.subtitle,
-    content: draft.content,
-  })
-  if (validationError) throw new Error(validationError)
-  const expectedPublication = isLibroPublicationV1(storedPublication)
-    ? createLibroPublicationV1(publicationInput)
-    : createPublicationV2(publicationInput)
-  const expectedSignalText = canonicalPublicationSignal(expectedPublication)
-  const expectedSignalHash = hashPublicationSignal(expectedSignalText)
+  const publication = challenge.publication
 
   if (
-    expectedSignalText !== challenge.signal_text ||
-    expectedSignalHash !== challenge.signal_hash ||
-    !isJsonEqual(storedPublication as unknown as JsonValue, expectedPublication as unknown as JsonValue)
+    publication.author_id_libro !== draft.authorId ||
+    publication.author_name_libro !== draft.author_name ||
+    publication.author_handle_libro !== draft.author_handle ||
+    publication.author_bio_libro !== (draft.author_bio || '')
   ) {
-    throw new Error('Draft, author, or publication content changed after proof challenge creation')
+    throw new Error('Author changed after proof challenge creation')
   }
 
-  return storedPublication
+  return publication
 }

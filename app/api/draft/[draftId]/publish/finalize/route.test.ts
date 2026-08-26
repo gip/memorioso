@@ -20,7 +20,7 @@ const serverMock = vi.hoisted(() => ({
 const validationMock = vi.hoisted(() => ({
   assertChallengeCanBeUsed: vi.fn(),
   assertDraftCanBePublished: vi.fn(),
-  assertDraftMatchesChallenge: vi.fn(),
+  assertChallengeMatchesAuthor: vi.fn(),
   getLockedDraftForPublish: vi.fn(),
   getLockedPublishChallenge: vi.fn(),
 }))
@@ -150,7 +150,7 @@ describe('Libro publication finalize route', () => {
       status: 'editing',
       content: { html: '<p>Hello human world.</p>' },
     })
-    validationMock.assertDraftMatchesChallenge.mockReturnValue({
+    validationMock.assertChallengeMatchesAuthor.mockReturnValue({
       author_id_libro: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
       publication_title: 'A human note',
       publication_subtitle: 'On signatures',

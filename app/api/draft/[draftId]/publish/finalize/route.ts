@@ -24,7 +24,7 @@ import {
 import {
   assertChallengeCanBeUsed,
   assertDraftCanBePublished,
-  assertDraftMatchesChallenge,
+  assertChallengeMatchesAuthor,
   getLockedDraftForPublish,
   getLockedPublishChallenge,
 } from '@/lib/publish-validation'
@@ -336,7 +336,7 @@ export async function PUT(
       let storedPublication
       try {
         assertDraftCanBePublished(draft)
-        storedPublication = assertDraftMatchesChallenge(draft, challenge)
+        storedPublication = assertChallengeMatchesAuthor(draft, challenge)
       } catch (error) {
         return await fail(error instanceof Error ? error.message : 'Draft is not ready to publish')
       }
@@ -373,7 +373,9 @@ export async function PUT(
           storedPublication.author_id_libro,
           proof,
           storedPublication,
-          draft.content,
+          // The draft row is encrypted; the signed payload is the readable copy,
+          // and it is the one the on-chain signal hash was taken over.
+          storedPublication.publication_content,
           '3',
           storedPublication.publication_title,
           storedPublication.publication_subtitle,

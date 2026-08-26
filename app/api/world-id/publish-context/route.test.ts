@@ -64,11 +64,10 @@ function request(body: unknown): NextRequest {
   } as unknown as NextRequest
 }
 
+// The draft row is encrypted, so the route reads only metadata from it. The
+// prose arrives in the request body from the browser that just decrypted it.
 const draftRow = {
   id: 'd109b298-4dda-4030-a7ac-9e3481cd840a',
-  title: 'A human note',
-  subtitle: 'On signatures',
-  content: { html: '<p>Hello human world.</p>' },
   status: 'editing',
   authorId: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
   author_name: 'Ada',
@@ -78,6 +77,15 @@ const draftRow = {
   world_id_session_id: `session_${'11'.repeat(32)}${'22'.repeat(32)}`,
   world_id_session_commitment: `0x${'11'.repeat(32)}`,
 }
+
+const prose = {
+  title: 'A human note',
+  subtitle: 'On signatures',
+  content: { html: '<p>Hello human world.</p>' },
+}
+
+const publish = (overrides: Record<string, unknown> = {}) =>
+  POST(request({ draftId: draftRow.id, ...prose, ...overrides }))
 
 describe('publish context route', () => {
   beforeEach(() => {
@@ -107,8 +115,8 @@ describe('publish context route', () => {
   })
 
   it('creates independent session-bound publication challenges without actions', async () => {
-    const first = await POST(request({ draftId: draftRow.id }))
-    const second = await POST(request({ draftId: draftRow.id }))
+    const first = await publish()
+    const second = await publish()
     const firstBody = await first.json()
     const secondBody = await second.json()
 
@@ -140,15 +148,8 @@ describe('publish context route', () => {
 
   it('keeps the signed payload small for a large article body', async () => {
     const largeHtml = `<p>${'word '.repeat(20_000)}</p>`
-    dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
-      if (query.includes('FROM drafts')) return {
-        rows: [{ ...draftRow, content: { html: largeHtml } }],
-      }
-      return { rows: [] }
-    })
 
-    const response = await POST(request({ draftId: draftRow.id }))
+    const response = await publish({ content: { html: largeHtml } })
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(largeHtml.length).toBeGreaterThan(100_000)
@@ -161,44 +162,70 @@ describe('publish context route', () => {
     dbMock.query.mockImplementation(async (query: string) => {
       if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
       if (query.includes('FROM drafts')) return {
-        rows: [{ ...draftRow, publicationType: 'short', title: '', subtitle: '' }],
+        rows: [{ ...draftRow, publicationType: 'short' }],
       }
       return { rows: [] }
     })
 
-    const response = await POST(request({ draftId: draftRow.id }))
+    const response = await publish({ title: '', subtitle: '' })
     expect(response.status).toBe(200)
     const insert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO world_id_publish_challenges'))
     expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":""')
   })
 
   it('rejects an article without a readable body', async () => {
-    dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
-      if (query.includes('FROM drafts')) {
-        return { rows: [{ ...draftRow, title: 'Title only', content: { html: '<p><br></p>' } }] }
-      }
-      return { rows: [] }
-    })
+    const response = await publish({ title: 'Title only', content: { html: '<p><br></p>' } })
 
-    const response = await POST(request({ draftId: draftRow.id }))
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ message: 'Article body is required' })
   })
 
   it('rejects a publication with an empty title and no readable content', async () => {
-    dbMock.query.mockImplementation(async (query: string) => {
-      if (query.includes('COUNT(*)::int')) return { rows: [{ count: 0 }] }
-      if (query.includes('FROM drafts')) return {
-        rows: [{ ...draftRow, title: '   ', subtitle: '', content: { html: '<p><br></p>' } }],
-      }
-      return { rows: [] }
-    })
+    const response = await publish({ title: '   ', subtitle: '', content: { html: '<p><br></p>' } })
 
-    const response = await POST(request({ draftId: draftRow.id }))
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
       message: 'Article title is required',
     })
+  })
+
+  it('never reads prose from the draft row', async () => {
+    await publish()
+
+    const draftSelect = dbMock.query.mock.calls
+      .map(([query]) => String(query))
+      .find((query) => query.includes('FROM drafts'))
+
+    expect(draftSelect).toBeDefined()
+    expect(draftSelect).not.toMatch(/d\.title|d\.subtitle|d\.content/)
+  })
+
+  it('rejects a request that omits the decrypted prose', async () => {
+    const response = await POST(request({ draftId: draftRow.id }))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      message: 'Publication title and subtitle must be text',
+    })
+  })
+
+  it('rejects content that is not a publication body', async () => {
+    const response = await publish({ content: { html: 42 } })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      message: 'Publication content is required',
+    })
+  })
+
+  it('signs the prose from the request, not from the database', async () => {
+    await publish({ title: 'Sent by the browser' })
+
+    const insert = dbMock.query.mock.calls.find(([query]) =>
+      String(query).includes('INSERT INTO world_id_publish_challenges')
+    )
+    const publication = (insert?.[1] as unknown[])[7] as { publication_title: string }
+
+    expect(publication.publication_title).toBe('Sent by the browser')
   })
 })

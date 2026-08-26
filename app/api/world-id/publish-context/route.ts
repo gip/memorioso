@@ -7,6 +7,7 @@ import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/
 import { getLibroServerConfig } from '@/lib/libro/config'
 import type { PublicationContent } from '@/types'
 import { validatePublicationForKind } from '@/lib/publication-kind'
+import { cleanupFinishedPublishChallenges } from '@/lib/publish-validation'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -26,15 +27,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }, { status: 500 })
   }
 
-  const { draftId } = await req.json()
+  // The draft itself is encrypted, so its prose arrives here from the browser
+  // that just decrypted it. There is nothing on the server to check it against,
+  // and nothing that needs checking: the author is publishing their own words
+  // under their own session, and the challenge built from them is exactly what
+  // the World ID proof then commits to.
+  const { draftId, title, subtitle, content } = await req.json()
 
   if (!draftId) {
     return NextResponse.json({ success: false, message: "Draft ID is required" }, { status: 400 })
   }
 
+  if (typeof title !== 'string' || (subtitle !== null && subtitle !== undefined && typeof subtitle !== 'string')) {
+    return NextResponse.json({ success: false, message: "Publication title and subtitle must be text" }, { status: 400 })
+  }
+
+  if (typeof content !== 'object' || content === null || typeof (content as PublicationContent).html !== 'string') {
+    return NextResponse.json({ success: false, message: "Publication content is required" }, { status: 400 })
+  }
+
   const client = await pool.connect()
 
   try {
+    // The rows this removes are the last readable copies of draft prose in the
+    // database. Failing to sweep them must not fail the publish.
+    await cleanupFinishedPublishChallenges(client).catch(() => {})
+
     const recentResult = await client.query(
       `SELECT COUNT(*)::int AS count
        FROM world_id_publish_challenges
@@ -48,9 +66,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { rows } = await client.query(
       `SELECT
         d.id,
-        d.title,
-        d.subtitle,
-        d.content,
         d.status,
         d.publication_type AS "publicationType",
         d."authorId",
@@ -76,11 +91,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: "Author is required" }, { status: 400 })
     }
 
+    const normalizedSubtitle = typeof subtitle === 'string' ? subtitle : ''
     const validationError = validatePublicationForKind({
       kind: draft.publicationType,
-      title: draft.title,
-      subtitle: draft.subtitle,
-      content: draft.content,
+      title,
+      subtitle: normalizedSubtitle,
+      content: content as PublicationContent,
     })
     if (validationError) {
       return NextResponse.json({ success: false, message: validationError }, { status: 400 })
@@ -95,9 +111,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         handle: draft.author_handle,
         bio: draft.author_bio || '',
       },
-      title: draft.publicationType === 'short' ? '' : draft.title,
-      subtitle: draft.publicationType === 'short' ? '' : draft.subtitle || '',
-      content: draft.content as PublicationContent,
+      title: draft.publicationType === 'short' ? '' : title,
+      subtitle: draft.publicationType === 'short' ? '' : normalizedSubtitle,
+      content: content as PublicationContent,
       publicationDate,
     })
     const signalText = canonicalPublicationSignal(publication)

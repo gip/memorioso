@@ -65,10 +65,12 @@ describe('draft route', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(dbMock.query).toHaveBeenCalledWith(expect.stringContaining('WHERE id = $6 AND "userId" = $7 AND status = $8'), [
+    expect(dbMock.query).toHaveBeenCalledWith(expect.stringContaining('WHERE id = $8 AND "userId" = $9 AND status = $10'), [
       draft.title,
       draft.subtitle,
       draft.content,
+      null,
+      'none',
       draft.history,
       draft.authorId,
       draft.id,
@@ -106,6 +108,8 @@ describe('draft route', () => {
       draft.title,
       draft.subtitle,
       draft.content,
+      null,
+      'none',
       { history: null },
       draft.authorId,
       draft.id,
@@ -157,5 +161,43 @@ describe('draft route', () => {
 
     expect(response.status).toBe(404)
     expect(dbMock.release).toHaveBeenCalled()
+  })
+
+  it('replaces the plaintext columns when a draft is saved encrypted', async () => {
+    const id = 'd109b298-4dda-4030-a7ac-9e3481cd840a'
+    const ciphertext = JSON.stringify({ v: 1, alg: 'A256GCM', iv: 'aaaa', ct: 'bbbb' })
+    dbMock.query.mockResolvedValue({ rows: [{ id, status: 'editing' }] })
+
+    const response = await PUT(
+      request({ id, encryption: 'v1', ciphertext, authorId: null }),
+      context(id)
+    )
+
+    expect(response.status).toBe(200)
+    const params = dbMock.query.mock.calls
+      .find(([query]) => String(query).includes('SET title = $1'))?.[1] as unknown[]
+    expect(params.slice(0, 5)).toEqual([null, null, null, ciphertext, 'v1'])
+  })
+
+  it('refuses a save that carries both prose and ciphertext', async () => {
+    const id = 'd109b298-4dda-4030-a7ac-9e3481cd840a'
+    dbMock.query.mockResolvedValue({ rows: [] })
+
+    const response = await PUT(
+      request({
+        id,
+        encryption: 'v1',
+        ciphertext: 'envelope',
+        title: 'Leaked',
+        authorId: null,
+      }),
+      context(id)
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      message: 'Encrypted drafts must not carry plaintext',
+    })
+    expect(dbMock.query).not.toHaveBeenCalled()
   })
 })

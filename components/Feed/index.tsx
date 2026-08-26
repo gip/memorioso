@@ -9,6 +9,9 @@ import { useRouter } from 'next/navigation'
 import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import type { FeedItemD } from '@/components/FeedItem'
 import { FeedItem } from '@/components/FeedItem'
+import { useDraftKey } from '@/lib/draft-crypto/provider'
+import { LOCKED_DRAFT_TITLE, revealDraftRows } from '@/lib/draft-crypto/rows'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type FeedStatus = 'loading' | 'ready'
 
@@ -19,15 +22,26 @@ export const Feed = () => {
   const [draftToDelete, setDraftToDelete] = useState<FeedItemD | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const router = useRouter()
-  
+  const { key: draftKey, status: draftKeyStatus } = useDraftKey()
+  const { user } = useWorldIdAuth()
+
+  // Waits for the key, so a draft that is merely still unlocking is not shown
+  // as locked for the moment it takes.
   useEffect(() => {
+    if (draftKeyStatus === 'loading') return
+
+    let cancelled = false
     const fetchData = async () => {
       try {
         const raw = await fetch('/api/drafts');
         const response = await raw.json();
-        if(response.success) {
-          const drafts = response.drafts;
-          setFeedItems(drafts.slice(0, 5))
+        if (response.success && !cancelled) {
+          const drafts = await revealDraftRows(response.drafts.slice(0, 5), draftKey, user?.id ?? null)
+          if (cancelled) return
+          setFeedItems(drafts.map((draft) => ({
+            ...draft,
+            title: draft.locked ? LOCKED_DRAFT_TITLE : draft.title,
+          })) as FeedItemD[])
           setFeedStatus('ready')
         }
       } catch (error) {
@@ -36,7 +50,10 @@ export const Feed = () => {
     };
 
     fetchData();
-  }, []);
+    return () => {
+      cancelled = true
+    }
+  }, [draftKey, draftKeyStatus, user?.id]);
 
   const deleteDraft = async (draft: FeedItemD) => {
     setDeletingDraftId(draft.id)

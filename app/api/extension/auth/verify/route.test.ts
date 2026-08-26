@@ -168,6 +168,33 @@ describe('extension World ID auth verification', () => {
     expect(dbMock.clientQuery.mock.calls.map(([query]) => query)).toEqual(expect.arrayContaining(['BEGIN', 'COMMIT']))
   })
 
+  it('never writes the second session nullifier anywhere', async () => {
+    // Draft encryption derives its key from session_nullifier[1] precisely
+    // because the server does not keep it. If a write ever picks it up, the
+    // encrypted drafts stop being protected from the database that holds them.
+    mockAttempt({
+      ...loginAttempt,
+      userId: null,
+      intent: 'signup',
+      requested_handle: 'new_writer',
+      world_id_session_id: null,
+    })
+    dbMock.clientQuery.mockImplementation(async (query: string) => {
+      if (query.includes('UPDATE libro_extension_auth_attempts')) return { rows: [{ id: 'attempt-1' }] }
+      if (query.includes('INSERT INTO users')) return { rows: [{ ...user, id: 9, handle: 'new_writer' }] }
+      if (query.includes('INSERT INTO authors')) return { rows: [{ ...author, id: 'author-9' }] }
+      return { rows: [] }
+    })
+
+    await POST(request({ profile: { handle: 'new_writer', name: 'New Writer' } }))
+
+    const everyParameter = [...dbMock.clientQuery.mock.calls, ...dbMock.query.mock.calls]
+      .flatMap(([, parameters]) => (Array.isArray(parameters) ? parameters : []))
+
+    expect(everyParameter).toContain('nullifier-1')
+    expect(everyParameter).not.toContain('nullifier-2')
+  })
+
   it('connects an existing World ID author without overwriting its profile', async () => {
     mockAttempt({
       ...loginAttempt,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Reads, verifies, and regenerates openship.json — the checked-in declaration of which files make
-// up this repository. See the "Manifest source" section of OPENSHIP.md.
+// up this repository. See the vendored OpenShip Sources specification.
 //
 // This file is the source of truth for the *file set*. The checked-in manifest lists paths and
 // nothing else: sizes and hashes are derived at build time, so a committed manifest can never
@@ -22,7 +22,7 @@ import { matchesAny } from '../lib/openship/paths.ts'
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const MANIFEST_PATH = path.join(REPO_ROOT, 'openship.json')
 
-/** The manifest describes the tree; it is not in the tree it describes. See OPENSHIP.md. */
+/** The manifest describes the tree; it is not in the tree it describes. */
 export const MANIFEST_NAME = 'openship.json'
 
 // Refused even when a manifest names them explicitly. `files[]` is an allowlist, so nothing leaks
@@ -163,7 +163,7 @@ const collect = (manifest, root) => {
     }
     const declaredType = entry.type ?? 'file'
 
-    // A declared symlink is satisfied by a regular file too. OPENSHIP.md has the file and bundle
+    // A declared symlink is satisfied by a regular file too. OpenShip's file and bundle
     // endpoints serve a symlink's *resolved* content precisely so that a client which ignores
     // `type` still reconstructs a working tree, so a retrieval that did exactly that must verify.
     if (declaredType === 'symlink') {

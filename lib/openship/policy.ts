@@ -1,9 +1,5 @@
-// The machine-readable half of OPENSHIP-CHANGES.md, served at /openship/policy.json.
-//
-// Every rule here has a prose counterpart in that document, and policy.test.ts asserts the two do
-// not drift. Change both or neither.
-
-export const OPENSHIP_CHANGES_VERSION = '1.0'
+// Memorioso's machine-readable OpenShip Changes policy, served at /openship/policy.json. The
+// portable protocol contract lives at skills/openship/references/openship-changes.md.
 
 /**
  * Paths a submission may write, as `/`-separated prefixes. A trailing `/**` matches the directory
@@ -18,37 +14,55 @@ const WRITABLE = ['app/**', 'components/**', 'public/**'] as const
  * a submission that could edit the policy would only need to pass it once.
  */
 const PROTECTED = [
-  '.env**',
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.production',
+  '.env.test',
   '.github/**',
   '.vercel/**',
   'AGENTS.md',
   'CLAUDE.md',
-  'OPENSHIP-CHANGES.md',
-  'OPENSHIP.md',
   'app/.well-known/**',
   'app/api/**',
   'app/openship/**',
   'components/Openship/**',
-  'eslint.config**',
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'eslint.config.ts',
   'lib/**',
   'libro/**',
-  'middleware**',
-  'next.config**',
+  'middleware.js',
+  'middleware.ts',
+  'next.config.js',
+  'next.config.mjs',
+  'next.config.ts',
   // The checked-in file list. A submission that could edit it could publish or hide any path.
   'openship.json',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
-  'postcss.config**',
+  'postcss.config.js',
+  'postcss.config.mjs',
+  'postcss.config.cjs',
   'scripts/**',
-  'tailwind.config**',
+  // The vendored protocol package is the contract this implementation advertises.
+  'skills/openship/**',
+  'tailwind.config.js',
+  'tailwind.config.ts',
+  'tailwind.config.mjs',
+  'tailwind.config.cjs',
   'tsconfig.json',
   'types/**',
   'vercel.json',
-  'vitest.config**',
+  'vitest.config.js',
+  'vitest.config.ts',
+  'vitest.config.mjs',
+  'vitest.config.mts',
 ] as const
 
-/** Lifted out of PROTECTED when OPENSHIP_CHANGES_ALLOW_API is set. See OPENSHIP-CHANGES.md. */
+/** Lifted out of PROTECTED when OPENSHIP_CHANGES_ALLOW_API is set. */
 const API_PREFIX = 'app/api/**'
 
 export const OPENSHIP_LIMITS = {
@@ -74,7 +88,7 @@ export const OPENSHIP_TEXT_EXTENSIONS = [
 
 export type ContentRule = {
   id: string
-  /** What the author should read in OPENSHIP-CHANGES.md. */
+  /** Human-readable name published in the policy response. */
   rule: string
   pattern: RegExp
   message: string
@@ -154,7 +168,7 @@ export const OPENSHIP_MAX_BASE64_LITERAL = 4096
 
 export type OpenshipPolicy = {
   openship: string
-  changes: string
+  capability: 'changes'
   writable: readonly string[]
   protected: readonly string[]
   limits: typeof OPENSHIP_LIMITS
@@ -162,6 +176,8 @@ export type OpenshipPolicy = {
   contentRules: { id: string; rule: string; message: string }[]
   document: string
   apiWritable: boolean
+  enabled: boolean
+  payment: { required: boolean; mechanism?: 'x402'; response?: 402 }
 }
 
 /**
@@ -178,9 +194,12 @@ export const getProtectedPaths = (): readonly string[] =>
 
 export const getWritablePaths = (): readonly string[] => WRITABLE
 
-export const getOpenshipPolicy = (documentUrl: string): OpenshipPolicy => ({
+export const getOpenshipPolicy = (
+  documentUrl: string,
+  options: { enabled?: boolean; paymentRequired?: boolean } = {}
+): OpenshipPolicy => ({
   openship: '1.0',
-  changes: OPENSHIP_CHANGES_VERSION,
+  capability: 'changes',
   writable: getWritablePaths(),
   protected: getProtectedPaths(),
   limits: OPENSHIP_LIMITS,
@@ -188,4 +207,8 @@ export const getOpenshipPolicy = (documentUrl: string): OpenshipPolicy => ({
   contentRules: OPENSHIP_CONTENT_RULES.map(({ id, rule, message }) => ({ id, rule, message })),
   document: documentUrl,
   apiWritable,
+  enabled: options.enabled ?? false,
+  payment: options.paymentRequired
+    ? { required: true, mechanism: 'x402', response: 402 }
+    : { required: false },
 })

@@ -6,51 +6,28 @@ import {
   getProtectedPaths,
   getWritablePaths,
   OPENSHIP_CONTENT_RULES,
-  OPENSHIP_LIMITS,
 } from '@/lib/openship/policy'
 
-// OPENSHIP-CHANGES.md is what an author reads and lib/openship/policy.ts is what runs. They drift
-// silently unless something checks, and a rule that is enforced but undocumented is worse than one
-// that is neither: the author cannot find out why they were rejected.
+// The vendored document defines the portable contract. The endpoint adds Memorioso's concrete
+// path policy, numeric limits, and content-rule descriptions.
 const DOCUMENT = readFileSync(
-  path.join(process.cwd(), 'OPENSHIP-CHANGES.md'),
+  path.join(process.cwd(), 'skills/openship/references/openship-changes.md'),
   'utf8'
 )
 
-describe('the policy and OPENSHIP-CHANGES.md agree', () => {
-  it.each(getWritablePaths())('documents the writable path %s', (pattern) => {
-    expect(DOCUMENT).toContain(pattern.replace('/**', ''))
-  })
-
-  it.each(getProtectedPaths())('documents the protected path %s', (pattern) => {
-    // The document writes patterns for a reader (`next.config.*`) where the policy writes them for
-    // a matcher (`next.config**`), so compare the stem both forms share.
-    const stem = pattern.replace(/\*+$/, '').replace(/\/$/, '')
-    expect(DOCUMENT).toContain(stem)
-  })
-
-  it.each(OPENSHIP_CONTENT_RULES.map((rule) => rule.rule))('documents the content rule "%s"', (rule) => {
-    expect(DOCUMENT).toContain(rule)
-  })
-
-  it('documents every numeric limit', () => {
-    const numbers = [
-      OPENSHIP_LIMITS.filesPerChange,
-      OPENSHIP_LIMITS.filesInTree,
-    ]
-    for (const value of numbers) {
-      expect(DOCUMENT).toMatch(new RegExp(`\\b${value.toLocaleString('en-US')}\\b|\\b${value}\\b`))
+describe('the policy implements the vendored OpenShip Changes contract', () => {
+  it('vendors the replacement-patch and public lifecycle requirements', () => {
+    expect(DOCUMENT).toContain('A file value replaces or creates that path')
+    for (const status of ['pending', 'processing', 'ready', 'rejected', 'failed']) {
+      expect(DOCUMENT).toContain(`\`${status}\``)
     }
-    // Byte limits are written in the document as KB and MB rather than as byte counts.
-    expect(DOCUMENT).toContain('256 KB')
-    expect(DOCUMENT).toContain('1 MB')
-    expect(DOCUMENT).toContain('2 MB')
+    expect(DOCUMENT).toContain("candidate origin's advertised Sources Manifest")
   })
 
   it('protects the files that decide what is permitted', () => {
     const protectedPaths = getProtectedPaths()
     // A submission that could edit these would only have to pass the gates once.
-    for (const selfReferential of ['lib/**', 'scripts/**', 'OPENSHIP-CHANGES.md']) {
+    for (const selfReferential of ['lib/**', 'scripts/**', 'skills/openship/**']) {
       expect(protectedPaths).toContain(selfReferential)
     }
   })
@@ -60,16 +37,27 @@ describe('the policy and OPENSHIP-CHANGES.md agree', () => {
       expect(getProtectedPaths()).not.toContain(writable)
     }
   })
+
+  it('publishes only the v1 exact-path or trailing-/** selector grammar', () => {
+    for (const pattern of [...getWritablePaths(), ...getProtectedPaths()]) {
+      expect(pattern.replace(/\/\*\*$/, '')).not.toContain('*')
+    }
+  })
 })
 
 describe('getOpenshipPolicy', () => {
   it('serves the rules an agent needs before writing a change', () => {
-    const policy = getOpenshipPolicy('https://example.com/openship/file/OPENSHIP-CHANGES.md')
+    const policy = getOpenshipPolicy(
+      'https://example.com/openship/file/skills/openship/references/openship-changes.md',
+      { enabled: true, paymentRequired: true }
+    )
     expect(policy.openship).toBe('1.0')
-    expect(policy.changes).toBe('1.0')
+    expect(policy.capability).toBe('changes')
     expect(policy.writable).toEqual(getWritablePaths())
     expect(policy.protected).toEqual(getProtectedPaths())
-    expect(policy.document).toContain('OPENSHIP-CHANGES.md')
+    expect(policy.document).toContain('skills/openship/references/openship-changes.md')
+    expect(policy.enabled).toBe(true)
+    expect(policy.payment).toEqual({ required: true, mechanism: 'x402', response: 402 })
   })
 
   it('publishes rule ids and messages but never the patterns themselves', () => {

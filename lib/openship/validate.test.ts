@@ -28,6 +28,7 @@ const submit = (files: Record<string, { encoding: string; content: string } | nu
   validateChange(
     {
       openship: '1.0',
+      capability: 'changes',
       base: BASE_DIGEST,
       title: 'A change',
       intent: 'This exists so the validator has something with a plausible stated intent to read.',
@@ -57,6 +58,7 @@ describe('validateChange', () => {
     const second = validateChange(
       {
         openship: '1.0',
+        capability: 'changes',
         base: BASE_DIGEST,
         // A different author, title, and intent for byte-identical output.
         title: 'Completely different title',
@@ -74,6 +76,7 @@ describe('validateChange', () => {
     const result = validateChange(
       {
         openship: '1.0',
+        capability: 'changes',
         base: 'sha256:0000',
         title: 'A change',
         intent: 'Long enough to pass the intent length rule on its own merits.',
@@ -91,7 +94,7 @@ describe('validateChange', () => {
       ['package.json', 'the dependency manifest'],
       ['lib/openship/policy.ts', 'the policy that judges the submission'],
       ['lib/openship/validate.ts', 'the validator itself'],
-      ['OPENSHIP-CHANGES.md', 'the rules'],
+      ['skills/openship/SKILL.md', 'the protocol package'],
       ['.env.local', 'secrets'],
       ['next.config.ts', 'build configuration'],
       ['scripts/openship-worker.mjs', 'the build pipeline'],
@@ -224,6 +227,7 @@ describe('validateChange', () => {
       validateChange(
         {
           openship: '1.0',
+          capability: 'changes',
           base: BASE_DIGEST,
           title: 'A change',
           intent: 'A description long enough to satisfy the minimum intent length.',
@@ -245,6 +249,10 @@ describe('validateChange', () => {
       expect(rulesOf(envelope({ openship: '2.0' }))).toContain('openship')
     })
 
+    it('requires the Changes capability discriminator', () => {
+      expect(rulesOf(envelope({ capability: 'sources' }))).toContain('capability')
+    })
+
     it('requires at least one changed file', () => {
       expect(rulesOf(envelope({ files: {} }))).toContain('files')
     })
@@ -252,7 +260,7 @@ describe('validateChange', () => {
 })
 
 describe('digestOfFiles', () => {
-  it('matches the definition in OPENSHIP.md', () => {
+  it('matches the OpenShip Sources digest definition', () => {
     const expected =
       'sha256:' +
       createHash('sha256')

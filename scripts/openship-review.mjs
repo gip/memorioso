@@ -1,4 +1,4 @@
-// Gate 7 of OPENSHIP-CHANGES.md: a model reads the diff, the stated intent, and the results of the
+// Memorioso's model-review gate: a model reads the diff, the stated intent, and the results of the
 // deterministic gates, and returns approve or reject.
 //
 // Two properties matter more than the prompt wording:

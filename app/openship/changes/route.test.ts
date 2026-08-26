@@ -31,6 +31,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 
 const change = (files: Record<string, unknown>) => ({
   openship: '1.0',
+  capability: 'changes',
   base: digest(),
   title: 'Reword the Openship page intro',
   intent: 'The opening paragraph buries what the site is. This puts it in the first sentence.',
@@ -48,11 +49,12 @@ describe('POST /openship/changes', () => {
       payTo: null,
     })
     mocks.byBuildId.mockResolvedValue(null)
-    mocks.insert.mockImplementation(async (input: { buildId: string; resultDigest: string }) => ({
+    mocks.insert.mockImplementation(async (input: { buildId: string; baseDigest: string; resultDigest: string }) => ({
       created: true,
       record: {
         changeId: '11111111-2222-3333-4444-555555555555',
         buildId: input.buildId,
+        base: input.baseDigest,
         digest: input.resultDigest,
         status: 'queued',
         reason: null,
@@ -68,12 +70,18 @@ describe('POST /openship/changes', () => {
     expect(response.status).toBe(202)
 
     const body = await response.json()
-    expect(body.status).toBe('queued')
+    expect(body.capability).toBe('changes')
+    expect(body.status).toBe('pending')
+    expect(body.phase).toBe('queued')
     expect(body.buildId).toHaveLength(12)
     // The URL is derivable from the submission, so it is known before the build exists.
-    expect(body.url).toBe(`https://${body.buildId}.memorioso-builds.xyz`)
+    expect(body.candidateOrigin).toBe(`https://${body.buildId}.memorioso-builds.xyz`)
+    expect(body.digest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(body.statusUrl).toContain(body.changeId)
     expect(mocks.insert).toHaveBeenCalledOnce()
+    expect(mocks.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ candidateOrigin: body.candidateOrigin })
+    )
   })
 
   it('rejects a protected path with 422 and names the rule', async () => {
@@ -119,6 +127,8 @@ describe('POST /openship/changes', () => {
     mocks.byBuildId.mockResolvedValue({
       changeId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
       buildId: '9f2c1a7b3e04',
+      base: digest(),
+      digest: `sha256:${'1'.repeat(64)}`,
       status: 'deployed',
       reason: null,
       url: 'https://9f2c1a7b3e04.memorioso-builds.xyz',
@@ -127,7 +137,12 @@ describe('POST /openship/changes', () => {
       change({ 'app/page.tsx': { encoding: 'utf-8', content: 'export default () => <p>dupe</p>\n' } })
     )
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ status: 'deployed' })
+    await expect(response.json()).resolves.toMatchObject({
+      capability: 'changes',
+      status: 'ready',
+      phase: 'deployed',
+      candidateOrigin: 'https://9f2c1a7b3e04.memorioso-builds.xyz',
+    })
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 

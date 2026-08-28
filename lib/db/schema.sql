@@ -8,6 +8,9 @@ CREATE TABLE users
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),
   libro_identity_status VARCHAR(16) NOT NULL DEFAULT 'session_bound',
+  -- Whether this author wants their drafts encrypted. NULL means not yet asked;
+  -- 'none' means asked and declined, which is a different thing.
+  draft_encryption VARCHAR(16) CHECK (draft_encryption IS NULL OR draft_encryption IN ('passphrase', 'none')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT users_session_bound_identity_complete CHECK (
@@ -147,15 +150,24 @@ CREATE TABLE drafts (
 -- identity. Only wrapped bytes live here; the data key never reaches the server.
 CREATE TABLE user_draft_key_wrappers (
     "userId"        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    wrapper         VARCHAR(16) NOT NULL CHECK (wrapper IN ('worldid', 'recovery')),
+    wrapper         VARCHAR(16) NOT NULL CHECK (wrapper IN ('passphrase', 'recovery')),
     kdf_salt        BYTEA NOT NULL,
+    -- PBKDF2 cost for a passphrase, which needs stretching; NULL for a recovery
+    -- code, which is 128 random bits and does not. Stored rather than pinned in
+    -- code so the cost can be raised without stranding older wrappers.
+    kdf_iterations  INTEGER,
     -- A public identifier for the unwrapping key, so the client can tell a wrong
     -- key from damaged bytes instead of reading an opaque AES-GCM failure.
     kek_fingerprint CHAR(64) NOT NULL,
     wrapped_dek     BYTEA NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY ("userId", wrapper)
+    PRIMARY KEY ("userId", wrapper),
+    CONSTRAINT user_draft_key_wrappers_kdf_iterations_check CHECK (
+        (wrapper = 'passphrase' AND kdf_iterations IS NOT NULL AND kdf_iterations >= 100000)
+        OR
+        (wrapper <> 'passphrase' AND kdf_iterations IS NULL)
+    )
 );
 
 CREATE TABLE world_id_publish_challenges (

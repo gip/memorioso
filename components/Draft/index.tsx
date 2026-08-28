@@ -45,6 +45,7 @@ import { DRAFT_ENCRYPTION_V1, encryptDraft } from '@/lib/draft-crypto'
 import { useDraftKey } from '@/lib/draft-crypto/provider'
 import { revealDraftRow } from '@/lib/draft-crypto/rows'
 import { DraftLockNotice } from '@/components/DraftLockNotice'
+import { DraftEncryptionSetup } from '@/components/DraftPassphrase'
 import {
   isNativeLibroTransactionAvailable,
   sendLibroRegistrationTransaction,
@@ -204,8 +205,14 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const { status: draftKeyStatus, key: draftKey } = useDraftKey()
   const isAuthenticated = status === 'authenticated'
   // An authenticated writer whose device has no key cannot save to their
-  // account without writing prose the database is not supposed to hold.
-  const isDraftKeyLocked = isAuthenticated && draftKeyStatus === 'locked'
+  // account without writing prose the database is not supposed to hold. An
+  // author who has not yet chosen counts as locked too: the choice dialog is up,
+  // and until it is answered there is no telling which shape a save should take.
+  // So does one whose choice could not be read: unknown is not permission to
+  // guess.
+  const isDraftKeyLocked = isAuthenticated && (
+    draftKeyStatus === 'locked' || draftKeyStatus === 'unset' || draftKeyStatus === 'unavailable'
+  )
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
   const publicClient = useMemo(
@@ -357,11 +364,18 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // a new draft picks its id here rather than taking one from the server and
   // having to encrypt a second time.
   const buildSavePayload = async (draftToSave: DraftData, id: string) => {
+    const { title, subtitle, content, ...rest } = draftToSave
+
+    // This author declined a passphrase, so their prose is stored the way it was
+    // before encryption existed. They were told what that means when they chose.
+    if (draftKeyStatus === 'disabled') {
+      return { ...rest, id, encryption: 'none', title, subtitle, content }
+    }
+
     if (!draftKey || !user) {
       throw new Error('Your drafts are locked on this device')
     }
 
-    const { title, subtitle, content, ...rest } = draftToSave
     return {
       ...rest,
       id,
@@ -721,7 +735,10 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // without remounting, so typing is not interrupted.
   const isAdoptingRef = useRef(false)
   useEffect(() => {
-    if (status !== 'authenticated' || draftKeyStatus !== 'unlocked') return
+    // 'disabled' adopts too: that author saves prose by their own choice, and
+    // leaving the local copy behind means it reappears in the next new draft.
+    if (status !== 'authenticated') return
+    if (draftKeyStatus !== 'unlocked' && draftKeyStatus !== 'disabled') return
     if (currentDraftId || draftId) return
     if (!isLocalRestored || !hasText || isEditingDisabled) return
     // Only adopt work that was actually written anonymously. Without this an
@@ -840,7 +857,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         />
       )}
       {error && <AlertDestructive message={error} />}
-      {isDraftKeyLocked && <DraftLockNotice />}
+      {/* The one-time choice, asked where it starts to matter rather than at sign-in. */}
+      <DraftEncryptionSetup />
+      {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
       )}

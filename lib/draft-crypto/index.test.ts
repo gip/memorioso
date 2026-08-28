@@ -1,20 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import {
   decryptDraft,
-  deriveKek,
+  deriveWrapperKey,
   encryptDraft,
   fromBase64Url,
   generateDekBytes,
   generateRecoveryCode,
   generateSalt,
   importDek,
-  kekFingerprint,
+  normalizePassphrase,
   normalizeRecoveryCode,
+  passphraseProblem,
   toBase64Url,
   unwrapDek,
   wrapDek,
+  MIN_PASSPHRASE_LENGTH,
   type DraftPlaintext,
 } from '@/lib/draft-crypto'
+
+// Real PBKDF2 cost would make this suite take minutes; the parameter is stored
+// per wrapper precisely so it can vary, and the derivation is the same either way.
+const TEST_ITERATIONS = 1_000
+
+const kekFor = async (
+  wrapper: 'passphrase' | 'recovery',
+  secret: string,
+  salt: Uint8Array,
+  iterations = TEST_ITERATIONS
+) => (await deriveWrapperKey(wrapper, secret, salt, iterations)).kek
 
 const plaintext: DraftPlaintext = {
   title: 'The salt marsh in November',
@@ -76,17 +89,17 @@ describe('draft envelope', () => {
 describe('key wrapping', () => {
   it('unwraps the same data key from either wrapper', async () => {
     const dekBytes = generateDekBytes()
-    const worldIdSalt = generateSalt()
+    const passphraseSalt = generateSalt()
     const recoverySalt = generateSalt()
     const recoveryCode = generateRecoveryCode()
 
-    const worldIdKek = await deriveKek('worldid', 'nullifier-value', worldIdSalt)
-    const recoveryKek = await deriveKek('recovery', normalizeRecoveryCode(recoveryCode), recoverySalt)
+    const passphraseKek = await kekFor('passphrase', 'a long enough passphrase', passphraseSalt)
+    const recoveryKek = await kekFor('recovery', normalizeRecoveryCode(recoveryCode), recoverySalt)
 
-    const fromWorldId = await unwrapDek(worldIdKek, await wrapDek(worldIdKek, dekBytes))
+    const fromPassphrase = await unwrapDek(passphraseKek, await wrapDek(passphraseKek, dekBytes))
     const fromRecovery = await unwrapDek(recoveryKek, await wrapDek(recoveryKek, dekBytes))
 
-    expect(Array.from(fromWorldId)).toEqual(Array.from(dekBytes))
+    expect(Array.from(fromPassphrase)).toEqual(Array.from(dekBytes))
     expect(Array.from(fromRecovery)).toEqual(Array.from(dekBytes))
   })
 
@@ -94,41 +107,88 @@ describe('key wrapping', () => {
     const salt = generateSalt()
     const dekBytes = generateDekBytes()
 
-    const wrapped = await wrapDek(await deriveKek('worldid', 'nullifier-value', salt), dekBytes)
-    const unwrapped = await unwrapDek(await deriveKek('worldid', 'nullifier-value', salt), wrapped)
+    const wrapped = await wrapDek(await kekFor('passphrase', 'correct horse battery', salt), dekBytes)
+    const unwrapped = await unwrapDek(await kekFor('passphrase', 'correct horse battery', salt), wrapped)
 
     expect(Array.from(unwrapped)).toEqual(Array.from(dekBytes))
   })
 
   it('separates the two wrappers even under one secret and salt', async () => {
     const salt = generateSalt()
-    const wrapped = await wrapDek(await deriveKek('worldid', 'shared', salt), generateDekBytes())
+    const wrapped = await wrapDek(await kekFor('passphrase', 'shared secret value', salt), generateDekBytes())
 
-    await expect(unwrapDek(await deriveKek('recovery', 'shared', salt), wrapped)).rejects.toThrow()
+    await expect(unwrapDek(await kekFor('recovery', 'shared secret value', salt), wrapped)).rejects.toThrow()
   })
 
   it('refuses a different secret', async () => {
     const salt = generateSalt()
-    const wrapped = await wrapDek(await deriveKek('worldid', 'nullifier-value', salt), generateDekBytes())
+    const wrapped = await wrapDek(await kekFor('passphrase', 'the right passphrase', salt), generateDekBytes())
 
-    await expect(unwrapDek(await deriveKek('worldid', 'other-value', salt), wrapped)).rejects.toThrow()
+    await expect(
+      unwrapDek(await kekFor('passphrase', 'the wrong passphrase', salt), wrapped)
+    ).rejects.toThrow()
   })
 
   it('rejects malformed wrapped bytes', async () => {
-    const kek = await deriveKek('worldid', 'nullifier-value', generateSalt())
+    const kek = await kekFor('passphrase', 'a long enough passphrase', generateSalt())
 
     await expect(unwrapDek(kek, new Uint8Array(8))).rejects.toThrow(/malformed/)
   })
 
   it('fingerprints a key without revealing the secret', async () => {
     const salt = generateSalt()
+    const fingerprintFor = async (secret: string, forSalt = salt) =>
+      (await deriveWrapperKey('recovery', secret, forSalt)).fingerprint
 
-    const fingerprint = await kekFingerprint('nullifier-value', salt)
+    const fingerprint = await fingerprintFor('ABCD1234')
 
     expect(fingerprint).toMatch(/^[0-9a-f]{64}$/)
-    expect(fingerprint).toEqual(await kekFingerprint('nullifier-value', salt))
-    expect(fingerprint).not.toEqual(await kekFingerprint('other-value', salt))
-    expect(fingerprint).not.toEqual(await kekFingerprint('nullifier-value', generateSalt()))
+    expect(fingerprint).toEqual(await fingerprintFor('ABCD1234'))
+    expect(fingerprint).not.toEqual(await fingerprintFor('other-value'))
+    expect(fingerprint).not.toEqual(await fingerprintFor('ABCD1234', generateSalt()))
+  })
+
+  it('costs the same to guess the fingerprint as to guess the key', async () => {
+    const salt = generateSalt()
+
+    // The fingerprint comes out of the stretched material, not the raw
+    // passphrase, so it moves with the iteration count. If it ever stopped
+    // doing so it would be a cheap offline oracle for the passphrase, and
+    // PBKDF2 would be protecting nothing.
+    const cheap = await deriveWrapperKey('passphrase', 'a long enough passphrase', salt, 1_000)
+    const dearer = await deriveWrapperKey('passphrase', 'a long enough passphrase', salt, 2_000)
+
+    expect(cheap.fingerprint).not.toEqual(dearer.fingerprint)
+  })
+
+  it('ignores the iteration count for a recovery code', async () => {
+    const salt = generateSalt()
+
+    const first = await deriveWrapperKey('recovery', 'ABCD1234', salt, 1_000)
+    const second = await deriveWrapperKey('recovery', 'ABCD1234', salt, 900_000)
+
+    expect(first.fingerprint).toEqual(second.fingerprint)
+  })
+})
+
+describe('passphrases', () => {
+  it('rejects an empty or short passphrase', () => {
+    expect(passphraseProblem('')).toMatch(/Enter a passphrase/)
+    expect(passphraseProblem('   ')).toMatch(/Enter a passphrase/)
+    expect(passphraseProblem('a'.repeat(MIN_PASSPHRASE_LENGTH - 1))).toMatch(/at least/)
+    expect(passphraseProblem('a'.repeat(MIN_PASSPHRASE_LENGTH))).toBeNull()
+  })
+
+  it('derives one key from either Unicode spelling of the same passphrase', async () => {
+    const salt = generateSalt()
+    const composed = 'the caf\u00e9 passphrase'
+    const decomposed = 'the cafe\u0301 passphrase'
+
+    expect(composed).not.toEqual(decomposed)
+    expect(normalizePassphrase(decomposed)).toEqual(composed)
+
+    const wrapped = await wrapDek(await kekFor('passphrase', composed, salt), generateDekBytes())
+    await expect(unwrapDek(await kekFor('passphrase', decomposed, salt), wrapped)).resolves.toBeTruthy()
   })
 })
 

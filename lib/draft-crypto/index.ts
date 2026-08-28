@@ -5,8 +5,8 @@
 // A random per-author data key (DEK) does the encrypting; that DEK is wrapped by
 // one or more key-encryption keys (KEKs) and only the wrapped form is stored.
 // Wrapping rather than deriving the DEK straight from a KEK is what lets a
-// second key source — today a recovery code — open the same drafts, and what
-// makes changing key source a re-wrap instead of re-encrypting every draft.
+// second key source — a recovery code — open the same drafts, and what makes
+// changing the passphrase a re-wrap instead of re-encrypting every draft.
 //
 // Everything here runs on WebCrypto and takes no dependency, so it works
 // unchanged in the browser and under Node in tests.
@@ -14,7 +14,7 @@
 import type { PublicationContent } from '@/types'
 
 /** Which secret a stored wrapper is wrapped with. */
-export type DraftKeyWrapperName = 'worldid' | 'recovery'
+export type DraftKeyWrapperName = 'passphrase' | 'recovery'
 
 /** The author-written half of a draft — the part that becomes ciphertext. */
 export type DraftPlaintext = {
@@ -43,8 +43,27 @@ const GCM_IV_BYTES = 12
 const DEK_BYTES = 32
 const RECOVERY_CODE_BYTES = 16
 
+/**
+ * PBKDF2 cost for a passphrase, at the OWASP figure for PBKDF2-HMAC-SHA256.
+ * It is stored per wrapper rather than only pinned here, because a cost that
+ * cannot be read back is a cost that can never be raised: a wrapper written
+ * under an old count would simply stop deriving, and "wrong passphrase" and
+ * "stale parameters" would be the same failure.
+ */
+export const PBKDF2_ITERATIONS = 600_000
+
+/** The floor a stored wrapper's cost has to clear to be worth anything. */
+export const MIN_PBKDF2_ITERATIONS = 100_000
+
+/**
+ * Long enough that PBKDF2 is doing real work rather than papering over a
+ * four-character password. No composition rules: they push authors towards
+ * shorter, more predictable strings, which is the opposite of what this needs.
+ */
+export const MIN_PASSPHRASE_LENGTH = 12
+
 const HKDF_INFO: Record<DraftKeyWrapperName, string> = {
-  worldid: 'memorioso-draft-kek-worldid-v1',
+  passphrase: 'memorioso-draft-kek-passphrase-v1',
   recovery: 'memorioso-draft-kek-recovery-v1',
 }
 const HKDF_INFO_FINGERPRINT = 'memorioso-draft-kek-fingerprint-v1'
@@ -86,37 +105,89 @@ const aadBytes = ({ draftId, userId }: DraftAad): Uint8Array =>
   utf8(`memorioso-draft-v1:${userId}:${draftId}`)
 
 /**
- * Derives a key-encryption key from a secret the author carries — World ID proof
- * material, or a recovery code. The salt is stored beside the wrapper, so the
- * same secret on any device reproduces the same KEK.
+ * Normalises a passphrase to NFC so that the same characters typed on two
+ * platforms produce the same bytes. Deliberately does not trim: a passphrase is
+ * confirmed twice when it is set, so a stray space is caught there rather than
+ * silently changing what the author chose.
  */
-export async function deriveKek(
-  wrapper: DraftKeyWrapperName,
-  secret: string,
-  salt: Uint8Array
-): Promise<CryptoKey> {
-  const material = await subtle().importKey('raw', utf8(secret), 'HKDF', false, ['deriveBits'])
-  const bits = await subtle().deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: utf8(HKDF_INFO[wrapper]) },
-    material,
-    AES_KEY_BITS
-  )
-  return subtle().importKey('raw', bits, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+export const normalizePassphrase = (passphrase: string): string => passphrase.normalize('NFC')
+
+/** Why this passphrase cannot be used, or null when it can. */
+export function passphraseProblem(passphrase: string): string | null {
+  if (passphrase.trim().length === 0) return 'Enter a passphrase'
+  if (normalizePassphrase(passphrase).length < MIN_PASSPHRASE_LENGTH) {
+    return `Use at least ${MIN_PASSPHRASE_LENGTH} characters`
+  }
+  return null
 }
 
 /**
- * A public identifier for a KEK, stored with the wrapper. It lets the client say
- * "this is the wrong key" instead of surfacing an indistinguishable AES-GCM
- * failure — the signal that matters if a key source ever stops being stable.
+ * Stretches the author's secret into 32 bytes of key material.
+ *
+ * A passphrase carries far less entropy than the key it protects, and the
+ * wrapper it protects is sitting in the database this feature exists to
+ * devalue — so it goes through PBKDF2, which is what makes a dump expensive to
+ * attack offline. A recovery code is 128 random bits and needs no work factor;
+ * it is passed through unchanged, which also keeps every recovery wrapper
+ * written before this existed openable.
  */
-export async function kekFingerprint(secret: string, salt: Uint8Array): Promise<string> {
-  const material = await subtle().importKey('raw', utf8(secret), 'HKDF', false, ['deriveBits'])
+async function rootMaterial(
+  wrapper: DraftKeyWrapperName,
+  secret: string,
+  salt: Uint8Array,
+  iterations: number
+): Promise<Uint8Array> {
+  if (wrapper !== 'passphrase') return utf8(secret)
+
+  const material = await subtle().importKey('raw', utf8(normalizePassphrase(secret)), 'PBKDF2', false, ['deriveBits'])
   const bits = await subtle().deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: utf8(HKDF_INFO_FINGERPRINT) },
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
     material,
-    256
+    AES_KEY_BITS
   )
-  return toHex(new Uint8Array(bits))
+  return new Uint8Array(bits)
+}
+
+/** A key-encryption key and the public identifier stored beside it. */
+export type DraftWrapperKey = {
+  kek: CryptoKey
+  /**
+   * Lets the client say "this is the wrong secret" instead of surfacing an
+   * indistinguishable AES-GCM failure. It comes out of the same stretched
+   * material as the KEK, so it is not a cheap oracle for guessing the
+   * passphrase that the KEK's own cost would otherwise have prevented.
+   */
+  fingerprint: string
+}
+
+/**
+ * Derives the KEK and its fingerprint from a secret the author carries. The salt
+ * and the iteration count are stored beside the wrapper, so the same secret on
+ * any device reproduces the same key.
+ */
+export async function deriveWrapperKey(
+  wrapper: DraftKeyWrapperName,
+  secret: string,
+  salt: Uint8Array,
+  iterations: number = PBKDF2_ITERATIONS
+): Promise<DraftWrapperKey> {
+  const root = await rootMaterial(wrapper, secret, salt, iterations)
+  const ikm = await subtle().importKey('raw', root, 'HKDF', false, ['deriveBits'])
+
+  const expand = (info: string): Promise<ArrayBuffer> =>
+    subtle().deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: utf8(info) }, ikm, 256)
+
+  // One stretch, two expansions: deriving the fingerprint separately would run
+  // PBKDF2 twice on every unlock attempt for no gain.
+  const [kekBits, fingerprintBits] = await Promise.all([
+    expand(HKDF_INFO[wrapper]),
+    expand(HKDF_INFO_FINGERPRINT),
+  ])
+
+  return {
+    kek: await subtle().importKey('raw', kekBits, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']),
+    fingerprint: toHex(new Uint8Array(fingerprintBits)),
+  }
 }
 
 export const generateDekBytes = (): Uint8Array =>

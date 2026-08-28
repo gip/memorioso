@@ -132,16 +132,52 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   additional data, so a row cannot be transplanted onto another draft or another author. That
   binding is why the client picks the draft UUID on create rather than taking one back from the
   server.
-- The key is a random per-author DEK, wrapped twice in `user_draft_key_wrappers`: `worldid`
-  derives its KEK from `responses[0].session_nullifier[1]` of a session login, and `recovery`
-  from a code shown exactly once. Index `[0]` is stored as `users.world_id_session_nullifier`;
-  `[1]` is stored nowhere, which is the whole reason it is usable. Do not persist it.
-- This hardens data at rest. It is not a defence against the running server, which sees the
-  login proof on its way to the World ID verifier.
+- Encryption is opt-in per author and the choice lives in `users.draft_encryption`: NULL means
+  they have not been asked, `'passphrase'` means they have a key, `'none'` means they were asked
+  and declined. NULL and `'none'` are different answers — do not collapse them. A declining
+  author's drafts are written as prose, exactly as they were before any of this existed, and
+  they were told so in `DraftEncryptionSetup` before choosing.
+- Encryption can be turned on later but never off: `POST /api/draft-keys` refuses
+  `{ encryption: 'none' }` once a wrapper exists, because the drafts sealed under that key would
+  still be ciphertext with nothing left to open them.
+- The key is a random per-author DEK, wrapped twice in `user_draft_key_wrappers`: `passphrase`
+  derives its KEK from a passphrase the author chose, and `recovery` from a code shown exactly
+  once. Both are written together on the first store, so a forgotten passphrase is never fatal.
+- A passphrase is stretched with **PBKDF2-SHA256**, not HKDF. It carries far less entropy than
+  the key it wraps, and the wrapper it protects sits in the database this feature exists to
+  devalue. The cost is stored per row in `kdf_iterations` rather than pinned only in code: a
+  cost that cannot be read back can never be raised, because a wrapper written under the old
+  count would stop deriving and be indistinguishable from a typo. The server enforces the floor;
+  the client picks the number.
+- `kekFingerprint` comes out of the **stretched** material, alongside the KEK, from one PBKDF2
+  pass. Deriving it from the raw passphrase would make it a cheap offline oracle for guessing
+  that passphrase and PBKDF2 would be protecting nothing. `lib/draft-crypto/index.test.ts`
+  pins this. A recovery code needs no stretching — it is 128 random bits — and its derivation is
+  unchanged, which is what keeps wrappers written before the passphrase existed openable.
+- Migration 019 deleted the `worldid` wrappers and narrowed the `wrapper` CHECK to
+  `('passphrase', 'recovery')`, so any build from before `f26803c` that still talks to a migrated
+  database fails at exactly two points: it shows every author "Your drafts are locked" (it has no
+  notion of `users.draft_encryption`, so an author who declined is locked out of their own prose
+  drafts), and its "Sign in again" writes `wrapper = 'worldid'`, which the constraint rejects as
+  "Failed to store the draft key". Do not leave an older deployment pointed at this database.
+- There was a third wrapper, `worldid`, deriving its KEK from `responses[0].session_nullifier[1]`
+  of a session login. It did not work: `LibroRegistry._verifyAndConsumeSession` marks
+  `sessionNullifier[0]` used on every registration, so the pair is per-proof replay protection,
+  not a per-author identifier, and the value changed on every login. Do not reach for it again —
+  a value stable enough to key from would also be sitting in `libro_publish_registrations.proof`
+  and in a public on-chain event, which defeats the point.
+- This hardens data at rest. It is not a defence against the running server, which serves the
+  script that handles the passphrase.
+- `/api/draft-keys` failing is its own state, `'unavailable'`, and not `'locked'`: an author who
+  declined encryption must never be told their drafts are encrypted because a fetch failed. Drafts
+  still stay on the device while it is unknown, and `DraftLockNotice` offers `recheck()` instead of
+  a passphrase field.
 - The unwrapped DEK is cached per device in IndexedDB as a non-extractable `CryptoKey`
-  (`lib/draft-crypto/store.ts`) and cleared on sign-out. A login is the only moment the World ID
-  secret exists, so `lib/draft-crypto/login-secret.ts` hands it from `handleVerify` to
-  `DraftKeyProvider` and it is consumed once.
+  (`lib/draft-crypto/store.ts`) and cleared on sign-out. A page load has no secret in hand, so
+  that cache is the only unlock that costs the author nothing; everything else asks.
+- A recovery-code unlock hands the raw DEK bytes back to `DraftKeyProvider`, which holds them in
+  a ref only long enough to offer a new passphrase. That is the one moment they exist — the
+  cached key is imported non-extractable and cannot be read back out.
 - Publishing is the one place the server needs prose: `POST /api/world-id/publish-context` takes
   it from the browser that just decrypted it. From there the challenge row is the authority —
   it is locked `FOR UPDATE` and single-use — so `finalize` writes `publications.content` from

@@ -3,11 +3,14 @@
 // The draft key, for the whole app.
 //
 // Drafts are unreadable without it, so every surface that shows one — the
-// editor, the feeds, the drafts menu — reads it from here. It has three states
-// and they are all ordinary: 'loading' while this device is checked for a cached
-// key, 'unlocked' once there is one, and 'locked' when there is not, which is
-// what an author sees on a browser whose session predates the key or whose
-// storage was cleared.
+// editor, the feeds, the drafts menu — reads it from here. Its states are all
+// ordinary: 'loading' while this device is checked for a cached key, 'unlocked'
+// once there is one, 'locked' on a browser that has never held it, 'unset'
+// before the author has decided whether to encrypt at all, and 'disabled' when
+// they decided not to, in which case there is no key and drafts are stored as
+// prose. 'unavailable' is the sixth and says nothing about the drafts: the
+// server could not be asked how they are stored, which is not the same claim as
+// 'locked' and must not be told to an author who never encrypted anything.
 
 import {
   createContext,
@@ -20,21 +23,20 @@ import {
   type ReactNode,
 } from 'react'
 import { normalizeRecoveryCode } from '@/lib/draft-crypto'
-import {
-  clearLoginSecret,
-  consumeLoginSecret,
-  onLoginSecret,
-} from '@/lib/draft-crypto/login-secret'
 import { migratePlaintextDrafts } from '@/lib/draft-crypto/migrate'
 import { clearCachedDraftKeys, readCachedDraftKey } from '@/lib/draft-crypto/store'
 import {
-  DraftKeyMismatchError,
+  createDraftKey,
+  declineDraftEncryption,
+  fetchDraftKeyState,
+  setPassphrase as storePassphrase,
+  unlockWithPassphrase,
   unlockWithRecoveryCode,
-  unlockWithWorldId,
+  DraftKeyMismatchError,
 } from '@/lib/draft-crypto/unlock'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
-export type DraftKeyStatus = 'loading' | 'locked' | 'unlocked'
+export type DraftKeyStatus = 'loading' | 'unset' | 'locked' | 'unlocked' | 'disabled' | 'unavailable'
 
 type DraftKeyContextValue = {
   status: DraftKeyStatus
@@ -42,9 +44,18 @@ type DraftKeyContextValue = {
   error: string | null
   /** Shown once, when the key is first created. Dismissed by acknowledgeRecoveryCode. */
   recoveryCode: string | null
-  /** True when a login happened but its proof material no longer opens the key. */
-  needsRecoveryCode: boolean
+  /** True after a recovery-code unlock, while a new passphrase can still be set. */
+  canSetPassphrase: boolean
+  /** From 'unset': creates the key behind this passphrase and a recovery code. */
+  enableEncryption: (passphrase: string) => Promise<void>
+  /** From 'unset': records that this author does not want their drafts encrypted. */
+  skipEncryption: () => Promise<void>
+  /** Re-asks the server how these drafts are stored, after a check that failed. */
+  recheck: () => void
+  unlockWithPassphrase: (passphrase: string) => Promise<void>
   unlockWithCode: (code: string) => Promise<void>
+  resetPassphrase: (passphrase: string) => Promise<void>
+  dismissPassphraseReset: () => void
   acknowledgeRecoveryCode: () => void
 }
 
@@ -58,90 +69,86 @@ export function useDraftKey(): DraftKeyContextValue {
   return context
 }
 
+const messageFor = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback
+
 export function DraftKeyProvider({ children }: { children: ReactNode }) {
   const { status: authStatus, user } = useWorldIdAuth()
   const [status, setStatus] = useState<DraftKeyStatus>('loading')
   const [key, setKey] = useState<CryptoKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
-  const [needsRecoveryCode, setNeedsRecoveryCode] = useState(false)
-  // Kept out of state so a failed unlock can still repair its wrapper without
-  // the secret living in the component tree any longer than it has to.
-  const pendingSecretRef = useRef<string | null>(null)
+  const [canSetPassphrase, setCanSetPassphrase] = useState(false)
+  // Kept out of state so the raw key bytes a recovery unlock produced are not
+  // sitting in the component tree; they live only until a passphrase is set or
+  // the offer is dismissed.
+  const pendingDekRef = useRef<Uint8Array | null>(null)
 
   const userId = user?.id ?? null
 
-  const applyUnlock = useCallback((unlocked: { key: CryptoKey; recoveryCode?: string }) => {
-    setKey(unlocked.key)
+  const applyKey = useCallback((unlocked: CryptoKey) => {
+    setKey(unlocked)
     setStatus('unlocked')
     setError(null)
-    setNeedsRecoveryCode(false)
-    if (unlocked.recoveryCode) setRecoveryCode(unlocked.recoveryCode)
   }, [])
 
-  const unlockFromLogin = useCallback(async (id: number, secret: string) => {
-    try {
-      applyUnlock(await unlockWithWorldId(id, secret))
-      pendingSecretRef.current = null
-      clearLoginSecret()
-    } catch (unlockError) {
-      if (unlockError instanceof DraftKeyMismatchError) {
-        // Hold the secret: if the author gets back in with their recovery code,
-        // this is what rebuilds the wrapper so they are not asked again.
-        pendingSecretRef.current = secret
-        setNeedsRecoveryCode(true)
-        setStatus('locked')
-        setError('Your drafts need their recovery code on this sign-in.')
-        return
-      }
-      setStatus('locked')
-      setError(unlockError instanceof Error ? unlockError.message : 'Could not unlock your drafts')
-    }
-  }, [applyUnlock])
+  // A page load has no secret in hand, so the device cache is the only way in
+  // that costs the author nothing. What it cannot answer — whether this author
+  // wants encryption at all — comes from the server alongside it.
+  const [checkAttempt, setCheckAttempt] = useState(0)
+  const recheck = useCallback(() => setCheckAttempt((attempt) => attempt + 1), [])
 
-  // A login is the only moment World ID proof material exists, so take it as it
-  // arrives — including a login that completed before this provider mounted.
-  useEffect(() => {
-    if (authStatus !== 'authenticated' || userId === null) return
-
-    const secret = consumeLoginSecret()
-    if (secret) {
-      void unlockFromLogin(userId, secret)
-      return
-    }
-
-    return onLoginSecret((published) => {
-      void unlockFromLogin(userId, published)
-    })
-  }, [authStatus, userId, unlockFromLogin])
-
-  // A reload has no proof material, so fall back to whatever this device cached.
   useEffect(() => {
     if (authStatus === 'loading') return
 
     if (authStatus !== 'authenticated' || userId === null) {
       setKey(null)
       setStatus('locked')
+      setError(null)
       setRecoveryCode(null)
-      setNeedsRecoveryCode(false)
-      pendingSecretRef.current = null
+      setCanSetPassphrase(false)
+      pendingDekRef.current = null
       return
     }
 
     let cancelled = false
-    readCachedDraftKey(userId).then((cached) => {
-      if (cancelled || !cached) {
-        if (!cancelled) setStatus((current) => (current === 'loading' ? 'locked' : current))
+    setStatus('loading')
+
+    Promise.all([
+      readCachedDraftKey(userId),
+      fetchDraftKeyState().catch(() => null),
+    ]).then(([cached, state]) => {
+      if (cancelled) return
+
+      if (cached) {
+        setKey(cached)
+        setStatus('unlocked')
+        setError(null)
         return
       }
-      setKey((current) => current ?? cached)
-      setStatus((current) => (current === 'unlocked' ? current : 'unlocked'))
+
+      if (!state) {
+        // Unknown is its own answer. Drafts still stay on this device, because
+        // writing prose on a wrong guess does not undo — but an author who
+        // never encrypted anything must not be told their drafts are encrypted.
+        setStatus('unavailable')
+        setError('Could not check how your drafts are stored')
+        return
+      }
+
+      // A check that succeeds clears whatever the last one failed to answer.
+      setError(null)
+      if (state.encryption === 'none' && state.wrappers.length === 0) {
+        setStatus('disabled')
+        return
+      }
+      setStatus(state.encryption === null && state.wrappers.length === 0 ? 'unset' : 'locked')
     })
 
     return () => {
       cancelled = true
     }
-  }, [authStatus, userId])
+  }, [authStatus, userId, checkAttempt])
 
   // Sign-out has to take the key with it, or the next person at this browser
   // inherits an unlocked account.
@@ -149,35 +156,99 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (previousAuthStatus.current === 'authenticated' && authStatus === 'unauthenticated') {
       void clearCachedDraftKeys()
-      clearLoginSecret()
     }
     previousAuthStatus.current = authStatus
   }, [authStatus])
+
+  const enableEncryption = useCallback(async (passphrase: string) => {
+    if (userId === null) throw new Error('Sign in to encrypt your drafts')
+
+    setError(null)
+    try {
+      const created = await createDraftKey(userId, passphrase)
+      applyKey(created.key)
+      setRecoveryCode(created.recoveryCode)
+    } catch (creationError) {
+      const message = messageFor(creationError, 'Could not encrypt your drafts')
+      setError(message)
+      throw new Error(message)
+    }
+  }, [applyKey, userId])
+
+  const skipEncryption = useCallback(async () => {
+    setError(null)
+    try {
+      await declineDraftEncryption()
+      setKey(null)
+      setStatus('disabled')
+    } catch (choiceError) {
+      const message = messageFor(choiceError, 'Could not save that choice')
+      setError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const unlock = useCallback(async (passphrase: string) => {
+    if (userId === null) throw new Error('Sign in to unlock your drafts')
+
+    setError(null)
+    try {
+      applyKey(await unlockWithPassphrase(userId, passphrase))
+    } catch (unlockError) {
+      // A mismatch already says which secret was wrong, and which one to reach
+      // for instead; only an unexpected failure needs a message inventing.
+      const message = unlockError instanceof DraftKeyMismatchError
+        ? unlockError.message
+        : messageFor(unlockError, 'Could not unlock your drafts')
+      setError(message)
+      throw new Error(message)
+    }
+  }, [applyKey, userId])
 
   const unlockWithCode = useCallback(async (code: string) => {
     if (userId === null) throw new Error('Sign in to unlock your drafts')
 
     setError(null)
     try {
-      applyUnlock(await unlockWithRecoveryCode(
-        userId,
-        normalizeRecoveryCode(code),
-        pendingSecretRef.current ?? undefined
-      ))
-      pendingSecretRef.current = null
-      clearLoginSecret()
+      const recovered = await unlockWithRecoveryCode(userId, normalizeRecoveryCode(code))
+      applyKey(recovered.key)
+      // The code got them in, but it is not something to type every time. This
+      // is the only moment the raw key exists, so the offer stands only now.
+      pendingDekRef.current = recovered.dekBytes
+      setCanSetPassphrase(true)
     } catch (unlockError) {
       const message = unlockError instanceof DraftKeyMismatchError
-        ? 'That recovery code does not open these drafts'
-        : unlockError instanceof Error ? unlockError.message : 'Could not unlock your drafts'
+        ? unlockError.message
+        : messageFor(unlockError, 'Could not unlock your drafts')
       setError(message)
       throw new Error(message)
     }
-  }, [applyUnlock, userId])
+  }, [applyKey, userId])
+
+  const resetPassphrase = useCallback(async (passphrase: string) => {
+    const dekBytes = pendingDekRef.current
+    if (!dekBytes) throw new Error('Unlock your drafts before setting a passphrase')
+
+    setError(null)
+    try {
+      await storePassphrase(dekBytes, passphrase)
+      pendingDekRef.current = null
+      setCanSetPassphrase(false)
+    } catch (resetError) {
+      const message = messageFor(resetError, 'Could not set that passphrase')
+      setError(message)
+      throw new Error(message)
+    }
+  }, [])
+
+  const dismissPassphraseReset = useCallback(() => {
+    pendingDekRef.current = null
+    setCanSetPassphrase(false)
+  }, [])
 
   const acknowledgeRecoveryCode = useCallback(() => setRecoveryCode(null), [])
 
-  // Drafts written before encryption existed are moved over once per unlock.
+  // Drafts written before this author had a key are moved over once per unlock.
   // Best effort and idempotent: anything that fails is still readable, because
   // it is still plaintext, and the next unlock tries again.
   const migratedForRef = useRef<number | null>(null)
@@ -196,10 +267,20 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
     key,
     error,
     recoveryCode,
-    needsRecoveryCode,
+    canSetPassphrase,
+    enableEncryption,
+    skipEncryption,
+    recheck,
+    unlockWithPassphrase: unlock,
     unlockWithCode,
+    resetPassphrase,
+    dismissPassphraseReset,
     acknowledgeRecoveryCode,
-  }), [status, key, error, recoveryCode, needsRecoveryCode, unlockWithCode, acknowledgeRecoveryCode])
+  }), [
+    status, key, error, recoveryCode, canSetPassphrase, enableEncryption, skipEncryption,
+    recheck, unlock, unlockWithCode, resetPassphrase, dismissPassphraseReset,
+    acknowledgeRecoveryCode,
+  ])
 
   return <DraftKeyContext.Provider value={value}>{children}</DraftKeyContext.Provider>
 }

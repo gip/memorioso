@@ -140,12 +140,10 @@ const SiteChromeShell = ({ children }: { children: React.ReactNode }) => {
               <DropdownMenuSeparator />
 
               {!isAuthenticated ? (
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    handleSignIn()
-                  }}
-                >
+                // Let the menu close: the login dialog opens on top of it, and
+                // on a phone a menu left open covers the page the author lands
+                // on. Progress and errors are shown under the header bar.
+                <DropdownMenuItem onSelect={() => handleSignIn()}>
                   Sign in with World ID
                 </DropdownMenuItem>
               ) : (
@@ -156,12 +154,7 @@ const SiteChromeShell = ({ children }: { children: React.ReactNode }) => {
                   <DropdownMenuItem asChild>
                     <Link href="/profile">Profile</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      handleSignOut()
-                    }}
-                  >
+                  <DropdownMenuItem onSelect={() => handleSignOut()}>
                     Log out
                   </DropdownMenuItem>
                 </>

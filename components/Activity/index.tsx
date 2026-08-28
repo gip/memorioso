@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 
 import { FeedItem, type FeedItemD } from '@/components/FeedItem'
+import { useDraftKey } from '@/lib/draft-crypto/provider'
+import { LOCKED_DRAFT_TITLE, revealDraftRows } from '@/lib/draft-crypto/rows'
+import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 import { DeleteDraftDialog } from '@/components/DeleteDraftDialog'
 import { TextListCard } from '@/components/TextListCard'
 import { Button } from '@/components/ui/button'
@@ -43,8 +46,15 @@ export const Activity = () => {
   const publicationOffsetRef = useRef(0)
   const isFetchingPublicationsRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const { key: draftKey, status: draftKeyStatus } = useDraftKey()
+  const { user } = useWorldIdAuth()
 
+  // Waits for the key, so a draft that is merely still unlocking is not shown
+  // as locked for the moment it takes.
   useEffect(() => {
+    if (draftKeyStatus === 'loading') return
+
+    let cancelled = false
     const loadDrafts = async () => {
       try {
         const raw = await fetch('/api/drafts')
@@ -52,16 +62,24 @@ export const Activity = () => {
         if (!raw.ok || !response.success || !response.drafts) {
           throw new Error(response.message || 'Failed to load drafts')
         }
-        setDrafts(response.drafts)
+        const revealed = await revealDraftRows(response.drafts, draftKey, user?.id ?? null)
+        if (cancelled) return
+        setDrafts(revealed.map((draft) => ({
+          ...draft,
+          title: draft.locked ? LOCKED_DRAFT_TITLE : draft.title,
+        })) as FeedItemD[])
       } catch (error) {
-        setDraftsError(error instanceof Error ? error.message : 'Failed to load drafts')
+        if (!cancelled) setDraftsError(error instanceof Error ? error.message : 'Failed to load drafts')
       } finally {
-        setDraftsLoaded(true)
+        if (!cancelled) setDraftsLoaded(true)
       }
     }
 
     loadDrafts()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [draftKey, draftKeyStatus, user?.id])
 
   const loadMorePublications = useCallback(async () => {
     if (isFetchingPublicationsRef.current) return

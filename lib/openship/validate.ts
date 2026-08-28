@@ -1,4 +1,4 @@
-// Gates 1 to 5 of OPENSHIP-CHANGES.md: envelope, paths, size, content, tree.
+// Memorioso's synchronous Changes gates: envelope, paths, size, content, tree.
 //
 // Every rule here is a pure function of the submission and the base manifest, which is what lets
 // the endpoint answer a bad submission immediately instead of queueing a build that will fail. The
@@ -6,7 +6,7 @@
 // because a gate that only ever runs in one place is a gate with one place to go wrong.
 //
 // This file is not the security boundary. See "What actually protects the site" in
-// OPENSHIP-CHANGES.md.
+// the vendored OpenShip Changes contract.
 
 import {
   applyChange,
@@ -19,16 +19,17 @@ import {
   type ResultingTree,
 } from '@/lib/openship/change'
 import type { OpenshipFile } from '@/lib/openship/manifest'
+import { matchesAny } from '@/lib/openship/paths'
 import {
   getProtectedPaths,
   getWritablePaths,
-  OPENSHIP_CHANGES_VERSION,
   OPENSHIP_CONTENT_RULES,
   OPENSHIP_LIMITS,
   OPENSHIP_MAX_BASE64_LITERAL,
   OPENSHIP_MEDIA_EXTENSIONS,
   OPENSHIP_TEXT_EXTENSIONS,
 } from '@/lib/openship/policy'
+import { OpenShipValidationError, validateChangesSubmission } from '@openship/protocol'
 
 export type Violation = {
   /** The gate that rejected it, for the author and for the reviewer's context. */
@@ -49,19 +50,6 @@ const violation = (
   message: string,
   extra: { path?: string; line?: number } = {}
 ): Violation => ({ gate, rule, message, ...extra })
-
-/** `a/b/**` matches `a/b` and anything under it; `a/b**` matches any path starting `a/b`. */
-const matchesPattern = (filePath: string, pattern: string): boolean => {
-  if (pattern.endsWith('/**')) {
-    const prefix = pattern.slice(0, -3)
-    return filePath === prefix || filePath.startsWith(`${prefix}/`)
-  }
-  if (pattern.endsWith('**')) return filePath.startsWith(pattern.slice(0, -2))
-  return filePath === pattern
-}
-
-const matchesAny = (filePath: string, patterns: readonly string[]): boolean =>
-  patterns.some((pattern) => matchesPattern(filePath, pattern))
 
 /**
  * A framework resolves `route.ts` and `route.tsx` to the same route, so protection is applied to
@@ -119,15 +107,24 @@ const scanContent = (filePath: string, body: Buffer): Violation[] => {
 
 const validateEnvelope = (submission: OpenshipChangeSubmission, baseDigest: string): Violation[] => {
   const found: Violation[] = []
-
-  if (submission.openship !== '1.0') {
-    found.push(
-      violation('envelope', 'openship', `Expected "openship": "1.0"; got ${JSON.stringify(submission.openship)}.`)
-    )
+  try {
+    validateChangesSubmission(submission)
+  } catch (error) {
+    const canonical = error instanceof OpenShipValidationError ? error : null
+    const canonicalPath = canonical?.path ?? ''
+    const rule = canonicalPath.endsWith('.encoding') || canonicalPath.endsWith('.content')
+      ? 'encoding'
+      : canonicalPath.startsWith('$.files.')
+        ? 'shape'
+        : canonicalPath.replace(/^\$\.?/, '') || 'document'
+    found.push(violation(
+      'envelope',
+      rule,
+      canonical?.message ?? 'The Changes document is malformed.'
+    ))
+    return found
   }
-  if (typeof submission.base !== 'string' || submission.base.length === 0) {
-    found.push(violation('envelope', 'base', 'A submission must carry the manifest digest it applies to.'))
-  } else if (submission.base !== baseDigest) {
+  if (submission.base !== baseDigest) {
     found.push(
       violation(
         'envelope',
@@ -136,29 +133,23 @@ const validateEnvelope = (submission: OpenshipChangeSubmission, baseDigest: stri
       )
     )
   }
-  if (typeof submission.title !== 'string' || submission.title.trim().length === 0) {
+  if (submission.title!.trim().length === 0) {
     found.push(violation('envelope', 'title', 'A submission must carry a title.'))
-  } else if (submission.title.length > OPENSHIP_LIMITS.titleChars) {
+  } else if (submission.title!.length > OPENSHIP_LIMITS.titleChars) {
     found.push(
       violation('envelope', 'title', `A title may be at most ${OPENSHIP_LIMITS.titleChars} characters.`)
     )
   }
   // The reviewer reads this against the diff, so an empty one is not a formality to skip.
-  if (typeof submission.intent !== 'string' || submission.intent.trim().length < 20) {
+  if (submission.intent!.trim().length < 20) {
     found.push(
       violation('envelope', 'intent', 'Describe what the change does and why, in at least 20 characters.')
     )
-  } else if (submission.intent.length > OPENSHIP_LIMITS.intentChars) {
+  } else if (submission.intent!.length > OPENSHIP_LIMITS.intentChars) {
     found.push(
       violation('envelope', 'intent', `An intent may be at most ${OPENSHIP_LIMITS.intentChars} characters.`)
     )
   }
-  if (!submission.files || typeof submission.files !== 'object' || Array.isArray(submission.files)) {
-    found.push(violation('envelope', 'files', 'A submission must carry a "files" object.'))
-  } else if (Object.keys(submission.files).length === 0) {
-    found.push(violation('envelope', 'files', 'A submission must change at least one file.'))
-  }
-
   return found
 }
 
@@ -200,7 +191,7 @@ export const validateChange = (
     }
     if (isProtected(filePath, protectedPaths)) {
       pathViolations.push(
-        violation('path', 'protected', 'This path is protected. See OPENSHIP-CHANGES.md.', {
+        violation('path', 'protected', 'This path is protected. See the advertised Changes policy.', {
           path: filePath,
         })
       )
@@ -355,5 +346,3 @@ export const validateChange = (
 
   return { ok: true, tree, patch, changedPaths: [...patch.keys()].sort() }
 }
-
-export const OPENSHIP_CHANGES = OPENSHIP_CHANGES_VERSION

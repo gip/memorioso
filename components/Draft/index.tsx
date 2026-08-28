@@ -41,6 +41,11 @@ import {
 import { type PublicationAccess, type PublicationContent } from '@/types'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 import { clearLocalDraft, readLocalDraft, writeLocalDraft } from '@/lib/local-draft'
+import { DRAFT_ENCRYPTION_V1, encryptDraft } from '@/lib/draft-crypto'
+import { useDraftKey } from '@/lib/draft-crypto/provider'
+import { revealDraftRow } from '@/lib/draft-crypto/rows'
+import { DraftLockNotice } from '@/components/DraftLockNotice'
+import { DraftEncryptionSetup } from '@/components/DraftPassphrase'
 import {
   isNativeLibroTransactionAvailable,
   sendLibroRegistrationTransaction,
@@ -184,7 +189,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'saved-local' | 'error'>('idle')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'saved-local' | 'locked' | 'error'>('idle')
   // Anonymous drafts live in local storage until login; the editor must not mount
   // before we know whether there is something to restore into it.
   const [isLocalRestored, setIsLocalRestored] = useState(false)
@@ -192,11 +197,22 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDraftLocked, setIsDraftLocked] = useState(false)
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
   const { status, user, signInWithWorldId } = useWorldIdAuth()
+  const { status: draftKeyStatus, key: draftKey } = useDraftKey()
   const isAuthenticated = status === 'authenticated'
+  // An authenticated writer whose device has no key cannot save to their
+  // account without writing prose the database is not supposed to hold. An
+  // author who has not yet chosen counts as locked too: the choice dialog is up,
+  // and until it is answered there is no telling which shape a save should take.
+  // So does one whose choice could not be read: unknown is not permission to
+  // guess.
+  const isDraftKeyLocked = isAuthenticated && (
+    draftKeyStatus === 'locked' || draftKeyStatus === 'unset' || draftKeyStatus === 'unavailable'
+  )
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
   const publicClient = useMemo(
@@ -257,36 +273,57 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, subtitle } : null)
   }
 
+  // Waits for the key before loading an existing draft: opening the editor on a
+  // locked draft would show an empty document, and autosave would then be one
+  // keystroke away from overwriting the writer's work with that emptiness.
   useEffect(() => {
+    if (draftId && draftKeyStatus === 'loading') return
+
+    let cancelled = false
     const fetchDraft = async () => {
-      if (draftId) {
-        try {
-          const raw = await fetch(`/api/draft/${draftId}`)
-          const response = await raw.json()
-          if (response.success) {
-            setDraft(response.data)
-            setOriginalDraft(response.data)
-            setInitialContent(response.data.content.html)
-            setInitialTitle(response.data.title || '')
-            setInitialSubtitle(response.data.subtitle || '')
-            setInitialAuthorId(response.data.authorId)
-            setHasChosenType(true)
-          } else {
-            router.push('/')
-          }
-        } catch (error) {
-          console.error('Failed to fetch draft:', error)
-          router.push('/')
-        } finally {
-          setLoading(false)
-        }
-      } else {
+      if (!draftId) {
         setLoading(false)
+        return
+      }
+
+      try {
+        const raw = await fetch(`/api/draft/${draftId}`)
+        const response = await raw.json()
+        if (!response.success) {
+          router.push('/')
+          return
+        }
+
+        const revealed = await revealDraftRow(response.data, draftKey, user?.id ?? null)
+        if (cancelled) return
+
+        if (revealed.locked) {
+          setIsDraftLocked(true)
+          setLoading(false)
+          return
+        }
+
+        setIsDraftLocked(false)
+        setDraft(revealed as unknown as DraftData)
+        setOriginalDraft(revealed as unknown as DraftData)
+        setInitialContent(revealed.content.html)
+        setInitialTitle(revealed.title)
+        setInitialSubtitle(revealed.subtitle)
+        setInitialAuthorId(response.data.authorId)
+        setHasChosenType(true)
+      } catch (error) {
+        console.error('Failed to fetch draft:', error)
+        router.push('/')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchDraft()
-  }, [draftId, router])
+    return () => {
+      cancelled = true
+    }
+  }, [draftId, router, draftKey, draftKeyStatus, user?.id])
 
   const fetchAuthors = useCallback(async () => {
     try {
@@ -323,17 +360,47 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     })
   }, [authors, user, loading, draft?.authorId])
 
+  // Prose leaves the browser sealed. The envelope is bound to the draft id, so
+  // a new draft picks its id here rather than taking one from the server and
+  // having to encrypt a second time.
+  const buildSavePayload = async (draftToSave: DraftData, id: string) => {
+    const { title, subtitle, content, ...rest } = draftToSave
+
+    // This author declined a passphrase, so their prose is stored the way it was
+    // before encryption existed. They were told what that means when they chose.
+    if (draftKeyStatus === 'disabled') {
+      return { ...rest, id, encryption: 'none', title, subtitle, content }
+    }
+
+    if (!draftKey || !user) {
+      throw new Error('Your drafts are locked on this device')
+    }
+
+    return {
+      ...rest,
+      id,
+      encryption: DRAFT_ENCRYPTION_V1,
+      ciphertext: await encryptDraft(
+        draftKey,
+        { draftId: id, userId: user.id },
+        { title, subtitle, content }
+      ),
+    }
+  }
+
   const handleSave = async () => {
     try {
       let raw: Response, response: any
       const draftToSave = draft
+      if (!draftToSave) throw new Error('Draft is unavailable')
       if (!currentDraftId) {
+        const newDraftId = crypto.randomUUID()
         raw = await fetch(`/api/draft`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draftToSave),
+          body: JSON.stringify(await buildSavePayload(draftToSave, newDraftId)),
         })
         response = await raw.json()
         if (response.success) {
@@ -352,7 +419,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(draftToSave),
+          body: JSON.stringify(await buildSavePayload(draftToSave, currentDraftId)),
         })
         response = await raw.json()
         if (response.success) {
@@ -394,12 +461,20 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       const publishDraftId: string | null = saved?.id || currentDraftId
       if (!publishDraftId || !draft?.authorId) throw new Error('Draft ID or Author ID is missing')
 
+      // Publishing is the one moment the server needs the prose: it builds the
+      // payload the World ID proof is taken over. The stored draft is encrypted,
+      // so it comes from here, decrypted, rather than from the database.
       const raw = await fetch('/api/world-id/publish-context', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ draftId: publishDraftId }),
+        body: JSON.stringify({
+          draftId: publishDraftId,
+          title: draft?.title ?? '',
+          subtitle: draft?.subtitle ?? '',
+          content: draft?.content ?? { html: '' },
+        }),
       })
       const response = await raw.json()
 
@@ -624,7 +699,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // are saved to this device instead of the account.
   useEffect(() => {
     if (isEditingDisabled || !hasText) return
-    const isAnonymous = status !== 'authenticated'
+    // A locked writer keeps saving to this device rather than to their account:
+    // the work survives, and no prose reaches a database that cannot hold it.
+    const isAnonymous = status !== 'authenticated' || isDraftKeyLocked
     if (!isAnonymous && !isDraftChanged()) return
 
     setSaveState('saving')
@@ -637,7 +714,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           subtitle: draft?.subtitle ?? '',
           content: draft?.content ?? { html: '' },
         })
-        setSaveState(stored ? 'saved-local' : 'error')
+        setSaveState(stored ? (isDraftKeyLocked ? 'locked' : 'saved-local') : 'error')
         return
       }
       try {
@@ -651,14 +728,17 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [draft, isEditingDisabled, isDraftChanged, hasText, status])
+  }, [draft, isEditingDisabled, isDraftChanged, hasText, status, isDraftKeyLocked])
 
   // Adoption: the moment the writer signs in, their local draft becomes a real
   // draft on their account. handleSave adopts the new id and rewrites the URL
   // without remounting, so typing is not interrupted.
   const isAdoptingRef = useRef(false)
   useEffect(() => {
+    // 'disabled' adopts too: that author saves prose by their own choice, and
+    // leaving the local copy behind means it reappears in the next new draft.
     if (status !== 'authenticated') return
+    if (draftKeyStatus !== 'unlocked' && draftKeyStatus !== 'disabled') return
     if (currentDraftId || draftId) return
     if (!isLocalRestored || !hasText || isEditingDisabled) return
     // Only adopt work that was actually written anonymously. Without this an
@@ -682,10 +762,20 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       .finally(() => {
         isAdoptingRef.current = false
       })
-  }, [status, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors])
+  }, [status, draftKeyStatus, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors])
 
   if (status === 'loading' || loading || !isLocalRestored) {
     return <FeedItem item={null} />
+  }
+
+  // A draft that exists but will not open: show the way back in rather than an
+  // empty editor that autosave would then write over.
+  if (isDraftLocked) {
+    return (
+      <div className="py-8">
+        <DraftLockNotice title="This draft is locked" />
+      </div>
+    )
   }
 
   if (!draftId && !hasChosenType && !readLocalDraft()) {
@@ -767,6 +857,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         />
       )}
       {error && <AlertDestructive message={error} />}
+      {/* The one-time choice, asked where it starts to matter rather than at sign-in. */}
+      <DraftEncryptionSetup />
+      {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
       )}
@@ -776,6 +869,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           {saveState === 'saving' && (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>)}
           {saveState === 'saved' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved</>)}
           {saveState === 'saved-local' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved on this device</>)}
+          {saveState === 'locked' && (<><Check className="h-3.5 w-3.5 text-green-600" /> Saved on this device — drafts locked</>)}
           {saveState === 'error' && (<span className="text-destructive">Save failed</span>)}
           {!canPublish && <span>{publicationValidationError}</span>}
         </span>

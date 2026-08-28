@@ -1,10 +1,12 @@
 // Deployment configuration for the write half of Openship. Read from env with no fallbacks, in
 // keeping with the rest of this app: a missing value disables the feature rather than guessing.
 
+import { getDomain } from 'tldts'
+
 export type ChangesConfig = {
   enabled: boolean
   /**
-   * The registrable domain builds are served from. OPENSHIP-CHANGES.md requires this to be a
+   * The registrable domain builds are served from. OpenShip Changes requires this to be a
    * different registrable domain from the production site, not a subdomain of it: subdomains share
    * cookie scope, and a build that can set a cookie on the parent can fix a session on the real
    * site. Enforced here rather than left to the operator's memory.
@@ -36,6 +38,11 @@ export const isolatedFrom = (buildsDomain: string, appUrl: string | undefined): 
   }
   const builds = buildsDomain.toLowerCase().replace(/^\.+/, '')
   if (host === 'localhost' || host === builds) return host !== builds
+  const productionDomain = getDomain(host, { allowPrivateDomains: true })
+  const candidateDomain = getDomain(builds, { allowPrivateDomains: true })
+  if (productionDomain && candidateDomain) return productionDomain !== candidateDomain
+
+  // Fail closed for unregistrable but related hostnames such as a bare public suffix.
   return !host.endsWith(`.${builds}`) && !builds.endsWith(`.${host}`)
 }
 

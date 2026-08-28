@@ -22,9 +22,9 @@ const HumanView = () => {
       <div className="space-y-3 text-[15px] leading-relaxed text-muted-foreground sm:text-base">
         <p>
           Memorioso exists because human-authored work should be verifiable rather than taken on
-          trust. Openship applies the same idea to the software itself. Instead of pointing at a
+          trust. OpenShip Sources applies the same idea to the software itself. Instead of pointing at a
           repository you would have to go and find, this site serves its own source code — every
-          file, at the commit that is running right now — over ordinary HTTP.
+          file that makes up the build you are looking at — over ordinary HTTP.
         </p>
         <p>
           There is nothing to install and nothing to sign in to. An agent that knows only the
@@ -36,10 +36,19 @@ const HumanView = () => {
       <section className="rounded-xl border bg-muted/30 p-3.5 sm:p-4" aria-label="This build">
         <p className="text-xs font-medium text-foreground">This build</p>
         <dl className="mt-2 space-y-1 text-[11px] text-muted-foreground sm:text-xs">
-          <div className="flex gap-2">
-            <dt className="w-20 shrink-0">Commit</dt>
-            <dd className="break-all font-mono">{commit.sha ? commit.sha.slice(0, 12) : 'unknown'}</dd>
-          </div>
+          {commit ? (
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0">Commit</dt>
+              <dd className="break-all font-mono">{commit.sha.slice(0, 12)}</dd>
+            </div>
+          ) : (
+            // A tree retrieved over Openship has no git history. Say so rather than showing a
+            // blank or an invented commit: the digest below is what identifies this build.
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0">Commit</dt>
+              <dd className="font-mono">not under version control</dd>
+            </div>
+          )}
           <div className="flex gap-2">
             <dt className="w-20 shrink-0">Files</dt>
             <dd className="font-mono">{manifest.totals.files}</dd>
@@ -91,15 +100,14 @@ const HumanView = () => {
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-foreground">Openship is a protocol</h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-          None of this is specific to Memorioso. Openship is a small convention — a discovery
-          document, a manifest, and a way to fetch files — that any site can implement so that its
-          source is reachable by an agent that only knows its address. Memorioso is the reference
-          implementation. The specification is{' '}
+          None of this is specific to Memorioso. OpenShip v1 starts with a discovery document and
+          a verifiable source snapshot, then optionally adds Changes or Systems. Memorioso implements
+          Sources and Changes. The vendored specification is{' '}
           <a
-            href="/openship/file/OPENSHIP.md"
+            href="/openship/file/skills/openship/references/openship.md"
             className="underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-blurple"
           >
-            OPENSHIP.md
+            openship.md
           </a>
           , served, of course, by the protocol it describes.
         </p>

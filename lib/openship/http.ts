@@ -1,16 +1,14 @@
-// Shared response shape for the Openship endpoints. Mirrors the public, CORS-open, immutable
-// contract already used by app/api/publications/[publicationId]/libro-manifest/route.ts, minus its
-// OPTIONS handler: these are simple GETs that never trigger a CORS preflight, and exporting a
-// second method would opt every Openship route out of static prerendering.
+// Shared response shape for public, CORS-readable OpenShip endpoints.
 
 import { NextResponse } from 'next/server'
 
-// The payload is fixed at build time, so every response for a given deployment is immutable.
-const IMMUTABLE = 'public, max-age=31536000, immutable'
+// Current-origin documents are revalidated. Immutable caching is reserved for content-addressed
+// snapshots and candidate origins, and is not inferred by a mutable production route.
+const REVALIDATE = 'public, max-age=0, must-revalidate'
 
 export const openshipHeaders = (contentType: string): Record<string, string> => ({
   'Access-Control-Allow-Origin': '*',
-  'Cache-Control': IMMUTABLE,
+  'Cache-Control': REVALIDATE,
   'Content-Type': contentType,
 })
 
@@ -30,7 +28,14 @@ export const openshipNotFound = (message: string): NextResponse =>
  * The public origin, from NEXT_PUBLIC_APP_URL. Read from env rather than request headers so these
  * handlers stay prerenderable under cacheComponents.
  */
-export const openshipOrigin = (): string => {
+export const openshipOrigin = (request?: Request): string => {
+  if (request) {
+    try {
+      return new URL(request.url).origin
+    } catch {
+      // Fall through to the configured canonical origin.
+    }
+  }
   const value = process.env.NEXT_PUBLIC_APP_URL
   if (!value) return ''
   try {
@@ -41,8 +46,7 @@ export const openshipOrigin = (): string => {
 }
 
 /**
- * For the Changes endpoints, which are dynamic. Same CORS posture as the read half, but nothing
- * here is immutable: a change's status is the one Openship response that is expected to move.
+ * Changes responses are dynamic. Submissions, violations, and status are never cached.
  */
 export const openshipDynamicJson = (body: unknown, status = 200): NextResponse =>
   NextResponse.json(body, {

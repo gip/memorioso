@@ -1,4 +1,4 @@
--- Proposed changes submitted through POST /openship/changes. See OPENSHIP-CHANGES.md.
+-- Proposed changes submitted through the OpenShip Changes endpoint.
 --
 -- The patch is stored as submitted rather than as a resulting tree: the base digest plus the patch
 -- is what the author signed up to, and re-deriving the tree at build time is how the worker's
@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS openship_changes (
     bytes INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'queued',
     reason TEXT,
+    -- Reserved candidate origin. Stored at acceptance; the status says when it is live.
     url TEXT,
     submitter TEXT,
     -- Set by the worker when it claims the row, so a crashed build can be reclaimed by age.

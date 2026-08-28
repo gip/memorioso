@@ -21,6 +21,10 @@ describe('isolatedFrom', () => {
     expect(isolatedFrom('memorioso-builds.xyz', 'https://memorioso.xyz')).toBe(true)
   })
 
+  it('rejects sibling hosts on the same registrable domain', () => {
+    expect(isolatedFrom('build.example.co.uk', 'https://www.example.co.uk')).toBe(false)
+  })
+
   it('accepts anything against localhost, so development is not blocked', () => {
     expect(isolatedFrom('builds.localtest.me', 'http://localhost:3000')).toBe(true)
   })

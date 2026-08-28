@@ -1,4 +1,4 @@
-// Persistence for proposed changes. See OPENSHIP-CHANGES.md for what a change is and
+// Persistence for proposed OpenShip Changes and
 // lib/openship/validate.ts for what makes one acceptable.
 
 import { pool } from '@/lib/db'
@@ -46,6 +46,7 @@ export type InsertChange = {
   buildId: string
   baseDigest: string
   resultDigest: string
+  candidateOrigin: string
   title: string
   intent: string
   /** The submitted patch, verbatim. `null` values are deletions. */
@@ -67,8 +68,8 @@ export const insertOpenshipChange = async (
   try {
     const inserted = await client.query<Row>(
       `INSERT INTO openship_changes
-           (build_id, base_digest, result_digest, title, intent, patch, files_changed, bytes, submitter)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+           (build_id, base_digest, result_digest, url, title, intent, patch, files_changed, bytes, submitter)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
        ON CONFLICT (result_digest) DO NOTHING
        RETURNING id, build_id, base_digest, result_digest, title, intent, files_changed, bytes,
                  status, reason, url, submitted_at, modified_at`,
@@ -76,6 +77,7 @@ export const insertOpenshipChange = async (
         input.buildId,
         input.baseDigest,
         input.resultDigest,
+        input.candidateOrigin,
         input.title,
         input.intent,
         JSON.stringify(input.patch),

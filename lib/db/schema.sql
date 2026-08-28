@@ -8,6 +8,9 @@ CREATE TABLE users
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),
   libro_identity_status VARCHAR(16) NOT NULL DEFAULT 'session_bound',
+  -- Whether this author wants their drafts encrypted. NULL means not yet asked;
+  -- 'none' means asked and declined, which is a different thing.
+  draft_encryption VARCHAR(16) CHECK (draft_encryption IS NULL OR draft_encryption IN ('passphrase', 'none')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT users_session_bound_identity_complete CHECK (
@@ -111,19 +114,60 @@ CREATE INDEX idx_publication_access_grants_unsettled
     ON publication_access_grants(valid_before)
     WHERE settled_at IS NULL;
 
+-- Draft prose is encrypted in the browser: an 'v1' draft carries only
+-- drafts.ciphertext, and title/subtitle/content stay null. The plaintext columns
+-- remain for rows written before encryption and for the extension's transient
+-- inline-signing drafts, which the server writes itself and publishes at once.
 CREATE TABLE drafts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "authorId" UUID REFERENCES authors(id) ON DELETE SET NULL,
     status VARCHAR(255) NOT NULL,
     publication_type VARCHAR(16) NOT NULL DEFAULT 'article' CHECK (publication_type IN ('short', 'article')),
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(255),
     subtitle VARCHAR(255),
-    content JSONB NOT NULL,
+    content JSONB,
+    ciphertext TEXT,
+    encryption VARCHAR(8) NOT NULL DEFAULT 'none' CHECK (encryption IN ('none', 'v1')),
     history JSONB NOT NULL,
     access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Enforcing both halves is what stops a half-finished write from leaving
+    -- readable text beside the ciphertext that replaced it.
+    CONSTRAINT drafts_encryption_shape_check CHECK (
+        (encryption = 'none' AND ciphertext IS NULL AND title IS NOT NULL AND content IS NOT NULL)
+        OR
+        (encryption = 'v1' AND ciphertext IS NOT NULL AND title IS NULL AND subtitle IS NULL AND content IS NULL)
+    )
+);
+
+-- The author's data key, wrapped once per secret that may open it.
+--
+-- Both wrappers hold the same data key, so either opens every draft: 'worldid'
+-- derives its key from login proof material and needs nothing remembered, while
+-- 'recovery' derives from a code shown once and is what survives a lost World ID
+-- identity. Only wrapped bytes live here; the data key never reaches the server.
+CREATE TABLE user_draft_key_wrappers (
+    "userId"        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    wrapper         VARCHAR(16) NOT NULL CHECK (wrapper IN ('passphrase', 'recovery')),
+    kdf_salt        BYTEA NOT NULL,
+    -- PBKDF2 cost for a passphrase, which needs stretching; NULL for a recovery
+    -- code, which is 128 random bits and does not. Stored rather than pinned in
+    -- code so the cost can be raised without stranding older wrappers.
+    kdf_iterations  INTEGER,
+    -- A public identifier for the unwrapping key, so the client can tell a wrong
+    -- key from damaged bytes instead of reading an opaque AES-GCM failure.
+    kek_fingerprint CHAR(64) NOT NULL,
+    wrapped_dek     BYTEA NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("userId", wrapper),
+    CONSTRAINT user_draft_key_wrappers_kdf_iterations_check CHECK (
+        (wrapper = 'passphrase' AND kdf_iterations IS NOT NULL AND kdf_iterations >= 100000)
+        OR
+        (wrapper <> 'passphrase' AND kdf_iterations IS NULL)
+    )
 );
 
 CREATE TABLE world_id_publish_challenges (
@@ -330,6 +374,11 @@ CREATE TRIGGER update_drafts_modified_at
     FOR EACH ROW
     EXECUTE FUNCTION update_modified_at_column();
 
+CREATE TRIGGER update_user_draft_key_wrappers_modified_at
+    BEFORE UPDATE ON user_draft_key_wrappers
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_at_column();
+
 CREATE OR REPLACE FUNCTION validate_draft_user_matches_author()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -368,7 +417,7 @@ CREATE TRIGGER enforce_publication_user_matches_author
     FOR EACH ROW
     EXECUTE FUNCTION validate_publication_user_matches_author();
 
--- Proposed changes submitted through POST /openship/changes. See OPENSHIP-CHANGES.md.
+-- Proposed changes submitted through the OpenShip Changes endpoint.
 --
 -- The patch is stored as submitted rather than as a resulting tree: the base digest plus the patch
 -- is what the author signed up to, and re-deriving the tree at build time is how the worker's
@@ -386,6 +435,7 @@ CREATE TABLE IF NOT EXISTS openship_changes (
     bytes INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'queued',
     reason TEXT,
+    -- Reserved candidate origin. Stored at acceptance; the status says when it is live.
     url TEXT,
     submitter TEXT,
     -- Set by the worker when it claims the row, so a crashed build can be reclaimed by age.

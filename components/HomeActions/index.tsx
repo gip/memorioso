@@ -176,12 +176,7 @@ export const HomeActions = ({ className }: { className?: string }) => {
                 <Link href="/profile">Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault()
-                  handleSignOut()
-                }}
-              >
+              <DropdownMenuItem onSelect={() => handleSignOut()}>
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

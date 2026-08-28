@@ -154,6 +154,12 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   that passphrase and PBKDF2 would be protecting nothing. `lib/draft-crypto/index.test.ts`
   pins this. A recovery code needs no stretching — it is 128 random bits — and its derivation is
   unchanged, which is what keeps wrappers written before the passphrase existed openable.
+- Migration 019 deleted the `worldid` wrappers and narrowed the `wrapper` CHECK to
+  `('passphrase', 'recovery')`, so any build from before `f26803c` that still talks to a migrated
+  database fails at exactly two points: it shows every author "Your drafts are locked" (it has no
+  notion of `users.draft_encryption`, so an author who declined is locked out of their own prose
+  drafts), and its "Sign in again" writes `wrapper = 'worldid'`, which the constraint rejects as
+  "Failed to store the draft key". Do not leave an older deployment pointed at this database.
 - There was a third wrapper, `worldid`, deriving its KEK from `responses[0].session_nullifier[1]`
   of a session login. It did not work: `LibroRegistry._verifyAndConsumeSession` marks
   `sessionNullifier[0]` used on every registration, so the pair is per-proof replay protection,
@@ -162,6 +168,10 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   and in a public on-chain event, which defeats the point.
 - This hardens data at rest. It is not a defence against the running server, which serves the
   script that handles the passphrase.
+- `/api/draft-keys` failing is its own state, `'unavailable'`, and not `'locked'`: an author who
+  declined encryption must never be told their drafts are encrypted because a fetch failed. Drafts
+  still stay on the device while it is unknown, and `DraftLockNotice` offers `recheck()` instead of
+  a passphrase field.
 - The unwrapped DEK is cached per device in IndexedDB as a non-extractable `CryptoKey`
   (`lib/draft-crypto/store.ts`) and cleared on sign-out. A page load has no secret in hand, so
   that cache is the only unlock that costs the author nothing; everything else asks.

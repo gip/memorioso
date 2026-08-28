@@ -208,7 +208,11 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // account without writing prose the database is not supposed to hold. An
   // author who has not yet chosen counts as locked too: the choice dialog is up,
   // and until it is answered there is no telling which shape a save should take.
-  const isDraftKeyLocked = isAuthenticated && (draftKeyStatus === 'locked' || draftKeyStatus === 'unset')
+  // So does one whose choice could not be read: unknown is not permission to
+  // guess.
+  const isDraftKeyLocked = isAuthenticated && (
+    draftKeyStatus === 'locked' || draftKeyStatus === 'unset' || draftKeyStatus === 'unavailable'
+  )
   const { isInstalled: isMiniKitInstalled } = useMiniKit()
   const canUseWorldWallet = isMiniKitInstalled === true && isNativeLibroTransactionAvailable()
   const publicClient = useMemo(
@@ -731,7 +735,10 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // without remounting, so typing is not interrupted.
   const isAdoptingRef = useRef(false)
   useEffect(() => {
-    if (status !== 'authenticated' || draftKeyStatus !== 'unlocked') return
+    // 'disabled' adopts too: that author saves prose by their own choice, and
+    // leaving the local copy behind means it reappears in the next new draft.
+    if (status !== 'authenticated') return
+    if (draftKeyStatus !== 'unlocked' && draftKeyStatus !== 'disabled') return
     if (currentDraftId || draftId) return
     if (!isLocalRestored || !hasText || isEditingDisabled) return
     // Only adopt work that was actually written anonymously. Without this an
@@ -852,7 +859,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       {error && <AlertDestructive message={error} />}
       {/* The one-time choice, asked where it starts to matter rather than at sign-in. */}
       <DraftEncryptionSetup />
-      {draftKeyStatus === 'locked' && isAuthenticated && <DraftLockNotice />}
+      {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (
         <PublishProgress step={publishStep} status={publishStatus} />
       )}

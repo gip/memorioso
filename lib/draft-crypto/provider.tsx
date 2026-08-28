@@ -8,7 +8,9 @@
 // once there is one, 'locked' on a browser that has never held it, 'unset'
 // before the author has decided whether to encrypt at all, and 'disabled' when
 // they decided not to, in which case there is no key and drafts are stored as
-// prose.
+// prose. 'unavailable' is the sixth and says nothing about the drafts: the
+// server could not be asked how they are stored, which is not the same claim as
+// 'locked' and must not be told to an author who never encrypted anything.
 
 import {
   createContext,
@@ -34,7 +36,7 @@ import {
 } from '@/lib/draft-crypto/unlock'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
-export type DraftKeyStatus = 'loading' | 'unset' | 'locked' | 'unlocked' | 'disabled'
+export type DraftKeyStatus = 'loading' | 'unset' | 'locked' | 'unlocked' | 'disabled' | 'unavailable'
 
 type DraftKeyContextValue = {
   status: DraftKeyStatus
@@ -48,6 +50,8 @@ type DraftKeyContextValue = {
   enableEncryption: (passphrase: string) => Promise<void>
   /** From 'unset': records that this author does not want their drafts encrypted. */
   skipEncryption: () => Promise<void>
+  /** Re-asks the server how these drafts are stored, after a check that failed. */
+  recheck: () => void
   unlockWithPassphrase: (passphrase: string) => Promise<void>
   unlockWithCode: (code: string) => Promise<void>
   resetPassphrase: (passphrase: string) => Promise<void>
@@ -91,6 +95,9 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
   // A page load has no secret in hand, so the device cache is the only way in
   // that costs the author nothing. What it cannot answer — whether this author
   // wants encryption at all — comes from the server alongside it.
+  const [checkAttempt, setCheckAttempt] = useState(0)
+  const recheck = useCallback(() => setCheckAttempt((attempt) => attempt + 1), [])
+
   useEffect(() => {
     if (authStatus === 'loading') return
 
@@ -116,17 +123,21 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
       if (cached) {
         setKey(cached)
         setStatus('unlocked')
+        setError(null)
         return
       }
 
       if (!state) {
-        // The choice is unknown, so assume the safer of the two: prompting for a
-        // passphrase costs a click, writing prose on a wrong guess does not undo.
-        setStatus('locked')
+        // Unknown is its own answer. Drafts still stay on this device, because
+        // writing prose on a wrong guess does not undo — but an author who
+        // never encrypted anything must not be told their drafts are encrypted.
+        setStatus('unavailable')
         setError('Could not check how your drafts are stored')
         return
       }
 
+      // A check that succeeds clears whatever the last one failed to answer.
+      setError(null)
       if (state.encryption === 'none' && state.wrappers.length === 0) {
         setStatus('disabled')
         return
@@ -137,7 +148,7 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [authStatus, userId])
+  }, [authStatus, userId, checkAttempt])
 
   // Sign-out has to take the key with it, or the next person at this browser
   // inherits an unlocked account.
@@ -259,6 +270,7 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
     canSetPassphrase,
     enableEncryption,
     skipEncryption,
+    recheck,
     unlockWithPassphrase: unlock,
     unlockWithCode,
     resetPassphrase,
@@ -266,7 +278,8 @@ export function DraftKeyProvider({ children }: { children: ReactNode }) {
     acknowledgeRecoveryCode,
   }), [
     status, key, error, recoveryCode, canSetPassphrase, enableEncryption, skipEncryption,
-    unlock, unlockWithCode, resetPassphrase, dismissPassphraseReset, acknowledgeRecoveryCode,
+    recheck, unlock, unlockWithCode, resetPassphrase, dismissPassphraseReset,
+    acknowledgeRecoveryCode,
   ])
 
   return <DraftKeyContext.Provider value={value}>{children}</DraftKeyContext.Provider>

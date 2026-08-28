@@ -3,20 +3,42 @@
 // What an author sees when their drafts are encrypted and this device cannot
 // read them: a browser that has never held the key, or one whose storage was
 // cleared. The passphrase is the way in; the recovery code is the way in when
-// the passphrase is gone.
+// the passphrase is gone. It also covers the case where nothing is known yet,
+// which is a different thing to say and is said differently.
 
 import { useState } from 'react'
-import { Lock, Loader2 } from 'lucide-react'
+import { Lock, Loader2, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useDraftKey } from '@/lib/draft-crypto/provider'
 
 export const DraftLockNotice = ({ title = 'Your drafts are locked' }: { title?: string }) => {
-  const { error, unlockWithPassphrase, unlockWithCode } = useDraftKey()
+  const { status, error, recheck, unlockWithPassphrase, unlockWithCode } = useDraftKey()
   const [usingCode, setUsingCode] = useState(false)
   const [secret, setSecret] = useState('')
   const [isUnlocking, setIsUnlocking] = useState(false)
+
+  // The server could not be reached, which says nothing about how these drafts
+  // are stored. Asking an author who never encrypted anything for a passphrase
+  // they were never given is worse than admitting the check failed.
+  if (status === 'unavailable') {
+    return (
+      <Alert>
+        <RefreshCw className="h-4 w-4" />
+        <AlertTitle>Could not check how your drafts are stored</AlertTitle>
+        <AlertDescription>
+          <p className="mt-1 text-sm">
+            Your work is being saved on this device in the meantime, and will go to your
+            account as soon as this succeeds.
+          </p>
+          <Button type="button" size="sm" className="mt-3" onClick={recheck}>
+            Try again
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
 
   const submit = async () => {
     setIsUnlocking(true)

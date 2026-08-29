@@ -26,10 +26,12 @@ const validationMock = vi.hoisted(() => ({
 }))
 
 const cacheMock = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
+  revalidatePath: cacheMock.revalidatePath,
   revalidateTag: cacheMock.revalidateTag,
 }))
 
@@ -133,6 +135,7 @@ describe('Libro publication finalize route', () => {
     dbMock.release.mockReset()
     authMock.getAuthenticatedUser.mockReset()
     serverMock.verifyLibroRegistrationTransaction.mockReset()
+    cacheMock.revalidatePath.mockReset()
     cacheMock.revalidateTag.mockReset()
     Object.values(validationMock).forEach((mock) => mock.mockReset())
 
@@ -221,10 +224,13 @@ describe('Libro publication finalize route', () => {
       'latest-publications',
       { expire: 0 }
     )
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith('/')
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith('/latest')
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[
       dbMock.clientQuery.mock.calls.findIndex(([query]) => query === 'COMMIT')
     ]
     expect(commitCall).toBeLessThan(cacheMock.revalidateTag.mock.invocationCallOrder[0])
+    expect(commitCall).toBeLessThan(cacheMock.revalidatePath.mock.invocationCallOrder[0])
   })
 
   it('rejects a sponsored hash that was not stored by the relayer', async () => {
@@ -237,6 +243,7 @@ describe('Libro publication finalize route', () => {
     expect(response.status).toBe(400)
     expect(serverMock.verifyLibroRegistrationTransaction).not.toHaveBeenCalled()
     expect(cacheMock.revalidateTag).not.toHaveBeenCalled()
+    expect(cacheMock.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('still requires a user operation hash for World wallet submission', async () => {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
@@ -423,6 +423,8 @@ export async function PUT(
       revalidateTag(authorPublicationCountsCacheTag(draft.authorId), { expire: 0 })
       revalidateTag(sitemapCacheTag, { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })
+      revalidatePath('/')
+      revalidatePath('/latest')
 
       console.info('Finalized Libro publication', {
         requestId,

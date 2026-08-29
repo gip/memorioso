@@ -15,10 +15,12 @@ const serverMock = vi.hoisted(() => ({
 }))
 
 const cacheMock = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
+  revalidatePath: cacheMock.revalidatePath,
   revalidateTag: cacheMock.revalidateTag,
 }))
 
@@ -126,6 +128,7 @@ describe('Libro agent document finalize route', () => {
     dbMock.clientQuery.mockReset()
     dbMock.release.mockReset()
     serverMock.verifyLibroAgentDocumentRegistered.mockReset()
+    cacheMock.revalidatePath.mockReset()
     cacheMock.revalidateTag.mockReset()
 
     dbMock.poolQuery.mockResolvedValue({
@@ -173,10 +176,13 @@ describe('Libro agent document finalize route', () => {
       'latest-publications',
       { expire: 0 }
     )
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith('/')
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith('/latest')
     const commitCall = dbMock.clientQuery.mock.invocationCallOrder[
       dbMock.clientQuery.mock.calls.findIndex(([query]) => query === 'COMMIT')
     ]
     expect(commitCall).toBeLessThan(cacheMock.revalidateTag.mock.invocationCallOrder[0])
+    expect(commitCall).toBeLessThan(cacheMock.revalidatePath.mock.invocationCallOrder[0])
   })
 
   it('does not invalidate when the document is not registered on-chain', async () => {
@@ -186,6 +192,7 @@ describe('Libro agent document finalize route', () => {
 
     expect(response.status).toBe(400)
     expect(cacheMock.revalidateTag).not.toHaveBeenCalled()
+    expect(cacheMock.revalidatePath).not.toHaveBeenCalled()
     expect(dbMock.connect).not.toHaveBeenCalled()
   })
 

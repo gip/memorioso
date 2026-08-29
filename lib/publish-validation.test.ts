@@ -6,7 +6,12 @@ import {
   type PublishChallengeRow,
   type PublishDraftRow,
 } from './publish-validation'
-import { canonicalPublicationSignal, createLibroPublicationV1, hashPublicationSignal } from './world-id/publication'
+import {
+  canonicalPublicationSignal,
+  createLibroPublicationV1,
+  createLibroPublicationV2,
+  hashPublicationSignal,
+} from './world-id/publication'
 
 const draft: PublishDraftRow = {
   id: 'draft-1',
@@ -18,6 +23,7 @@ const draft: PublishDraftRow = {
   publicationType: 'short',
   access: 'public',
 }
+const authorReference = { namespace: 'https://memorioso.xyz', id: draft.authorId }
 
 function challengeForDraft(row: PublishDraftRow): PublishChallengeRow {
   const publication = createLibroPublicationV1({
@@ -57,41 +63,63 @@ describe('assertChallengeMatchesAuthor', () => {
   it('returns the publication the challenge holds', () => {
     const challenge = challengeForDraft(draft)
 
-    expect(assertChallengeMatchesAuthor(draft, challenge)).toBe(challenge.publication)
+    expect(assertChallengeMatchesAuthor(draft, challenge, authorReference)).toBe(challenge.publication)
   })
 
   it('rejects an author renamed after the challenge was signed', () => {
     const challenge = challengeForDraft(draft)
 
-    expect(() => assertChallengeMatchesAuthor({ ...draft, author_name: 'Grace' }, challenge))
+    expect(() => assertChallengeMatchesAuthor({ ...draft, author_name: 'Grace' }, challenge, authorReference))
       .toThrow('Author changed after proof challenge creation')
   })
 
   it('rejects a handle that changed after the challenge was signed', () => {
     const challenge = challengeForDraft(draft)
 
-    expect(() => assertChallengeMatchesAuthor({ ...draft, author_handle: 'grace' }, challenge))
+    expect(() => assertChallengeMatchesAuthor({ ...draft, author_handle: 'grace' }, challenge, authorReference))
       .toThrow('Author changed after proof challenge creation')
   })
 
   it('rejects a bio that changed after the challenge was signed', () => {
     const challenge = challengeForDraft(draft)
 
-    expect(() => assertChallengeMatchesAuthor({ ...draft, author_bio: 'Rewritten' }, challenge))
+    expect(() => assertChallengeMatchesAuthor({ ...draft, author_bio: 'Rewritten' }, challenge, authorReference))
       .toThrow('Author changed after proof challenge creation')
   })
 
   it('rejects a challenge belonging to another author', () => {
     const challenge = challengeForDraft(draft)
 
-    expect(() => assertChallengeMatchesAuthor({ ...draft, authorId: 'author-2' }, challenge))
+    expect(() => assertChallengeMatchesAuthor(
+      { ...draft, authorId: 'author-2' }, challenge, authorReference
+    ))
       .toThrow('Author changed after proof challenge creation')
+  })
+
+  it('accepts a scoped v2 reference and rejects a different namespace', () => {
+    const publication = createLibroPublicationV2({
+      author: { id: draft.authorId, name: draft.author_name, handle: draft.author_handle, bio: '' },
+      authorReference,
+      title: '',
+      subtitle: '',
+      content: { html: '<p>Readable body</p>' },
+      publicationDate: '2026-07-21T12:00:00.000Z',
+    })
+    const challenge = { ...challengeForDraft(draft), publication }
+
+    expect(assertChallengeMatchesAuthor(draft, challenge, authorReference)).toBe(publication)
+    expect(() => assertChallengeMatchesAuthor(draft, challenge, {
+      ...authorReference,
+      namespace: 'https://publisher.example',
+    })).toThrow('Author changed after proof challenge creation')
   })
 
   it('treats a null bio and an empty bio as the same', () => {
     const challenge = challengeForDraft({ ...draft, author_bio: null })
 
-    expect(() => assertChallengeMatchesAuthor({ ...draft, author_bio: '' }, challenge)).not.toThrow()
+    expect(() => assertChallengeMatchesAuthor(
+      { ...draft, author_bio: '' }, challenge, authorReference
+    )).not.toThrow()
   })
 })
 

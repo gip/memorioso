@@ -12,10 +12,11 @@ import {
   MAX_INLINE_TEXT_LENGTH,
   normalizeInlineSigningText,
 } from '@/lib/libro/inline'
-import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
+import { createLibroPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
+import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 import { normalizedUnicodeLength } from '@libro/core'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     worldIdConfig = getWorldIdServerConfig()
     getLibroServerConfig()
+    getMemoriosoAuthorNamespace()
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const draftId = draftResult.rows[0].id as string
     const challengeId = randomUUID()
     const publicationDate = new Date().toISOString()
-    const publication = createLibroPublicationV1({
+    const publication = createLibroPublicationV2({
       author: {
         id: author.id,
         name: author.name,
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       subtitle: '',
       content,
       publicationDate,
+      authorReference: getMemoriosoAuthorReference(author.id),
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)

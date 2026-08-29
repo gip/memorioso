@@ -5,6 +5,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import {
   canonicalStringify,
   createLibroPublicationV1,
+  createLibroPublicationV2,
   createPublicationV2,
   canonicalPublicationSignal,
   hashPublicationSignal,
@@ -15,8 +16,10 @@ import {
   LIBRO_AGENT_AUTHORSHIP_CLAIM,
   LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_PUBLICATION_SCHEMA_V2,
   LIBRO_WORLD_CHAIN_ID,
   libroRegistryAbi,
 } from '../../libro/contract'
@@ -24,9 +27,11 @@ import { rpIdToUint64 } from '../../libro/encoding'
 import { prepareLibroRegistration } from '../../libro/proof'
 import { hashLibroHandle } from '@libro/core'
 import {
+  agentPublicationMatchesAuthor,
   createAgentDocumentTypedData,
   createAgentRegistrationPayload,
   createLibroAgentPublicationV1,
+  createLibroAgentPublicationV2,
   createPrincipalAuthorHash,
   LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE,
   parseAgentPublicationPayload,
@@ -134,6 +139,22 @@ describe('World ID publication signals', () => {
     expect(signal.libro_protocol_version).toBe(LIBRO_PROTOCOL_VERSION)
     expect(signal.author_id_libro).toBe(author.id)
     expect(signal.publication_title).toBe('A human note')
+  })
+
+  it('creates a Libro v2 publication with a scoped optional author reference', () => {
+    const signal = createLibroPublicationV2({
+      author,
+      authorReference: { namespace: 'https://memorioso.xyz', id: author.id },
+      title: 'A human note',
+      subtitle: 'On signatures',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+    })
+
+    expect(signal.publication_schema).toBe(LIBRO_PUBLICATION_SCHEMA_V2)
+    expect(signal.libro_protocol_version).toBe(LIBRO_PROTOCOL_VERSION)
+    expect(signal.author_reference).toEqual({ namespace: 'https://memorioso.xyz', id: author.id })
+    expect(signal).not.toHaveProperty('author_id_libro')
   })
 
   it('keeps the Libro v1 IDKit signal small no matter how large the article body is', () => {
@@ -275,6 +296,51 @@ describe('Libro agent authorization helpers', () => {
     expect(agentPublication.libro_agent_protocol_version).toBe(LIBRO_AGENT_PROTOCOL_VERSION)
     expect(agentPublication.authorship_claim).toBe(LIBRO_AGENT_AUTHORSHIP_CLAIM)
     expect(canonicalPublicationSignal(agentPublication)).not.toBe(canonicalPublicationSignal(humanPublication))
+  })
+
+  it('creates an agent v2 publication without an unscoped author id', () => {
+    const agentPublication = createLibroAgentPublicationV2({
+      author,
+      authorReference: { namespace: 'https://memorioso.xyz', id: author.id },
+      title: 'A delegated note',
+      subtitle: 'On agents',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+    })
+
+    expect(agentPublication.publication_schema).toBe(LIBRO_AGENT_PUBLICATION_SCHEMA_V2)
+    expect(agentPublication.author_reference).toEqual({ namespace: 'https://memorioso.xyz', id: author.id })
+    expect(agentPublication).not.toHaveProperty('author_id_libro')
+  })
+
+  it('matches both legacy and scoped agent publications to the local author', () => {
+    const expectedReference = { namespace: 'https://memorioso.xyz', id: author.id }
+    const legacyPublication = createLibroAgentPublicationV1({
+      author,
+      title: 'Legacy',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+    })
+    const scopedPublication = createLibroAgentPublicationV2({
+      author,
+      authorReference: expectedReference,
+      title: 'Scoped',
+      content,
+      publicationDate: '2026-05-13T12:00:00.000Z',
+      agentAddress: '0x2222222222222222222222222222222222222222',
+      agentRegistrationHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
+    })
+
+    expect(agentPublicationMatchesAuthor(legacyPublication, expectedReference)).toBe(true)
+    expect(agentPublicationMatchesAuthor(scopedPublication, expectedReference)).toBe(true)
+    expect(agentPublicationMatchesAuthor(scopedPublication, {
+      ...expectedReference,
+      namespace: 'https://publisher.example',
+    })).toBe(false)
   })
 
   it('recovers the EIP-712 document signer', async () => {

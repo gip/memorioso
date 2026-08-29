@@ -5,9 +5,12 @@ import type {
     LIBRO_AGENT_AUTHORSHIP_CLAIM,
     LIBRO_AGENT_PROTOCOL_VERSION,
     LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+    LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
     LIBRO_PROTOCOL_VERSION,
     LIBRO_PUBLICATION_SCHEMA_V1,
+    LIBRO_PUBLICATION_SCHEMA_V2,
 } from '@/lib/libro/contract'
+import type { LibroAuthorReference } from '@libro/core'
 
 export type PublicationKind = 'short' | 'article'
 
@@ -26,6 +29,8 @@ export type Author = {
   export type PublicationContent = {
     html: string
   }
+
+  export type AuthorReference = LibroAuthorReference
   
   // Publication payload V1 that is signed
   export type PublicationV1 = {
@@ -53,6 +58,11 @@ export type Author = {
     author_handle_hash_libro: string
   }
 
+  export type LibroPublicationV2 = Omit<LibroPublicationV1, 'publication_schema' | 'author_id_libro'> & {
+    publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V2
+    author_reference?: AuthorReference
+  }
+
   export type LibroAgentPublicationV1 = PublicationV1 & {
     publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
     libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
@@ -62,7 +72,17 @@ export type Author = {
     agent_registration_hash: string
   }
 
-  export type PublicationRecord = (PublicationV1 | PublicationV2 | LibroPublicationV1 | LibroAgentPublicationV1) & {
+  export type LibroAgentPublicationV2 = Omit<LibroAgentPublicationV1, 'publication_schema' | 'author_id_libro'> & {
+    publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V2
+    author_reference?: AuthorReference
+  }
+
+  export type LibroHumanPublication = LibroPublicationV1 | LibroPublicationV2
+  export type LibroAgentPublication = LibroAgentPublicationV1 | LibroAgentPublicationV2
+
+  export type PublicationSignal = PublicationV1 | PublicationV2 | LibroHumanPublication | LibroAgentPublication
+
+  export type PublicationRecord = PublicationSignal & {
     version: string
   }
   

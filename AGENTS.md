@@ -112,7 +112,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 ## Publication And Proof Flow
 
 - Draft publishing depends on exact agreement between the draft record and the signed publication payload.
-- Preserve the `PublicationV1` field names in `types/index.ts`, including `author_id_libro`, `author_name_libro`, `publication_title`, `publication_content`, and related fields.
+- Preserve the legacy `PublicationV1` field names for verification compatibility. New Libro human and agent publications use their v2 schemas, omit `author_id_libro`, and may carry the strictly scoped `author_reference`; the handle hash remains the protocol identity.
 - IDKit publication verification uses per-challenge actions shaped as `written-by-a-human-v4-<challengeId>` and the canonical publication JSON as the signal. Changing payload shape or serialization affects proof validity.
 - Published data stores the proof, signal, content, title, subtitle, version, and date in `publications`.
 - Publication dates are validated server-side to be no later than now and no older than five minutes at publish time.

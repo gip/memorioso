@@ -14,6 +14,7 @@ import {
   LIBRO_AGENT_AUTHORSHIP_CLAIM,
   LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
   LIBRO_AGENT_REGISTRATION_SCHEMA_V1,
   libroRegistryAbi,
 } from './contract'
@@ -25,7 +26,13 @@ import {
   hashPublicationSignal,
   type PublicationDraftInput,
 } from '../world-id/publication'
-import type { LibroAgentPublicationV1, PublicationContent } from '../../types'
+import type {
+  AuthorReference,
+  LibroAgentPublication,
+  LibroAgentPublicationV1,
+  LibroAgentPublicationV2,
+  PublicationContent,
+} from '../../types'
 import { hashLibroHandle, normalizeOptionalPublicationText } from '@libro/core'
 import { publicationKindFromTitle, validatePublicationForKind } from '../publication-kind'
 
@@ -239,6 +246,29 @@ export function createLibroAgentPublicationV1(input: PublicationDraftInput & {
   }
 }
 
+export function createLibroAgentPublicationV2(input: PublicationDraftInput & {
+  authorReference?: AuthorReference
+  agentAddress: string
+  agentRegistrationHash: string
+}): LibroAgentPublicationV2 {
+  return {
+    publication_schema: LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
+    libro_agent_protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+    authorship_claim: LIBRO_AGENT_AUTHORSHIP_CLAIM,
+    ...(input.authorReference ? { author_reference: input.authorReference } : {}),
+    publication_date: input.publicationDate,
+    author_name_libro: input.author.name,
+    author_handle_libro: input.author.handle,
+    author_handle_hash_libro: hashLibroHandle(input.author.handle),
+    author_bio_libro: input.author.bio || '',
+    publication_title: normalizeOptionalPublicationText(input.title),
+    publication_content: input.content,
+    publication_subtitle: normalizeOptionalPublicationText(input.subtitle),
+    agent_address: assertAddress(input.agentAddress, 'agent_address'),
+    agent_registration_hash: assertBytes32(input.agentRegistrationHash, 'agent_registration_hash'),
+  }
+}
+
 export function createAgentDocumentTypedData(input: {
   chainId: number; registryAddress: string; registrationHash: string
   documentSignalHash: string; documentNonce: string; signedAt: number | bigint
@@ -322,11 +352,21 @@ export function prepareAgentDocumentRegistration(input: {
   return { chainId: input.config.chainId, transactions: [{ to: input.config.registryAddress, data, value: '0x0' }] }
 }
 
-export function buildAgentPublicationSignal(publication: LibroAgentPublicationV1): {
+export function buildAgentPublicationSignal(publication: LibroAgentPublication): {
   signalText: string; signalHash: Hex
 } {
   const signalText = canonicalPublicationSignal(publication)
   return { signalText, signalHash: hashPublicationSignal(signalText) as Hex }
+}
+
+export function agentPublicationMatchesAuthor(
+  publication: LibroAgentPublication,
+  expectedReference: AuthorReference
+): boolean {
+  return 'author_id_libro' in publication
+    ? publication.author_id_libro === expectedReference.id
+    : publication.author_reference?.namespace === expectedReference.namespace &&
+      publication.author_reference.id === expectedReference.id
 }
 
 export function parseAgentPublicationPayload(value: unknown): {

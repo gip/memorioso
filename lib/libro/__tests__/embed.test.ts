@@ -6,7 +6,15 @@ import {
   hashLibroHandle,
 } from '@libro/core'
 import { buildLibroEmbedManifest, buildLibroEmbedSnippet, buildLibroTextSnippet, sanitizeLibroEmbedHtml } from '../embed'
-import type { LibroAgentProofV1, LibroAgentPublicationV1, LibroPublicationV1, PublicationRecord, WorldIdProofV4 } from '@/types'
+import type {
+  LibroAgentProofV1,
+  LibroAgentPublicationV1,
+  LibroHumanPublication,
+  LibroPublicationV1,
+  LibroPublicationV2,
+  PublicationRecord,
+  WorldIdProofV4,
+} from '@/types'
 
 const publication: LibroPublicationV1 = {
   publication_schema: 'libro-publication-v1',
@@ -25,8 +33,25 @@ const publication: LibroPublicationV1 = {
   publication_subtitle: '',
 }
 
-function proof(): WorldIdProofV4 {
-  const signalText = canonicalPublicationSignal(publication)
+const publicationV2: LibroPublicationV2 = {
+  publication_schema: 'libro-publication-v2',
+  libro_protocol_version: 'libro-v1',
+  world_id_protocol_version: '4.0',
+  world_id_proof_type: 'session',
+  world_id_credential_policy: 'orb',
+  author_reference: { namespace: 'https://memorioso.xyz', id: 'author-1' },
+  publication_date: publication.publication_date,
+  author_name_libro: publication.author_name_libro,
+  author_handle_libro: publication.author_handle_libro,
+  author_handle_hash_libro: publication.author_handle_hash_libro,
+  author_bio_libro: publication.author_bio_libro,
+  publication_title: publication.publication_title,
+  publication_content: publication.publication_content,
+  publication_subtitle: publication.publication_subtitle,
+}
+
+function proof(value: LibroHumanPublication = publication): WorldIdProofV4 {
+  const signalText = canonicalPublicationSignal(value)
   return {
     protocol_version: '4.0',
     proof_type: 'session',
@@ -42,7 +67,7 @@ function proof(): WorldIdProofV4 {
       chain_id: 480,
       registry_address: LIBRO_V1_REGISTRY_ADDRESS,
       signal_hash: hashPublicationSignal(signalText),
-      handle_hash: publication.author_handle_hash_libro,
+      handle_hash: value.author_handle_hash_libro,
       authorship_class: 'human',
       transaction_hash: `0x${'11'.repeat(32)}`,
       registered_at: '2026-07-21T12:01:00.000Z',
@@ -93,6 +118,17 @@ function agentProof(): LibroAgentProofV1 {
 }
 
 describe('Libro embed generation', () => {
+  it('builds a v1 embed envelope around a human publication v2 payload', () => {
+    const manifest = buildLibroEmbedManifest(
+      { ...publicationV2, version: '3' } as PublicationRecord,
+      proof(publicationV2),
+      '44'
+    )
+    expect(manifest.schema).toBe('libro-embed-v1')
+    expect(manifest.publication).toEqual(publicationV2)
+    expect(manifest.claim).toBe('human-signed')
+  })
+
   it('builds an agent manifest bound to the same handle and unified registry', () => {
     const manifest = buildLibroEmbedManifest(
       { ...agentPublication, version: '3' } as PublicationRecord,

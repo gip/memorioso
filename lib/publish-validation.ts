@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import type { LibroPublicationV1, PublicationAccess, PublicationV2 } from '@/types'
+import type { AuthorReference, LibroHumanPublication, PublicationAccess, PublicationV2 } from '@/types'
 import type { PublicationKind } from '@/lib/publication-kind'
 
 type PublishChallengeLookup = {
@@ -16,7 +16,7 @@ export type PublishChallengeRow = {
   session_commitment: string
   signal_text: string
   signal_hash: string
-  publication: PublicationV2 | LibroPublicationV1
+  publication: PublicationV2 | LibroHumanPublication
   expires_at: string | Date
   consumed_at: string | Date | null
 }
@@ -116,7 +116,7 @@ export function assertDraftCanBePublished(draft: PublishDraftRow): void {
   }
 }
 
-export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroPublicationV1): void {
+export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroHumanPublication): void {
   const publicationDate = new Date(publication.publication_date)
   const now = new Date()
   const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
@@ -140,12 +140,17 @@ export function assertPublicationDateIsFresh(publication: PublicationV2 | LibroP
  */
 export function assertChallengeMatchesAuthor(
   draft: PublishDraftRow,
-  challenge: PublishChallengeRow
-): PublicationV2 | LibroPublicationV1 {
+  challenge: PublishChallengeRow,
+  expectedReference: AuthorReference
+): PublicationV2 | LibroHumanPublication {
   const publication = challenge.publication
+  const authorMatches = 'author_id_libro' in publication
+    ? publication.author_id_libro === draft.authorId
+    : publication.author_reference?.namespace === expectedReference.namespace &&
+      publication.author_reference.id === expectedReference.id
 
   if (
-    publication.author_id_libro !== draft.authorId ||
+    !authorMatches ||
     publication.author_name_libro !== draft.author_name ||
     publication.author_handle_libro !== draft.author_handle ||
     publication.author_bio_libro !== (draft.author_bio || '')

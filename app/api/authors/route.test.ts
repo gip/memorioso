@@ -6,6 +6,7 @@ vi.mock('@/lib/auth-user', () => ({ getAuthenticatedUser: mocks.auth }))
 vi.mock('@/lib/db', () => ({ pool: { connect: mocks.connect } }))
 
 import { GET, POST } from './route'
+import { reconcileOwnedAuthorId } from '@/lib/authors'
 
 describe('authors route', () => {
   beforeEach(() => {
@@ -18,6 +19,7 @@ describe('authors route', () => {
     mocks.query.mockResolvedValue({ rows: [{ id: 'author-1', handle: 'ada', isPrimary: true }] })
     const response = await GET(new NextRequest('https://memorioso.xyz/api/authors'))
     expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json()).resolves.toMatchObject({ authors: [{ handle: 'ada' }] })
   })
 
@@ -28,5 +30,22 @@ describe('authors route', () => {
     expect(response.status).toBe(405)
     await expect(response.json()).resolves.toMatchObject({ message: expect.stringContaining('one handle') })
     expect(mocks.connect).not.toHaveBeenCalled()
+  })
+})
+
+describe('draft author reconciliation', () => {
+  const previousAuthor = '30a0d4e6-3c63-475f-8a37-6a70fb3c49fa'
+  const currentAuthor = '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa'
+
+  it('replaces an author retained from a previous login', () => {
+    expect(reconcileOwnedAuthorId(previousAuthor, [{ id: currentAuthor }])).toBe(currentAuthor)
+  })
+
+  it('keeps an author that still belongs to the current login', () => {
+    expect(reconcileOwnedAuthorId(currentAuthor, [{ id: currentAuthor }])).toBe(currentAuthor)
+  })
+
+  it('clears the selection when the current login has no author', () => {
+    expect(reconcileOwnedAuthorId(previousAuthor, [])).toBeUndefined()
   })
 })

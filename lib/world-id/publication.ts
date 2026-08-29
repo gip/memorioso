@@ -6,8 +6,21 @@ import {
   normalizeOptionalPublicationText,
   hashLibroHandle,
 } from '@libro/core'
-import type { Author, LibroAgentPublicationV1, LibroPublicationV1, PublicationContent, PublicationV2 } from '@/types'
-import { LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '../libro/contract'
+import type {
+  Author,
+  AuthorReference,
+  LibroAgentPublication,
+  LibroHumanPublication,
+  LibroPublicationV1,
+  LibroPublicationV2,
+  PublicationContent,
+  PublicationV2,
+} from '@/types'
+import {
+  LIBRO_PROTOCOL_VERSION,
+  LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_PUBLICATION_SCHEMA_V2,
+} from '../libro/contract'
 import {
   DEFAULT_WORLD_ID_PUBLISH_ACTION,
   PUBLICATION_SCHEMA_V2,
@@ -62,11 +75,42 @@ export function createLibroPublicationV1(input: PublicationDraftInput): LibroPub
   }
 }
 
-export function isLibroPublicationV1(publication: PublicationV2 | LibroPublicationV1): publication is LibroPublicationV1 {
+export function createLibroPublicationV2(
+  input: PublicationDraftInput & { authorReference?: AuthorReference }
+): LibroPublicationV2 {
+  return {
+    publication_schema: LIBRO_PUBLICATION_SCHEMA_V2,
+    libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    world_id_protocol_version: WORLD_ID_PROTOCOL_VERSION,
+    world_id_proof_type: 'session',
+    world_id_credential_policy: WORLD_ID_CREDENTIAL_POLICY,
+    ...(input.authorReference ? { author_reference: input.authorReference } : {}),
+    publication_date: input.publicationDate,
+    author_name_libro: input.author.name,
+    author_handle_libro: input.author.handle,
+    author_handle_hash_libro: hashLibroHandle(input.author.handle),
+    author_bio_libro: input.author.bio || '',
+    publication_title: normalizeOptionalPublicationText(input.title),
+    publication_content: input.content,
+    publication_subtitle: normalizeOptionalPublicationText(input.subtitle),
+  }
+}
+
+export function isLibroPublicationV1(
+  publication: PublicationV2 | LibroHumanPublication
+): publication is LibroPublicationV1 {
+  return publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V1
+}
+
+export function isLibroHumanPublication(
+  publication: PublicationV2 | LibroHumanPublication
+): publication is LibroHumanPublication {
   return 'libro_protocol_version' in publication && publication.libro_protocol_version === LIBRO_PROTOCOL_VERSION
 }
 
-export function canonicalPublicationSignal(publication: PublicationV2 | LibroPublicationV1 | LibroAgentPublicationV1): string {
+export function canonicalPublicationSignal(
+  publication: PublicationV2 | LibroHumanPublication | LibroAgentPublication
+): string {
   return canonicalLibroSignal(publication as unknown as Record<string, unknown>)
 }
 

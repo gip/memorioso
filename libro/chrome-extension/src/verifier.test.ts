@@ -12,8 +12,10 @@ import {
   LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_PUBLICATION_SCHEMA_V2,
   LIBRO_V1_REGISTRY_ADDRESS,
   type LibroEmbedManifestV1,
+  type LibroPublicationV1Payload,
 } from '@libro/core'
 import { verifyCandidate } from './verifier'
 import type { LibroCandidate } from './shared'
@@ -76,6 +78,24 @@ function candidate(value = manifest()): LibroCandidate {
   }
 }
 
+function v2Manifest(): LibroEmbedManifestV1 {
+  const value = manifest()
+  const { author_id_libro: _legacyAuthorId, ...fields } = value.publication as LibroPublicationV1Payload
+  const publication = {
+    ...fields,
+    publication_schema: LIBRO_PUBLICATION_SCHEMA_V2,
+    author_reference: { namespace: 'https://memorioso.xyz', id: 'author-1' },
+  }
+  return {
+    ...value,
+    publication,
+    registration: {
+      ...value.registration,
+      signal_hash: hashPublicationSignal(canonicalPublicationSignal(publication)),
+    },
+  }
+}
+
 function textCandidate(value = manifest()): LibroCandidate {
   return {
     blockId: 'text-1',
@@ -95,6 +115,14 @@ function textCandidate(value = manifest()): LibroCandidate {
 describe('extension candidate verification', () => {
   it('accepts equivalent readable text with different markup', async () => {
     const value = manifest()
+    await expect(verifyCandidate(candidate(value), confirmed(value))).resolves.toMatchObject({
+      status: 'verified',
+      authorHandle: 'ada',
+    })
+  })
+
+  it('verifies a Libro publication v2 manifest', async () => {
+    const value = v2Manifest()
     await expect(verifyCandidate(candidate(value), confirmed(value))).resolves.toMatchObject({
       status: 'verified',
       authorHandle: 'ada',

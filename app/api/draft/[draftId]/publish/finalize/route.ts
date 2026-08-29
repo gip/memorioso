@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
@@ -17,6 +17,7 @@ import {
 } from '@/lib/db/resilience'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroServerConfig } from '@/lib/libro/config'
+import { getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 import {
   LibroRegistrationReceiptMismatchError,
   verifyLibroRegistrationTransaction,
@@ -336,7 +337,11 @@ export async function PUT(
       let storedPublication
       try {
         assertDraftCanBePublished(draft)
-        storedPublication = assertChallengeMatchesAuthor(draft, challenge)
+        storedPublication = assertChallengeMatchesAuthor(
+          draft,
+          challenge,
+          getMemoriosoAuthorReference(draft.authorId)
+        )
       } catch (error) {
         return await fail(error instanceof Error ? error.message : 'Draft is not ready to publish')
       }
@@ -370,7 +375,7 @@ export async function PUT(
          RETURNING id`,
         [
           authenticatedUser.id,
-          storedPublication.author_id_libro,
+          draft.authorId,
           proof,
           storedPublication,
           // The draft row is encrypted; the signed payload is the readable copy,
@@ -415,9 +420,11 @@ export async function PUT(
       transactionOpen = false
       revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
-      revalidateTag(authorPublicationCountsCacheTag(storedPublication.author_id_libro), { expire: 0 })
+      revalidateTag(authorPublicationCountsCacheTag(draft.authorId), { expire: 0 })
       revalidateTag(sitemapCacheTag, { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })
+      revalidatePath('/')
+      revalidatePath('/latest')
 
       console.info('Finalized Libro publication', {
         requestId,

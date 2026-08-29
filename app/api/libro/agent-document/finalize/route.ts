@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
@@ -21,7 +21,7 @@ import {
 } from '@/lib/libro/agent'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentDocumentRegistered } from '@/lib/libro/server'
-import type { LibroAgentProofV1, LibroAgentPublicationV1 } from '@/types'
+import type { LibroAgentProofV1, LibroAgentPublication } from '@/types'
 import { publicationKindFromTitle } from '@/lib/publication-kind'
 
 type FinalizeAgentDocumentRequest = {
@@ -212,7 +212,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         if (documentRegistration.publicationId) {
           await client.query('COMMIT')
           transactionOpen = false
-          const finalizedPublication = documentRegistration.publication as LibroAgentPublicationV1
+          const finalizedPublication = documentRegistration.publication as LibroAgentPublication
           return NextResponse.json({
             success: true,
             publicationId: documentRegistration.publicationId,
@@ -227,7 +227,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       }
 
       const registeredAt = new Date().toISOString()
-      const publication = documentRegistration.publication as LibroAgentPublicationV1
+      const publication = documentRegistration.publication as LibroAgentPublication
       const proof: LibroAgentProofV1 = {
         ...(documentRegistration.proof as LibroAgentProofV1),
         agent_document_signature: {
@@ -272,6 +272,8 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       revalidateTag(authorPublicationCountsCacheTag(String(documentRegistration.authorId)), { expire: 0 })
       revalidateTag(sitemapCacheTag, { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })
+      revalidatePath('/')
+      revalidatePath('/latest')
       console.info('Finalized Libro agent publication', {
         requestId,
         documentRegistrationId,

@@ -63,6 +63,7 @@ import {
   validatePublicationForKind,
 } from '@/lib/publication-kind'
 import { announceDraftShortcutUpdate } from '@/lib/draft-events'
+import { reconcileOwnedAuthorId } from '@/lib/authors'
 
 type DraftData = {
   id?: string
@@ -201,6 +202,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [pendingFinalize, setPendingFinalize] = useState<PendingFinalize | null>(null)
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishHostVerifyError = useRef<string | null>(null)
+  const authorsUserIdRef = useRef<number | null>(null)
   const { status, user, signInWithWorldId } = useWorldIdAuth()
   const { status: draftKeyStatus, key: draftKey } = useDraftKey()
   const isAuthenticated = status === 'authenticated'
@@ -326,39 +328,47 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   }, [draftId, router, draftKey, draftKeyStatus, user?.id])
 
   const fetchAuthors = useCallback(async () => {
+    const expectedUserId = user?.id ?? null
+    if (status !== 'authenticated' || expectedUserId === null) return
+
     try {
-      const raw = await fetch('/api/authors')
+      const raw = await fetch('/api/authors', { cache: 'no-store' })
       const response = await raw.json()
-      if (response.success) {
+      if (authorsUserIdRef.current !== expectedUserId) return
+      if (raw.ok && response.success) {
         setAuthors(response.authors)
         setAreAuthorsLoaded(true)
       }
     } catch (error) {
       console.error('Failed to fetch authors:', error)
     }
-  }, [])
+  }, [status, user?.id])
 
-  // Re-runs on login: the anonymous request 401s and would otherwise leave the
-  // writer with no author to publish as.
+  // Author state belongs to one authenticated user. App Router can preserve
+  // this client component across navigations, so discard both the list and its
+  // selection before asking for the next login's author.
   useEffect(() => {
-    if (status !== 'authenticated') return
+    const authenticatedUserId = status === 'authenticated' ? user?.id ?? null : null
+    authorsUserIdRef.current = authenticatedUserId
+    setAuthors([])
+    setAreAuthorsLoaded(false)
+    setDraft((prev) => prev?.authorId ? { ...prev, authorId: undefined } : prev)
+
+    if (authenticatedUserId === null) return
     fetchAuthors()
-  }, [fetchAuthors, status])
+  }, [fetchAuthors, status, user?.id])
 
-  // Every login owns exactly one author; attach it to new drafts. Keyed on the
-  // current authorId so any later reset re-attaches: fetchDraft's
-  // setDraft(response.data) can land after this effect already fired and
-  // clobber authorId back to whatever was persisted (e.g. null from a
-  // pre-authors-loaded autosave), and choosing a publication type replaces the
-  // draft object outright. Re-checking on the value instead of on effect
-  // ordering keeps the publish button reachable in both cases.
+  // Every login owns exactly one author. Preserve an attached id only while it
+  // is present in this login's freshly loaded list; a previous login's id must
+  // be replaced rather than sent to the save API.
   useEffect(() => {
-    if (!user || authors.length === 0) return
+    if (!user || !areAuthorsLoaded) return
     setDraft((prev) => {
-      if (!prev || prev.authorId) return prev
-      return { ...prev, authorId: authors[0].id }
+      if (!prev) return prev
+      const authorId = reconcileOwnedAuthorId(prev.authorId, authors)
+      return authorId === prev.authorId ? prev : { ...prev, authorId }
     })
-  }, [authors, user, loading, draft?.authorId])
+  }, [areAuthorsLoaded, authors, user, loading, draft?.authorId])
 
   // Prose leaves the browser sealed. The envelope is bound to the draft id, so
   // a new draft picks its id here rather than taking one from the server and
@@ -411,6 +421,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           setOriginalDraft(draftToSave ? { ...draftToSave, id: newId, status: savedDraft.status } : savedDraft)
           setDraft((prev) => (prev ? { ...prev, id: newId, status: savedDraft.status } : prev))
           window.history.replaceState(null, '', `/d/${newId}`)
+          clearLocalDraft()
           return savedDraft
         }
       } else {
@@ -694,6 +705,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     content: draft.content,
   }) : 'Draft is unavailable'
   const canPublish = publicationValidationError === null
+  const isDraftAuthorReady = areAuthorsLoaded && Boolean(
+    draft?.authorId && authors.some((author) => author.id === draft.authorId)
+  )
 
   // Debounced autosave: no Save button, work is never lost. Anonymous writers
   // are saved to this device instead of the account.
@@ -701,13 +715,13 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     if (isEditingDisabled || !hasText) return
     // A locked writer keeps saving to this device rather than to their account:
     // the work survives, and no prose reaches a database that cannot hold it.
-    const isAnonymous = status !== 'authenticated' || isDraftKeyLocked
-    if (!isAnonymous && !isDraftChanged()) return
+    const shouldSaveLocally = status !== 'authenticated' || isDraftKeyLocked || !isDraftAuthorReady
+    if (!shouldSaveLocally && !isDraftChanged()) return
 
     setSaveState('saving')
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     autosaveTimer.current = setTimeout(async () => {
-      if (isAnonymous) {
+      if (shouldSaveLocally) {
         const stored = writeLocalDraft({
           publicationType: draft?.publicationType ?? 'article',
           title: draft?.title ?? '',
@@ -721,14 +735,22 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         await handleSaveRef.current()
         setSaveState('saved')
       } catch {
-        setSaveState('error')
+        // A rejected first save must not turn Refresh into data loss. The one
+        // local slot is cleared as soon as a later account save succeeds.
+        const stored = !currentDraftId && draft ? writeLocalDraft({
+          publicationType: draft.publicationType,
+          title: draft.title,
+          subtitle: draft.subtitle,
+          content: draft.content,
+        }) : false
+        setSaveState(stored ? 'saved-local' : 'error')
       }
     }, 1200)
 
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [draft, isEditingDisabled, isDraftChanged, hasText, status, isDraftKeyLocked])
+  }, [draft, isEditingDisabled, isDraftChanged, hasText, status, isDraftKeyLocked, isDraftAuthorReady, currentDraftId])
 
   // Adoption: the moment the writer signs in, their local draft becomes a real
   // draft on their account. handleSave adopts the new id and rewrites the URL
@@ -739,6 +761,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     // leaving the local copy behind means it reappears in the next new draft.
     if (status !== 'authenticated') return
     if (draftKeyStatus !== 'unlocked' && draftKeyStatus !== 'disabled') return
+    if (!isDraftAuthorReady) return
     if (currentDraftId || draftId) return
     if (!isLocalRestored || !hasText || isEditingDisabled) return
     // Only adopt work that was actually written anonymously. Without this an
@@ -762,7 +785,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       .finally(() => {
         isAdoptingRef.current = false
       })
-  }, [status, draftKeyStatus, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors])
+  }, [status, draftKeyStatus, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors, isDraftAuthorReady])
 
   if (status === 'loading' || loading || !isLocalRestored) {
     return <FeedItem item={null} />

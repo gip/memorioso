@@ -15,7 +15,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const authors = await getOwnedAuthors(client, authenticatedUser.id);
 
-    return NextResponse.json({ success: true, authors });
+    return NextResponse.json(
+      { success: true, authors },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } finally {
     client.release();
   }

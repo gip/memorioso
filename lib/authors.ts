@@ -12,6 +12,8 @@ export type OwnedAuthor = AuthorProfile & {
   isPrimary: boolean
 }
 
+type AuthorIdentity = Pick<OwnedAuthor, 'id'>
+
 type Queryable = Pick<Pool | PoolClient, 'query'>
 
 export class AuthorProfileValidationError extends Error {
@@ -59,6 +61,21 @@ export async function getOwnedAuthors(queryable: Queryable, userId: number): Pro
     [userId]
   )
   return rows
+}
+
+/**
+ * Keeps a draft attached to the current login's author. Client components can
+ * survive App Router navigations and account changes, so a non-empty id is not
+ * enough: it still has to belong to the author list fetched for this session.
+ */
+export function reconcileOwnedAuthorId(
+  currentAuthorId: string | undefined,
+  authors: AuthorIdentity[],
+): string | undefined {
+  if (currentAuthorId && authors.some((author) => author.id === currentAuthorId)) {
+    return currentAuthorId
+  }
+  return authors[0]?.id
 }
 
 export function isAuthorHandleConflict(error: unknown): boolean {

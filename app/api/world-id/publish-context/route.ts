@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { createLibroPublicationV1, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
+import { createLibroPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
 import type { PublicationContent } from '@/types'
 import { validatePublicationForKind } from '@/lib/publication-kind'
 import { cleanupFinishedPublishChallenges } from '@/lib/publish-validation'
+import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     config = getWorldIdServerConfig()
     getLibroServerConfig()
+    getMemoriosoAuthorNamespace()
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const challengeId = crypto.randomUUID()
     const publicationDate = new Date().toISOString()
-    const publication = createLibroPublicationV1({
+    const publication = createLibroPublicationV2({
       author: {
         id: draft.authorId,
         name: draft.author_name,
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       subtitle: draft.publicationType === 'short' ? '' : normalizedSubtitle,
       content: content as PublicationContent,
       publicationDate,
+      authorReference: getMemoriosoAuthorReference(draft.authorId),
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)

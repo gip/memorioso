@@ -1,8 +1,31 @@
 # Libro v1 Protocol Reference
 
+Libro's registry and proof protocol remains `libro-v1`. New direct-human publications use
+`publication_schema: "libro-publication-v2"`, and new agent publications use
+`publication_schema: "libro-agent-publication-v2"`. Verifiers must continue accepting both v1
+publication schemas because their registered signal hashes are permanent.
+
 ## Canonical Signal
 
-The signed signal is the canonical JSON string of the publication payload. Keys are sorted recursively before `JSON.stringify`, and undefined fields are omitted. New Libro publications use `publication_schema: "libro-publication-v1"` while preserving legacy fields such as `author_id_libro`, `author_name_libro`, `publication_title`, `publication_content`, and `publication_date`.
+The signed signal is the canonical JSON string of the publication payload. Keys are sorted recursively before `JSON.stringify`, and undefined fields are omitted. Direct-human v1 and v2 signals replace `publication_content` with its canonical `content_hash`; agent publication signals retain the complete payload.
+
+Publication schema v1 requires the legacy, publisher-local `author_id_libro` string. Publication
+schema v2 removes that field and allows this scoped metadata instead:
+
+```json
+{
+  "author_reference": {
+    "namespace": "https://memorioso.xyz",
+    "id": "8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa"
+  }
+}
+```
+
+`author_reference` is optional and is never authorship evidence. Its `namespace` is a canonical
+HTTPS origin with no credentials, path, query, fragment, or trailing slash; HTTP is permitted only
+for localhost development. Its opaque `id` is trimmed, non-empty, and at most 256 characters. The
+object has exactly those two properties. Libro does not require the id to be a UUID. The normalized
+handle hash bound to the World ID session remains the protocol author identity.
 
 The signal hash is the World ID `hashSignal(signalText)` field-element hash. This value must match every `responses[].signal_hash` in the IDKit result and is passed to the registry as `uint256 signalHash`.
 
@@ -27,7 +50,7 @@ The registry constructor fixes:
 - World ID v4 verifier address
 - numeric `rpId` (`uint64`), derived from `WORLD_ID_RP_ID` by interpreting the 16 hex characters after `rp_`
 
-Session requests have no action and use the canonical publication JSON as the credential signal. Direct publication does not force an additional user-presence check; agent authorization does.
+Session requests have no action and use the canonical publication JSON as the credential signal. Direct publication does not force an additional user-presence check; agent authorization does. Publication schema v2 does not change this proof mapping or the registry ABI.
 
 ## Contract ABI
 

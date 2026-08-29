@@ -20,10 +20,12 @@ import { worldchain } from 'viem/chains'
 
 export const LIBRO_PROTOCOL_VERSION = 'libro-v1' as const
 export const LIBRO_PUBLICATION_SCHEMA_V1 = 'libro-publication-v1' as const
+export const LIBRO_PUBLICATION_SCHEMA_V2 = 'libro-publication-v2' as const
 export const LIBRO_EMBED_SCHEMA_V1 = 'libro-embed-v1' as const
 export const LIBRO_HUMAN_SIGNED_CLAIM = 'human-signed' as const
 export const LIBRO_AGENT_SIGNED_CLAIM = 'human-authorized-agent' as const
 export const LIBRO_AGENT_PUBLICATION_SCHEMA_V1 = 'libro-agent-publication-v1' as const
+export const LIBRO_AGENT_PUBLICATION_SCHEMA_V2 = 'libro-agent-publication-v2' as const
 export const LIBRO_AGENT_PROTOCOL_VERSION = 'libro-agent-v1' as const
 export const LIBRO_WORLD_CHAIN_ID = 480 as const
 export const LIBRO_INLINE_TEXT_MAX_LENGTH = 10_000 as const
@@ -48,6 +50,11 @@ export const LIBRO_V1_REGISTRY_ADDRESS = '0x000000000000000000000000000000000000
 export type JsonPrimitive = string | number | boolean | null
 export type JsonInput = JsonPrimitive | JsonInput[] | { [key: string]: JsonInput | undefined }
 
+export type LibroAuthorReference = {
+  namespace: string
+  id: string
+}
+
 export type LibroPublicationV1Payload = {
   publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V1
   libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
@@ -69,6 +76,27 @@ export type LibroPublicationSignalCommitmentV1 = Omit<LibroPublicationV1Payload,
   content_hash: Hex
 }
 
+export type LibroPublicationV2Payload = {
+  publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V2
+  libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
+  world_id_protocol_version: '4.0'
+  world_id_proof_type: 'session'
+  world_id_credential_policy: 'orb'
+  author_reference?: LibroAuthorReference
+  publication_date: string
+  author_name_libro: string
+  author_handle_libro: string
+  author_handle_hash_libro: Hex
+  author_bio_libro: string
+  publication_title: string
+  publication_content: { html: string }
+  publication_subtitle: string
+}
+
+export type LibroPublicationSignalCommitmentV2 = Omit<LibroPublicationV2Payload, 'publication_content'> & {
+  content_hash: Hex
+}
+
 export type LibroAgentPublicationV1Payload = {
   publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
   libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
@@ -86,7 +114,26 @@ export type LibroAgentPublicationV1Payload = {
   agent_registration_hash: Hex
 }
 
-export type LibroPublicationPayload = LibroPublicationV1Payload | LibroAgentPublicationV1Payload
+export type LibroAgentPublicationV2Payload = {
+  publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V2
+  libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
+  authorship_claim: 'human_authorized_agent'
+  author_reference?: LibroAuthorReference
+  publication_date: string
+  author_name_libro: string
+  author_handle_libro: string
+  author_handle_hash_libro: Hex
+  author_bio_libro: string
+  publication_title: string
+  publication_content: { html: string }
+  publication_subtitle: string
+  agent_address: Address
+  agent_registration_hash: Hex
+}
+
+export type LibroHumanPublicationPayload = LibroPublicationV1Payload | LibroPublicationV2Payload
+export type LibroAgentPublicationPayload = LibroAgentPublicationV1Payload | LibroAgentPublicationV2Payload
+export type LibroPublicationPayload = LibroHumanPublicationPayload | LibroAgentPublicationPayload
 
 export type LibroEmbedManifestV1 = {
   schema: typeof LIBRO_EMBED_SCHEMA_V1
@@ -345,16 +392,19 @@ export function hashLibroPublicationContent(content: { html: string }): Hex {
 }
 
 function buildLibroPublicationSignalCommitment(
-  publication: LibroPublicationV1Payload
-): LibroPublicationSignalCommitmentV1 {
+  publication: LibroHumanPublicationPayload
+): LibroPublicationSignalCommitmentV1 | LibroPublicationSignalCommitmentV2 {
   const { publication_content, ...rest } = publication
   return { ...rest, content_hash: hashLibroPublicationContent(publication_content) }
 }
 
-export function canonicalPublicationSignal(publication: LibroPublicationV1Payload | Record<string, unknown>): string {
-  if (isRecord(publication) && publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V1) {
+export function canonicalPublicationSignal(publication: LibroPublicationPayload | Record<string, unknown>): string {
+  if (isRecord(publication) && (
+    publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V1 ||
+    publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V2
+  )) {
     return canonicalStringify(
-      buildLibroPublicationSignalCommitment(publication as LibroPublicationV1Payload) as unknown as JsonInput
+      buildLibroPublicationSignalCommitment(publication as LibroHumanPublicationPayload) as unknown as JsonInput
     )
   }
   return canonicalStringify(publication as unknown as JsonInput)
@@ -401,6 +451,35 @@ function requireHash(value: unknown, field: string): Hex {
   return value.toLowerCase() as Hex
 }
 
+export function parseLibroAuthorReference(value: unknown): LibroAuthorReference {
+  if (!isRecord(value)) throw new Error('author_reference must be an object')
+  const keys = Object.keys(value).sort()
+  if (keys.length !== 2 || keys[0] !== 'id' || keys[1] !== 'namespace') {
+    throw new Error('author_reference must contain only namespace and id')
+  }
+
+  const namespace = requireString(value, 'namespace')
+  let parsedNamespace: URL
+  try {
+    parsedNamespace = new URL(namespace)
+  } catch {
+    throw new Error('author_reference.namespace must be an absolute URL origin')
+  }
+  const isLocalhost = parsedNamespace.protocol === 'http:' && parsedNamespace.hostname === 'localhost'
+  if (parsedNamespace.protocol !== 'https:' && !isLocalhost) {
+    throw new Error('author_reference.namespace must use HTTPS')
+  }
+  if (parsedNamespace.username || parsedNamespace.password || namespace !== parsedNamespace.origin) {
+    throw new Error('author_reference.namespace must be a canonical URL origin')
+  }
+
+  const id = requireString(value, 'id')
+  if (!id || id !== id.trim() || id.length > 256) {
+    throw new Error('author_reference.id must be a trimmed non-empty string of at most 256 characters')
+  }
+  return { namespace, id }
+}
+
 export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Payload {
   if (!isRecord(value)) throw new Error('publication must be an object')
   if (value.publication_schema !== LIBRO_PUBLICATION_SCHEMA_V1) throw new Error('Unsupported publication schema')
@@ -431,6 +510,37 @@ export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Paylo
   return value as LibroPublicationV1Payload
 }
 
+export function parseLibroPublicationV2(value: unknown): LibroPublicationV2Payload {
+  if (!isRecord(value)) throw new Error('publication must be an object')
+  if (value.publication_schema !== LIBRO_PUBLICATION_SCHEMA_V2) throw new Error('Unsupported publication schema')
+  if (value.libro_protocol_version !== LIBRO_PROTOCOL_VERSION) throw new Error('Unsupported Libro protocol')
+  if ('author_id_libro' in value) throw new Error('author_id_libro is not allowed in Libro publication v2')
+  if (!isRecord(value.publication_content) || typeof value.publication_content.html !== 'string') {
+    throw new Error('publication_content.html must be a string')
+  }
+
+  for (const field of [
+    'author_name_libro', 'author_handle_libro', 'author_bio_libro', 'publication_title',
+    'publication_subtitle',
+  ]) requireString(value, field)
+  if (value.author_reference !== undefined) parseLibroAuthorReference(value.author_reference)
+  const publicationDate = requireString(value, 'publication_date')
+  if (value.world_id_protocol_version !== '4.0') throw new Error('Unsupported World ID protocol')
+  if (value.world_id_proof_type !== 'session') throw new Error('Unsupported World ID proof type')
+  if (value.world_id_credential_policy !== 'orb') throw new Error('Unsupported World ID credential policy')
+  const handleHash = requireHash(value.author_handle_hash_libro, 'author_handle_hash_libro')
+  if (hashLibroHandle(value.author_handle_libro as string) !== handleHash) {
+    throw new Error('author_handle_hash_libro does not match author_handle_libro')
+  }
+  formatLibroPublicationMinute(publicationDate)
+
+  if (!hasPublishablePublication(value.publication_title, value.publication_content)) {
+    throw new Error('Publication must include a title or readable content')
+  }
+
+  return value as LibroPublicationV2Payload
+}
+
 export function parseLibroAgentPublicationV1(value: unknown): LibroAgentPublicationV1Payload {
   if (!isRecord(value)) throw new Error('publication must be an object')
   if (value.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1) throw new Error('Unsupported publication schema')
@@ -459,9 +569,41 @@ export function parseLibroAgentPublicationV1(value: unknown): LibroAgentPublicat
   return value as LibroAgentPublicationV1Payload
 }
 
+export function parseLibroAgentPublicationV2(value: unknown): LibroAgentPublicationV2Payload {
+  if (!isRecord(value)) throw new Error('publication must be an object')
+  if (value.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2) throw new Error('Unsupported publication schema')
+  if (value.libro_agent_protocol_version !== LIBRO_AGENT_PROTOCOL_VERSION) throw new Error('Unsupported Libro agent protocol')
+  if (value.authorship_claim !== 'human_authorized_agent') throw new Error('Unsupported authorship claim')
+  if ('author_id_libro' in value) throw new Error('author_id_libro is not allowed in Libro agent publication v2')
+  if (!isRecord(value.publication_content) || typeof value.publication_content.html !== 'string') {
+    throw new Error('publication_content.html must be a string')
+  }
+  for (const field of [
+    'author_name_libro', 'author_handle_libro', 'author_bio_libro',
+    'publication_title', 'publication_subtitle',
+  ]) requireString(value, field)
+  if (value.author_reference !== undefined) parseLibroAuthorReference(value.author_reference)
+  const publicationDate = requireString(value, 'publication_date')
+  const handleHash = requireHash(value.author_handle_hash_libro, 'author_handle_hash_libro')
+  if (hashLibroHandle(value.author_handle_libro as string) !== handleHash) {
+    throw new Error('author_handle_hash_libro does not match author_handle_libro')
+  }
+  if (typeof value.agent_address !== 'string' || !isAddress(value.agent_address)) {
+    throw new Error('agent_address must be an address')
+  }
+  requireHash(value.agent_registration_hash, 'agent_registration_hash')
+  formatLibroPublicationMinute(publicationDate)
+  if (!hasPublishablePublication(value.publication_title, value.publication_content)) {
+    throw new Error('Publication must include a title or readable content')
+  }
+  return value as LibroAgentPublicationV2Payload
+}
+
 export function parseLibroPublication(value: unknown): LibroPublicationPayload {
-  if (isRecord(value) && value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1) {
-    return parseLibroAgentPublicationV1(value)
+  if (isRecord(value)) {
+    if (value.publication_schema === LIBRO_PUBLICATION_SCHEMA_V2) return parseLibroPublicationV2(value)
+    if (value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1) return parseLibroAgentPublicationV1(value)
+    if (value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V2) return parseLibroAgentPublicationV2(value)
   }
   return parseLibroPublicationV1(value)
 }
@@ -554,7 +696,8 @@ export class LibroChainUnavailableError extends LibroChainVerificationError {}
 
 export function assertLibroManifestLocalIntegrity(value: unknown): LibroEmbedManifestV1 {
   const manifest = parseLibroEmbedManifest(value)
-  const isAgent = manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1
+  const isAgent = manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1 ||
+    manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V2
   if ((isAgent ? LIBRO_AGENT_SIGNED_CLAIM : LIBRO_HUMAN_SIGNED_CLAIM) !== manifest.claim ||
       (isAgent ? 'agent' : 'human') !== manifest.registration.authorship_class) {
     throw new Error('Manifest authorship class does not match the publication')

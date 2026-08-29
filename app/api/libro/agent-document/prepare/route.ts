@@ -3,15 +3,22 @@ import { isHex } from 'viem'
 import { pool } from '@/lib/db'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import {
+  agentPublicationMatchesAuthor,
   buildAgentPublicationSignal,
   createAgentDocumentTypedData,
   prepareAgentDocumentRegistration,
   recoverAgentDocumentSigner,
 } from '@/lib/libro/agent'
-import type { LibroAgentPublicationV1, LibroAgentProofV1 } from '@/types'
+import type { LibroAgentPublication, LibroAgentProofV1 } from '@/types'
+import {
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
+} from '@/lib/libro/contract'
+import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
+import { parseLibroPublication } from '@libro/core'
 
 type PrepareAgentDocumentRequest = {
-  publication?: LibroAgentPublicationV1
+  publication?: unknown
   documentNonce?: string
   signedAt?: number
   signature?: string
@@ -26,6 +33,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let agentConfig
   try {
     agentConfig = getLibroAgentServerConfig()
+    getMemoriosoAuthorNamespace()
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -34,7 +42,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const body = await req.json().catch(() => null) as PrepareAgentDocumentRequest | null
-  const publication = body?.publication
+  let publication: LibroAgentPublication | null = null
+  try {
+    const parsed = parseLibroPublication(body?.publication)
+    if (
+      parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1 &&
+      parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2
+    ) {
+      throw new Error('Agent publication schema is required')
+    }
+    publication = parsed
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Agent publication is invalid',
+    }, { status: 400 })
+  }
   const documentNonce = body?.documentNonce
   const signedAt = body?.signedAt
   const signature = body?.signature
@@ -90,7 +113,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return await fail('Agent registration proof is missing')
     }
 
+    const authorMatches = agentPublicationMatchesAuthor(
+      publication,
+      getMemoriosoAuthorReference(registration.authorId)
+    )
+
     if (
+      !authorMatches ||
       publication.agent_address.toLowerCase() !== registration.agent_address.toLowerCase() ||
       publication.author_handle_hash_libro.toLowerCase() !== registration.handle_hash.toLowerCase()
     ) {

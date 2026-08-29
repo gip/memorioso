@@ -13,20 +13,27 @@ import {
   isSimpleTextPublication,
   LIBRO_AGENT_PROTOCOL_VERSION,
   LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
+  LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
   LIBRO_EMBED_SCHEMA_V1,
   LIBRO_HUMAN_SIGNED_CLAIM,
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
+  LIBRO_PUBLICATION_SCHEMA_V2,
   LIBRO_V1_REGISTRY_ADDRESS,
   libroTextTagHashMatches,
   manifestElementId,
   parseLibroEmbedManifest,
+  parseLibroAgentPublicationV2,
+  parseLibroPublication,
   parseLibroPublicationV1,
+  parseLibroPublicationV2,
   parseLibroTextTags,
   serializeManifestForHtml,
   type LibroAgentPublicationV1Payload,
+  type LibroAgentPublicationV2Payload,
   type LibroEmbedManifestV1,
   type LibroPublicationV1Payload,
+  type LibroPublicationV2Payload,
 } from './index'
 
 const publication: LibroPublicationV1Payload = {
@@ -44,6 +51,23 @@ const publication: LibroPublicationV1Payload = {
   publication_title: '',
   publication_content: { html: '<p>Hello <strong>human</strong> world.</p>' },
   publication_subtitle: '',
+}
+
+const publicationV2: LibroPublicationV2Payload = {
+  publication_schema: LIBRO_PUBLICATION_SCHEMA_V2,
+  libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+  world_id_protocol_version: '4.0',
+  world_id_proof_type: 'session',
+  world_id_credential_policy: 'orb',
+  author_reference: { namespace: 'https://memorioso.xyz', id: 'author-1' },
+  publication_date: publication.publication_date,
+  author_name_libro: publication.author_name_libro,
+  author_handle_libro: publication.author_handle_libro,
+  author_handle_hash_libro: publication.author_handle_hash_libro,
+  author_bio_libro: publication.author_bio_libro,
+  publication_title: publication.publication_title,
+  publication_content: publication.publication_content,
+  publication_subtitle: publication.publication_subtitle,
 }
 
 function manifest(): LibroEmbedManifestV1 {
@@ -178,6 +202,41 @@ describe('Libro embed manifests', () => {
     })).toThrow('title or readable content')
   })
 
+  it('accepts human and agent v2 publications in the v1 embed envelope', () => {
+    const humanManifest = manifest()
+    humanManifest.publication = publicationV2
+    humanManifest.registration.signal_hash = hashPublicationSignal(canonicalPublicationSignal(publicationV2))
+    expect(assertLibroManifestLocalIntegrity(humanManifest).publication).toEqual(publicationV2)
+
+    const agentPublication: LibroAgentPublicationV2Payload = {
+      publication_schema: LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
+      libro_agent_protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      authorship_claim: 'human_authorized_agent',
+      author_reference: { namespace: 'https://memorioso.xyz', id: 'author-1' },
+      publication_date: publication.publication_date,
+      author_name_libro: publication.author_name_libro,
+      author_handle_libro: publication.author_handle_libro,
+      author_handle_hash_libro: publication.author_handle_hash_libro,
+      author_bio_libro: publication.author_bio_libro,
+      publication_title: publication.publication_title,
+      publication_content: publication.publication_content,
+      publication_subtitle: publication.publication_subtitle,
+      agent_address: `0x${'33'.repeat(20)}`,
+      agent_registration_hash: `0x${'44'.repeat(32)}`,
+    }
+    const agentManifest: LibroEmbedManifestV1 = {
+      ...manifest(),
+      claim: 'human-authorized-agent',
+      publication: agentPublication,
+      registration: {
+        ...manifest().registration,
+        signal_hash: hashPublicationSignal(canonicalPublicationSignal(agentPublication)),
+        authorship_class: 'agent',
+      },
+    }
+    expect(assertLibroManifestLocalIntegrity(agentManifest).publication).toEqual(agentPublication)
+  })
+
   it('rejects publication and handle tampering', () => {
     expect(() => assertLibroManifestLocalIntegrity({
       ...manifest(),
@@ -203,6 +262,12 @@ describe('Libro embed manifests', () => {
 })
 
 describe('Compact publication signal', () => {
+  it('pins the Libro v1 canonical signal for permanent compatibility', () => {
+    expect(canonicalPublicationSignal(publication)).toBe(
+      '{"author_bio_libro":"","author_handle_hash_libro":"0x24594aaefd000e9143d29865ad2d4b1f7dd92f11bfe9f1700101dc459f655501","author_handle_libro":"ada","author_id_libro":"author-1","author_name_libro":"Ada","content_hash":"0x65d868d411cf4e386d96b7c3c4d38800c4659c00fdb28fa230cffe863bd1b1e6","libro_protocol_version":"libro-v1","publication_date":"2026-07-21T12:00:00.000Z","publication_schema":"libro-publication-v1","publication_subtitle":"","publication_title":"","world_id_credential_policy":"orb","world_id_proof_type":"session","world_id_protocol_version":"4.0"}'
+    )
+  })
+
   it('signs a content hash instead of the full article body', () => {
     const signalText = canonicalPublicationSignal(publication)
     const signalJson = JSON.parse(signalText)
@@ -227,6 +292,15 @@ describe('Compact publication signal', () => {
     expect(hashPublicationSignal(canonicalPublicationSignal(swapped))).not.toBe(signalHash)
   })
 
+  it('signs the scoped author reference in a compact Libro v2 signal', () => {
+    const signalText = canonicalPublicationSignal(publicationV2)
+    const signalJson = JSON.parse(signalText)
+    expect(signalJson.author_reference).toEqual(publicationV2.author_reference)
+    expect(signalJson.author_id_libro).toBeUndefined()
+    expect(signalJson.content_hash).toBe(hashLibroPublicationContent(publicationV2.publication_content))
+    expect(signalJson.publication_content).toBeUndefined()
+  })
+
   it('leaves non-Libro-V1 publication signals as full canonical JSON', () => {
     const agentPublication: LibroAgentPublicationV1Payload = {
       publication_schema: LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
@@ -245,5 +319,55 @@ describe('Compact publication signal', () => {
       agent_registration_hash: `0x${'44'.repeat(32)}`,
     }
     expect(canonicalPublicationSignal(agentPublication)).toContain('Agent-authored text.')
+  })
+})
+
+describe('Libro v2 publication parsing', () => {
+  it('accepts an optional strict author reference', () => {
+    expect(parseLibroPublicationV2(publicationV2)).toEqual(publicationV2)
+    const { author_reference: _reference, ...withoutReference } = publicationV2
+    expect(parseLibroPublication(withoutReference)).toEqual(withoutReference)
+  })
+
+  it.each([
+    { namespace: 'http://memorioso.xyz', id: 'author-1' },
+    { namespace: 'https://memorioso.xyz/', id: 'author-1' },
+    { namespace: 'https://memorioso.xyz/path', id: 'author-1' },
+    { namespace: 'https://memorioso.xyz', id: '' },
+    { namespace: 'https://memorioso.xyz', id: ' author-1' },
+    { namespace: 'https://memorioso.xyz', id: 'x'.repeat(257) },
+    { namespace: 'https://memorioso.xyz', id: 'author-1', label: 'Ada' },
+  ])('rejects an invalid author reference: $namespace / $id', (author_reference) => {
+    expect(() => parseLibroPublicationV2({ ...publicationV2, author_reference })).toThrow('author_reference')
+  })
+
+  it('allows canonical localhost HTTP origins', () => {
+    expect(parseLibroPublicationV2({
+      ...publicationV2,
+      author_reference: { namespace: 'http://localhost:3000', id: 'author-1' },
+    }).author_reference?.namespace).toBe('http://localhost:3000')
+  })
+
+  it('rejects the legacy unscoped author id in both v2 schemas', () => {
+    expect(() => parseLibroPublicationV2({ ...publicationV2, author_id_libro: 'author-1' }))
+      .toThrow('author_id_libro')
+
+    const agentPublication: LibroAgentPublicationV2Payload = {
+      publication_schema: LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
+      libro_agent_protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      authorship_claim: 'human_authorized_agent',
+      publication_date: publication.publication_date,
+      author_name_libro: publication.author_name_libro,
+      author_handle_libro: publication.author_handle_libro,
+      author_handle_hash_libro: publication.author_handle_hash_libro,
+      author_bio_libro: publication.author_bio_libro,
+      publication_title: publication.publication_title,
+      publication_content: publication.publication_content,
+      publication_subtitle: publication.publication_subtitle,
+      agent_address: `0x${'33'.repeat(20)}`,
+      agent_registration_hash: `0x${'44'.repeat(32)}`,
+    }
+    expect(() => parseLibroAgentPublicationV2({ ...agentPublication, author_id_libro: 'author-1' }))
+      .toThrow('author_id_libro')
   })
 })

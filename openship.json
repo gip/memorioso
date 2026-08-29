@@ -826,6 +826,9 @@
       "path": "lib/libro/agent.ts"
     },
     {
+      "path": "lib/libro/author-reference.ts"
+    },
+    {
       "path": "lib/libro/client.ts"
     },
     {

@@ -133,6 +133,8 @@ describe('publish context route', () => {
     )
     const firstParams = insertCalls[0][1] as unknown[]
     const firstPublication = firstParams[7] as {
+      publication_schema: string
+      author_reference?: { namespace: string; id: string }
       world_id_proof_type: string
       world_id_credential_policy: string
     }
@@ -140,6 +142,12 @@ describe('publish context route', () => {
     expect(firstParams[0]).toBe(challengeIds.values[0])
     expect(firstParams[3]).toBe('0x123')
     expect(firstParams[4]).toBe(draftRow.world_id_session_commitment)
+    expect(firstPublication.publication_schema).toBe('libro-publication-v2')
+    expect(firstPublication.author_reference).toEqual({
+      namespace: 'https://memorioso.xyz',
+      id: draftRow.authorId,
+    })
+    expect(firstPublication).not.toHaveProperty('author_id_libro')
     expect(firstPublication.world_id_proof_type).toBe('session')
     expect(firstPublication.world_id_credential_policy).toBe('orb')
     expect(firstParams[5]).not.toContain('world_id_action')

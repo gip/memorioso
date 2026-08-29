@@ -19,7 +19,8 @@ import {
   getLockedPublishChallenge,
 } from '@/lib/publish-validation'
 import type { WorldIdProofV4 } from '@/types'
-import { isLibroPublicationV1 } from '@/lib/world-id/publication'
+import { isLibroHumanPublication } from '@/lib/world-id/publication'
+import { getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 
 type PrepareRequest = {
   challengeId?: string
@@ -117,9 +118,13 @@ export async function PUT(
     let storedPublication
     try {
       assertDraftCanBePublished(draft)
-      storedPublication = assertChallengeMatchesAuthor(draft, challenge)
+      storedPublication = assertChallengeMatchesAuthor(
+        draft,
+        challenge,
+        getMemoriosoAuthorReference(draft.authorId)
+      )
       assertPublicationDateIsFresh(storedPublication)
-      if (!isLibroPublicationV1(storedPublication)) {
+      if (!isLibroHumanPublication(storedPublication)) {
         throw new Error('Legacy publication challenges are not supported')
       }
       if (storedPublication.author_handle_libro !== authenticatedUser.handle) {

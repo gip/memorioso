@@ -1,6 +1,6 @@
 import { pool } from './index'
 import { cache } from 'react'
-import { Author, PublicationAccess, PublicationRecord, Proof, PublicationInfo } from '@/types'
+import { Author, PublicationAccess, PublicationRecord, PublicationSignal, Proof, PublicationInfo } from '@/types'
 import { extractReadableText } from '@libro/core'
 import { buildGatedTeaser } from '@/lib/access/teaser'
 import {
@@ -12,7 +12,7 @@ import {
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
 type PublicationRow = {
-  signal: Omit<PublicationRecord, 'version'>
+  signal: PublicationSignal
   version: string
 }
 
@@ -35,7 +35,7 @@ const PUBLICATION_INFO_COLUMNS = `
          id,
          access,
          proof->>'proof_type' AS proof_type,
-         signal->>'author_id_libro' AS author_id_libro,
+         "authorId"::text AS author_id_libro,
          signal->>'author_name_libro' AS author_name_libro,
          signal->>'publication_date' AS publication_date,
          signal->>'publication_title' AS publication_title,

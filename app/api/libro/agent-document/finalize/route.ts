@@ -21,7 +21,7 @@ import {
 } from '@/lib/libro/agent'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentDocumentRegistered } from '@/lib/libro/server'
-import type { LibroAgentProofV1, LibroAgentPublicationV1 } from '@/types'
+import type { LibroAgentProofV1, LibroAgentPublication } from '@/types'
 import { publicationKindFromTitle } from '@/lib/publication-kind'
 
 type FinalizeAgentDocumentRequest = {
@@ -212,7 +212,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         if (documentRegistration.publicationId) {
           await client.query('COMMIT')
           transactionOpen = false
-          const finalizedPublication = documentRegistration.publication as LibroAgentPublicationV1
+          const finalizedPublication = documentRegistration.publication as LibroAgentPublication
           return NextResponse.json({
             success: true,
             publicationId: documentRegistration.publicationId,
@@ -227,7 +227,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       }
 
       const registeredAt = new Date().toISOString()
-      const publication = documentRegistration.publication as LibroAgentPublicationV1
+      const publication = documentRegistration.publication as LibroAgentPublication
       const proof: LibroAgentProofV1 = {
         ...(documentRegistration.proof as LibroAgentProofV1),
         agent_document_signature: {

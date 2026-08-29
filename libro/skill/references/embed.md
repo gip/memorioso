@@ -34,7 +34,9 @@ The timestamp is the publication time normalized to UTC minute precision. The si
 
 ## Manifest
 
-`publication` is the complete canonical direct-human `libro-publication-v1` or agent `libro-agent-publication-v1` object. `registration` contains:
+`publication` is the complete canonical direct-human `libro-publication-v1` / `libro-publication-v2`
+or agent `libro-agent-publication-v1` / `libro-agent-publication-v2` object. The v1 embed envelope
+supports all four payload variants. `registration` contains:
 
 - `chain_id`: `480`
 - `registry_address`: the approved Libro v1 registry
@@ -52,7 +54,7 @@ Libro embed v1 proves readable text rather than exact markup. Parse both the sig
 ## Verification
 
 1. Require exactly one referenced `application/libro+json` data block.
-2. Validate `libro-embed-v1` and the matching pair: `human-signed` / `libro-publication-v1`, or `human-authorized-agent` / `libro-agent-publication-v1`.
+2. Validate `libro-embed-v1` and the matching authorship pair: `human-signed` with either direct-human publication schema, or `human-authorized-agent` with either agent publication schema.
 3. Compare normalized embedded and signed readable text.
 4. Canonicalize the publication, recompute its signal hash and normalized handle hash.
 5. Require World Chain `480` and an approved registry address.

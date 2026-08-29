@@ -148,10 +148,15 @@ describe('Libro publication finalize route', () => {
     validationMock.getLockedDraftForPublish.mockResolvedValue({
       id: draftId,
       status: 'editing',
+      authorId: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
       content: { html: '<p>Hello human world.</p>' },
     })
     validationMock.assertChallengeMatchesAuthor.mockReturnValue({
-      author_id_libro: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
+      publication_schema: 'libro-publication-v2',
+      author_reference: {
+        namespace: 'https://memorioso.xyz',
+        id: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
+      },
       publication_title: 'A human note',
       publication_subtitle: 'On signatures',
       publication_date: '2026-07-21T12:00:00.000Z',
@@ -184,6 +189,7 @@ describe('Libro publication finalize route', () => {
     const publicationInsert = dbMock.clientQuery.mock.calls.find(([query]) =>
       String(query).includes('INSERT INTO publications')
     )
+    expect(publicationInsert?.[1][1]).toBe('8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa')
     expect(publicationInsert?.[1][2]).toMatchObject({
       libro_registration: {
         submission_method: 'memorioso_relayer',

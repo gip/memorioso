@@ -4,9 +4,10 @@ import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import {
   buildAgentPublicationSignal,
   createAgentDocumentTypedData,
-  createLibroAgentPublicationV1,
+  createLibroAgentPublicationV2,
   parseAgentPublicationPayload,
 } from '@/lib/libro/agent'
+import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 
 type AgentDocumentContextRequest = {
   registrationHash?: unknown
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let agentConfig
   try {
     agentConfig = getLibroAgentServerConfig()
+    getMemoriosoAuthorNamespace()
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const publicationDate = new Date().toISOString()
-    const publication = createLibroAgentPublicationV1({
+    const publication = createLibroAgentPublicationV2({
       author: {
         id: registration.authorId,
         name: registration.author_name,
@@ -80,6 +82,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       subtitle: publicationInput.subtitle,
       content: publicationInput.content,
       publicationDate,
+      authorReference: getMemoriosoAuthorReference(registration.authorId),
       agentAddress: registration.agent_address,
       agentRegistrationHash: registration.registration_hash,
     })

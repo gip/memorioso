@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type FinalizeRevokeRequest = {
   userOpHash?: string
@@ -12,6 +13,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {

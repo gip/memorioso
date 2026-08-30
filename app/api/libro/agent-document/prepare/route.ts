@@ -16,6 +16,7 @@ import {
 } from '@/lib/libro/contract'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 import { parseLibroPublication } from '@libro/core'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type PrepareAgentDocumentRequest = {
   publication?: unknown
@@ -30,6 +31,8 @@ function isFreshSignedAt(signedAt: number): boolean {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   let agentConfig
   try {
     agentConfig = getLibroAgentServerConfig()

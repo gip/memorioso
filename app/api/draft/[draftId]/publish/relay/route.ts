@@ -8,6 +8,7 @@ import {
   waitForRelayedLibroRegistration,
 } from '@/lib/libro/relay'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type RelayRequest = {
   registrationId?: string
@@ -17,6 +18,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser(req)
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })

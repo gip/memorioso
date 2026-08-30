@@ -9,6 +9,7 @@ import type { PublicationContent } from '@/types'
 import { validatePublicationForKind } from '@/lib/publication-kind'
 import { cleanupFinishedPublishChallenges } from '@/lib/publish-validation'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
+import { createServiceHumanPublication } from '@/lib/libro-service/client'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
@@ -17,11 +18,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 })
   }
 
-  let config
+  const serviceWrites = process.env.LIBRO_SERVICE_WRITES_ENABLED === '1'
+  let config: ReturnType<typeof getWorldIdServerConfig> | undefined
   try {
-    config = getWorldIdServerConfig()
-    getLibroServerConfig()
     getMemoriosoAuthorNamespace()
+    if (!serviceWrites) {
+      config = getWorldIdServerConfig()
+      getLibroServerConfig()
+    }
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -70,6 +74,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         d.id,
         d.status,
         d.publication_type AS "publicationType",
+        d.access,
         d."authorId",
         a.name AS author_name,
         a.handle AS author_handle,
@@ -121,7 +126,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)
-    const rpContext = createRpContext(config)
+
+    if (serviceWrites) {
+      const clientReference = `memorioso:${draftId}:${signalHash.toLowerCase()}`
+      const challenge = await createServiceHumanPublication({
+        userId: authenticatedUser.id,
+        publication,
+        clientReference,
+      })
+      await client.query(
+        `INSERT INTO pending_libro_publications
+          (service_challenge_id, client_reference, "userId", "authorId", "draftId",
+           signal_hash, access)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (service_challenge_id) DO UPDATE SET
+           signal_hash = EXCLUDED.signal_hash, access = EXCLUDED.access`,
+        [challenge.challengeId, clientReference, authenticatedUser.id, draft.authorId,
+          draftId, challenge.signalHash.toLowerCase(), draft.access],
+      )
+      return NextResponse.json({
+        success: true,
+        challengeId: challenge.challengeId,
+        signalText,
+        signalHash: challenge.signalHash,
+        externalSigningUrl: challenge.signingUrl,
+      })
+    }
+
+    const rpContext = createRpContext(config!)
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
@@ -143,8 +175,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       success: true,
       challengeId,
-      appId: config.appId,
-      environment: config.environment,
+      appId: config!.appId,
+      environment: config!.environment,
       rpContext,
       existingSessionId: draft.world_id_session_id,
       signalText,

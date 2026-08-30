@@ -23,6 +23,7 @@ import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentDocumentRegistered } from '@/lib/libro/server'
 import type { LibroAgentProofV1, LibroAgentPublication } from '@/types'
 import { publicationKindFromTitle } from '@/lib/publication-kind'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type FinalizeAgentDocumentRequest = {
   documentRegistrationId?: string
@@ -55,6 +56,8 @@ function failureResponse(error: unknown, stage: string): NextResponse {
 }
 
 export async function PUT(req: NextRequest): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const requestId = randomUUID()
   const startedAt = Date.now()
   let agentConfig

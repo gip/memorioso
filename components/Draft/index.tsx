@@ -457,6 +457,22 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     })
   }
 
+  const waitForExternalLibroPublication = async (draftId: string): Promise<void> => {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const raw = await fetch(`/api/draft/${draftId}/publish/status`, { cache: 'no-store' })
+      const response = await raw.json().catch(() => null)
+      if (raw.ok && response?.state === 'finalized' && response.publicationId) {
+        clearLocalDraft()
+        router.replace(`${publicationPath(draft?.publicationType || 'article', response.publicationId)}?signed=1`)
+        return
+      }
+      if (response?.state === 'expired') throw new Error('Libro signing request expired before it was completed')
+      if (!raw.ok && raw.status !== 502) throw new Error(response?.message || 'Libro publication status failed')
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+    throw new Error('Libro signing is still pending. Reopen the draft to resume status checks.')
+  }
+
   const handlePublish = async () => {
     try {
       setIsConfirmOpen(false)
@@ -490,6 +506,14 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       const response = await raw.json()
 
       if (response.success) {
+        if (typeof response.externalSigningUrl === 'string') {
+          const opened = window.open(response.externalSigningUrl, '_blank', 'noopener,noreferrer')
+          if (!opened) throw new Error('Allow pop-ups to open the Libro signing page')
+          setPublishStep(1)
+          setPublishStatus('Complete signing in the Libro window')
+          await waitForExternalLibroPublication(publishDraftId)
+          return
+        }
         const nextPublishContext: PublishContext = {
           challengeId: response.challengeId,
           appId: response.appId,

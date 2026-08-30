@@ -4,11 +4,14 @@ import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { libroRegistryAbi } from '@/lib/libro/contract'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 export async function PUT(
   _req: Request,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {

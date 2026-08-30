@@ -10,6 +10,7 @@ import {
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { verifyLibroAgentRegistered } from '@/lib/libro/server'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type FinalizeAgentRegistrationRequest = {
   userOpHash?: string
@@ -37,6 +38,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const requestId = randomUUID()
   const startedAt = Date.now()
   let authenticatedUser

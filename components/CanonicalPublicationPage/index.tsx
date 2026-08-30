@@ -64,9 +64,8 @@ export async function CanonicalPublicationPage({
   const access = await getCachedPublicationAccess(publicationId)
   const isGated = access?.access === 'gated'
 
-  // The embed manifest carries the whole signed publication, and the citation and
-  // share snippets carry its text, so a gated publication never gets any of them —
-  // for signed-in readers either, since those artifacts are made to be redistributed.
+  // Memorioso applies its presentation policy to redistributed artifacts too. Libro remains
+  // canonical and public, so this is access convenience rather than content confidentiality.
   let embedManifest: LibroEmbedManifestV1 | null = null
   if (proof && !isGated) {
     try {
@@ -110,9 +109,8 @@ export async function CanonicalProofPage({
   const proof = await getCachedProof(publicationId)
   const access = await getCachedPublicationAccess(publicationId)
 
-  // The canonical signal contains the publication body verbatim, so a viewer without
-  // access sees every hash and signature but not the plaintext they commit to. Only
-  // a gated publication needs the per-request check; public proofs stay prerenderable.
+  // Memorioso hides the local canonical signal until access is granted. The standalone Libro
+  // API remains public and may expose the same signed body; public proofs stay prerenderable.
   const showSignal = access?.access !== 'gated'
     || (await resolvePublicationAccess(publicationId)).allowed
 

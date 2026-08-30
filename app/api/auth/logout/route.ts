@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
 import { AUTH_SESSION_COOKIE, getAuthSessionCookieOptions } from '@/lib/auth-session'
+import { getAuthenticatedUser } from '@/lib/auth-user'
+import { clearLibroTokens } from '@/lib/libro-service/token-store'
 
 export async function POST() {
+  if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') {
+    const user = await getAuthenticatedUser().catch(() => null)
+    if (user) await clearLibroTokens(user.id).catch(() => undefined)
+  }
   const response = NextResponse.json({
     success: true,
   })

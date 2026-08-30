@@ -181,6 +181,12 @@
       "path": "app/api/auth/handle/route.ts"
     },
     {
+      "path": "app/api/auth/libro/callback/route.ts"
+    },
+    {
+      "path": "app/api/auth/libro/start/route.ts"
+    },
+    {
       "path": "app/api/auth/logout/route.ts"
     },
     {
@@ -233,6 +239,9 @@
     },
     {
       "path": "app/api/draft/[draftId]/publish/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/status/route.ts"
     },
     {
       "path": "app/api/draft/[draftId]/route.test.ts"
@@ -299,6 +308,9 @@
     },
     {
       "path": "app/api/libro/agent-registration/route.ts"
+    },
+    {
+      "path": "app/api/libro/events/route.ts"
     },
     {
       "path": "app/api/publications/[publicationId]/content/route.test.ts"
@@ -745,6 +757,9 @@
       "path": "lib/db/migrations/019_draft_passphrase_wrapper.sql"
     },
     {
+      "path": "lib/db/migrations/020_libro_service_cutover.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
@@ -809,6 +824,18 @@
     },
     {
       "path": "lib/json.ts"
+    },
+    {
+      "path": "lib/libro-service/client.ts"
+    },
+    {
+      "path": "lib/libro-service/cutover.ts"
+    },
+    {
+      "path": "lib/libro-service/oauth-state.ts"
+    },
+    {
+      "path": "lib/libro-service/token-store.ts"
     },
     {
       "path": "lib/libro/__tests__/client.test.ts"
@@ -1141,6 +1168,249 @@
       "path": "libro/core/vitest.config.ts"
     },
     {
+      "path": "libro/service/README.md"
+    },
+    {
+      "path": "libro/service/app/.well-known/oauth-authorization-server/route.ts"
+    },
+    {
+      "path": "libro/service/app/.well-known/oauth-protected-resource/mcp/route.ts"
+    },
+    {
+      "path": "libro/service/app/.well-known/oauth-protected-resource/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/health/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/internal/events/deliver/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-documents/finalize/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-documents/prepare/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-registrations/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-signing/[capability]/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-signing/[capability]/finalize/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-signing/[capability]/prepare/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-signing/[capability]/relay/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/authors/[idOrHandle]/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/handle-claims/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/handle-signing/[capability]/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/handle-signing/[capability]/finalize/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/handle-signing/[capability]/prepare/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/handle-signing/[capability]/relay/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/human-publications/[challengeId]/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/human-publications/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/verify/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/imports/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/me/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/[publicationId]/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/[publicationId]/verify/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/by-signal/[signalHash]/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/counts/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/publications/sitemap/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/signing/[capability]/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/signing/[capability]/finalize/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/signing/[capability]/prepare/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/signing/[capability]/relay/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/sponsorship/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/sponsorship/verify/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/user-operations/[userOpHash]/route.ts"
+    },
+    {
+      "path": "libro/service/app/claim/[capability]/ClaimClient.tsx"
+    },
+    {
+      "path": "libro/service/app/claim/[capability]/page.tsx"
+    },
+    {
+      "path": "libro/service/app/globals.css"
+    },
+    {
+      "path": "libro/service/app/identity/IdentityClient.tsx"
+    },
+    {
+      "path": "libro/service/app/identity/page.tsx"
+    },
+    {
+      "path": "libro/service/app/layout.tsx"
+    },
+    {
+      "path": "libro/service/app/mcp/route.ts"
+    },
+    {
+      "path": "libro/service/app/oauth/authorize/route.ts"
+    },
+    {
+      "path": "libro/service/app/oauth/register/route.ts"
+    },
+    {
+      "path": "libro/service/app/oauth/revoke/route.ts"
+    },
+    {
+      "path": "libro/service/app/oauth/token/route.ts"
+    },
+    {
+      "path": "libro/service/app/page.tsx"
+    },
+    {
+      "path": "libro/service/app/sign-agent/[capability]/AgentSigningClient.tsx"
+    },
+    {
+      "path": "libro/service/app/sign-agent/[capability]/page.tsx"
+    },
+    {
+      "path": "libro/service/app/sign/[capability]/SigningClient.tsx"
+    },
+    {
+      "path": "libro/service/app/sign/[capability]/page.tsx"
+    },
+    {
+      "path": "libro/service/db/migrations/001_initial_service.sql"
+    },
+    {
+      "path": "libro/service/db/schema.sql"
+    },
+    {
+      "path": "libro/service/lib/agent-documents.ts"
+    },
+    {
+      "path": "libro/service/lib/agent-registrations.ts"
+    },
+    {
+      "path": "libro/service/lib/chain.ts"
+    },
+    {
+      "path": "libro/service/lib/config.ts"
+    },
+    {
+      "path": "libro/service/lib/crypto.test.ts"
+    },
+    {
+      "path": "libro/service/lib/crypto.ts"
+    },
+    {
+      "path": "libro/service/lib/db.ts"
+    },
+    {
+      "path": "libro/service/lib/errors.ts"
+    },
+    {
+      "path": "libro/service/lib/events.ts"
+    },
+    {
+      "path": "libro/service/lib/handle-claims.ts"
+    },
+    {
+      "path": "libro/service/lib/handles.ts"
+    },
+    {
+      "path": "libro/service/lib/human-publications.ts"
+    },
+    {
+      "path": "libro/service/lib/human-signing.ts"
+    },
+    {
+      "path": "libro/service/lib/imports.ts"
+    },
+    {
+      "path": "libro/service/lib/oauth.test.ts"
+    },
+    {
+      "path": "libro/service/lib/oauth.ts"
+    },
+    {
+      "path": "libro/service/lib/publications.ts"
+    },
+    {
+      "path": "libro/service/lib/service-auth.ts"
+    },
+    {
+      "path": "libro/service/lib/session.ts"
+    },
+    {
+      "path": "libro/service/lib/sponsorship.ts"
+    },
+    {
+      "path": "libro/service/lib/world-id.ts"
+    },
+    {
+      "path": "libro/service/next.config.mjs"
+    },
+    {
+      "path": "libro/service/package.json"
+    },
+    {
+      "path": "libro/service/tsconfig.json"
+    },
+    {
+      "path": "libro/service/vitest.config.ts"
+    },
+    {
       "path": "libro/skill/SKILL.md"
     },
     {
@@ -1202,6 +1472,9 @@
     },
     {
       "path": "scripts/migrate-db.test.mjs"
+    },
+    {
+      "path": "scripts/migrate-to-libro-service.mjs"
     },
     {
       "path": "scripts/openship-manifest.mjs"

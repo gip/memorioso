@@ -11,11 +11,13 @@ export type WorldIdSessionResponse =
       success: true
       authenticated: true
       user: WorldIdSessionUser
+      libroAuthEnabled?: boolean
     }
   | {
       success: true
       authenticated: false
       user: null
+      libroAuthEnabled?: boolean
     }
   | {
       success: false

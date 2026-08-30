@@ -3,18 +3,22 @@ import { parseDocument } from 'htmlparser2'
 import type { AnyNode, Element } from 'domhandler'
 import {
   createPublicClient,
+  encodeAbiParameters,
+  encodeFunctionData,
   fallback,
   http,
   isAddress,
   isHex,
   keccak256,
   parseEventLogs,
+  recoverTypedDataAddress,
   toBytes,
   TransactionReceiptNotFoundError,
   type Abi,
   type Address,
   type Hex,
   type TransactionReceipt,
+  type TypedDataDomain,
 } from 'viem'
 import { worldchain } from 'viem/chains'
 
@@ -135,6 +139,62 @@ export type LibroHumanPublicationPayload = LibroPublicationV1Payload | LibroPubl
 export type LibroAgentPublicationPayload = LibroAgentPublicationV1Payload | LibroAgentPublicationV2Payload
 export type LibroPublicationPayload = LibroHumanPublicationPayload | LibroAgentPublicationPayload
 
+export type LibroServiceError = {
+  error: {
+    code: string
+    message: string
+    retryable: boolean
+  }
+}
+
+export type LibroHumanPrincipal = {
+  identityId: string
+  authorId: string
+  handle: string
+  sessionCommitment: Hex
+  authorReference: LibroAuthorReference
+  originClientId: string | null
+}
+
+export type LibroAgentAuthority = {
+  registrationHash: Hex
+  agentAddress: Address
+  handleHash: Hex
+  scope: string
+  validFrom: string
+  expiresAt: string
+  authorReference?: LibroAuthorReference
+}
+
+export type LibroPublicationRecord = {
+  id: string
+  authorId: string
+  identityId: string
+  signalHash: Hex
+  authorshipClass: 'human' | 'agent'
+  signal: LibroPublicationPayload
+  proof: unknown
+  version: string
+  originClientId: string | null
+  clientReference: string | null
+  createdAt: string
+  modifiedAt: string
+}
+
+export type LibroPublicationSummary = {
+  id: string
+  authorId: string
+  signalHash: Hex
+  authorshipClass: 'human' | 'agent'
+  publicationDate: string
+  authorName: string
+  title: string
+  subtitle: string
+  excerpt: string
+  publicationType: 'short' | 'article'
+  modifiedAt: string
+}
+
 export type LibroEmbedManifestV1 = {
   schema: typeof LIBRO_EMBED_SCHEMA_V1
   claim: typeof LIBRO_HUMAN_SIGNED_CLAIM | typeof LIBRO_AGENT_SIGNED_CLAIM
@@ -162,7 +222,103 @@ export type LibroTextTagV1 = {
   bodyText: string
 }
 
+const libroSessionProofComponents = [
+  { name: 'sessionCommitment', type: 'uint256' },
+  { name: 'nonce', type: 'uint256' },
+  { name: 'expiresAtMin', type: 'uint64' },
+  { name: 'issuerSchemaId', type: 'uint64' },
+  { name: 'credentialGenesisIssuedAtMin', type: 'uint256' },
+  { name: 'sessionNullifier', type: 'uint256[2]' },
+  { name: 'zeroKnowledgeProof', type: 'uint256[5]' },
+] as const
+
+const libroAgentRegistrationComponents = [
+  { name: 'handleHash', type: 'bytes32' },
+  { name: 'controllerAddress', type: 'address' },
+  { name: 'agentAddress', type: 'address' },
+  { name: 'scope', type: 'uint256' },
+  { name: 'validFrom', type: 'uint64' },
+  { name: 'expiresAt', type: 'uint64' },
+  { name: 'salt', type: 'bytes32' },
+] as const
+
 export const libroRegistryAbi = [
+  {
+    type: 'function',
+    name: 'claimHandle',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'handle', type: 'string' },
+      { name: 'proof', type: 'tuple', components: libroSessionProofComponents },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'registerAgent',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'registration', type: 'tuple', components: libroAgentRegistrationComponents },
+      { name: 'proof', type: 'tuple', components: libroSessionProofComponents },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'claimHandleAndRegisterAgent',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'handle', type: 'string' },
+      { name: 'registration', type: 'tuple', components: libroAgentRegistrationComponents },
+      { name: 'proof', type: 'tuple', components: libroSessionProofComponents },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'registerAgentDocument',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'documentNonce', type: 'bytes32' },
+      { name: 'signedAt', type: 'uint64' },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'claimHandleAndRegisterHumanDocument',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'handle', type: 'string' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'proof', type: 'tuple', components: libroSessionProofComponents },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'verifyAgent',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'handleHash', type: 'bytes32' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'registerHumanDocument',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'handleHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'proof', type: 'tuple', components: libroSessionProofComponents },
+    ],
+    outputs: [],
+  },
   {
     type: 'function',
     name: 'verifyHumanDocument',
@@ -182,6 +338,27 @@ export const libroRegistryAbi = [
       { name: 'handleHash', type: 'bytes32' },
     ],
     outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    type: 'event',
+    name: 'HandleClaimed',
+    inputs: [
+      { name: 'handleHash', type: 'bytes32', indexed: true },
+      { name: 'sessionCommitment', type: 'uint256', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'AgentRegistered',
+    inputs: [
+      { name: 'registrationHash', type: 'bytes32', indexed: true },
+      { name: 'handleHash', type: 'bytes32', indexed: true },
+      { name: 'agentAddress', type: 'address', indexed: true },
+      { name: 'controllerAddress', type: 'address', indexed: false },
+      { name: 'scope', type: 'uint256', indexed: false },
+      { name: 'expiresAt', type: 'uint64', indexed: false },
+      { name: 'sessionNullifier', type: 'uint256', indexed: false },
+    ],
   },
   {
     type: 'event',
@@ -423,6 +600,197 @@ export function normalizeLibroHandle(value: string): string {
 
 export function hashLibroHandle(handle: string): Hex {
   return keccak256(toBytes(normalizeLibroHandle(handle))).toLowerCase() as Hex
+}
+
+export const LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE = BigInt(1)
+export const LIBRO_AGENT_REGISTRATION_TYPE =
+  'LibroAgentRegistration(bytes32 handleHash,address controllerAddress,address agentAddress,uint256 scope,uint64 validFrom,uint64 expiresAt,bytes32 salt,uint256 chainId,address registryAddress)' as const
+export const LIBRO_AGENT_DOCUMENT_TYPE =
+  'AgentDocument(bytes32 registrationHash,uint256 documentSignalHash,bytes32 documentNonce,uint64 signedAt)' as const
+export const LIBRO_AGENT_DOCUMENT_FINALIZATION_TYPE =
+  'AgentDocumentFinalization(bytes32 registrationHash,uint256 documentSignalHash,bytes32 documentNonce,bytes32 transactionHash,uint64 signedAt)' as const
+
+function requireLibroBytes32(value: string, name: string): Hex {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) throw new Error(`${name} must be a 32-byte hex string`)
+  return value.toLowerCase() as Hex
+}
+
+function requireLibroAddress(value: string, name: string): Address {
+  if (!isAddress(value)) throw new Error(`${name} must be an EVM address`)
+  return value
+}
+
+export type LibroAgentDocumentTypedData = {
+  domain: TypedDataDomain
+  types: { AgentDocument: readonly [
+    { readonly name: 'registrationHash'; readonly type: 'bytes32' },
+    { readonly name: 'documentSignalHash'; readonly type: 'uint256' },
+    { readonly name: 'documentNonce'; readonly type: 'bytes32' },
+    { readonly name: 'signedAt'; readonly type: 'uint64' },
+  ] }
+  primaryType: 'AgentDocument'
+  message: { registrationHash: Hex; documentSignalHash: bigint; documentNonce: Hex; signedAt: bigint }
+}
+
+export type LibroAgentDocumentFinalizationTypedData = {
+  domain: TypedDataDomain
+  types: { AgentDocumentFinalization: readonly [
+    { readonly name: 'registrationHash'; readonly type: 'bytes32' },
+    { readonly name: 'documentSignalHash'; readonly type: 'uint256' },
+    { readonly name: 'documentNonce'; readonly type: 'bytes32' },
+    { readonly name: 'transactionHash'; readonly type: 'bytes32' },
+    { readonly name: 'signedAt'; readonly type: 'uint64' },
+  ] }
+  primaryType: 'AgentDocumentFinalization'
+  message: {
+    registrationHash: Hex
+    documentSignalHash: bigint
+    documentNonce: Hex
+    transactionHash: Hex
+    signedAt: bigint
+  }
+}
+
+export function createLibroAgentDocumentTypedData(input: {
+  chainId: number
+  registryAddress: string
+  registrationHash: string
+  documentSignalHash: string
+  documentNonce: string
+  signedAt: number | bigint
+}): LibroAgentDocumentTypedData {
+  return {
+    domain: {
+      name: 'LibroRegistry',
+      version: '1',
+      chainId: input.chainId,
+      verifyingContract: requireLibroAddress(input.registryAddress, 'registry_address'),
+    },
+    types: { AgentDocument: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'documentNonce', type: 'bytes32' },
+      { name: 'signedAt', type: 'uint64' },
+    ] },
+    primaryType: 'AgentDocument',
+    message: {
+      registrationHash: requireLibroBytes32(input.registrationHash, 'registration_hash'),
+      documentSignalHash: BigInt(requireLibroBytes32(input.documentSignalHash, 'document_signal_hash')),
+      documentNonce: requireLibroBytes32(input.documentNonce, 'document_nonce'),
+      signedAt: BigInt(input.signedAt),
+    },
+  }
+}
+
+export function createLibroAgentDocumentFinalizationTypedData(input: {
+  chainId: number
+  registryAddress: string
+  registrationHash: string
+  documentSignalHash: string
+  documentNonce: string
+  transactionHash: string
+  signedAt: number | bigint
+}): LibroAgentDocumentFinalizationTypedData {
+  return {
+    domain: {
+      name: 'LibroRegistry',
+      version: '1',
+      chainId: input.chainId,
+      verifyingContract: requireLibroAddress(input.registryAddress, 'registry_address'),
+    },
+    types: { AgentDocumentFinalization: [
+      { name: 'registrationHash', type: 'bytes32' },
+      { name: 'documentSignalHash', type: 'uint256' },
+      { name: 'documentNonce', type: 'bytes32' },
+      { name: 'transactionHash', type: 'bytes32' },
+      { name: 'signedAt', type: 'uint64' },
+    ] },
+    primaryType: 'AgentDocumentFinalization',
+    message: {
+      registrationHash: requireLibroBytes32(input.registrationHash, 'registration_hash'),
+      documentSignalHash: BigInt(requireLibroBytes32(input.documentSignalHash, 'document_signal_hash')),
+      documentNonce: requireLibroBytes32(input.documentNonce, 'document_nonce'),
+      transactionHash: requireLibroBytes32(input.transactionHash, 'transaction_hash'),
+      signedAt: BigInt(input.signedAt),
+    },
+  }
+}
+
+export async function recoverLibroAgentDocumentSigner(typedData: LibroAgentDocumentTypedData, signature: string): Promise<Address> {
+  if (!isHex(signature)) throw new Error('signature must be hex')
+  return recoverTypedDataAddress({ ...typedData, signature })
+}
+
+export async function recoverLibroAgentDocumentFinalizationSigner(
+  typedData: LibroAgentDocumentFinalizationTypedData,
+  signature: string,
+): Promise<Address> {
+  if (!isHex(signature)) throw new Error('signature must be hex')
+  return recoverTypedDataAddress({ ...typedData, signature })
+}
+
+export function prepareLibroAgentDocumentTransaction(input: {
+  chainId: number
+  registryAddress: string
+  registrationHash: string
+  documentSignalHash: string
+  documentNonce: string
+  signedAt: number | bigint
+  signature: string
+}) {
+  if (!isHex(input.signature)) throw new Error('signature must be hex')
+  const registryAddress = requireLibroAddress(input.registryAddress, 'registry_address')
+  const data = encodeFunctionData({
+    abi: libroRegistryAbi,
+    functionName: 'registerAgentDocument',
+    args: [
+      requireLibroBytes32(input.registrationHash, 'registration_hash'),
+      BigInt(requireLibroBytes32(input.documentSignalHash, 'document_signal_hash')),
+      requireLibroBytes32(input.documentNonce, 'document_nonce'),
+      BigInt(input.signedAt),
+      input.signature,
+    ],
+  })
+  return { chainId: input.chainId, transactions: [{ to: registryAddress, data, value: '0x0' as const }] }
+}
+
+export function createLibroAgentRegistration(input: {
+  handleHash: string
+  controllerAddress: string
+  agentAddress: string
+  scope?: bigint
+  validFrom: string | Date
+  expiresAt: string | Date
+  salt: string
+  chainId: number
+  registryAddress: string
+}) {
+  const handleHash = requireLibroBytes32(input.handleHash, 'handle_hash')
+  const controllerAddress = requireLibroAddress(input.controllerAddress, 'controller_address')
+  const agentAddress = requireLibroAddress(input.agentAddress, 'agent_address')
+  const registryAddress = requireLibroAddress(input.registryAddress, 'registry_address')
+  const salt = requireLibroBytes32(input.salt, 'salt')
+  const scope = input.scope || LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE
+  const validFrom = BigInt(Math.floor(new Date(input.validFrom).getTime() / 1000))
+  const expiresAt = BigInt(Math.floor(new Date(input.expiresAt).getTime() / 1000))
+  if (validFrom <= BigInt(0) || expiresAt < validFrom) throw new Error('Agent validity window is invalid')
+  const typeHash = keccak256(toBytes(LIBRO_AGENT_REGISTRATION_TYPE))
+  const encoded = encodeAbiParameters(
+    [
+      { type: 'bytes32' }, { type: 'bytes32' }, { type: 'address' }, { type: 'address' },
+      { type: 'uint256' }, { type: 'uint64' }, { type: 'uint64' }, { type: 'bytes32' },
+      { type: 'uint256' }, { type: 'address' },
+    ],
+    [typeHash, handleHash, controllerAddress, agentAddress, scope, validFrom, expiresAt,
+      salt, BigInt(input.chainId), registryAddress],
+  )
+  const registrationHash = keccak256(encoded)
+  return {
+    registrationHash,
+    signal: registrationHash,
+    signalHash: hashPublicationSignal(registrationHash),
+    contractRegistration: { handleHash, controllerAddress, agentAddress, scope, validFrom, expiresAt, salt },
+  }
 }
 
 export function normalizeUint256Hex(value: string, fieldName: string): Hex {

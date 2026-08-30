@@ -9,6 +9,7 @@ import {
 } from '@/lib/libro/agent'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { hashLibroHandle } from '@libro/core'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type CreateAgentRegistrationRequest = {
   authorId?: unknown
@@ -67,6 +68,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {

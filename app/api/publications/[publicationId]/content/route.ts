@@ -113,7 +113,8 @@ export async function GET(request: NextRequest, { params }: { params: Params }):
     return NextResponse.json({
       success: false,
       message: 'This publication is gated. Sign in with World ID on Memorioso to read it; '
-        + 'this deployment does not accept x402 payments.',
+        + 'this deployment does not accept x402 payments. This is presentation policy, '
+        + 'not confidentiality; Libro may expose the complete canonical payload.',
     }, { status: 403, headers: BASE_HEADERS })
   }
 

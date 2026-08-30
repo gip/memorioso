@@ -45,7 +45,7 @@ type SigningJob = {
   normalizedText?: string
   author?: { id: string; name: string; handle: string }
   context?: SigningContext
-  stage: 'proof' | 'prepared' | 'relayed' | 'finalized'
+  stage: 'proof' | 'external' | 'prepared' | 'relayed' | 'finalized'
   registrationId?: string
   transactionHash?: string
   publicationId?: string
@@ -349,7 +349,7 @@ export function App(): JSX.Element {
       })
       setJob(response.job)
       setText(response.job.normalizedText || text)
-      setProofOpen(true)
+      setProofOpen(response.job.stage === 'proof')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not create the signing request')
     } finally {
@@ -595,8 +595,14 @@ export function App(): JSX.Element {
             <button className="quiet" onClick={cancel}>Cancel signing</button>
           </>}
           {job && job.stage !== 'proof' && <>
-            <p className="muted">Your proof is complete. The remaining sponsored registration can safely be retried.</p>
-            <button className="primary" onClick={() => finishAndInsert(job)} disabled={Boolean(progress)}>Resume publishing</button>
+            <p className="muted">
+              {job.stage === 'external'
+                ? 'Complete the exact publication review and World ID signature in the Libro tab.'
+                : 'Your proof is complete. The remaining sponsored registration can safely be retried.'}
+            </p>
+            <button className="primary" onClick={() => finishAndInsert(job)} disabled={Boolean(progress)}>
+              {job.stage === 'external' ? 'Check Libro signing status' : 'Resume publishing'}
+            </button>
           </>}
         </section>
       )}

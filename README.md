@@ -30,6 +30,10 @@ fetch every file, and rebuild the repository — no git, no registry, no credent
 curl -sL https://memorioso.xyz/openship/source.tar.gz | tar xz
 ```
 
+The Libro MCP also exposes Memorioso's verified OpenShip snapshot without authentication. Connect
+to the configured Libro `/mcp` endpoint and call `openship` with `{"operation":"manifest"}`, then
+read exact files with `{"operation":"read","path":"app/page.tsx"}`.
+
 OpenShip is a protocol rather than a Memorioso feature; any site can implement it. Memorioso
 implements Sources and Changes, not Systems. The complete pinned v1 skill and specifications are
 vendored under [`skills/openship`](./skills/openship). The payload is generated at build time by

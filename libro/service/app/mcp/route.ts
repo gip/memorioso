@@ -1,6 +1,18 @@
-import { createRequestStateCodec, inputRequired, type AuthInfo, type ServerContext } from '@modelcontextprotocol/server'
+import {
+  ResourceNotFoundError,
+  ResourceTemplate,
+  createRequestStateCodec,
+  inputRequired,
+  type AuthInfo,
+  type ServerContext,
+} from '@modelcontextprotocol/server'
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
+import {
+  OPENSHIP_MCP_FILE_RESOURCE_TEMPLATE,
+  OPENSHIP_MCP_MANIFEST_RESOURCE_URI,
+  OPENSHIP_MCP_TOOL_NAME,
+} from '@openship/protocol'
 import { mcpResource, mcpStateSecret, serviceOrigin } from '@/lib/config'
 import { sha256 } from '@/lib/crypto'
 import { ServiceError } from '@/lib/errors'
@@ -19,6 +31,7 @@ import {
 } from '@/lib/handle-claims'
 import { importPublication, publicationManifest } from '@/lib/imports'
 import { chainConfig } from '@/lib/chain'
+import { getOpenShipSnapshot, readOpenShipFile } from '@/lib/openship'
 
 type PublishState = {
   tool: 'publish_human'
@@ -72,6 +85,96 @@ function createHandler() {
     bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId || ''}`,
   })
   const handler = createMcpHandler((server) => {
+    server.registerTool(OPENSHIP_MCP_TOOL_NAME, {
+      description: 'Inspect the verified OpenShip Sources manifest or read one exact source file. No authentication is required.',
+      inputSchema: z.discriminatedUnion('operation', [
+        z.object({ operation: z.literal('manifest') }),
+        z.object({ operation: z.literal('read'), path: z.string().min(1) }),
+      ]),
+    }, async (args) => {
+      try {
+        if (args.operation === 'manifest') {
+          const snapshot = await getOpenShipSnapshot()
+          return text({ origin: snapshot.origin, manifest: snapshot.manifest })
+        }
+        const { snapshot, file, content } = await readOpenShipFile(args.path)
+        return text({
+          origin: snapshot.origin,
+          digest: snapshot.manifest.digest,
+          file: file.metadata,
+          content,
+        })
+      } catch (error) {
+        return toolError(error)
+      }
+    })
+
+    server.registerResource('openship-manifest', OPENSHIP_MCP_MANIFEST_RESOURCE_URI, {
+      title: 'OpenShip Sources manifest',
+      description: 'The complete validated manifest for this MCP server’s OpenShip source project.',
+      mimeType: 'application/json',
+    }, async (uri) => {
+      const snapshot = await getOpenShipSnapshot()
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(snapshot.manifest, null, 2),
+        }],
+      }
+    })
+
+    server.registerResource(
+      'openship-source-file',
+      new ResourceTemplate(OPENSHIP_MCP_FILE_RESOURCE_TEMPLATE, {
+        list: async () => {
+          const snapshot = await getOpenShipSnapshot()
+          return {
+            resources: snapshot.manifest.files.map((file) => {
+              const uri = new URL('openship://sources/file')
+              uri.searchParams.set('path', file.path)
+              return {
+                uri: uri.href,
+                name: file.path,
+                description: `OpenShip source file from ${snapshot.manifest.digest}`,
+                mimeType: file.mediaType,
+                size: file.size,
+              }
+            }),
+          }
+        },
+        complete: {
+          path: async (value) => {
+            const snapshot = await getOpenShipSnapshot()
+            return snapshot.manifest.files
+              .map((file) => file.path)
+              .filter((path) => path.startsWith(value))
+              .slice(0, 100)
+          },
+        },
+      }),
+      {
+        title: 'OpenShip source file',
+        description: 'One exact file from the validated OpenShip Sources snapshot.',
+      },
+      async (uri, variables) => {
+        const path = typeof variables.path === 'string' ? variables.path : ''
+        try {
+          const { file, content } = await readOpenShipFile(path)
+          return {
+            contents: [file.metadata.encoding === 'utf-8'
+              ? { uri: uri.href, mimeType: file.metadata.mediaType, text: content }
+              : { uri: uri.href, mimeType: file.metadata.mediaType, blob: content }],
+          }
+        } catch (error) {
+          if (error instanceof ServiceError && (error.code === 'INVALID_PATH' || error.code === 'NOT_FOUND')) {
+            throw new ResourceNotFoundError(uri.href, error.message)
+          }
+          throw error
+        }
+      },
+    )
+
     server.registerTool('get_publication', {
       description: 'Get a canonical Libro publication, including its complete signed body and proof.',
       inputSchema: z.object({ publicationId: z.string().min(1) }),

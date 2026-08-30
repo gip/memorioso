@@ -16,6 +16,9 @@ const formatBytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`
 const HumanView = () => {
   const manifest = getOpenshipManifest()
   const commit = getOpenshipCommit()
+  const mcp = process.env.LIBRO_SERVICE_URL
+    ? new URL('/mcp', process.env.LIBRO_SERVICE_URL).toString()
+    : null
 
   return (
     <div className="space-y-6">
@@ -72,6 +75,16 @@ const HumanView = () => {
         <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed sm:text-xs">
           {`${openshipOrigin()}/openship/agent.txt`}
         </pre>
+        {mcp ? (
+          <>
+            <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+              Or connect the agent directly to the public MCP and call the <code>openship</code> tool:
+            </p>
+            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed sm:text-xs">
+              {mcp}
+            </pre>
+          </>
+        ) : null}
         <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
           Or take the whole thing yourself:
         </p>

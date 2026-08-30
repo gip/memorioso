@@ -74,6 +74,9 @@ ${isApiWritable() ? '\n  This deployment explicitly allows app/api/**.\n' : ''}
 export const buildOpenshipInstructions = (origin: string): string => {
   const manifest = getOpenshipManifest()
   const commit = getOpenshipCommit()
+  const mcp = process.env.LIBRO_SERVICE_URL
+    ? new URL('/mcp', process.env.LIBRO_SERVICE_URL).toString()
+    : null
 
   return `OPENSHIP ${OPENSHIP_VERSION}
 ${origin}
@@ -99,6 +102,13 @@ START HERE
   The advertised skill is served from the vendored package at:
   ${origin}/openship/file/skills/openship/SKILL.md
 
+${mcp ? `MCP
+  Connect to ${mcp} and call the public "openship" tool. Use
+  { "operation": "manifest" } to inspect the verified file set, then
+  { "operation": "read", "path": "<exact manifest path>" } for source files.
+  OpenShip reads through this tool do not require OAuth.
+
+` : ''}\
 RETRIEVE SOURCES
   1. GET ${origin}/openship/manifest.json.
   2. GET ${origin}/openship/bundle.json.

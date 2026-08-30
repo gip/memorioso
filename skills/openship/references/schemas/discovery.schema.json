@@ -27,6 +27,7 @@
           "properties": {
             "manifest": { "$ref": "#/$defs/httpsUrl" },
             "bundle": { "$ref": "#/$defs/httpsUrl" },
+            "mcp": { "$ref": "#/$defs/httpsUrl" },
             "file": { "type": "string", "pattern": "^https://.+\\{path\\}.+$|^https://.+/\\{path\\}$" },
             "archive": { "$ref": "#/$defs/httpsUrl" },
             "instructions": { "$ref": "#/$defs/httpsUrl" }
@@ -58,4 +59,3 @@
   },
   "additionalProperties": true
 }
-

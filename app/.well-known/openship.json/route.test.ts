@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { GET } from './route'
 
 describe('GET /.well-known/openship.json', () => {
+  afterEach(() => {
+    delete process.env.LIBRO_SERVICE_URL
+  })
+
   it('advertises the clean v1 Sources and Changes capability map', async () => {
+    process.env.LIBRO_SERVICE_URL = 'https://libro.memorioso.xyz'
     const response = GET(new Request('https://memorioso.xyz/.well-known/openship.json'))
     expect(response.status).toBe(200)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
@@ -18,6 +23,7 @@ describe('GET /.well-known/openship.json', () => {
         sources: {
           manifest: 'https://memorioso.xyz/openship/manifest.json',
           bundle: 'https://memorioso.xyz/openship/bundle.json',
+          mcp: 'https://libro.memorioso.xyz/mcp',
         },
         changes: {
           policy: 'https://memorioso.xyz/openship/policy.json',
@@ -29,5 +35,10 @@ describe('GET /.well-known/openship.json', () => {
     expect(discovery.capabilities.systems).toBeUndefined()
     expect(discovery.manifest).toBeUndefined()
     expect(discovery.changes).toBeUndefined()
+  })
+
+  it('omits the optional MCP binding when Libro is not configured', async () => {
+    const discovery = await GET(new Request('https://memorioso.xyz/.well-known/openship.json')).json()
+    expect(discovery.capabilities.sources.mcp).toBeUndefined()
   })
 })

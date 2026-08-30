@@ -13,6 +13,9 @@ export function GET(request: Request): NextResponse {
   const absolute = (endpoint: string) => `${origin}${endpoint}`
   const project = getOpenshipProject()
   const commit = getOpenshipCommit()
+  const mcp = process.env.LIBRO_SERVICE_URL
+    ? new URL('/mcp', process.env.LIBRO_SERVICE_URL).toString()
+    : null
 
   return openshipResponse(
     JSON.stringify(
@@ -26,6 +29,7 @@ export function GET(request: Request): NextResponse {
           sources: {
             manifest: absolute(OPENSHIP_ENDPOINTS.manifest),
             bundle: absolute(OPENSHIP_ENDPOINTS.bundle),
+            ...(mcp ? { mcp } : {}),
             file: absolute(OPENSHIP_ENDPOINTS.file),
             archive: absolute(OPENSHIP_ENDPOINTS.archive),
             instructions: absolute(OPENSHIP_ENDPOINTS.instructions),

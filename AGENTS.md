@@ -73,6 +73,8 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
 - `lib/openship/` contains the Openship read half (manifest, bundle) and the Changes write half
   (`policy.ts`, `change.ts`, `validate.ts`), plus `paths.ts`, the one path-pattern matcher.
+- `libro/service/lib/openship.ts` verifies Memorioso's public OpenShip snapshot for the anonymous
+  `openship` tool and resources registered on Libro's existing MCP endpoint.
 - `scripts/openship-worker.mjs` is the build host for accepted changes; `scripts/openship-review.mjs`
   is its model review gate.
 - `openship.json` is the checked-in manifest: the hand-authored project metadata plus the allowlist

@@ -130,6 +130,7 @@
   ],
   "ignoreNames": [
     "node_modules",
+    ".next",
     ".git",
     ".DS_Store",
     "next-env.d.ts",
@@ -1300,6 +1301,9 @@
       "path": "libro/service/app/layout.tsx"
     },
     {
+      "path": "libro/service/app/mcp/route.test.ts"
+    },
+    {
       "path": "libro/service/app/mcp/route.ts"
     },
     {
@@ -1382,6 +1386,12 @@
     },
     {
       "path": "libro/service/lib/oauth.ts"
+    },
+    {
+      "path": "libro/service/lib/openship.test.ts"
+    },
+    {
+      "path": "libro/service/lib/openship.ts"
     },
     {
       "path": "libro/service/lib/publications.ts"
@@ -1504,6 +1514,9 @@
       "path": "skills/openship/references/examples/invalid/changes-violation.json"
     },
     {
+      "path": "skills/openship/references/examples/invalid/discovery-mcp.json"
+    },
+    {
       "path": "skills/openship/references/examples/invalid/discovery.json"
     },
     {
@@ -1544,6 +1557,9 @@
     },
     {
       "path": "skills/openship/references/openship-changes.md"
+    },
+    {
+      "path": "skills/openship/references/openship-mcp.md"
     },
     {
       "path": "skills/openship/references/openship-sources.md"

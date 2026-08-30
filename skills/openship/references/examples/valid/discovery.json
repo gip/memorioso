@@ -7,6 +7,7 @@
     "sources": {
       "manifest": "https://example.com/openship/manifest.json",
       "bundle": "https://example.com/openship/bundle.json",
+      "mcp": "https://mcp.example.com/mcp",
       "file": "https://example.com/openship/file/{path}",
       "archive": "https://example.com/openship/source.tar.gz"
     },
@@ -17,4 +18,3 @@
     }
   }
 }
-

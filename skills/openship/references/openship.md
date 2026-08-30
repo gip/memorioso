@@ -61,6 +61,7 @@ The response MUST be unauthenticated JSON, MUST allow cross-origin reads with `A
     "sources": {
       "manifest": "https://example.com/openship/manifest.json",
       "bundle": "https://example.com/openship/bundle.json",
+      "mcp": "https://mcp.example.com/mcp",
       "file": "https://example.com/openship/file/{path}",
       "archive": "https://example.com/openship/source.tar.gz",
       "instructions": "https://example.com/openship/agent.txt"
@@ -82,6 +83,7 @@ Requirements:
 - `project`, `capabilities`, and `capabilities.sources` are REQUIRED.
 - `project.name` and `project.description` are REQUIRED.
 - `sources.manifest` and `sources.bundle` are REQUIRED.
+- `sources.mcp` is OPTIONAL and, when present, advertises the OpenShip Sources MCP binding.
 - `changes`, `systems`, and `skill` are OPTIONAL and MUST be omitted when unavailable.
 - Changes MUST NOT be advertised without Sources.
 - `file` and `status` are URI templates with exactly the named expansion.
@@ -114,6 +116,7 @@ Changes status responses change over time and MUST use `Cache-Control: no-store`
 ## Capability documents
 
 - Read [openship-sources.md](openship-sources.md) for source snapshots and integrity.
+- Read [openship-mcp.md](openship-mcp.md) for the optional MCP binding for Sources.
 - Read [openship-changes.md](openship-changes.md) for candidate changes and isolation.
 - Read [openship-systems.md](openship-systems.md) for the self-contained systems model.
 
@@ -122,4 +125,3 @@ Changes status responses change over time and MUST use `Cache-Control: no-store`
 A producer is conformant for a capability when its advertised documents pass the relevant schema and every cross-document invariant in that capability specification. Advertising one capability does not claim conformance for another.
 
 A consumer SHOULD report a precise path and invariant when rejecting a payload. It MUST reject unsupported major versions rather than silently interpreting them as v1.
-

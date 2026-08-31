@@ -3,7 +3,7 @@
   "$id": "https://openship.dev/schemas/discovery.schema.json",
   "title": "OpenShip v1 discovery",
   "type": "object",
-  "required": ["openship", "capability", "project", "capabilities"],
+  "required": ["openship", "capability", "project", "agent", "capabilities"],
   "properties": {
     "openship": { "const": "1.0" },
     "capability": { "const": "discovery" },
@@ -16,15 +16,26 @@
       },
       "additionalProperties": true
     },
-    "skill": { "$ref": "#/$defs/httpsUrl" },
+    "agent": {
+      "type": "object",
+      "required": ["summary", "instructions", "skill"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "instructions": { "type": "string", "minLength": 1 },
+        "skill": { "$ref": "#/$defs/httpsUrl" }
+      },
+      "additionalProperties": true
+    },
+    "page": { "$ref": "#/$defs/httpsUrl" },
     "capabilities": {
       "type": "object",
       "required": ["sources"],
       "properties": {
         "sources": {
           "type": "object",
-          "required": ["manifest", "bundle"],
+          "required": ["description", "manifest", "bundle"],
           "properties": {
+            "description": { "type": "string", "minLength": 1 },
             "manifest": { "$ref": "#/$defs/httpsUrl" },
             "bundle": { "$ref": "#/$defs/httpsUrl" },
             "mcp": { "$ref": "#/$defs/httpsUrl" },
@@ -36,8 +47,9 @@
         },
         "changes": {
           "type": "object",
-          "required": ["policy", "submit", "status"],
+          "required": ["description", "policy", "submit", "status"],
           "properties": {
+            "description": { "type": "string", "minLength": 1 },
             "policy": { "$ref": "#/$defs/httpsUrl" },
             "submit": { "$ref": "#/$defs/httpsUrl" },
             "status": { "type": "string", "pattern": "^https://.+\\{changeId\\}.+$|^https://.+/\\{changeId\\}$" }
@@ -46,8 +58,11 @@
         },
         "systems": {
           "type": "object",
-          "required": ["document"],
-          "properties": { "document": { "$ref": "#/$defs/httpsUrl" } },
+          "required": ["description", "document"],
+          "properties": {
+            "description": { "type": "string", "minLength": 1 },
+            "document": { "$ref": "#/$defs/httpsUrl" }
+          },
           "additionalProperties": true
         }
       },

@@ -2,9 +2,15 @@
   "openship": "1.0",
   "capability": "discovery",
   "project": { "name": "Example", "description": "An example OpenShip project." },
-  "skill": "https://example.com/openship/file/skills/openship/SKILL.md",
+  "agent": {
+    "summary": "OpenShip lets this running project publish verifiable source code and optionally accept isolated changes or describe its complete system.",
+    "instructions": "Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.",
+    "skill": "https://example.com/openship/file/skills/openship/SKILL.md"
+  },
+  "page": "https://example.com/openship",
   "capabilities": {
     "sources": {
+      "description": "Retrieve and verify the exact source snapshot published by this deployment.",
       "manifest": "https://example.com/openship/manifest.json",
       "bundle": "https://example.com/openship/bundle.json",
       "mcp": "https://mcp.example.com/mcp",
@@ -12,6 +18,7 @@
       "archive": "https://example.com/openship/source.tar.gz"
     },
     "changes": {
+      "description": "Submit a patch against the published source digest and inspect an isolated candidate result.",
       "policy": "https://example.com/openship/policy.json",
       "submit": "https://example.com/openship/changes",
       "status": "https://example.com/openship/changes/{changeId}"

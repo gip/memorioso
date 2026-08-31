@@ -12,8 +12,8 @@ importers:
         specifier: workspace:*
         version: link:libro/core
       '@openship/protocol':
-        specifier: 0.0.2
-        version: 0.0.2
+        specifier: 0.0.3
+        version: 0.0.3
       '@radix-ui/react-dialog':
         specifier: 1.1.5
         version: 1.1.5(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -672,6 +672,11 @@ packages:
 
   '@openship/protocol@0.0.2':
     resolution: {integrity: sha512-AWwDCihsxsoQl+HyXqMCHgnM7i19hQv4V3LcrfpEvoss4vNFKdyAUn+NJKlgmEKL4fJi/UPCgAi8CG3ce+IwoA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@openship/protocol@0.0.3':
+    resolution: {integrity: sha512-X0rV6Ukl0j7miGgdUp+mUTIl0zg5mXOrXj1Wd4De8D8uD5OxfveOkjISH4UA3EJzEUvIfawAYsTGlSgP7+KZ7Q==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -4130,6 +4135,10 @@ snapshots:
   '@nolyfill/is-core-module@1.0.39': {}
 
   '@openship/protocol@0.0.2':
+    dependencies:
+      '@noble/hashes': 2.3.0
+
+  '@openship/protocol@0.0.3':
     dependencies:
       '@noble/hashes': 2.3.0
 

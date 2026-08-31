@@ -1,6 +1,8 @@
 import type { NextResponse } from 'next/server'
 import { openshipOrigin, openshipResponse } from '@/lib/openship/http'
 import {
+  OPENSHIP_AGENT,
+  OPENSHIP_CAPABILITY_DESCRIPTIONS,
   getOpenshipCommit,
   getOpenshipProject,
   OPENSHIP_ENDPOINTS,
@@ -24,9 +26,14 @@ export function GET(request: Request): NextResponse {
         capability: 'discovery',
         project,
         ...(commit ? { commit: commit.sha } : {}),
-        skill: absolute(OPENSHIP_ENDPOINTS.skill),
+        agent: {
+          ...OPENSHIP_AGENT,
+          skill: absolute(OPENSHIP_ENDPOINTS.skill),
+        },
+        page: absolute(OPENSHIP_ENDPOINTS.page),
         capabilities: {
           sources: {
+            description: OPENSHIP_CAPABILITY_DESCRIPTIONS.sources,
             manifest: absolute(OPENSHIP_ENDPOINTS.manifest),
             bundle: absolute(OPENSHIP_ENDPOINTS.bundle),
             ...(mcp ? { mcp } : {}),
@@ -35,12 +42,12 @@ export function GET(request: Request): NextResponse {
             instructions: absolute(OPENSHIP_ENDPOINTS.instructions),
           },
           changes: {
+            description: OPENSHIP_CAPABILITY_DESCRIPTIONS.changes,
             policy: absolute(OPENSHIP_ENDPOINTS.policy),
             submit: absolute(OPENSHIP_ENDPOINTS.changes),
             status: absolute(OPENSHIP_ENDPOINTS.changeStatus),
           },
         },
-        page: absolute(OPENSHIP_ENDPOINTS.page),
       },
       null,
       2

@@ -17,6 +17,19 @@ import {
 
 export const OPENSHIP_VERSION = '1.0'
 
+export const OPENSHIP_AGENT = {
+  summary:
+    'OpenShip lets Memorioso publish verifiable source code and accept isolated candidate changes.',
+  instructions:
+    'Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.',
+} as const
+
+export const OPENSHIP_CAPABILITY_DESCRIPTIONS = {
+  sources: 'Retrieve and verify the exact source snapshot published by this deployment.',
+  changes:
+    'Submit a patch against the published source digest and inspect an isolated candidate result.',
+} as const
+
 export type OpenshipEncoding = 'utf-8' | 'base64'
 
 export type OpenshipFile = {

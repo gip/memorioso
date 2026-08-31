@@ -428,6 +428,9 @@
       "path": "app/openship/manifest.json/route.ts"
     },
     {
+      "path": "app/openship/page.test.tsx"
+    },
+    {
       "path": "app/openship/page.tsx"
     },
     {

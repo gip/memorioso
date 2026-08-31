@@ -13,6 +13,7 @@ A producer MAY advertise an absolute HTTPS Streamable HTTP endpoint as `capabili
 {
   "capabilities": {
     "sources": {
+      "description": "Retrieve and verify the exact source snapshot published by this deployment.",
       "manifest": "https://example.com/openship/manifest.json",
       "bundle": "https://example.com/openship/bundle.json",
       "mcp": "https://mcp.example.com/mcp"

@@ -18,14 +18,21 @@ describe('GET /.well-known/openship.json', () => {
       openship: '1.0',
       capability: 'discovery',
       project: { name: 'Memorioso' },
-      skill: 'https://memorioso.xyz/openship/file/skills/openship/SKILL.md',
+      agent: {
+        summary: expect.any(String),
+        instructions: expect.stringContaining('Fetch and read agent.skill'),
+        skill: 'https://memorioso.xyz/openship/file/skills/openship/SKILL.md',
+      },
+      page: 'https://memorioso.xyz/openship',
       capabilities: {
         sources: {
+          description: expect.any(String),
           manifest: 'https://memorioso.xyz/openship/manifest.json',
           bundle: 'https://memorioso.xyz/openship/bundle.json',
           mcp: 'https://libro.memorioso.xyz/mcp',
         },
         changes: {
+          description: expect.any(String),
           policy: 'https://memorioso.xyz/openship/policy.json',
           submit: 'https://memorioso.xyz/openship/changes',
           status: 'https://memorioso.xyz/openship/changes/{changeId}',

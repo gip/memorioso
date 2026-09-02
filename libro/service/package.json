@@ -17,7 +17,7 @@
   "dependencies": {
     "@libro/core": "workspace:*",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@openship/protocol": "0.0.2",
+    "@openship/protocol": "0.0.3",
     "@worldcoin/idkit": "4.2.2",
     "@worldcoin/minikit-js": "2.0.3",
     "mcp-handler": "^2.1.0",

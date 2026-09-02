@@ -45,8 +45,15 @@ function discovery() {
     openship: '1.0',
     capability: 'discovery',
     project: { name: 'Memorioso', description: 'A test source.' },
+    agent: {
+      summary: 'OpenShip lets this running project publish verifiable source code.',
+      instructions: 'Fetch and read agent.skill before interpreting any advertised capability.',
+      skill: 'https://memorioso.test/openship/file/skills/openship/SKILL.md',
+    },
+    page: 'https://memorioso.test/openship',
     capabilities: {
       sources: {
+        description: 'Retrieve and verify the exact source snapshot published by this deployment.',
         manifest: 'https://memorioso.test/openship/manifest.json',
         bundle: 'https://memorioso.test/openship/bundle.json',
       },

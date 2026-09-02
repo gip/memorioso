@@ -5,6 +5,7 @@ on:
     paths:
       - 'libro/chrome-extension/**'
       - 'libro/core/**'
+      - 'libro/service/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/chrome-extension.yml'
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - 'libro/chrome-extension/**'
       - 'libro/core/**'
+      - 'libro/service/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/chrome-extension.yml'
 
@@ -33,6 +35,8 @@ jobs:
       - run: pnpm --filter @libro/chrome-extension test
       - run: pnpm test
       - run: pnpm lint
+      - run: pnpm --filter @libro/service test
+      - run: pnpm --filter @libro/service build
       - run: pnpm extension:build
       - run: pnpm extension:build:stage
       - name: Package and validate manifests

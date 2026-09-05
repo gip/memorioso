@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { hashLibroHandle, hashPublicationSignal } from '@libro/core'
 import type { Hex } from 'viem'
-import { pool } from './db'
+import { pool, type DatabaseClient } from './db'
 import type { OAuthPrincipal } from './oauth'
 import { assertWritesEnabled, ServiceError } from './errors'
 import { deriveCapability, sha256 } from './crypto'
@@ -173,4 +173,15 @@ export async function handleClaimStatus(principal: OAuthPrincipal, requestId: st
   )
   if (!result.rows[0]) throw new ServiceError('NOT_FOUND', 'Handle claim was not found', 404)
   return { requestId, handle: result.rows[0].handle, state: result.rows[0].finalized_at ? 'finalized' : 'awaiting_signature', transactionHash: result.rows[0].transaction_hash }
+}
+
+export async function recordHandleClaim(client: DatabaseClient, input: {
+  identityId: string; handle: string; handleHash: string; sessionCommitment: string; transactionHash: string
+}): Promise<void> {
+  await client.query(
+    `INSERT INTO libro_handle_claims
+      (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at)
+     VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP) ON CONFLICT (identity_id) DO NOTHING`,
+    [input.identityId, input.handle, input.handleHash, input.sessionCommitment, input.transactionHash.toLowerCase()],
+  )
 }

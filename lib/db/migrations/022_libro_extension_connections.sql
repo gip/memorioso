@@ -1,0 +1,8 @@
+CREATE TABLE libro_extension_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  poll_hash CHAR(64) NOT NULL UNIQUE,
+  "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '10 minutes',
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

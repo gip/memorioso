@@ -187,6 +187,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const [externalSigningUrl, setExternalSigningUrl] = useState<string | null>(null)
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
@@ -507,10 +508,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
       if (response.success) {
         if (typeof response.externalSigningUrl === 'string') {
-          const opened = window.open(response.externalSigningUrl, '_blank', 'noopener,noreferrer')
-          if (!opened) throw new Error('Allow pop-ups to open the Libro signing page')
+          setExternalSigningUrl(response.externalSigningUrl)
           setPublishStep(1)
-          setPublishStatus('Complete signing in the Libro window')
+          setPublishStatus('Open Libro to review and sign your publication')
           await waitForExternalLibroPublication(publishDraftId)
           return
         }
@@ -907,9 +907,12 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       {/* The one-time choice, asked where it starts to matter rather than at sign-in. */}
       <DraftEncryptionSetup />
       {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
-      {publishStep !== null && (
+      {publishStep !== null && (<>
+        {externalSigningUrl && <p className="my-4 text-center">
+          <a href={externalSigningUrl} target="_blank" rel="noopener noreferrer" className="underline">Open Libro to sign</a>
+        </p>}
         <PublishProgress step={publishStep} status={publishStatus} />
-      )}
+      </>)}
       {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}
       <div className="sticky top-14 z-20 -mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-background/95 px-4 py-2.5 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur lg:top-0 lg:mx-0 lg:flex lg:justify-between lg:px-0 lg:shadow-none">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground sm:text-xs">

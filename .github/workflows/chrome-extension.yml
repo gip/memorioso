@@ -6,6 +6,9 @@ on:
       - 'libro/chrome-extension/**'
       - 'libro/core/**'
       - 'libro/service/**'
+      - 'lib/libro-service/**'
+      - 'lib/db/**'
+      - 'app/api/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/chrome-extension.yml'
   push:
@@ -14,12 +17,28 @@ on:
       - 'libro/chrome-extension/**'
       - 'libro/core/**'
       - 'libro/service/**'
+      - 'lib/libro-service/**'
+      - 'lib/db/**'
+      - 'app/api/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/chrome-extension.yml'
 
 jobs:
   package:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: libro_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      LIBRO_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/libro_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

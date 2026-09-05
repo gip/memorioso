@@ -15,6 +15,7 @@ import {
   type HumanRegistrationTransaction,
 } from './chain'
 import { deliverPendingEvents, enqueueServiceEvent } from './events'
+import { recordHandleClaim } from './handle-claims'
 
 async function authenticatedChallenge(capability: string) {
   const identityId = await browserIdentityId()
@@ -36,6 +37,12 @@ async function authenticatedChallenge(capability: string) {
 export async function signingContext(request: Request, capability: string) {
   assertWritesEnabled()
   const { challenge, identity } = await authenticatedChallenge(capability)
+  if (challenge.registration_id) return { prepared: {
+    registrationId: challenge.registration_id, transaction: challenge.transaction,
+    transactionHash: challenge.transaction_hash, userOpHash: challenge.user_op_hash,
+    submissionMethod: challenge.submission_method,
+    publicationId: challenge.publication_id ? String(challenge.publication_id) : null,
+  } }
   const context = await issueRpContext({
     request,
     purpose: 'publish',
@@ -49,6 +56,7 @@ export async function signingContext(request: Request, capability: string) {
     ...context,
     challengeId: challenge.id,
     signalHash: challenge.signal_hash,
+    signalText: challenge.signal_text,
     publication: challenge.publication,
     existingSessionId: identity.world_id_session_id,
   }
@@ -72,6 +80,10 @@ function validatePublicationResult(result: IDKitResultSession, row: Record<strin
 export async function prepareSigning(capability: string, payload: unknown) {
   assertWritesEnabled()
   const { challenge, identity } = await authenticatedChallenge(capability)
+  if (challenge.registration_id) return {
+    registrationId: challenge.registration_id, transaction: challenge.transaction,
+    transactionHash: challenge.transaction_hash, publicationId: challenge.publication_id ? String(challenge.publication_id) : null,
+  }
   const result = assertSessionResult(payload)
   const client = await pool.connect()
   try {
@@ -175,6 +187,7 @@ export async function relaySigning(capability: string, registrationId: string) {
     if (row.transaction_hash) {
       hash = row.transaction_hash
     } else {
+      if (row.user_op_hash) throw new ServiceError('SUBMISSION_CONFLICT', 'Resume the pending World wallet operation', 409)
       const sponsor = await client.query('SELECT 1 FROM libro_sponsorship_bindings WHERE identity_id = $1', [identity.id])
       if (!sponsor.rows[0]) throw new ServiceError('SPONSORSHIP_REQUIRED', 'A fixed Libro sponsorship proof is required before sponsored gas', 402)
       await client.query('SELECT pg_advisory_xact_lock($1)', [480001])
@@ -270,6 +283,11 @@ export async function finalizeSigning(capability: string, input: {
        transaction_hash = $4, publication_id = $5, finalized_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [row.id, input.submissionMethod, input.userOpHash || null, input.transactionHash.toLowerCase(), publicationId],
     )
+    await recordHandleClaim(client, {
+      identityId: row.identity_id, handle: row.publication.author_handle_libro,
+      handleHash: row.handle_hash, sessionCommitment: row.session_commitment,
+      transactionHash: input.transactionHash,
+    })
     await client.query('UPDATE libro_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1', [row.challenge_id])
     await enqueueServiceEvent(client, {
       type: 'publication.finalized',
@@ -292,4 +310,18 @@ export async function finalizeSigning(capability: string, input: {
   } finally {
     client.release()
   }
+}
+
+export async function recordWalletSubmission(capability: string, registrationId: string, userOpHash: string) {
+  assertWritesEnabled()
+  if (!/^0x[0-9a-f]{64}$/i.test(userOpHash)) throw new ServiceError('INVALID_TRANSACTION', 'Invalid user operation hash', 400)
+  const { challenge } = await authenticatedChallenge(capability)
+  const saved = await pool.query(
+    `UPDATE libro_human_registrations SET user_op_hash = $3, submission_method = 'world_wallet'
+     WHERE id = $1 AND challenge_id = $2 AND transaction_hash IS NULL AND publication_id IS NULL
+       AND (user_op_hash IS NULL OR user_op_hash = $3) RETURNING id`,
+    [registrationId, challenge.id, userOpHash.toLowerCase()],
+  )
+  if (!saved.rows[0]) throw new ServiceError('SUBMISSION_CONFLICT', 'Registration already has another submission', 409)
+  return { saved: true }
 }

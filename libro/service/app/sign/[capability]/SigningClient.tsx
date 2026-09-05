@@ -10,14 +10,19 @@ import {
   type RpContext,
 } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
+import { useMiniKit } from '@worldcoin/minikit-js/minikit-provider'
+import { waitForUserOperation } from '@/lib/wallet-receipt'
 
 type SigningContext = {
   appId: `app_${string}`
   environment: 'production' | 'staging'
   rpContext: RpContext
   signalHash: string
+  signalText: string
   existingSessionId: `session_${string}`
 }
+
+type Prepared = { registrationId: string; transaction: Transaction; transactionHash?: string; publicationId?: string; userOpHash?: string; submissionMethod?: 'world_wallet' | 'libro_relayer' }
 
 type Transaction = {
   chainId: number
@@ -38,17 +43,9 @@ async function responseBody(response: Response) {
   return body
 }
 
-async function waitForUserOperation(userOpHash: string): Promise<string> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const response = await fetch(`/api/v1/user-operations/${userOpHash}`, { cache: 'no-store' })
-    if (response.ok) return (await response.json()).transactionHash
-    if (response.status !== 202) await responseBody(response)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
-  throw new Error('World wallet registration is still pending; retry this signing link shortly')
-}
 
 export function SigningClient({ capability }: { capability: string }) {
+  const { isInstalled } = useMiniKit()
   const [context, setContext] = useState<SigningContext | null>(null)
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState('')
@@ -58,7 +55,7 @@ export function SigningClient({ capability }: { capability: string }) {
   const [sponsorshipOpen, setSponsorshipOpen] = useState(false)
   const [sponsorshipReady, setSponsorshipReady] = useState(false)
   const constraints = useMemo(() => context
-    ? CredentialRequest('proof_of_human', { signal: context.signalHash })
+    ? CredentialRequest('proof_of_human', { signal: context.signalText })
     : null, [context])
 
   async function begin() {
@@ -67,8 +64,8 @@ export function SigningClient({ capability }: { capability: string }) {
     try {
       const response = await fetch(`/api/v1/signing/${capability}/context`, { method: 'POST' })
       const body = await responseBody(response)
-      setContext(body)
-      setOpen(true)
+      if (body.prepared) await complete(body.prepared)
+      else { setContext(body); setOpen(true) }
     } catch (reason) {
       setStatus('')
       setError(reason instanceof Error ? reason.message : 'Could not start signing')
@@ -101,7 +98,11 @@ export function SigningClient({ capability }: { capability: string }) {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idkitResult: result }),
-    })) as { registrationId: string; transaction: Transaction; transactionHash?: string; publicationId?: string }
+    })) as Prepared
+    await complete(prepared)
+  }
+
+  async function complete(prepared: Prepared) {
     if (prepared.publicationId) {
       setPublicationId(prepared.publicationId)
       setStatus('Published')
@@ -110,13 +111,20 @@ export function SigningClient({ capability }: { capability: string }) {
 
     let submissionMethod: 'world_wallet' | 'libro_relayer'
     let transactionHash = prepared.transactionHash
-    let userOpHash: string | undefined
-    if (!transactionHash && MiniKit.isInstalled()) {
+    let userOpHash = prepared.userOpHash
+    if (!transactionHash && userOpHash) {
+      submissionMethod = 'world_wallet'
+      transactionHash = await waitForUserOperation(userOpHash)
+    } else if (!transactionHash && MiniKit.isInstalled()) {
       setStatus('Approve the registration in your World wallet…')
       const sent = await MiniKit.sendTransaction(prepared.transaction)
       if (sent.executedWith !== 'minikit') throw new Error('Open this signing page inside World App to use World wallet')
       submissionMethod = 'world_wallet'
       userOpHash = sent.data.userOpHash
+      await responseBody(await fetch(`/api/v1/signing/${capability}/submission`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: prepared.registrationId, userOpHash }),
+      }))
       setStatus('Waiting for World Chain confirmation…')
       transactionHash = await waitForUserOperation(userOpHash)
     } else if (!transactionHash) {
@@ -129,7 +137,7 @@ export function SigningClient({ capability }: { capability: string }) {
       transactionHash = relayed.transactionHash
       submissionMethod = 'libro_relayer'
     } else {
-      submissionMethod = 'libro_relayer'
+      submissionMethod = prepared.submissionMethod || 'libro_relayer'
     }
     setStatus('Finalizing the canonical publication…')
     const finalized = await responseBody(await fetch(`/api/v1/signing/${capability}/finalize`, {
@@ -143,7 +151,7 @@ export function SigningClient({ capability }: { capability: string }) {
 
   return (
     <div>
-      {!MiniKit.isInstalled() && !sponsorshipReady && (
+      {isInstalled === false && !sponsorshipReady && (
         <p><button type="button" onClick={beginSponsorship}>Enable one-person sponsored gas</button></p>
       )}
       {sponsorshipReady && <p>Sponsored gas eligibility verified.</p>}
@@ -157,6 +165,7 @@ export function SigningClient({ capability }: { capability: string }) {
           onOpenChange={setOpen}
           app_id={context.appId}
           rp_context={context.rpContext}
+          require_user_presence={true}
           existing_session_id={context.existingSessionId}
           environment={context.environment}
           constraints={constraints}

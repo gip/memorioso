@@ -273,3 +273,20 @@ export async function verifyHandleClaim(input: {
   if (outcomes.includes('unconfirmed')) return false
   throw new Error('Every configured World Chain RPC is unavailable')
 }
+
+export async function verifyAgentRevocation(input: { transactionHash: Hex; registrationHash: string; handleHash: string; registryAddress: string }): Promise<boolean> {
+  const config = chainConfig()
+  if (input.registryAddress.toLowerCase() !== config.registryAddress.toLowerCase()) throw new Error('Unexpected Libro registry')
+  const outcomes = await Promise.all(config.rpcUrls.map(async (url) => {
+    const client = createPublicClient({ chain: worldchain, transport: http(url, { timeout: 5_000, retryCount: 0 }) })
+    try {
+      if (await client.getChainId() !== config.chainId) return false
+      const receipt = await client.getTransactionReceipt({ hash: input.transactionHash })
+      return receipt.status === 'success' && parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentRevoked', logs: receipt.logs, strict: true }).some((event) =>
+        event.address.toLowerCase() === input.registryAddress.toLowerCase()
+        && event.args.registrationHash.toLowerCase() === input.registrationHash.toLowerCase()
+        && event.args.handleHash.toLowerCase() === input.handleHash.toLowerCase())
+    } catch { return false }
+  }))
+  return outcomes.some(Boolean)
+}

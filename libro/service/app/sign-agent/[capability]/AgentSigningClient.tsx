@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
+import { waitForUserOperation } from '@/lib/wallet-receipt'
 
 type Context = {
   appId: `app_${string}`
@@ -19,15 +20,6 @@ async function parsed(response: Response) {
   return body
 }
 
-async function waitForUserOperation(hash: string): Promise<string> {
-  for (let count = 0; count < 60; count += 1) {
-    const response = await fetch(`/api/v1/user-operations/${hash}`, { cache: 'no-store' })
-    if (response.ok) return (await response.json()).transactionHash
-    if (response.status !== 202) await parsed(response)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
-  throw new Error('Agent authorization is still pending on World Chain')
-}
 
 export function AgentSigningClient({ capability, signal }: { capability: string; signal: string }) {
   const [context, setContext] = useState<Context | null>(null)
@@ -77,7 +69,8 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
       onOpenChange={setOpen}
       app_id={context.appId}
       rp_context={context.rpContext}
-      existing_session_id={context.existingSessionId}
+      require_user_presence={true}
+          existing_session_id={context.existingSessionId}
       environment={context.environment}
       constraints={constraints}
       polling={{ interval: 1000, timeout: 120_000 }}

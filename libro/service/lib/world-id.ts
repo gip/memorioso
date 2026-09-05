@@ -132,13 +132,18 @@ export async function verifyIdentity(input: {
     if (contextResult.rows.length === 0) {
       throw new ServiceError('INVALID_CONTEXT', 'World ID context is expired, consumed, or has the wrong purpose', 400)
     }
-    await verifyWithWorld(result)
+    const expected = contextResult.rows[0]
     const commitment = sessionCommitment(result.session_id)
+    if (result.environment !== worldIdConfig().environment || (input.purpose === 'login'
+      && (!expected.identity_id || expected.expected_session_commitment !== commitment))) {
+      throw new ServiceError('IDENTITY_MISMATCH', 'World ID proof does not match this login request', 403)
+    }
+    await verifyWithWorld(result)
     const credential = result.responses[0].identifier
     const existing = await client.query(
       `SELECT i.id AS identity_id, a.id AS author_id, a.handle, a.name, COALESCE(a.bio, '') AS bio
        FROM libro_identities i JOIN libro_authors a ON a.identity_id = i.id
-       WHERE i.world_id_session_id = $1 FOR UPDATE OF i, a`,
+       WHERE i.world_id_session_id = $1 AND i.revoked_at IS NULL FOR UPDATE OF i, a`,
       [result.session_id],
     )
     let row = existing.rows[0]

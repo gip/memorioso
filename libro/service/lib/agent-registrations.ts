@@ -9,6 +9,7 @@ import {
 } from '@libro/core'
 import { isAddress, type Address, type Hex } from 'viem'
 import { pool } from './db'
+import { recordHandleClaim } from './handle-claims'
 import { assertWritesEnabled, ServiceError } from './errors'
 import type { OAuthPrincipal } from './oauth'
 import { chainConfig, prepareAgentAuthorization, relayRegistration, verifyAgentRegistration, waitForRegistration, type HumanRegistrationTransaction } from './chain'
@@ -253,11 +254,19 @@ export async function finalizeAgentSigning(capability: string, input: { transact
     agentAddress: row.agent_address as Address,
   })
   if (!registered) throw new ServiceError('REGISTRATION_PENDING', 'Agent authorization is not indexed yet', 409, true)
-  await pool.query(
-    `UPDATE libro_agent_registrations SET user_op_hash = $2, transaction_hash = $3,
-       finalized_at = CURRENT_TIMESTAMP WHERE id = $1 AND finalized_at IS NULL`,
-    [row.id, input.userOpHash || null, input.transactionHash.toLowerCase()],
-  )
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(
+      `UPDATE libro_agent_registrations SET user_op_hash = $2, transaction_hash = $3,
+         finalized_at = CURRENT_TIMESTAMP WHERE id = $1 AND finalized_at IS NULL`,
+      [row.id, input.userOpHash || null, input.transactionHash.toLowerCase()],
+    )
+    await recordHandleClaim(client, { identityId: row.identity_id, handle: row.handle,
+      handleHash: row.handle_hash, sessionCommitment: row.session_commitment, transactionHash: input.transactionHash })
+    await client.query('COMMIT')
+  } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
+
   return { registrationId: row.id, registrationHash: row.registration_hash }
 }
 

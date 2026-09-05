@@ -71,6 +71,7 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
           app_id={context.appId}
           rp_context={context.rpContext}
           environment={context.environment}
+          require_user_presence={true}
           existing_session_id={context.existingSessionId || undefined}
           constraints={constraints}
           polling={{ interval: 1000, timeout: 120_000 }}

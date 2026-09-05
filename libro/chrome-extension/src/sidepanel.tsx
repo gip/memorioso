@@ -97,6 +97,8 @@ async function send<T>(message: Record<string, unknown>): Promise<T> {
 }
 
 export function App(): JSX.Element {
+  const [serviceAuth, setServiceAuth] = useState(false)
+  const [connecting, setConnecting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
   const [capture, setCapture] = useState<Capture | null>(null)
@@ -242,6 +244,29 @@ export function App(): JSX.Element {
     ? CredentialRequest('proof_of_human', { signal: job.context.signalText })
     : null, [job])
   const normalizedTextLength = useMemo(() => normalizedUnicodeLength(text), [text])
+
+  useEffect(() => {
+    send<{ libroAuthEnabled?: boolean }>({ type: 'LIBRO_AUTH_MODE' }).then((value) => setServiceAuth(value.libroAuthEnabled === true)).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    if (!connecting) return
+    const timer = window.setInterval(() => {
+      send<Session & { pending?: boolean }>({ type: 'LIBRO_SERVICE_AUTH_POLL' }).then((value) => {
+        if (!value.pending) { setSession(value); setConnecting(false); setProgress(null) }
+      }).catch((reason) => { setError(reason.message); setConnecting(false); setProgress(null) })
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [connecting])
+
+  async function connectService() {
+    setError(null)
+    try {
+      await send({ type: 'LIBRO_SERVICE_AUTH_START' })
+      setConnecting(true)
+      setProgress('Complete login and approve the extension in the browser tab.')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not connect') }
+  }
 
   async function beginAuth(event: FormEvent): Promise<void> {
     event.preventDefault()
@@ -458,6 +483,7 @@ export function App(): JSX.Element {
         />
       )}
 
+      {session && serviceAuth && <button onClick={connectService} disabled={connecting}>Renew Libro authorization</button>}
       {error && <div className="notice error" role="alert">{error}</div>}
       {authNotice && <div className="notice info" aria-live="polite">{authNotice}</div>}
       {progress && <div className="notice progress" aria-live="polite"><span className="spinner" />{progress}</div>}
@@ -465,6 +491,7 @@ export function App(): JSX.Element {
       {!session ? (
         <section>
           <h2>Connect or create your author</h2>
+          {serviceAuth ? <button className="primary" onClick={connectService} disabled={connecting}>Connect with Libro</button> : <>
           <p className="muted">Enter a handle to connect an existing author or create your first one.</p>
           <form onSubmit={beginAuth}>
             <label htmlFor="handle">Memorioso handle</label>
@@ -529,6 +556,7 @@ export function App(): JSX.Element {
               </button>
             )}
           </form>
+          </>}
         </section>
       ) : completion && job?.tag ? (
         <section>

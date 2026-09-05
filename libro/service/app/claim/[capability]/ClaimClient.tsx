@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
+import { waitForUserOperation } from '@/lib/wallet-receipt'
 
 type Context = {
   appId: `app_${string}`
@@ -18,14 +19,6 @@ async function value(response: Response) {
   return body
 }
 
-async function receipt(hash: string): Promise<string> {
-  for (let count = 0; count < 60; count += 1) {
-    const response = await fetch(`/api/v1/user-operations/${hash}`, { cache: 'no-store' })
-    if (response.ok) return (await response.json()).transactionHash
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
-  throw new Error('Handle claim is still pending')
-}
 
 export function ClaimClient({ capability, signal }: { capability: string; signal: string }) {
   const [context, setContext] = useState<Context | null>(null)
@@ -47,7 +40,7 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
     if (!transactionHash && MiniKit.isInstalled()) {
       const sent = await MiniKit.sendTransaction(prepared.transaction)
       if (sent.executedWith !== 'minikit') throw new Error('World wallet is required')
-      transactionHash = await receipt(sent.data.userOpHash)
+      transactionHash = await waitForUserOperation(sent.data.userOpHash)
     } else if (!transactionHash) {
       transactionHash = (await value(await fetch(`/api/v1/handle-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
     }
@@ -60,7 +53,8 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
     <button type="button" onClick={begin}>Claim handle with World ID</button>
     {message && <p>{message}</p>}
     {context && <IDKitSessionWidget open={open} onOpenChange={setOpen}
-      app_id={context.appId} rp_context={context.rpContext} existing_session_id={context.existingSessionId}
+      app_id={context.appId} rp_context={context.rpContext} require_user_presence={true}
+          existing_session_id={context.existingSessionId}
       environment={context.environment} constraints={constraints}
       handleVerify={verify} onSuccess={() => setOpen(false)}
       onError={(code) => setMessage(`World ID failed: ${code}`)} />}

@@ -260,6 +260,15 @@
       "path": "app/api/drafts/route.ts"
     },
     {
+      "path": "app/api/extension/auth/connect/[id]/route.ts"
+    },
+    {
+      "path": "app/api/extension/auth/connect/[id]/token/route.ts"
+    },
+    {
+      "path": "app/api/extension/auth/connect/route.ts"
+    },
+    {
       "path": "app/api/extension/auth/context/route.test.ts"
     },
     {
@@ -764,6 +773,12 @@
       "path": "lib/db/migrations/020_libro_service_cutover.sql"
     },
     {
+      "path": "lib/db/migrations/021_libro_legacy_policy_sync.sql"
+    },
+    {
+      "path": "lib/db/migrations/022_libro_extension_connections.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
@@ -831,6 +846,9 @@
     },
     {
       "path": "lib/libro-service/client.ts"
+    },
+    {
+      "path": "lib/libro-service/cutover.integration.test.ts"
     },
     {
       "path": "lib/libro-service/cutover.ts"
@@ -1196,6 +1214,12 @@
       "path": "libro/service/app/api/v1/agent-documents/prepare/route.ts"
     },
     {
+      "path": "libro/service/app/api/v1/agent-registrations/[registrationId]/revoke/finalize/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/agent-registrations/[registrationId]/revoke/route.ts"
+    },
+    {
       "path": "libro/service/app/api/v1/agent-registrations/route.ts"
     },
     {
@@ -1277,6 +1301,9 @@
       "path": "libro/service/app/api/v1/signing/[capability]/relay/route.ts"
     },
     {
+      "path": "libro/service/app/api/v1/signing/[capability]/submission/route.ts"
+    },
+    {
       "path": "libro/service/app/api/v1/sponsorship/context/route.ts"
     },
     {
@@ -1310,6 +1337,9 @@
       "path": "libro/service/app/mcp/route.ts"
     },
     {
+      "path": "libro/service/app/oauth/authorize/route.test.ts"
+    },
+    {
       "path": "libro/service/app/oauth/authorize/route.ts"
     },
     {
@@ -1323,6 +1353,9 @@
     },
     {
       "path": "libro/service/app/page.tsx"
+    },
+    {
+      "path": "libro/service/app/providers.tsx"
     },
     {
       "path": "libro/service/app/sign-agent/[capability]/AgentSigningClient.tsx"
@@ -1349,6 +1382,9 @@
       "path": "libro/service/lib/agent-registrations.ts"
     },
     {
+      "path": "libro/service/lib/agent-revocation.ts"
+    },
+    {
       "path": "libro/service/lib/chain.ts"
     },
     {
@@ -1359,6 +1395,9 @@
     },
     {
       "path": "libro/service/lib/crypto.ts"
+    },
+    {
+      "path": "libro/service/lib/cutover.integration.test.ts"
     },
     {
       "path": "libro/service/lib/db.ts"
@@ -1407,6 +1446,12 @@
     },
     {
       "path": "libro/service/lib/sponsorship.ts"
+    },
+    {
+      "path": "libro/service/lib/wallet-receipt.test.ts"
+    },
+    {
+      "path": "libro/service/lib/wallet-receipt.ts"
     },
     {
       "path": "libro/service/lib/world-id.ts"

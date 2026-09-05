@@ -17,7 +17,7 @@ import { mcpResource, mcpStateSecret, serviceOrigin } from '@/lib/config'
 import { sha256 } from '@/lib/crypto'
 import { ServiceError } from '@/lib/errors'
 import { createHumanChallenge, publicationStatus } from '@/lib/human-publications'
-import { authenticateBearer, type OAuthPrincipal } from '@/lib/oauth'
+import { authenticateBearer, assertPrincipalScope, type OAuthPrincipal } from '@/lib/oauth'
 import { getPublication, listPublications } from '@/lib/publications'
 import { canonicalPublicationSignal, hashPublicationSignal, verifyLibroManifestOnChain } from '@libro/core'
 import { finalizeAgentDocument, prepareAgentDocument } from '@/lib/agent-documents'
@@ -31,6 +31,7 @@ import {
 } from '@/lib/handle-claims'
 import { importPublication, publicationManifest } from '@/lib/imports'
 import { chainConfig } from '@/lib/chain'
+import { revokeAgent } from '@/lib/agent-revocation'
 import { getOpenShipSnapshot, readOpenShipFile } from '@/lib/openship'
 
 type PublishState = {
@@ -65,7 +66,7 @@ function text(value: unknown, isError = false) {
 function principal(ctx: ServerContext, scope?: string): OAuthPrincipal {
   const value = ctx.http?.authInfo?.extra?.principal as OAuthPrincipal | undefined
   if (!value) throw new ServiceError('AUTH_REQUIRED', 'OAuth authorization is required', 401)
-  if (scope && !value.scope.includes(scope)) throw new ServiceError('INSUFFICIENT_SCOPE', `The ${scope} scope is required`, 403)
+  if (scope) assertPrincipalScope(value, scope)
   return value
 }
 
@@ -359,6 +360,14 @@ function createHandler() {
       } catch (error) {
         return toolError(error)
       }
+    })
+
+    server.registerTool('revoke_agent', {
+      description: 'Prepare a revocation transaction for the controller wallet, or confirm its on-chain receipt. OAuth alone cannot revoke the on-chain authority.',
+      inputSchema: z.object({ registrationId: z.string().uuid(), transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional() }),
+    }, async (args, ctx) => {
+      try { return text(await revokeAgent(principal(ctx, 'revoke_agent'), args.registrationId, args.transactionHash)) }
+      catch (error) { return toolError(error) }
     })
 
     server.registerTool('claim_handle', {

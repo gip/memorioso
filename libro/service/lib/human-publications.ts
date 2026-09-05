@@ -149,14 +149,16 @@ export async function publicationStatus(input: {
 
 export async function getSigningChallenge(capability: string) {
   const result = await pool.query(
-    `SELECT c.id, c.identity_id, c.signal_hash, c.publication, c.expires_at, c.consumed_at,
-       a.name, a.handle
+    `SELECT c.id, c.identity_id, c.signal_hash, c.signal_text, c.publication, c.expires_at, c.consumed_at,
+       a.name, a.handle, r.id AS registration_id, r.transaction,
+       r.transaction_hash, r.user_op_hash, r.submission_method, r.publication_id
      FROM libro_publish_challenges c JOIN libro_authors a ON a.id = c.author_id
+     LEFT JOIN libro_human_registrations r ON r.challenge_id = c.id
      WHERE c.signing_capability_hash = $1`,
     [sha256(capability)],
   )
   const row = result.rows[0]
-  if (!row || row.consumed_at || new Date(row.expires_at).getTime() <= Date.now()) {
+  if (!row || (!row.registration_id && (row.consumed_at || new Date(row.expires_at).getTime() <= Date.now()))) {
     throw new ServiceError('INVALID_CAPABILITY', 'Signing request is invalid or expired', 404)
   }
   return row

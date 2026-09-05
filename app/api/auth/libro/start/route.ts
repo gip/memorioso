@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     client_id: clientId,
     redirect_uri: redirectUri,
     resource,
-    scope: 'openid profile publish claim_handle register_agent import',
+    scope: 'openid profile publish claim_handle register_agent import revoke_agent',
     code_challenge: challenge,
     code_challenge_method: 'S256',
     state: flow.state,

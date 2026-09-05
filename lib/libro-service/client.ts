@@ -148,3 +148,15 @@ export async function getServiceHumanPublicationStatus(input: {
   if (!response.ok || !body?.state || !body.signalHash) throw new LibroServiceUnavailableError(body?.error?.message || 'Libro publication status failed')
   return body as { state: string; signalHash: string; publicationId: string | null; transactionHash: string | null }
 }
+
+export async function serviceUserRequest<T>(userId: number, scope: string, path: string, method = 'GET', body?: unknown): Promise<T> {
+  const value = config()
+  const token = await getLibroAccessToken(userId, scope)
+  const response = await fetch(new URL(path, value.url), {
+    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }), cache: 'no-store',
+  })
+  const result = await response.json().catch(() => null)
+  if (!response.ok || !result) throw new LibroServiceUnavailableError(result?.error?.message || 'Libro request failed')
+  return result as T
+}

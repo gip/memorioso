@@ -16,7 +16,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/libro \
   pnpm --filter @libro/service dev
 ```
 
-The service reads `LIBRO_DATABASE_URL` (falling back to `DATABASE_URL`) lazily, so a production
+The service reads `DATABASE_URL` lazily (`LIBRO_DATABASE_URL` is the copy target), so a production
 build does not require database access. It also needs the shared World RP configuration, registry
 configuration, `LIBRO_SERVICE_URL`, `LIBRO_MCP_STATE_SECRET`, and
 `LIBRO_SIGNING_CAPABILITY_SECRET`. Only the service deployment receives
@@ -31,6 +31,45 @@ after seven days. A grant used for a write scope must be based on World verifica
 hours old. Client metadata documents are preferred, pre-registration is supported for Memorioso,
 and dynamic registration is a compatibility fallback. Neither discovered nor dynamically
 registered clients receive a trusted author-reference namespace.
+
+## P1 cutover prerequisites
+
+Run Memorioso migrations through **022** before deploying the updated client or extension. Keep
+canonical writes and payment settlements paused while applying 020–022; do not deploy 020 alone.
+021 backfills policies created since 020 and installs a trigger that keeps legacy publication
+inserts and access/price updates synchronized throughout the shadow-copy period. Existing
+migration checksums are unchanged. A fresh `db:init` includes these changes.
+
+OAuth now requires explicit consent for each authorization request. Sign in again to grant the
+new `revoke_agent` scope. Login selects an existing session by handle and requires a fresh World
+proof bound to that identity; possession of the handle or session identifier never authenticates.
+The service signing widgets request user presence. Keep the original World RP and session bindings
+when moving existing identities.
+
+Ship the updated extension before removing `WORLD_ID_RP_SIGNING_KEY` from Memorioso. Its **Connect
+with Libro** button opens browser OAuth, then asks the user to approve the extension. A separate,
+short-lived polling secret delivers the extension token; no OAuth tokens are returned to the
+extension. **Renew Libro authorization** restarts that flow when the write grant ages out. Old
+extension proof-login clients must upgrade. `SESSION_SECRET` also protects extension connection
+consent and token derivation; keep it configured on Memorioso.
+
+The existing author panel lists and revokes service-managed agents through authenticated service
+proxies. MCP exposes `revoke_agent`; callers broadcast its prepared transaction using the
+registered controller wallet and supply the receipt for finalization. A matching on-chain
+`AgentRevoked` event is required before recording revocation locally.
+
+Prepared human publications remain recoverable after the initial five-minute signing window.
+Reopen the signing link and press **Sign with World ID** to resume its stored transaction instead
+of creating another proof. World wallet operation hashes are saved before polling. New, unprepared
+challenges still expire normally. Successful finalization and its handle claim commit together.
+
+## Regression verification
+
+`pnpm test`, `pnpm --filter @libro/service test`, and extension tests cover the client and service.
+Set `LIBRO_TEST_DATABASE_URL` to an explicit test Postgres database to also run the integration
+suites; each creates and removes its own schema and mocks external World/chain verification.
+Without that variable, database tests are skipped. CI supplies Postgres and runs them. These tests
+do not replace a staging run with a real World proof and wallet transaction.
 
 ## Cutover and rollback
 

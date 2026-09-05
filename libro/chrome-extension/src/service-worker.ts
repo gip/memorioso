@@ -523,6 +523,30 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     case 'LIBRO_HANDLE_LOOKUP':
       if (typeof message.handle !== 'string') throw new Error('A Memorioso handle is required')
       return apiFetch(`/api/auth/handle?handle=${encodeURIComponent(message.handle)}`, {}, false)
+    case 'LIBRO_SERVICE_AUTH_START': {
+      const connection = await apiFetch<{ id: string; pollToken: string; authorizationUrl: string }>('/api/extension/auth/connect', { method: 'POST' }, false)
+      await chrome.storage.session.set({ libroConnection: connection })
+      await chrome.tabs.create({ url: connection.authorizationUrl })
+      return { success: true }
+    }
+    case 'LIBRO_SERVICE_AUTH_POLL': {
+      const storedConnection = await chrome.storage.session.get('libroConnection')
+      const connection = storedConnection.libroConnection as { id: string; pollToken: string } | undefined
+      if (!connection) throw new Error('Start connecting the extension again')
+      const response = await fetch(`${API_ORIGIN}/api/extension/auth/connect/${connection.id}/token`, {
+        method: 'POST', headers: { Authorization: `Bearer ${connection.pollToken}` }, credentials: 'omit',
+      })
+      const result = await response.json()
+      if (response.status === 202) return { success: true, pending: true }
+      if (!response.ok || !result.token) throw new Error(result.message || 'Extension connection failed')
+      await chrome.storage.local.set({ [TOKEN_KEY]: result.token })
+      const session = await apiFetch<Record<string, unknown>>('/api/extension/auth/session')
+      await chrome.storage.local.set({ [SESSION_KEY]: session })
+      await chrome.storage.session.remove('libroConnection')
+      return { success: true, ...session }
+    }
+    case 'LIBRO_AUTH_MODE':
+      return apiFetch('/api/auth/session', {}, false)
     case 'LIBRO_AUTH_CONTEXT':
       return apiFetch('/api/extension/auth/context', {
         method: 'POST',

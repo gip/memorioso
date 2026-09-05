@@ -4,8 +4,8 @@ import { ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS, WRITE_GRANT_MAX_AG
 import { randomToken, sha256, verifySecret } from './crypto'
 import { ServiceError } from './errors'
 
-export const WRITE_SCOPES = new Set(['publish', 'claim_handle', 'register_agent', 'import'])
-const ALLOWED_SCOPES = new Set(['openid', 'profile', 'publish', 'claim_handle', 'register_agent', 'import'])
+export const WRITE_SCOPES = new Set(['publish', 'claim_handle', 'register_agent', 'import', 'revoke_agent'])
+const ALLOWED_SCOPES = new Set(['openid', 'profile', 'publish', 'claim_handle', 'register_agent', 'import', 'revoke_agent'])
 
 export type OAuthPrincipal = {
   identityId: string
@@ -18,6 +18,7 @@ export type OAuthPrincipal = {
   resource: string
   scope: string[]
   authorNamespace: string | null
+  verifiedAt: string
 }
 
 export function normalizeScope(value: string | null | undefined): string[] {
@@ -174,11 +175,11 @@ export async function exchangeAuthorizationCode(request: Request, form: URLSearc
   try {
     await connection.query('BEGIN')
     const codeResult = await connection.query(
-      `SELECT c.*, i.session_commitment, a.handle
+      `SELECT c.*, i.session_commitment, i.verified_at, a.handle
        FROM libro_oauth_codes c
        JOIN libro_identities i ON i.id = c.identity_id
        JOIN libro_authors a ON a.identity_id = i.id
-       WHERE c.code_hash = $1 AND c.consumed_at IS NULL AND c.expires_at > CURRENT_TIMESTAMP
+       WHERE c.code_hash = $1 AND c.consumed_at IS NULL AND c.expires_at > CURRENT_TIMESTAMP AND i.revoked_at IS NULL
        FOR UPDATE OF c`,
       [sha256(code)],
     )
@@ -193,10 +194,10 @@ export async function exchangeAuthorizationCode(request: Request, form: URLSearc
     const grant = await connection.query(
       `INSERT INTO libro_oauth_grants
         (client_id, identity_id, session_commitment, handle, resource, scope, verified_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP,
+       VALUES ($1, $2, $3, $4, $5, $6, $8,
          CURRENT_TIMESTAMP + ($7 * INTERVAL '1 second'))
        RETURNING id`,
-      [clientId, stored.identity_id, stored.session_commitment, stored.handle, resource, stored.scope, REFRESH_TOKEN_TTL_SECONDS],
+      [clientId, stored.identity_id, stored.session_commitment, stored.handle, resource, stored.scope, REFRESH_TOKEN_TTL_SECONDS, stored.verified_at],
     )
     const issued = await tokensForGrant(connection, grant.rows[0].id, resource)
     await connection.query('COMMIT')
@@ -260,7 +261,7 @@ export async function authenticateBearer(
        AND ($3::text IS NULL OR NOT ($3 = ANY($4::text[]))
          OR g.verified_at > CURRENT_TIMESTAMP - ($5 * INTERVAL '1 second'))
      RETURNING i.id AS identity_id, a.id AS author_id, a.handle, a.name, COALESCE(a.bio, '') AS bio, i.session_commitment,
-       g.client_id, g.resource, g.scope, c.author_namespace`,
+       g.client_id, g.resource, g.scope, g.verified_at, c.author_namespace`,
     [sha256(match[1]), expectedResource, requiredScope || null, [...WRITE_SCOPES], WRITE_GRANT_MAX_AGE_SECONDS],
   )
   const row = result.rows[0]
@@ -276,6 +277,7 @@ export async function authenticateBearer(
     resource: row.resource,
     scope: row.scope,
     authorNamespace: row.author_namespace,
+    verifiedAt: new Date(row.verified_at).toISOString(),
   }
 }
 
@@ -295,4 +297,12 @@ export async function revokeOAuthToken(request: Request, form: URLSearchParams):
      WHERE t.token_hash = $1 AND t.grant_id = g.id AND g.client_id = $2`,
     [sha256(token), clientId],
   )
+}
+
+export function assertPrincipalScope(principal: OAuthPrincipal, scope: string): void {
+  if (!principal.scope.includes(scope)) throw new ServiceError('INSUFFICIENT_SCOPE', `The ${scope} scope is required`, 403)
+  if (WRITE_SCOPES.has(scope) && (!Number.isFinite(Date.parse(principal.verifiedAt))
+    || Date.parse(principal.verifiedAt) <= Date.now() - WRITE_GRANT_MAX_AGE_SECONDS * 1000)) {
+    throw new ServiceError('REAUTH_REQUIRED', 'Verify with World ID again before making changes', 401)
+  }
 }

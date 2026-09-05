@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
+import { serviceUserRequest } from '@/lib/libro-service/client'
 
 type FinalizeRevokeRequest = {
   userOpHash?: string
@@ -13,12 +13,21 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
-  const retired = retiredLibroWriterResponse()
-  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
+  }
+
+  if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') {
+    const { registrationId } = await params
+    try {
+      const result = await serviceUserRequest(authenticatedUser.id, 'revoke_agent',
+        `/api/v1/agent-registrations/${encodeURIComponent(registrationId)}/revoke/finalize`, 'PUT', await req.json())
+      return NextResponse.json({ success: true, ...result as object })
+    } catch (error) {
+      return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Libro revocation failed' }, { status: 502 })
+    }
   }
 
   const { registrationId } = await params

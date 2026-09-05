@@ -131,6 +131,34 @@ CREATE INDEX idx_publication_access_grants_unsettled
     ON publication_access_grants(valid_before)
     WHERE settled_at IS NULL;
 
+-- Draft prose is encrypted in the browser: an 'v1' draft carries only
+-- drafts.ciphertext, and title/subtitle/content stay null. The plaintext columns
+-- remain for rows written before encryption and for the extension's transient
+-- inline-signing drafts, which the server writes itself and publishes at once.
+CREATE TABLE drafts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "authorId" UUID REFERENCES authors(id) ON DELETE SET NULL,
+    status VARCHAR(255) NOT NULL,
+    publication_type VARCHAR(16) NOT NULL DEFAULT 'article' CHECK (publication_type IN ('short', 'article')),
+    title VARCHAR(255),
+    subtitle VARCHAR(255),
+    content JSONB,
+    ciphertext TEXT,
+    encryption VARCHAR(8) NOT NULL DEFAULT 'none' CHECK (encryption IN ('none', 'v1')),
+    history JSONB NOT NULL,
+    access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Enforcing both halves is what stops a half-finished write from leaving
+    -- readable text beside the ciphertext that replaced it.
+    CONSTRAINT drafts_encryption_shape_check CHECK (
+        (encryption = 'none' AND ciphertext IS NULL AND title IS NOT NULL AND content IS NOT NULL)
+        OR
+        (encryption = 'v1' AND ciphertext IS NOT NULL AND title IS NULL AND subtitle IS NULL AND content IS NULL)
+    )
+);
+
 CREATE TABLE pending_libro_publications (
     service_challenge_id UUID PRIMARY KEY,
     client_reference TEXT NOT NULL UNIQUE,
@@ -170,34 +198,6 @@ CREATE TABLE libro_oauth_sessions (
     refresh_expires_at TIMESTAMPTZ NOT NULL,
     scope TEXT[] NOT NULL,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Draft prose is encrypted in the browser: an 'v1' draft carries only
--- drafts.ciphertext, and title/subtitle/content stay null. The plaintext columns
--- remain for rows written before encryption and for the extension's transient
--- inline-signing drafts, which the server writes itself and publishes at once.
-CREATE TABLE drafts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    "authorId" UUID REFERENCES authors(id) ON DELETE SET NULL,
-    status VARCHAR(255) NOT NULL,
-    publication_type VARCHAR(16) NOT NULL DEFAULT 'article' CHECK (publication_type IN ('short', 'article')),
-    title VARCHAR(255),
-    subtitle VARCHAR(255),
-    content JSONB,
-    ciphertext TEXT,
-    encryption VARCHAR(8) NOT NULL DEFAULT 'none' CHECK (encryption IN ('none', 'v1')),
-    history JSONB NOT NULL,
-    access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- Enforcing both halves is what stops a half-finished write from leaving
-    -- readable text beside the ciphertext that replaced it.
-    CONSTRAINT drafts_encryption_shape_check CHECK (
-        (encryption = 'none' AND ciphertext IS NULL AND title IS NOT NULL AND content IS NOT NULL)
-        OR
-        (encryption = 'v1' AND ciphertext IS NOT NULL AND title IS NULL AND subtitle IS NULL AND content IS NULL)
-    )
 );
 
 -- The author's data key, wrapped once per secret that may open it.
@@ -517,3 +517,33 @@ CREATE TRIGGER update_openship_changes_modified_at
     BEFORE UPDATE ON openship_changes
     FOR EACH ROW
     EXECUTE FUNCTION update_modified_at_column();
+
+-- Keep the legacy writer compatible throughout the shadow-copy period.
+CREATE OR REPLACE FUNCTION sync_legacy_publication_policy() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO publication_policies
+    (publication_id, signal_hash, "authorId", access, access_price_usd, created_at, modified_at)
+  VALUES (NEW.id, LOWER(COALESCE(NEW.proof->>'signal_hash',
+    NEW.proof->'agent_document_signature'->>'document_signal_hash')),
+    NEW."authorId", NEW.access, NEW.access_price_usd, NEW.created_at, NEW.modified_at)
+  ON CONFLICT (publication_id) DO UPDATE SET
+    signal_hash = EXCLUDED.signal_hash, "authorId" = EXCLUDED."authorId",
+    access = EXCLUDED.access, access_price_usd = EXCLUDED.access_price_usd,
+    modified_at = EXCLUDED.modified_at;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_legacy_publication_policy ON publications;
+CREATE TRIGGER sync_legacy_publication_policy AFTER INSERT OR UPDATE ON publications
+FOR EACH ROW EXECUTE FUNCTION sync_legacy_publication_policy();
+
+CREATE TABLE libro_extension_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  poll_hash CHAR(64) NOT NULL UNIQUE,
+  "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '10 minutes',
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

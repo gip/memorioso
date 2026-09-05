@@ -243,6 +243,13 @@ const libroAgentRegistrationComponents = [
 ] as const
 
 export const libroRegistryAbi = [
+  { type: 'function', name: 'revokeAgent', stateMutability: 'nonpayable',
+    inputs: [{ name: 'registrationHash', type: 'bytes32' }], outputs: [] },
+  { type: 'event', name: 'AgentRevoked', inputs: [
+    { name: 'registrationHash', type: 'bytes32', indexed: true },
+    { name: 'handleHash', type: 'bytes32', indexed: true },
+  ] },
+
   {
     type: 'function',
     name: 'claimHandle',

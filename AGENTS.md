@@ -4,11 +4,11 @@ Guidance for coding agents working in this repository.
 
 ## Project Overview
 
-Memorioso is a Next.js App Router application for human-authored publications. Users sign in with World ID 4.0, create authors and drafts, sign publication payloads through IDKit proof verification, register publication/proof data on World Chain through Libro registries, and store publication/proof data in Postgres.
+Memorioso is a Next.js App Router application for human-authored publications, with support for human-authorized agents. This pnpm workspace also contains the standalone Libro identity and publishing service, shared protocol helpers, and the Chrome extension. World ID 4.0 proofs bind authorship to World Chain registrations. Memorioso owns drafts, local author projections, access policy, feeds, and presentation; Libro owns canonical identity and publication data after service cutover. Legacy local flows remain behind cutover flags.
 
 Core stack:
 
-- Next.js App Router with React and TypeScript.
+- Next.js 16 App Router with React 19 and TypeScript; Cache Components is enabled.
 - Tailwind CSS plus shadcn-style primitives under `components/ui`.
 - Raw Postgres queries through `pg`.
 - TipTap editor for draft/publication content.
@@ -17,29 +17,38 @@ Core stack:
 
 ## Commands
 
-Use pnpm in this repo; `pnpm-lock.yaml` is the lockfile.
+Use Node.js 24.x and pnpm 10.34.5 as declared in `package.json`; `pnpm-lock.yaml` is the lockfile. Install with `pnpm install --frozen-lockfile`.
 
 - `pnpm dev` starts the local Next.js dev server.
-- `pnpm build` builds the app.
+- `pnpm build` generates the OpenShip snapshot in `prebuild`, then builds the Memorioso app.
 - `pnpm start` serves a production build.
-- `pnpm lint` runs the configured Next lint command.
-- `pnpm test` runs the Vitest suite.
+- `pnpm lint` runs `eslint .`.
+- `pnpm test` verifies the vendored OpenShip skill in `pretest`, then runs the root Vitest suite. The standalone service is explicitly excluded and must be tested separately.
+- `pnpm libro:core:check` type-checks shared protocol helpers.
+- `pnpm --filter @libro/service dev` starts Libro on port 3001; its `test` and `build` scripts verify the service.
+- `pnpm extension:test`, `pnpm extension:build`, and `pnpm extension:build:stage` test and package the extension; `pnpm --filter @libro/chrome-extension check` type-checks it.
+- `pnpm db:init` initializes the Memorioso schema; `pnpm db:migrate` applies its pending numbered migrations.
+- `pnpm --filter @libro/service db:migrate` applies service migrations to a separate database.
+- `pnpm openship:check` checks source-file membership; run `pnpm openship:manifest` after adding, removing, or renaming source files.
 - `forge test` from `libro/contracts` runs Libro contract tests.
 
-For non-trivial changes, run the narrowest relevant checks. For app or protocol helper changes, run at least `pnpm lint` and `pnpm test`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits. For contract changes, run `forge test` from `libro/contracts`.
+For non-trivial changes, run the narrowest relevant checks. For app or protocol helper changes, run at least `pnpm lint` and `pnpm test`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits. For service changes, also run `pnpm --filter @libro/service test` and its `build` script; root tests do not cover it. For extension changes, run its `check`, tests, and affected builds. For contract changes, run `forge test` from `libro/contracts`.
+
+Set `LIBRO_TEST_DATABASE_URL` to a dedicated test Postgres database to run client/service integration suites. Without it, those suites skip; report that limitation. They create and remove their own schemas and mock World/chain verification. See `.github/workflows/chrome-extension.yml` for the CI checks.
 
 ## Required Environment
 
-The app expects these environment variables in local and deployed environments:
+Configuration depends on whether the deployment runs legacy flows or uses the standalone service. See `.env.example` and `libro/service/README.md` for the full configuration and cutover procedure.
 
 - `DATABASE_URL` for Postgres. `next build` must succeed without it: the `pg` pool in
   `lib/db/index.ts` is created on first use rather than on import, and the two build-time
   reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
   static routes and an empty feed. Any new prerendered read needs the same guard.
-- `SESSION_SECRET` for the signed Memorioso session cookie.
+- `DATABASE_URL_UNPOOLED` is preferred by migrations, with `DATABASE_URL` as fallback.
+- `SESSION_SECRET` for the signed Memorioso session cookie and extension connection consent/token derivation.
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
-  `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0.
+  `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0. After cutover, only Libro receives the RP signing key; upgrade the extension before removing it from Memorioso.
 - `NEXT_PUBLIC_LIBRO_CHAIN_ID`, `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS`, and optional
   `LIBRO_RPC_URL` / `NEXT_PUBLIC_LIBRO_RPC_URL`
   for Libro on-chain registration. Both accept a comma-separated list of World Chain endpoints
@@ -49,6 +58,15 @@ The app expects these environment variables in local and deployed environments:
   read when something is actually gated, so a deployment with no gated publications does
   not need them. Missing them does not break a gated publication either: the read path
   goes through `tryGetPublicationAccessConfig` and falls back to sign-in only.
+
+The service client uses `LIBRO_SERVICE_URL`, independent `LIBRO_SERVICE_READS_ENABLED` and
+`LIBRO_SERVICE_WRITES_ENABLED` flags (enabled only by `1`), `LIBRO_OAUTH_CLIENT_ID`,
+`LIBRO_OAUTH_CLIENT_SECRET`, `LIBRO_OAUTH_REDIRECT_URI`, `LIBRO_OAUTH_RESOURCE`,
+`LIBRO_AUTHOR_NAMESPACE`, `LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY`, and `LIBRO_WEBHOOK_SECRET`.
+Keep client credentials and token encryption keys server-only. Libro runs with its own
+`DATABASE_URL`; `LIBRO_DATABASE_URL` and `SOURCE_DATABASE_URL` are for the copy command.
+After cutover, `LIBRO_RELAYER_PRIVATE_KEY` belongs only on Libro, while
+`X402_RELAYER_PRIVATE_KEY` stays on Memorioso.
 
 OpenShip Changes is off unless `OPENSHIP_CHANGES_ENABLED=1` and `OPENSHIP_BUILDS_DOMAIN` are both
 set; the build host additionally needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`,
@@ -66,7 +84,11 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/auth-user.ts` and `lib/auth-session.ts` contain the World ID backed app session helpers.
 - `lib/world-id/` contains IDKit request, proof, and publication helpers.
 - `lib/libro/` contains Libro contract ABIs, config, encoding, publication registration, and agent authorization helpers.
-- `lib/db/` contains the Postgres pool, SQL schema, and cached read helpers.
+- `lib/db/` contains the Postgres pool, SQL schema, numbered migrations, and cached read helpers.
+- `lib/libro-service/` contains the service HTTP client, encrypted OAuth token store, OAuth state, and legacy-write cutover guard.
+- `libro/core/src/` contains shared canonical payload, proof, and protocol helpers exported as `@libro/core`.
+- `libro/service/` is a separate Next.js app with its own database schema/migrations, OAuth, MCP, signing UI, API, and test configuration. Its `@/` alias resolves within the service.
+- `libro/chrome-extension/` contains the verifier/signing extension and its production/staging builds.
 - `lib/draft-crypto/` contains browser-side draft encryption: the WebCrypto primitives, the key
   wrappers and unlock flow, the per-device key cache, and the row helpers every draft surface reads through.
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
@@ -80,7 +102,9 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `openship.json` is the checked-in manifest: the hand-authored project metadata plus the allowlist
   of every file the repository consists of. It is generated and committed like a lockfile —
   `pnpm openship:manifest` regenerates the file list, `pnpm openship:check` verifies it against
-  disk, and `pnpm test` fails when the two disagree. It does not list itself.
+  disk, and `pnpm test` fails when the two disagree. It does not list itself. The checked-in list
+  records paths; sizes and hashes are derived at build time. Content-only edits do not require
+  regenerating the file list.
 - `libro/contracts/` contains the Foundry contract and tests for the unified `LibroRegistry`.
 - `types/index.ts` contains publication, proof, author, and JSON content shapes used across app and API code.
 - `public/` contains static metadata assets.
@@ -101,17 +125,33 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Acquire clients with `pool.connect()` and release them in `finally`.
 - Use parameterized SQL for all user-provided values.
 - Wrap multi-step writes in transactions. On errors after `BEGIN`, roll back before returning.
-- Keep `lib/db/schema.sql` in sync with any table or column expectations. There is no migration framework in this repo.
+- Keep `lib/db/schema.sql` and numbered SQL files in `lib/db/migrations/` in sync. The custom runner in `scripts/migrate-db.mjs` tracks names and checksums, takes an advisory lock, and applies each migration transactionally. Add a new migration instead of editing or renaming an applied one.
+- Libro has its own `libro/service/db/schema.sql`, migrations, tracking table, and advisory lock. Never point its runtime or migrations at Memorioso's database. Migration 013 requires the runner's explicit backup confirmation; do not bypass that guard.
 - Be careful with cached read helpers in `lib/db/objects.ts`; several are wrapped in React `cache`.
 
 ## Auth And Identity
 
 - Server-side authentication should use `getAuthenticatedUser()` from `lib/auth-user.ts`.
-- Authenticated routes identify users through the signed Memorioso session cookie, which points to a `users.world_id_session_id` created from a verified World ID 4.0 session proof.
+- Signed Memorioso cookies support legacy v1 sessions bound to `users.world_id_session_id` and service v2 sessions bound to `users.libro_identity_id`. Preserve both checks in `getAuthenticatedUser()`. When passed a request with an Authorization header, it validates the extension session instead of falling back to the cookie.
 - Author records belong to users. Always scope draft/author mutations by the authenticated user's database id.
 - The World ID session proof is verified server-side before creating a local app session. Do not trust client-reported session ids without verifier confirmation.
 
+## Libro Service Boundary And Cutover
+
+- Read `libro/service/README.md` before changing service integration or cutover behavior. Reads and writes are independently flagged; do not assume every deployment has completed cutover.
+- `retiredLibroWriterResponse()` returns 410 from legacy chain-facing endpoints once service writes are enabled. Preserve these guards so two databases cannot accept canonical writes.
+- Run Memorioso migrations through 022 before deploying the updated client/extension. Pause canonical writes and payment settlements while applying 020–022; do not ship 020 alone. Migration 021 synchronizes legacy publication policies during shadow copying.
+- Memorioso service reads join canonical Libro data to local `publication_policies`. Preserve local feed membership and policy; do not turn Memorioso feeds into an unfiltered Libro feed.
+- `/api/libro/events` authenticates webhook events, deduplicates them, and updates local projections transactionally. Preserve pending-publication ownership checks and atomic event acknowledgement.
+- Libro OAuth requires explicit consent. Write grants require recent World verification. Handles and session identifiers are lookup values, never authentication. Keep discovered/dynamically registered clients outside trusted author-reference namespaces.
+- The extension connects through browser OAuth followed by extension consent. A separate short-lived polling secret delivers an extension token; do not expose OAuth tokens to the extension or restore legacy proof-login after cutover.
+- Agent revocation is recorded only after a matching on-chain `AgentRevoked` event. Prepared human publications can resume stored transactions past the initial five-minute signing window; preserve operation hashes and recovery without issuing a second proof.
+- Use the checkpointed `pnpm libro:migrate:dry-run` / `pnpm libro:migrate` copy procedure from the service README. After Libro accepts writes, rollback requires a write freeze and validated reverse copy, not simply reversing flags.
+
 ## Publication And Proof Flow
+
+The local routes below describe legacy publishing. Service publishing lives in
+`libro/service/lib/` and must preserve the same canonical payload and chain verification invariants.
 
 - Draft publishing depends on exact agreement between the draft record and the signed publication payload.
 - Preserve the legacy `PublicationV1` field names for verification compatibility. New Libro human and agent publications use their v2 schemas, omit `author_id_libro`, and may carry the strictly scoped `author_reference`; the handle hash remains the protocol identity.
@@ -196,14 +236,17 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 
 ## Gated Publications
 
-- Access is opt-in per publication and lives in `publications.access` / `drafts.access`.
+- Access is opt-in per publication: drafts use `drafts.access`, legacy publications use
+  `publications.access`, and service-backed publications use local `publication_policies`.
   It must never enter `publications.signal`: that JSONB is the signed payload whose hash is
   registered on chain, and one extra key breaks `parseLibroPublication` and every manifest.
 - Only articles can be gated. A teaser of a short is the whole short.
 - Two things get a reader through the wall: any signed-in Memorioso user (every account is
   bound to a verified World ID session, so being signed in already proves personhood), or a
   settled x402 payment recorded in `publication_access_grants`.
-- The signed body is reachable from more places than the article page. All of them are gated:
+- Gating is Memorioso presentation policy, not content confidentiality: Libro public APIs and MCP
+  expose the complete canonical signed payload. Keep that distinction explicit in product claims.
+- Within Memorioso, the signed body is reachable from more places than the article page. Gate all of them:
   the proof page's verification snippet, `/hash/[signalHash]`, the inline embed manifest,
   `/api/publications/[id]/libro-manifest`, and `publication_excerpt` in every feed
   (`mapPublicationInfoRow` truncates gated rows to a teaser). Adding a new surface that reads
@@ -221,7 +264,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   the content/manifest routes answer 403 instead of a 402 nobody could satisfy. Throwing
   there instead takes down the whole article page for anonymous readers, since the gate
   renders inside a streamed Suspense boundary with no error boundary of its own.
-- x402 settles without a facilitator, because none serves World Chain. The payer signs an
+- This implementation settles x402 directly on World Chain without a facilitator. The payer signs an
   EIP-3009 `TransferWithAuthorization` for USDC (`0x79A02482A880bCE3F13e09Da970dC34db4CD24d1`,
   6 decimals, EIP-712 domain `name: "USDC"`, `version: "2"`), and `X402_RELAYER_PRIVATE_KEY`
   submits it. That key is deliberately separate from `LIBRO_RELAYER_PRIVATE_KEY`: two senders
@@ -231,6 +274,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Settlement order is reserve → broadcast → complete. The unique `authorization_nonce` is
   claimed before anything reaches the chain, so a replay cannot double-spend and a crash
   mid-settlement cannot take money without recording the grant.
+
 ## OpenShip Changes
 
 The write half of OpenShip lets anyone submit a patch that, if it passes every gate, is built and
@@ -249,8 +293,8 @@ deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. The vendored v1 protoc
   and, past install, no network, while `VERCEL_TOKEN` stays in the worker process and is only passed
   to `vercel deploy --prebuilt`, which never runs submitted code. Preserve that split.
 - `getChangesConfig()` refuses to enable submissions when `OPENSHIP_BUILDS_DOMAIN` is the production
-  host or a subdomain of it. Subdomains share cookie scope. This is a correctness constraint, not a
-  preference.
+  host or shares its registrable domain, including sibling subdomains. Preserve the `tldts`
+  domain check: subdomains can share cookie scope.
 - The pattern rules in `policy.ts` and the review in `openship-review.mjs` are filters, not the
   security boundary. Do not add a rule and conclude that something is now safe; the isolation of the
   build sandbox and the builds origin is what makes a defeated filter cheap.
@@ -262,13 +306,15 @@ deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. The vendored v1 protoc
 - The editor supports both editable drafts and read-only publications through `components/Editor/index.tsx`.
 - Draft and publication content is stored as `{ html: string }`. Structured TipTap JSON can be reintroduced later if a coordinated migration needs it.
 - Public author URLs prefer handles under `/a/[authorId]`; UUID author paths redirect to handle paths when possible.
-- Shared layout wraps pages in `WorldIdAuthProvider` and Vercel Analytics.
+- Shared layout uses `app/providers.tsx`, `SiteChrome` inside Suspense, and Vercel Analytics.
+- Cache Components is enabled in `next.config.mjs`; keep request-dependent work out of shared caches and behind the appropriate Suspense boundary.
 
 ## Before Finishing Changes
 
 - Check `git status --short` before and after edits.
 - Do not revert unrelated user changes.
-- Run the narrowest useful verification command available for the change. For most code changes, that is `pnpm lint`; for routing, config, or server changes, prefer `pnpm build` as well when environment permits.
+- Use the checks in **Commands** for the affected packages. For documentation-only edits, review the diff and run `git diff --check`; run `pnpm openship:check` to confirm source membership.
+- Regenerate `openship.json` if source paths changed, and review the resulting file list before committing.
 - If verification cannot run because services or environment variables are missing, state that clearly in the final response.
 
 <!-- BEGIN:nextjs-agent-rules -->

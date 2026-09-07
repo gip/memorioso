@@ -9,7 +9,7 @@ import {
   OPENSHIP_VERSION,
 } from '@/lib/openship/manifest'
 
-// The v1 front door. Memorioso implements Sources and Changes, deliberately not Systems.
+// The v1 front door for Sources, Systems and Changes.
 export function GET(request: Request): NextResponse {
   const origin = openshipOrigin(request)
   const absolute = (endpoint: string) => `${origin}${endpoint}`
@@ -32,6 +32,10 @@ export function GET(request: Request): NextResponse {
         },
         page: absolute(OPENSHIP_ENDPOINTS.page),
         capabilities: {
+          systems: {
+            description: OPENSHIP_CAPABILITY_DESCRIPTIONS.systems,
+            document: absolute(OPENSHIP_ENDPOINTS.systems),
+          },
           sources: {
             description: OPENSHIP_CAPABILITY_DESCRIPTIONS.sources,
             manifest: absolute(OPENSHIP_ENDPOINTS.manifest),

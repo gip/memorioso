@@ -3,7 +3,7 @@
   "capability": "sources",
   "project": {
     "name": "Memorioso",
-    "description": "A Next.js application for human-authored publications. Users sign in with World ID 4.0, write drafts, sign publication payloads through IDKit proof verification, and register the publication and its proof on World Chain through the Libro registry.",
+    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. Legacy paths remain behind independent cutover flags.",
     "homepage": "https://memorioso.xyz",
     "repository": "https://github.com/memorioso/memorioso",
     "license": "See LICENSE in the source tree if present; otherwise all rights reserved."
@@ -64,6 +64,10 @@
     {
       "path": "libro/contracts/",
       "purpose": "Foundry sources and tests for the LibroRegistry contract."
+    },
+    {
+      "path": "libro/service/",
+      "purpose": "Separate canonical identity and publishing service, OAuth/MCP, signing workflows, event outbox and its own Postgres database."
     },
     {
       "path": "libro/core/",
@@ -446,6 +450,9 @@
       "path": "app/openship/policy.json/route.ts"
     },
     {
+      "path": "app/openship/systems.json/route.ts"
+    },
+    {
       "path": "app/page.tsx"
     },
     {
@@ -546,6 +553,9 @@
     },
     {
       "path": "components/MemMark/index.tsx"
+    },
+    {
+      "path": "components/Openship/ViewerLink.tsx"
     },
     {
       "path": "components/Openship/index.tsx"
@@ -954,6 +964,15 @@
     },
     {
       "path": "lib/openship/policy.ts"
+    },
+    {
+      "path": "lib/openship/system.json"
+    },
+    {
+      "path": "lib/openship/systems.mjs"
+    },
+    {
+      "path": "lib/openship/systems.test.ts"
     },
     {
       "path": "lib/openship/validate.test.ts"

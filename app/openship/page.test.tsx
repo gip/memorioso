@@ -38,6 +38,7 @@ describe('GET /openship presentation', () => {
       OPENSHIP_ENDPOINTS.skill,
       OPENSHIP_ENDPOINTS.manifest,
       OPENSHIP_ENDPOINTS.bundle,
+      OPENSHIP_ENDPOINTS.systems,
       OPENSHIP_ENDPOINTS.file,
       OPENSHIP_ENDPOINTS.archive,
       OPENSHIP_ENDPOINTS.instructions,

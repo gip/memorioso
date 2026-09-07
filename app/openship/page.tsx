@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import OpenshipViews from '@/components/Openship'
+import ViewerLink from '@/components/Openship/ViewerLink'
 import { getChangesConfig } from '@/lib/openship/changes-config'
 import { openshipOrigin } from '@/lib/openship/http'
 import { buildOpenshipInstructions } from '@/lib/openship/instructions'
@@ -14,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: 'OpenShip — Memorioso',
   description:
-    'Memorioso publishes its own source over plain HTTP GET, so any agent can retrieve and rebuild it.',
+    'Retrieve Memorioso’s verifiable sources and structured system design over public HTTP.',
   alternates: { canonical: '/openship' },
 }
 
@@ -34,7 +35,7 @@ const HumanView = () => {
         <p>
           This is {manifest.project.name}&apos;s OpenShip page. OpenShip is a public interface for
           understanding, reproducing, and improving a running project from the project&apos;s own
-          origin. Memorioso uses it to publish an integrity-checked source snapshot and the rules
+          origin. Memorioso uses it to publish an integrity-checked source snapshot, structured system design, and the rules
           for proposing isolated candidate changes.
         </p>
         <p>
@@ -119,6 +120,19 @@ const HumanView = () => {
           <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.archive}>Archive</a> — the complete declared file set.</li>
           <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.instructions}>Project instructions</a> — Memorioso-specific retrieval and verification guidance.</li>
           {mcp ? <li><a className="underline underline-offset-4" href={mcp}>MCP binding</a> — public Sources tool and resources.</li> : null}
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-foreground">Systems</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+          {OPENSHIP_CAPABILITY_DESCRIPTIONS.systems} The design describes Memorioso, Libro,
+          clients, verification, and optional candidate builds. It describes supported
+          configurations, including legacy paths, rather than live service health.
+        </p>
+        <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+          <li><ViewerLink origin={openshipOrigin()} /> — explore the architecture and sources on openship.dev.</li>
+          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems v1 document.</li>
         </ul>
       </section>
 

@@ -6,7 +6,7 @@ describe('GET /.well-known/openship.json', () => {
     delete process.env.LIBRO_SERVICE_URL
   })
 
-  it('advertises the clean v1 Sources and Changes capability map', async () => {
+  it('advertises the v1 Sources, Systems and Changes capability map', async () => {
     process.env.LIBRO_SERVICE_URL = 'https://libro.memorioso.xyz'
     const response = GET(new Request('https://memorioso.xyz/.well-known/openship.json'))
     expect(response.status).toBe(200)
@@ -39,7 +39,7 @@ describe('GET /.well-known/openship.json', () => {
         },
       },
     })
-    expect(discovery.capabilities.systems).toBeUndefined()
+    expect(discovery.capabilities.systems.document).toBe('https://memorioso.xyz/openship/systems.json')
     expect(discovery.manifest).toBeUndefined()
     expect(discovery.changes).toBeUndefined()
   })

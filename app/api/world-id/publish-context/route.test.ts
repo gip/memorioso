@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbMock = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -28,6 +28,8 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/auth-user', () => ({
   getAuthenticatedUser: authMock.getAuthenticatedUser,
 }))
+
+vi.mock('@/lib/libro-service/token-store', () => ({ getLibroAccessToken: async () => 'test-token' }))
 
 vi.mock('@/lib/world-id/server', () => ({
   getWorldIdServerConfig: () => ({
@@ -88,7 +90,13 @@ const publish = (overrides: Record<string, unknown> = {}) =>
   POST(request({ draftId: draftRow.id, ...prose, ...overrides }))
 
 describe('publish context route', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
   beforeEach(() => {
+    vi.stubEnv('LIBRO_SERVICE_WRITES_ENABLED', '0')
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
     dbMock.release.mockReset()
@@ -112,6 +120,59 @@ describe('publish context route', () => {
       return { rows: [] }
     })
     authMock.getAuthenticatedUser.mockResolvedValue({ id: 7 })
+  })
+
+  function serviceMode() {
+    vi.stubEnv('LIBRO_SERVICE_WRITES_ENABLED', '1')
+    vi.stubEnv('LIBRO_SERVICE_URL', 'https://libro.test')
+    vi.stubEnv('LIBRO_OAUTH_CLIENT_ID', 'memorioso')
+    vi.stubEnv('LIBRO_OAUTH_CLIENT_SECRET', 'test-secret')
+  }
+
+  it('preserves a Libro namespace rejection as JSON with HTTP 403', async () => {
+    serviceMode()
+    const message = 'Publication author reference does not match the client namespace'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+      error: { code: 'NAMESPACE_MISMATCH', message, retryable: false },
+    }, { status: 403 })))
+    const response = await publish()
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ success: false, message, code: 'NAMESPACE_MISMATCH' })
+    expect(dbMock.release).toHaveBeenCalledOnce()
+    expect(dbMock.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO pending_libro_publications'))).toBe(false)
+  })
+
+  it.each([200, 502])('returns JSON when Libro sends an empty HTTP %s response', async (status) => {
+    serviceMode()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })))
+    const response = await publish()
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ success: false, message: 'Libro publication challenge failed' })
+    expect(dbMock.release).toHaveBeenCalledOnce()
+  })
+
+  it('returns JSON with HTTP 502 when Libro cannot be reached', async () => {
+    serviceMode()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')))
+    const response = await publish()
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ success: false, message: 'Libro service could not be reached' })
+    expect(dbMock.release).toHaveBeenCalledOnce()
+  })
+
+  it('returns a generic JSON 500 for unexpected server failures', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    dbMock.connect.mockRejectedValue(new Error('private database details'))
+    const response = await publish()
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ success: false, message: 'Failed to start publication signing' })
+  })
+
+  it('returns JSON with HTTP 400 for malformed request JSON', async () => {
+    const response = await POST({ json: async () => { throw new SyntaxError('Unexpected end of JSON input') } } as unknown as NextRequest)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ success: false })
+    expect(dbMock.connect).not.toHaveBeenCalled()
   })
 
   it('creates independent session-bound publication challenges without actions', async () => {

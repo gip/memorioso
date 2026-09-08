@@ -505,9 +505,10 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           content: draft?.content ?? { html: '' },
         }),
       })
-      const response = await raw.json()
+      const response = await raw.json().catch(() => null)
+      if (!response) throw new Error(`Failed to start publication signing (HTTP ${raw.status})`)
 
-      if (response.success) {
+      if (raw.ok && response.success) {
         if (typeof response.externalSigningUrl === 'string') {
           setExternalSigningUrl(response.externalSigningUrl)
           setPublishStep(1)

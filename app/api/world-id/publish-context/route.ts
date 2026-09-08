@@ -9,9 +9,21 @@ import type { PublicationContent } from '@/types'
 import { validatePublicationForKind } from '@/lib/publication-kind'
 import { cleanupFinishedPublishChallenges } from '@/lib/publish-validation'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
-import { createServiceHumanPublication } from '@/lib/libro-service/client'
+import { createServiceHumanPublication, LibroServiceUnavailableError } from '@/lib/libro-service/client'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  try {
+    return await createPublishContext(req)
+  } catch (error) {
+    if (error instanceof LibroServiceUnavailableError) {
+      return NextResponse.json({ success: false, message: error.message, code: error.code }, { status: error.status })
+    }
+    console.error('Failed to create publication context', error)
+    return NextResponse.json({ success: false, message: 'Failed to start publication signing' }, { status: 500 })
+  }
+}
+
+async function createPublishContext(req: NextRequest): Promise<NextResponse> {
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {
@@ -38,7 +50,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // and nothing that needs checking: the author is publishing their own words
   // under their own session, and the challenge built from them is exactly what
   // the World ID proof then commits to.
-  const { draftId, title, subtitle, content } = await req.json()
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ success: false, message: 'Publication request must be valid JSON' }, { status: 400 })
+  }
+  const { draftId, title, subtitle, content } = body
 
   if (!draftId) {
     return NextResponse.json({ success: false, message: "Draft ID is required" }, { status: 400 })

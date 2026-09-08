@@ -49,13 +49,15 @@ describe.skipIf(!test.url)('Memorioso cutover with Postgres',()=>{
       VALUES ($1,'payer','exact','eip155:480','asset',250000,CURRENT_TIMESTAMP + INTERVAL '1 hour','nonce','token')`, [policies[1].publication_id])
     expect((await pool.query('SELECT * FROM publication_access_grants')).rows).toHaveLength(1)
   })
-  it('mints an extension session only after browser consent, bound to the polling secret',async()=>{
+  it('mints an extension session after automatic browser connection, bound to the polling secret',async()=>{
     const started=await (await createConnection()).json()
     const context={params:Promise.resolve({id:started.id})}
     const tokenRequest=(token:string)=>new NextRequest('https://memorioso.test/token',{method:'POST',headers:{Authorization:`Bearer ${token}`}})
     expect((await pollConnection(tokenRequest('x'.repeat(43)),context)).status).toBe(401)
     expect((await pollConnection(tokenRequest(started.pollToken),context)).status).toBe(202)
     const html=await (await consentPage(request('https://memorioso.test/connect'),context)).text()
+    expect(html).toContain('document.forms[0].submit()')
+    expect(html).not.toContain('Connect extension</button>')
     const csrf=html.match(/name="csrf" value="([^"]+)"/)![1]
     expect((await approveConnection(request('https://memorioso.test/connect',new URLSearchParams({csrf}),'https://attacker.test'),context)).status).toBe(403)
     expect((await approveConnection(request('https://memorioso.test/connect',new URLSearchParams({csrf})),context)).status).toBe(200)

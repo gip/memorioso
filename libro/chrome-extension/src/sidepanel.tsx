@@ -264,7 +264,7 @@ export function App(): JSX.Element {
     try {
       await send({ type: 'LIBRO_SERVICE_AUTH_START' })
       setConnecting(true)
-      setProgress('Complete login and approve the extension in the browser tab.')
+      setProgress('Complete sign-in in the browser tab. The extension will connect automatically.')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not connect') }
   }
 

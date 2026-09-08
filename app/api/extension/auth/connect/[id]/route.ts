@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { pool } from '@/lib/db'
@@ -19,12 +19,14 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params
   const user = await getAuthenticatedUser()
   if (!user || !await connection(id)) return NextResponse.json({ error: 'Connection expired; start again in the extension' }, { status: 400 })
-  const handle = (user.handle || '').replace(/[&<>"']/g, '')
-  return new Response(`<!doctype html><html><head><title>Connect Libro extension</title></head><body>
-    <h1>Connect the Libro extension as @${handle}?</h1>
-    <p>Approve only if you just started connecting from your extension. It will be able to create signing requests for this author.</p>
-    <form method="post"><input type="hidden" name="csrf" value="${csrf(id, user.id)}"><button>Connect extension</button></form>
-    </body></html>`, { headers })
+  const nonce = randomBytes(18).toString('base64')
+  return new Response(`<!doctype html><html><head><title>Connecting extension</title></head><body>
+    <p>Connecting the Libro extension…</p>
+    <form method="post"><input type="hidden" name="csrf" value="${csrf(id, user.id)}"></form>
+    <script nonce="${nonce}">document.forms[0].submit()</script>
+    </body></html>`, { headers: { ...headers,
+      'Content-Security-Policy': `${headers['Content-Security-Policy']}; script-src 'nonce-${nonce}'`,
+    } })
 }
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid connection' }, { status: 403 })
   }
   const form = new URLSearchParams(await request.text())
-  if (form.get('csrf') !== csrf(id, user.id)) return NextResponse.json({ error: 'Invalid consent' }, { status: 403 })
+  if (form.get('csrf') !== csrf(id, user.id)) return NextResponse.json({ error: 'Invalid connection token' }, { status: 403 })
   await getLibroAccessToken(user.id, 'publish')
   const updated = await pool.query(`UPDATE libro_extension_connections SET "userId" = $2, approved_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND approved_at IS NULL AND expires_at > CURRENT_TIMESTAMP RETURNING id`, [id, user.id])

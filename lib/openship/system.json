@@ -420,7 +420,7 @@
       "fromNodeId": "p.browser",
       "toNodeId": "p.libro",
       "metadata": {
-        "purpose": "OAuth consent and human signing UI",
+        "purpose": "OAuth connection and human signing UI",
         "protocol": "HTTPS"
       }
     },
@@ -740,10 +740,10 @@
       },
       {
         "kind": "Document",
-        "hash": "sha256:141050039e5c5b85461e4fbfee1df1f2aa062ba229f23c5c0b887f6c4cea4047",
-        "title": "Identity, OAuth and extension consent",
+        "hash": "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+        "title": "Identity, OAuth and extension connection",
         "language": "en",
-        "text": "The browser enters Libro OAuth with explicit consent. World ID verification binds the identity; handles and session IDs are lookup values, never authentication. Write grants require recent World verification. Memorioso stores OAuth tokens encrypted server-side and binds its v2 session to libro_identity_id, preserving legacy v1 world_id_session_id checks. Extension connection follows OAuth with separate extension consent. A short-lived polling secret delivers only an extension token; OAuth tokens never go to the extension. Discovered and dynamically registered clients do not inherit trusted author-reference namespaces."
+        "text": "The browser completes Libro OAuth automatically after authentication, without a separate application approval prompt. World ID verification binds the identity; handles and session IDs are lookup values, never authentication. Write grants require recent World verification. Memorioso stores OAuth tokens encrypted server-side and binds its v2 session to libro_identity_id, preserving legacy v1 world_id_session_id checks. Extension connection completes automatically after OAuth with origin and request-token checks. A short-lived polling secret delivers only an extension token; OAuth tokens never go to the extension. Discovered and dynamically registered clients do not inherit trusted author-reference namespaces."
       },
       {
         "kind": "Document",
@@ -814,21 +814,21 @@
         "nodeId": "p.app",
         "concern": "Security",
         "documentRefs": [
-          "sha256:141050039e5c5b85461e4fbfee1df1f2aa062ba229f23c5c0b887f6c4cea4047"
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
         ]
       },
       {
         "nodeId": "p.libro",
         "concern": "Interfaces",
         "documentRefs": [
-          "sha256:141050039e5c5b85461e4fbfee1df1f2aa062ba229f23c5c0b887f6c4cea4047"
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
         ]
       },
       {
         "nodeId": "p.extension",
         "concern": "Security",
         "documentRefs": [
-          "sha256:141050039e5c5b85461e4fbfee1df1f2aa062ba229f23c5c0b887f6c4cea4047"
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
         ]
       },
       {

@@ -14,16 +14,16 @@ async function consentToken() {
   const response = await GET(new Request(url()))
   return { response, body: await response.json() }
 }
-function post(token: string, decision = 'approve', origin = 'https://libro.test') {
-  return POST(new Request('https://libro.test/oauth/authorize', { method:'POST', headers:{ Origin:origin }, body:new URLSearchParams({ consent:token, decision }) }))
+function post(token: string, origin = 'https://libro.test') {
+  return POST(new Request('https://libro.test/oauth/authorize', { method:'POST', headers:{ Origin:origin }, body:new URLSearchParams({ consent:token }) }))
 }
-describe('OAuth consent', () => {
+describe('OAuth connection', () => {
   beforeEach(() => {
     process.env.LIBRO_SERVICE_URL='https://libro.test'
     process.env.LIBRO_MCP_STATE_SECRET='consent-test-secret-at-least-thirty-two-bytes'
     state.identity='identity-1'; state.verifiedAt=new Date(); state.cookie.clear(); state.issue.mockReset().mockResolvedValue('approved-code')
   })
-  it('GET returns client details as JSON without issuing a grant; explicit approval issues the code', async () => {
+  it('completes authorization without an approval decision, preserving state and preventing replay', async () => {
     const { response,body }=await consentToken()
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('application/json')
@@ -40,7 +40,7 @@ describe('OAuth consent', () => {
   })
   it('rejects cross-origin, tampered, wrong-cookie, and wrong-identity approvals', async () => {
     const {body}=await consentToken();const token=body.consent
-    expect((await post(token,'approve','https://attacker.test')).status).toBe(403)
+    expect((await post(token,'https://attacker.test')).status).toBe(403)
     expect((await post(token+'invalid')).status).toBe(400)
     state.identity='another-identity'
     expect((await post(token)).status).toBe(401)
@@ -48,10 +48,14 @@ describe('OAuth consent', () => {
     expect((await post(token)).status).toBe(400)
     expect(state.issue).not.toHaveBeenCalled()
   })
-  it('denial returns access_denied and stale verification requires login', async () => {
-    const {body}=await consentToken();const token=body.consent
-    expect((await (await post(token,'deny')).json()).redirectUrl).toContain('error=access_denied')
+  it('honors cancellation from a browser tab opened before the update', async () => {
+    const {body}=await consentToken()
+    const response=await POST(new Request('https://libro.test/oauth/authorize', { method:'POST',
+      headers:{ Origin:'https://libro.test' }, body:new URLSearchParams({consent:body.consent,decision:'deny'}) }))
+    expect((await response.json()).redirectUrl).toContain('error=access_denied')
     expect(state.issue).not.toHaveBeenCalled()
+  })
+  it('stale verification still requires login', async () => {
     state.verifiedAt=new Date(Date.now()-25*3600000)
     expect((await GET(new Request(url()))).status).toBe(401)
   })

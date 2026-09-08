@@ -30,12 +30,21 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       body: request.method === 'GET' ? undefined : await request.text(),
       cache: 'no-store', redirect: 'manual',
     })
+    // Older service deployments return HTML or redirects instead of the browser API.
+    const body = await upstream.text()
+    try {
+      if (upstream.status >= 300 && upstream.status < 400) throw new Error('Unexpected redirect')
+      JSON.parse(body)
+    } catch {
+      return Response.json({ error: { message: 'Libro returned an incompatible response. The app and Libro service must be deployed together.' } },
+        { status: 502, headers: { 'Cache-Control': 'no-store' } })
+    }
     const responseHeaders = new Headers({ 'Cache-Control': 'no-store', 'Content-Type': 'application/json' })
     for (const cookie of upstream.headers.getSetCookie()) {
       const name = cookie.slice(0, cookie.indexOf('='))
       if (COOKIE_NAMES.has(name)) responseHeaders.append('Set-Cookie', cookie.replace(/;\s*Domain=[^;]*/gi, '').replace(/;\s*Path=[^;]*/gi, '; Path=/api/libro/browser'))
     }
-    return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders })
+    return new Response(body, { status: upstream.status, headers: responseHeaders })
   } catch {
     return Response.json({ error: { message: 'Could not reach Libro. Try again.' } }, { status: 502 })
   }

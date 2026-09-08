@@ -42,6 +42,28 @@ describe('Memorioso browser bridge', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
+  it.each([
+    new Response(null, { status: 302, headers: { Location: 'https://libro.test/identity' } }),
+    new Response('<!doctype html><title>Authorize application</title>'),
+    new Response(null, { status: 500 }),
+  ])('returns a JSON deployment error for an incompatible service response %#', async (upstream) => {
+    fetcher.mockResolvedValue(upstream)
+    const response = await GET(request('oauth/authorize'), context('oauth/authorize'))
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Location')).toBeNull()
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect((await response.json()).error.message).toContain('must be deployed together')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves the JSON sign-in response used by the authorization screen', async () => {
+    const body = { error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue' } }
+    fetcher.mockResolvedValue(Response.json(body, { status: 401 }))
+    const response = await GET(request('oauth/authorize'), context('oauth/authorize'))
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual(body)
+  })
+
   it.each(['oauth/token', 'api/v1/me', 'api/internal/events/deliver', '../oauth/token', 'api/v1/signing/cap/relay'])('does not proxy arbitrary GET operations: %s', async (path) => {
     expect((await GET(request(path), context(path))).status).toBe(404)
     expect(fetcher).not.toHaveBeenCalled()

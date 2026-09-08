@@ -16,7 +16,7 @@ import {
 import { mcpResource, mcpStateSecret, serviceOrigin } from '@/lib/config'
 import { sha256 } from '@/lib/crypto'
 import { ServiceError } from '@/lib/errors'
-import { createHumanChallenge, publicationStatus } from '@/lib/human-publications'
+import { createHumanChallenge, humanPublicationAuthorReference, publicationStatus } from '@/lib/human-publications'
 import { authenticateBearer, assertPrincipalScope, type OAuthPrincipal } from '@/lib/oauth'
 import { getPublication, listPublications } from '@/lib/publications'
 import { canonicalPublicationSignal, hashPublicationSignal, verifyLibroManifestOnChain } from '@libro/core'
@@ -232,14 +232,15 @@ function createHandler() {
     }, async (ctx) => {
       try {
         const value = principal(ctx)
-        return text({ identityId: value.identityId, authorId: value.authorId, handle: value.handle, scopes: value.scope })
+        return text({ identityId: value.identityId, authorId: value.authorId, handle: value.handle,
+          name: value.name, bio: value.bio, authorReference: humanPublicationAuthorReference(value), scopes: value.scope })
       } catch (error) {
         return toolError(error)
       }
     })
 
     server.registerTool('publish_human', {
-      description: 'Create or resume a human publication. The author completes World ID signing in a Libro page.',
+      description: 'Create or resume a human publication. The author completes World ID signing in a Libro page. For v2, author_reference is optional; if supplied, use the authorReference returned by whoami.',
       inputSchema: z.object({
         publication: z.record(z.string(), z.unknown()),
         clientReference: z.string().min(1).max(256).optional(),

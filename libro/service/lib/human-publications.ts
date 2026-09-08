@@ -25,7 +25,7 @@ function assertPublicationDate(date: string): void {
   }
 }
 
-function expectedReference(principal: OAuthPrincipal) {
+export function humanPublicationAuthorReference(principal: OAuthPrincipal) {
   return {
     namespace: principal.authorNamespace || defaultAuthorNamespace(),
     id: principal.authorId,
@@ -52,10 +52,10 @@ function assertHumanPublication(principal: OAuthPrincipal, value: unknown): Libr
     if (publication.author_id_libro !== principal.authorId) {
       throw new ServiceError('AUTHOR_MISMATCH', 'Legacy publication author id does not match the OAuth identity', 403)
     }
-  } else {
-    const expected = expectedReference(principal)
-    const actual = publication.author_reference ? parseLibroAuthorReference(publication.author_reference) : undefined
-    if (!actual || actual.namespace !== expected.namespace || actual.id !== expected.id) {
+  } else if (publication.author_reference !== undefined) {
+    const expected = humanPublicationAuthorReference(principal)
+    const actual = parseLibroAuthorReference(publication.author_reference)
+    if (actual.namespace !== expected.namespace || actual.id !== expected.id) {
       throw new ServiceError('NAMESPACE_MISMATCH', 'Publication author reference does not match the client namespace', 403)
     }
   }

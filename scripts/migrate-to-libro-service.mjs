@@ -1,5 +1,5 @@
 import pg from 'pg'
-import { canonicalPublicationSignal, hashPublicationSignal, isLegacyPublicationProof, parseLegacyPublication, parseLibroPublication } from '@libro/core'
+import { canonicalPublicationSignal, hashPublicationSignal, isLegacyPublicationProof, parseLegacyPublication, parseLibroAuthorReference, parseLibroPublication } from '@libro/core'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -49,6 +49,13 @@ async function upsertIdentity(target, row) {
 }
 
 export async function copyAll(source, target, options) {
+  const originClientId = process.env.LIBRO_OAUTH_CLIENT_ID || null
+  const namespace = originClientId
+    ? parseLibroAuthorReference({ namespace: required('LIBRO_AUTHOR_NAMESPACE'), id: 'configuration-check' }).namespace
+    : null
+  if (namespace && namespace !== new URL(required('NEXT_PUBLIC_APP_URL')).origin) {
+    throw new Error('LIBRO_AUTHOR_NAMESPACE must match the NEXT_PUBLIC_APP_URL origin')
+  }
   const report = {
     identities: 0, handles: 0, challenges: 0, publications: 0, humanRegistrations: 0,
     agents: 0, agentDocuments: 0, legacyPublications: 0, legacyAuthors: 0, signalMismatches: [], targetCounts: {}, countMismatches: [],
@@ -65,12 +72,10 @@ export async function copyAll(source, target, options) {
   report.identities = identities.rowCount || 0
   if (!options.dryRun) for (const row of identities.rows) await upsertIdentity(target, row)
 
-  const originClientId = process.env.LIBRO_OAUTH_CLIENT_ID || null
   if (!options.dryRun && originClientId) {
     const secret = required('LIBRO_OAUTH_CLIENT_SECRET')
     const redirectUri = required('LIBRO_OAUTH_REDIRECT_URI')
     const resource = required('LIBRO_OAUTH_RESOURCE')
-    const namespace = required('LIBRO_AUTHOR_NAMESPACE')
     await target.query(
       `INSERT INTO libro_oauth_clients
         (id, client_type, secret_hash, redirect_uris, resource, display_name,

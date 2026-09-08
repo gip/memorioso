@@ -45,6 +45,16 @@ hours old. Client metadata documents are preferred, pre-registration is supporte
 and dynamic registration is a compatibility fallback. Neither discovered nor dynamically
 registered clients receive a trusted author-reference namespace.
 
+Human v2 publications may omit `author_reference`. When supplying it, use the exact
+`authorReference` returned by MCP `whoami`; other namespaces or author IDs are rejected.
+For Memorioso, `LIBRO_AUTHOR_NAMESPACE` must equal the `NEXT_PUBLIC_APP_URL` origin,
+without a path or trailing slash. The copy command validates this before database access.
+Older configuration examples used `https://memorioso.xyz/authors`, which cannot match a
+canonical publication reference. If that value was already seeded, correct the environment
+and the pre-registered client's `libro_oauth_clients.author_namespace` in the Libro database
+to `https://memorioso.xyz` after verifying its client ID and deployment origin. Do not rerun
+the data copy after cutover to repair this setting, or rewrite existing signed payloads.
+
 ## P1 cutover prerequisites
 
 For databases containing historical World ID publications, also apply Memorioso migration **023**

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
@@ -13,6 +13,20 @@ const signal = { author_id_libro: authorId, author_name_libro: 'Historical autho
   publication_date: '2024-01-01T12:00:00.000Z', publication_title: 'Historical text',
   publication_subtitle: '', publication_content: { html: '<p>Unchanged legacy prose</p>' } }
 let source, target
+
+describe('migration namespace preflight', () => {
+  afterEach(() => vi.unstubAllEnvs())
+  it.each([false, true])('rejects invalid namespace configuration before database access (dryRun=%s)', async (dryRun) => {
+    vi.stubEnv('LIBRO_OAUTH_CLIENT_ID', 'memorioso')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://memorioso.test')
+    const database = { query: vi.fn() }
+    for (const namespace of ['https://memorioso.test/authors', 'https://another.test']) {
+      vi.stubEnv('LIBRO_AUTHOR_NAMESPACE', namespace)
+      await expect(copyAll(database, database, { dryRun })).rejects.toThrow()
+    }
+    expect(database.query).not.toHaveBeenCalled()
+  })
+})
 
 describe.skipIf(!url)('legacy publication copy with Postgres', () => {
   beforeAll(async () => {

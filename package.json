@@ -22,14 +22,16 @@
     "test": "vitest run",
     "db:init": "node scripts/init-db.mjs",
     "db:migrate": "node scripts/migrate-db.mjs",
+    "libro:migrate:dry-run": "node scripts/migrate-to-libro-service.mjs --dry-run",
+    "libro:migrate": "node scripts/migrate-to-libro-service.mjs",
     "libro:core:check": "pnpm --filter @libro/core check",
     "extension:build": "pnpm --filter @libro/chrome-extension build",
     "extension:build:stage": "pnpm --filter @libro/chrome-extension build:stage",
     "extension:test": "pnpm --filter @libro/chrome-extension test"
   },
   "dependencies": {
-    "@openship/protocol": "0.0.1",
     "@libro/core": "workspace:*",
+    "@openship/protocol": "0.0.3",
     "@radix-ui/react-dialog": "1.1.5",
     "@radix-ui/react-dropdown-menu": "2.1.5",
     "@radix-ui/react-select": "2.1.5",

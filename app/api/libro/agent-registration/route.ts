@@ -9,6 +9,8 @@ import {
 } from '@/lib/libro/agent'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { hashLibroHandle } from '@libro/core'
+import { serviceUserRequest } from '@/lib/libro-service/client'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type CreateAgentRegistrationRequest = {
   authorId?: unknown
@@ -51,6 +53,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: 'Author not found' }, { status: 404 })
     }
 
+    if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') {
+      const result = await serviceUserRequest(authenticatedUser.id, 'profile', '/api/v1/agent-registrations')
+      return NextResponse.json({ success: true, ...result as object })
+    }
     const { rows } = await client.query(
       `SELECT id, registration_hash, handle_hash, controller_address, agent_address,
         scope, valid_from, expires_at, finalized_at, revoked_at, created_at
@@ -67,6 +73,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser()
 
   if (!authenticatedUser) {

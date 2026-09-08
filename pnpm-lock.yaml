@@ -12,8 +12,8 @@ importers:
         specifier: workspace:*
         version: link:libro/core
       '@openship/protocol':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: 0.0.3
+        version: 0.0.3
       '@radix-ui/react-dialog':
         specifier: 1.1.5
         version: 1.1.5(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -230,6 +230,64 @@ importers:
         specifier: ^2.21.10
         version: 2.48.11(typescript@5.7.3)(zod@4.4.3)
     devDependencies:
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@20.19.41)(happy-dom@20.0.0)(vite@8.1.5(@types/node@20.19.41)(jiti@1.21.7))
+
+  libro/service:
+    dependencies:
+      '@libro/core':
+        specifier: workspace:*
+        version: link:../core
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@openship/protocol':
+        specifier: 0.0.3
+        version: 0.0.3
+      '@worldcoin/idkit':
+        specifier: 4.2.2
+        version: 4.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@worldcoin/minikit-js':
+        specifier: 2.0.3
+        version: 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3)(zod@4.4.3))(zod@4.4.3)
+      mcp-handler:
+        specifier: ^2.1.0
+        version: 2.1.1(@modelcontextprotocol/server@2.0.0)(next@16.3.1(@types/node@20.19.41)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
+      next:
+        specifier: ^16.3.1
+        version: 16.3.1(@types/node@20.19.41)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+      viem:
+        specifier: ^2.21.10
+        version: 2.48.11(typescript@5.7.3)(zod@4.4.3)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      '@types/react':
+        specifier: ^18
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18
+        version: 18.3.7(@types/react@18.3.28)
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -502,6 +560,14 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@modelcontextprotocol/core@2.0.0':
+    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/server@2.0.0':
+    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+    engines: {node: '>=20'}
+
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
 
@@ -604,8 +670,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@openship/protocol@0.0.1':
-    resolution: {integrity: sha512-qg8S5BG6WTG75dEHHqBp6NJIHzAU+WL2+9PZDdTYStPXPXMPhfadlpvAe5PelRraXRRqoxLMmamUkrqFOPgSZA==}
+  '@openship/protocol@0.0.3':
+    resolution: {integrity: sha512-X0rV6Ukl0j7miGgdUp+mUTIl0zg5mXOrXj1Wd4De8D8uD5OxfveOkjISH4UA3EJzEUvIfawAYsTGlSgP7+KZ7Q==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -1793,6 +1859,10 @@ packages:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
 
+  chalk@5.6.2:
+    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+
   chokidar@3.6.0:
     resolution: {integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==}
     engines: {node: '>= 8.10.0'}
@@ -1816,6 +1886,10 @@ packages:
 
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
+
+  commander@11.1.0:
+    resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
+    engines: {node: '>=16'}
 
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
@@ -2684,6 +2758,17 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  mcp-handler@2.1.1:
+    resolution: {integrity: sha512-D/PAwxF9TexmixJY+FZMgYq9SSbGm3vtcUjwUHZ8tYYuOtGT3/KgAKBjO3UJZoXgW8nHDtv8ySOICMEZPD0b/Q==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.0.0
+      next: '>=13.0.0'
+    peerDependenciesMeta:
+      next:
+        optional: true
 
   mdurl@2.0.0:
     resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
@@ -3965,6 +4050,15 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@modelcontextprotocol/core@2.0.0':
+    dependencies:
+      zod: 4.4.3
+
+  '@modelcontextprotocol/server@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      zod: 4.4.3
+
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
       '@emnapi/core': 1.10.0
@@ -4035,7 +4129,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@openship/protocol@0.0.1':
+  '@openship/protocol@0.0.3':
     dependencies:
       '@noble/hashes': 2.3.0
 
@@ -5169,6 +5263,8 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
+  chalk@5.6.2: {}
+
   chokidar@3.6.0:
     dependencies:
       anymatch: 3.1.3
@@ -5200,6 +5296,8 @@ snapshots:
       color-name: 1.1.4
 
   color-name@1.1.4: {}
+
+  commander@11.1.0: {}
 
   commander@4.1.1: {}
 
@@ -6182,6 +6280,14 @@ snapshots:
       uc.micro: 2.1.0
 
   math-intrinsics@1.1.0: {}
+
+  mcp-handler@2.1.1(@modelcontextprotocol/server@2.0.0)(next@16.3.1(@types/node@20.19.41)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)):
+    dependencies:
+      '@modelcontextprotocol/server': 2.0.0
+      chalk: 5.6.2
+      commander: 11.1.0
+    optionalDependencies:
+      next: 16.3.1(@types/node@20.19.41)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
 
   mdurl@2.0.0: {}
 

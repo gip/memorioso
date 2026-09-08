@@ -51,6 +51,13 @@ describe('the repository manifest', () => {
 })
 
 describe('verifyManifest', () => {
+  it('refuses workspace environment files even when explicitly listed', () => {
+    const root = fixture({ files: [{ path: 'libro/service/.env.local' }] }, {
+      'libro/service/.env.local': 'SESSION_SECRET=test-secret',
+    })
+    expect(verifyManifest(readManifest(root), root).length).toBeGreaterThan(0)
+  })
+
   it('accepts a tree that matches', () => {
     const root = fixture({ files: [{ path: 'a.txt' }, { path: 'dir/b.txt' }] }, {
       'a.txt': 'a',

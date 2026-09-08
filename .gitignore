@@ -14,6 +14,7 @@ node_modules/
 
 # next.js
 /.next/
+/libro/service/.next/
 /out/
 
 # production

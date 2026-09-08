@@ -21,6 +21,7 @@ type VerifyBody = {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') return NextResponse.json({ success: false, message: 'Reconnect using the current Libro extension' }, { status: 410 })
   const body = await request.json().catch(() => null) as VerifyBody | null
   if (typeof body?.attemptId !== 'string' || !body.idkitResult) {
     return NextResponse.json({ success: false, message: 'Login attempt and World ID result are required' }, { status: 400 })

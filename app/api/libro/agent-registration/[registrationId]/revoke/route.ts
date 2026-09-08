@@ -4,6 +4,7 @@ import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import { libroRegistryAbi } from '@/lib/libro/contract'
+import { serviceUserRequest } from '@/lib/libro-service/client'
 
 export async function PUT(
   _req: Request,
@@ -13,6 +14,17 @@ export async function PUT(
 
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
+  }
+
+  if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') {
+    const { registrationId } = await params
+    try {
+      const result = await serviceUserRequest(authenticatedUser.id, 'revoke_agent',
+        `/api/v1/agent-registrations/${encodeURIComponent(registrationId)}/revoke`, 'PUT')
+      return NextResponse.json({ success: true, ...result as object })
+    } catch (error) {
+      return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Libro revocation failed' }, { status: 502 })
+    }
   }
 
   let agentConfig

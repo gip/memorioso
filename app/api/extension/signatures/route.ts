@@ -18,6 +18,7 @@ import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/
 import { getLibroServerConfig } from '@/lib/libro/config'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
 import { normalizedUnicodeLength } from '@libro/core'
+import { createServiceHumanPublication } from '@/lib/libro-service/client'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getExtensionSession(request)
@@ -53,11 +54,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }, { status: 400 })
   }
 
-  let worldIdConfig
+  const serviceWrites = process.env.LIBRO_SERVICE_WRITES_ENABLED === '1'
+  let worldIdConfig: ReturnType<typeof getWorldIdServerConfig> | undefined
   try {
-    worldIdConfig = getWorldIdServerConfig()
-    getLibroServerConfig()
     getMemoriosoAuthorNamespace()
+    if (!serviceWrites) {
+      worldIdConfig = getWorldIdServerConfig()
+      getLibroServerConfig()
+    }
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -114,7 +118,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     })
     const signalText = canonicalPublicationSignal(publication)
     const signalHash = hashPublicationSignal(signalText)
-    const rpContext = createRpContext(worldIdConfig)
+
+    if (serviceWrites) {
+      const clientReference = `memorioso-extension:${draftId}:${signalHash.toLowerCase()}`
+      const challenge = await createServiceHumanPublication({
+        userId: session.user.id,
+        publication,
+        clientReference,
+      })
+      await client.query(
+        `INSERT INTO pending_libro_publications
+          (service_challenge_id, client_reference, "userId", "authorId", "draftId", signal_hash, access)
+         VALUES ($1,$2,$3,$4,$5,$6,'public')
+         ON CONFLICT (service_challenge_id) DO UPDATE SET signal_hash = EXCLUDED.signal_hash`,
+        [challenge.challengeId, clientReference, session.user.id, author.id, draftId, challenge.signalHash.toLowerCase()],
+      )
+      await client.query('COMMIT')
+      return NextResponse.json({
+        success: true,
+        signingId: draftId,
+        draftId,
+        challengeId: challenge.challengeId,
+        normalizedText,
+        author: { id: author.id, name: author.name, handle: author.handle },
+        signalText,
+        signalHash: challenge.signalHash,
+        externalSigningUrl: challenge.signingUrl,
+      }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    const rpContext = createRpContext(worldIdConfig!)
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
@@ -141,8 +174,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       challengeId,
       normalizedText,
       author: { id: author.id, name: author.name, handle: author.handle },
-      appId: worldIdConfig.appId,
-      environment: worldIdConfig.environment,
+      appId: worldIdConfig!.appId,
+      environment: worldIdConfig!.environment,
       rpContext,
       existingSessionId: author.world_id_session_id,
       signalText,

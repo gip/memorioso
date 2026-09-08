@@ -21,6 +21,7 @@ import {
 import type { WorldIdProofV4 } from '@/types'
 import { isLibroHumanPublication } from '@/lib/world-id/publication'
 import { getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type PrepareRequest = {
   challengeId?: string
@@ -31,6 +32,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const authenticatedUser = await getAuthenticatedUser(req)
   if (!authenticatedUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })

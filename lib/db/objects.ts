@@ -8,6 +8,17 @@ import {
   type PublicationFeedKind,
   type PublicationKind,
 } from '@/lib/publication-kind'
+import {
+  getServiceAuthorCounts,
+  getServicePublication,
+  getServicePublicationBySignal,
+  getServiceSitemapPublications,
+  libroServiceReadsEnabled,
+  listServicePublications,
+  serviceRecordProof,
+  serviceRecordToPublication,
+  serviceSummaryToPublicationInfo,
+} from '@/lib/libro-service/client'
 
 export type { Author, PublicationRecord, Proof, PublicationInfo }
 
@@ -95,6 +106,43 @@ export function mapPublicationInfoRow(row: PublicationInfoRow): PublicationInfo 
   }
 }
 
+async function getLocalPolicy(publicationId: string): Promise<PublicationAccessRecord | null> {
+  const result = await pool.query(
+    'SELECT access, access_price_usd FROM publication_policies WHERE publication_id = $1',
+    [publicationId],
+  )
+  if (!result.rows[0]) return null
+  return {
+    access: result.rows[0].access === 'gated' ? 'gated' : 'public',
+    priceUsd: result.rows[0].access_price_usd === null ? null : String(result.rows[0].access_price_usd),
+  }
+}
+
+async function mapServiceFeed(input: {
+  authorId?: string
+  limit: number
+  offset: number
+  type: PublicationFeedKind
+}): Promise<PublicationInfo[]> {
+  const summaries = await listServicePublications({
+    authorId: input.authorId,
+    limit: input.limit,
+    offset: input.offset,
+    kind: input.type,
+  })
+  if (summaries.length === 0) return []
+  const policies = await pool.query(
+    `SELECT publication_id::text, access FROM publication_policies
+     WHERE publication_id = ANY($1::bigint[])`,
+    [summaries.map((item) => item.id)],
+  )
+  const byId = new Map(policies.rows.map((row) => [String(row.publication_id), row.access === 'gated' ? 'gated' as const : 'public' as const]))
+  return summaries.flatMap((summary) => {
+    const access = byId.get(summary.id)
+    return access ? [serviceSummaryToPublicationInfo(summary, access)] : []
+  })
+}
+
 export const getAuthor = cache(async (authorId: string): Promise<Author | null> => {
   const client = await pool.connect()
   try {
@@ -145,6 +193,11 @@ export const getAuthors = cache(async (userId: string): Promise<Author[]> => {
 })
 
 export const getPublication = cache(async (publicationId: string): Promise<PublicationRecord | null> => {
+  if (libroServiceReadsEnabled()) {
+    if (!await getLocalPolicy(publicationId)) return null
+    const record = await getServicePublication(publicationId)
+    return record ? serviceRecordToPublication(record) : null
+  }
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -165,6 +218,15 @@ export const getPublication = cache(async (publicationId: string): Promise<Publi
 export const getPublicationBySignalHash = cache(async (
   signalHash: string
 ): Promise<PublicationBySignalHash | null> => {
+  if (libroServiceReadsEnabled()) {
+    const policy = await pool.query(
+      'SELECT publication_id::text FROM publication_policies WHERE LOWER(signal_hash) = LOWER($1)',
+      [signalHash],
+    )
+    if (!policy.rows[0]) return null
+    const record = await getServicePublicationBySignal(signalHash)
+    return record ? { publicationId: record.id, publication: serviceRecordToPublication(record) } : null
+  }
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -190,6 +252,11 @@ export const getPublicationBySignalHash = cache(async (
 })
 
 export const getProof = cache(async (publicationId: string): Promise<Proof | null> => {
+  if (libroServiceReadsEnabled()) {
+    if (!await getLocalPolicy(publicationId)) return null
+    const record = await getServicePublication(publicationId)
+    return record ? serviceRecordProof(record) : null
+  }
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -210,6 +277,7 @@ export const getProof = cache(async (publicationId: string): Promise<Proof | nul
 export const getPublicationAccess = cache(async (
   publicationId: string
 ): Promise<PublicationAccessRecord | null> => {
+  if (libroServiceReadsEnabled()) return getLocalPolicy(publicationId)
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -238,6 +306,7 @@ export const getPublicationsByAuthor = cache(async (
   offset: number = 0,
   type: PublicationFeedKind = 'article'
 ): Promise<PublicationInfo[]> => {
+  if (libroServiceReadsEnabled()) return mapServiceFeed({ authorId, limit, offset, type })
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -261,6 +330,7 @@ export const getPublicationsByAuthor = cache(async (
 export type AuthorPublicationCounts = { article: number; short: number }
 
 export const getAuthorPublicationCounts = cache(async (authorId: string): Promise<AuthorPublicationCounts> => {
+  if (libroServiceReadsEnabled()) return getServiceAuthorCounts(authorId)
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -286,6 +356,7 @@ export const getLatestPublications = cache(async (
   offset: number = 0,
   type: PublicationFeedKind = 'article'
 ): Promise<PublicationInfo[]> => {
+  if (libroServiceReadsEnabled()) return mapServiceFeed({ limit, offset, type })
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -310,6 +381,11 @@ export const getPublicationsByUser = async (
   limit: number = 5,
   offset: number = 0
 ): Promise<PublicationInfo[]> => {
+  if (libroServiceReadsEnabled()) {
+    const author = await pool.query('SELECT id::text FROM authors WHERE "userId" = $1', [userId])
+    if (!author.rows[0]) return []
+    return mapServiceFeed({ authorId: author.rows[0].id, limit, offset, type: 'all' })
+  }
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -345,6 +421,10 @@ export type SitemapAuthor = {
 export const getSitemapPublications = async (
   limit: number = SITEMAP_MAX_PUBLICATIONS
 ): Promise<SitemapPublication[]> => {
+  if (libroServiceReadsEnabled()) {
+    const rows = await getServiceSitemapPublications(limit)
+    return rows.map((row) => ({ ...row, lastModified: new Date(row.lastModified) }))
+  }
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
@@ -371,12 +451,19 @@ export const getSitemapAuthors = async (): Promise<SitemapAuthor[]> => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT a.handle,
-              GREATEST(a.modified_at, COALESCE(MAX(p.modified_at), a.modified_at)) AS modified_at
-       FROM authors a
-       LEFT JOIN publications p ON p."authorId" = a.id
-       GROUP BY a.id, a.handle, a.modified_at
-       ORDER BY a.handle`
+      libroServiceReadsEnabled()
+        ? `SELECT a.handle,
+                  GREATEST(a.modified_at, COALESCE(MAX(p.modified_at), a.modified_at)) AS modified_at
+           FROM authors a
+           LEFT JOIN publication_policies p ON p."authorId" = a.id
+           GROUP BY a.id, a.handle, a.modified_at
+           ORDER BY a.handle`
+        : `SELECT a.handle,
+                  GREATEST(a.modified_at, COALESCE(MAX(p.modified_at), a.modified_at)) AS modified_at
+           FROM authors a
+           LEFT JOIN publications p ON p."authorId" = a.id
+           GROUP BY a.id, a.handle, a.modified_at
+           ORDER BY a.handle`
     )
 
     return rows.map((row) => ({

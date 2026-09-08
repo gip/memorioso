@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url'
 import { gzipSync, constants } from 'node:zlib'
 import { computeSourcesDigest } from '@openship/protocol'
 import { readManifest, verifyManifestDetailed } from './openship-manifest.mjs'
+import { composeOpenshipSystems } from '../lib/openship/systems.mjs'
+import { gunzipSync } from 'node:zlib'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const GENERATED_DIR = path.join(REPO_ROOT, 'lib', 'openship', 'generated')
@@ -328,6 +330,12 @@ const main = () => {
     return
   }
 
+  // Validation happens outside the missing-source fallback: invalid design must never ship.
+  const { paths: _paths, bundleGzip, envKeys, ...snapshot } = payload
+  composeOpenshipSystems(
+    { openship: '1.0', capability: 'sources', ...snapshot, env: envKeys },
+    JSON.parse(gunzipSync(bundleGzip).toString('utf8'))
+  )
   mkdirSync(GENERATED_DIR, { recursive: true })
   writeFileSync(GENERATED_FILE, renderModule(payload))
   writeArchive(payload.paths)

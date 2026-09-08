@@ -12,6 +12,7 @@ import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { isWorldIdSessionId, WORLD_ID_ALLOWED_CREDENTIALS } from '@/lib/world-id/constants'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') return NextResponse.json({ success: true, libroAuthEnabled: true })
   const body = await request.json().catch(() => null) as { handle?: unknown, intent?: unknown } | null
   const handle = typeof body?.handle === 'string' ? normalizeUserHandle(body.handle) : ''
   const intent = body?.intent === undefined ? 'login' : body.intent

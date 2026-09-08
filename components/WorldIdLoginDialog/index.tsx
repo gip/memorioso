@@ -29,6 +29,7 @@ type WorldIdLoginDialogProps = {
   onContinue: () => Promise<void>
   continueAs: string | null
   error: string | null
+  lookupUrl?: string
 }
 
 export const WorldIdLoginDialog = ({
@@ -39,6 +40,7 @@ export const WorldIdLoginDialog = ({
   onContinue,
   continueAs,
   error,
+  lookupUrl = '/api/auth/handle',
 }: WorldIdLoginDialogProps) => {
   const [value, setValue] = useState('')
   const [lookup, setLookup] = useState<LookupState>({ status: 'idle' })
@@ -71,7 +73,7 @@ export const WorldIdLoginDialog = ({
     setLookup({ status: 'checking' })
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/auth/handle?handle=${encodeURIComponent(handle)}`, {
+        const response = await fetch(`${lookupUrl}?handle=${encodeURIComponent(handle)}`, {
           cache: 'no-store',
         })
         const body = await response.json() as {
@@ -104,7 +106,7 @@ export const WorldIdLoginDialog = ({
     }, 350)
 
     return () => clearTimeout(timer)
-  }, [value])
+  }, [value, lookupUrl])
 
   const submit = (action: (handle: string) => Promise<void>, handle: string) => {
     setIsSubmitting(true)

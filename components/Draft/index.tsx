@@ -55,6 +55,7 @@ import {
   finalizePublicationWithRetry,
   type FinalizePublishPayload,
 } from '@/lib/libro/finalize-client'
+import { SigningClient } from '@/components/Libro/SigningClient'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 import { createLibroPublicClient, hasMeaningfulPublicationBody } from '@libro/core'
 import {
@@ -510,7 +511,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         if (typeof response.externalSigningUrl === 'string') {
           setExternalSigningUrl(response.externalSigningUrl)
           setPublishStep(1)
-          setPublishStatus('Open Libro to review and sign your publication')
+          setPublishStatus('Sign your publication with World ID')
           await waitForExternalLibroPublication(publishDraftId)
           return
         }
@@ -908,9 +909,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       <DraftEncryptionSetup />
       {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (<>
-        {externalSigningUrl && <p className="my-4 text-center">
-          <a href={externalSigningUrl} target="_blank" rel="noopener noreferrer" className="underline">Open Libro to sign</a>
-        </p>}
+        {externalSigningUrl && <div className="my-4 space-y-3">
+          <SigningClient capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
+        </div>}
         <PublishProgress step={publishStep} status={publishStatus} />
       </>)}
       {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}

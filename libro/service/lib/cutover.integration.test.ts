@@ -43,6 +43,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     await pool.query(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'))
     process.env.LIBRO_SERVICE_WRITES_ENABLED = '1'
     process.env.LIBRO_SERVICE_URL = 'https://libro.test'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://memorioso.test'
     process.env.LIBRO_MCP_STATE_SECRET = 'test-mcp-secret-at-least-thirty-two-bytes'
     process.env.LIBRO_SIGNING_CAPABILITY_SECRET = 'test-signing-secret-at-least-thirty-two-bytes'
     process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS = `0x${'1'.repeat(40)}`

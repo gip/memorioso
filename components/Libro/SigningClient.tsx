@@ -1,5 +1,6 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
 import {
   CredentialRequest,
@@ -11,7 +12,7 @@ import {
 } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
 import { useMiniKit } from '@worldcoin/minikit-js/minikit-provider'
-import { waitForUserOperation } from '@/lib/wallet-receipt'
+import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
 type SigningContext = {
   appId: `app_${string}`
@@ -39,6 +40,10 @@ type SponsorshipContext = {
 
 async function responseBody(response: Response) {
   const body = await response.json().catch(() => null)
+  if (response.status === 401) {
+    window.location.assign(`/libro/identity?continue=${encodeURIComponent(window.location.href)}`)
+    throw new Error('Verify your identity to continue')
+  }
   if (!response.ok) throw new Error(body?.error?.message || `Libro returned HTTP ${response.status}`)
   return body
 }
@@ -62,7 +67,7 @@ export function SigningClient({ capability }: { capability: string }) {
     setError('')
     setStatus('Starting World ID signing…')
     try {
-      const response = await fetch(`/api/v1/signing/${capability}/context`, { method: 'POST' })
+      const response = await fetch(`/api/libro/browser/api/v1/signing/${capability}/context`, { method: 'POST' })
       const body = await responseBody(response)
       if (body.prepared) await complete(body.prepared)
       else { setContext(body); setOpen(true) }
@@ -75,7 +80,7 @@ export function SigningClient({ capability }: { capability: string }) {
   async function beginSponsorship() {
     setError('')
     try {
-      const response = await fetch('/api/v1/sponsorship/context', { method: 'POST' })
+      const response = await fetch('/api/libro/browser/api/v1/sponsorship/context', { method: 'POST' })
       setSponsorship(await responseBody(response))
       setSponsorshipOpen(true)
     } catch (reason) {
@@ -84,7 +89,7 @@ export function SigningClient({ capability }: { capability: string }) {
   }
 
   async function verifySponsorshipProof(payload: IDKitResult) {
-    await responseBody(await fetch('/api/v1/sponsorship/verify', {
+    await responseBody(await fetch('/api/libro/browser/api/v1/sponsorship/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ payload }),
@@ -94,7 +99,7 @@ export function SigningClient({ capability }: { capability: string }) {
 
   async function sign(result: IDKitResultSession) {
     setStatus('Preparing the on-chain registration…')
-    const prepared = await responseBody(await fetch(`/api/v1/signing/${capability}/prepare`, {
+    const prepared = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/prepare`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idkitResult: result }),
@@ -121,7 +126,7 @@ export function SigningClient({ capability }: { capability: string }) {
       if (sent.executedWith !== 'minikit') throw new Error('Open this signing page inside World App to use World wallet')
       submissionMethod = 'world_wallet'
       userOpHash = sent.data.userOpHash
-      await responseBody(await fetch(`/api/v1/signing/${capability}/submission`, {
+      await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/submission`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registrationId: prepared.registrationId, userOpHash }),
       }))
@@ -129,7 +134,7 @@ export function SigningClient({ capability }: { capability: string }) {
       transactionHash = await waitForUserOperation(userOpHash)
     } else if (!transactionHash) {
       setStatus('Requesting Libro-sponsored gas…')
-      const relayed = await responseBody(await fetch(`/api/v1/signing/${capability}/relay`, {
+      const relayed = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/relay`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registrationId: prepared.registrationId }),
@@ -140,7 +145,7 @@ export function SigningClient({ capability }: { capability: string }) {
       submissionMethod = prepared.submissionMethod || 'libro_relayer'
     }
     setStatus('Finalizing the canonical publication…')
-    const finalized = await responseBody(await fetch(`/api/v1/signing/${capability}/finalize`, {
+    const finalized = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/finalize`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ registrationId: prepared.registrationId, submissionMethod, transactionHash, userOpHash }),
@@ -152,17 +157,17 @@ export function SigningClient({ capability }: { capability: string }) {
   return (
     <div>
       {isInstalled === false && !sponsorshipReady && (
-        <p><button type="button" onClick={beginSponsorship}>Enable one-person sponsored gas</button></p>
+        <p><Button type="button" onClick={beginSponsorship}>Enable one-person sponsored gas</Button></p>
       )}
       {sponsorshipReady && <p>Sponsored gas eligibility verified.</p>}
-      <button type="button" onClick={begin} disabled={Boolean(status && status !== 'Published')}>Sign with World ID</button>
+      <Button type="button" onClick={begin} disabled={Boolean(status && status !== 'Published')}>Sign with World ID</Button>
       {status && <p>{status}</p>}
       {error && <p role="alert">{error}</p>}
-      {publicationId && <p>Publication #{publicationId} is finalized. You can return to your MCP client.</p>}
+      {publicationId && <p>Your publication is signed and published.</p>}
       {context && constraints && (
         <IDKitSessionWidget
           open={open}
-          onOpenChange={setOpen}
+          onOpenChange={(value) => { setOpen(value); if (!value) setStatus('') }}
           app_id={context.appId}
           rp_context={context.rpContext}
           require_user_presence={true}

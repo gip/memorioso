@@ -16,6 +16,10 @@ export function serviceOrigin(): string {
   return url.origin
 }
 
+export function browserUrl(path: string): string {
+  return new URL(`/libro${path}`, new URL(required('NEXT_PUBLIC_APP_URL')).origin).toString()
+}
+
 export function mcpResource(): string {
   return new URL('/mcp', serviceOrigin()).toString()
 }

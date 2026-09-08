@@ -9,7 +9,7 @@ import {
   type LibroHumanPublicationPayload,
 } from '@libro/core'
 import { pool } from './db'
-import { defaultAuthorNamespace, serviceOrigin, signingCapabilitySecret } from './config'
+import { defaultAuthorNamespace, browserUrl, signingCapabilitySecret } from './config'
 import { deriveCapability, randomHex, sha256 } from './crypto'
 import { randomUUID } from 'node:crypto'
 import { assertWritesEnabled, ServiceError } from './errors'
@@ -90,7 +90,7 @@ export async function createHumanChallenge(input: {
     return {
       challengeId: existing.rows[0].id,
       signalHash,
-      signingUrl: new URL(`/sign/${existingCapability}`, serviceOrigin()).toString(),
+      signingUrl: browserUrl(`/sign/${existingCapability}`),
       existing: true,
     }
   }
@@ -111,7 +111,7 @@ export async function createHumanChallenge(input: {
   return {
     challengeId: result.rows[0].id as string,
     signalHash,
-    signingUrl: new URL(`/sign/${capability}`, serviceOrigin()).toString(),
+    signingUrl: browserUrl(`/sign/${capability}`),
     existing: false,
   }
 }

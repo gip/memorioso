@@ -14,7 +14,7 @@ import { assertWritesEnabled, ServiceError } from './errors'
 import type { OAuthPrincipal } from './oauth'
 import { chainConfig, prepareAgentAuthorization, relayRegistration, verifyAgentRegistration, waitForRegistration, type HumanRegistrationTransaction } from './chain'
 import { deriveCapability, randomHex, sha256 } from './crypto'
-import { defaultAuthorNamespace, serviceOrigin, signingCapabilitySecret } from './config'
+import { defaultAuthorNamespace, browserUrl, signingCapabilitySecret } from './config'
 import { browserIdentityId } from './session'
 import { assertSessionResult, issueRpContext, sessionCommitment, verifyWithWorld } from './world-id'
 
@@ -85,7 +85,7 @@ export async function createAgentRegistrationChallenge(input: {
   return {
     registrationId: id,
     registrationHash: created.registrationHash,
-    signingUrl: new URL(`/sign-agent/${capability}`, serviceOrigin()).toString(),
+    signingUrl: browserUrl(`/sign-agent/${capability}`),
     payload,
   }
 }

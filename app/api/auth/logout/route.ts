@@ -17,5 +17,8 @@ export async function POST() {
     expires: new Date(0),
   })
 
+  for (const name of ['libro_identity_session', 'libro_world_session_hint', 'libro_oauth_consent']) {
+    response.cookies.set(name, '', { ...getAuthSessionCookieOptions(0), path: '/api/libro/browser', expires: new Date(0) })
+  }
   return response
 }

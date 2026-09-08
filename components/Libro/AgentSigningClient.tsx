@@ -1,9 +1,10 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
-import { waitForUserOperation } from '@/lib/wallet-receipt'
+import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
 type Context = {
   appId: `app_${string}`
@@ -31,14 +32,14 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
   async function begin() {
     setError('')
     try {
-      setContext(await parsed(await fetch(`/api/v1/agent-signing/${capability}/context`, { method: 'POST' })))
+      setContext(await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/context`, { method: 'POST' })))
       setOpen(true)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not start authorization') }
   }
 
   async function authorize(idkitResult: IDKitResultSession) {
     setStatus('Preparing agent authorization…')
-    const prepared = await parsed(await fetch(`/api/v1/agent-signing/${capability}/prepare`, {
+    const prepared = await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/prepare`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idkitResult }),
     }))
     let transactionHash = prepared.transactionHash
@@ -51,9 +52,9 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
       transactionHash = await waitForUserOperation(userOpHash)
     } else if (!transactionHash) {
       setStatus('Requesting sponsored gas…')
-      transactionHash = (await parsed(await fetch(`/api/v1/agent-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
+      transactionHash = (await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
     }
-    await parsed(await fetch(`/api/v1/agent-signing/${capability}/finalize`, {
+    await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/finalize`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transactionHash, userOpHash }),
     }))
@@ -61,7 +62,7 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
   }
 
   return <div>
-    <button type="button" onClick={begin}>Authorize agent with World ID</button>
+    <Button type="button" onClick={begin}>Authorize agent with World ID</Button>
     {status && <p>{status}</p>}
     {error && <p role="alert">{error}</p>}
     {context && <IDKitSessionWidget

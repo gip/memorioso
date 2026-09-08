@@ -87,7 +87,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/db/` contains the Postgres pool, SQL schema, numbered migrations, and cached read helpers.
 - `lib/libro-service/` contains the service HTTP client, encrypted OAuth token store, OAuth state, and legacy-write cutover guard.
 - `libro/core/src/` contains shared canonical payload, proof, and protocol helpers exported as `@libro/core`.
-- `libro/service/` is a separate Next.js app with its own database schema/migrations, OAuth, MCP, signing UI, API, and test configuration. Its `@/` alias resolves within the service.
+- `libro/service/` is a separate Next.js app with its own database schema/migrations, OAuth APIs, MCP, and test configuration. It has no frontend: Memorioso hosts login, consent, and signing under `app/libro/` and `components/Libro/`, using the allowlisted `/api/libro/browser/` proxy. Its `@/` alias resolves within the service.
 - `libro/chrome-extension/` contains the verifier/signing extension and its production/staging builds.
 - `lib/draft-crypto/` contains browser-side draft encryption: the WebCrypto primitives, the key
   wrappers and unlock flow, the per-device key cache, and the row helpers every draft surface reads through.

@@ -1,8 +1,10 @@
+import { browserUrl } from '@/lib/config'
+
 export function GET(request: Request): Response {
   const issuer = new URL(request.url).origin
   return Response.json({
     issuer,
-    authorization_endpoint: `${issuer}/oauth/authorize`,
+    authorization_endpoint: browserUrl('/authorize'),
     token_endpoint: `${issuer}/oauth/token`,
     registration_endpoint: `${issuer}/oauth/register`,
     revocation_endpoint: `${issuer}/oauth/revoke`,

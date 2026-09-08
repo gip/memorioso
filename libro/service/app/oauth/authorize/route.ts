@@ -2,20 +2,12 @@ import { cookies } from 'next/headers'
 import { browserIdentityId, identitySessionCookieOptions } from '@/lib/session'
 import { assertRedirectUri, getClient, issueAuthorizationCode, normalizeScope, WRITE_SCOPES } from '@/lib/oauth'
 import { errorResponse, ServiceError } from '@/lib/errors'
-import { mcpStateSecret, serviceOrigin, WRITE_GRANT_MAX_AGE_SECONDS } from '@/lib/config'
+import { browserUrl, mcpStateSecret, serviceOrigin, WRITE_GRANT_MAX_AGE_SECONDS } from '@/lib/config'
 import { randomToken, signState, verifyState } from '@/lib/crypto'
 import { pool } from '@/lib/db'
 
 const CONSENT_COOKIE = 'libro_oauth_consent'
 type Consent = { identityId: string; requestUrl: string; nonce: string; expiresAt: number }
-const headers = {
-  'Cache-Control': 'no-store',
-  'Content-Type': 'text/html; charset=utf-8',
-  'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-  'Referrer-Policy': 'no-referrer',
-}
-const escape = (text: string) => text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!))
-
 async function authorization(url: URL) {
   const clientId = url.searchParams.get('client_id') || ''
   const redirectUri = url.searchParams.get('redirect_uri') || ''
@@ -42,25 +34,27 @@ async function currentIdentity(scope: string[]) {
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url)
+    if (request.headers.get('accept')?.includes('text/html')) {
+      const destination = new URL(browserUrl('/authorize'))
+      destination.search = url.search
+      return Response.redirect(destination)
+    }
     const input = await authorization(url)
     const identityId = await currentIdentity(input.scope)
     if (!identityId) {
-      const login = new URL('/identity', serviceOrigin())
-      login.searchParams.set('continue', url.toString())
-      return Response.redirect(login)
+      return Response.json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue' } }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
     }
     const nonce = randomToken()
     const token = signState({ identityId, requestUrl: url.toString(), nonce, expiresAt: Date.now() + 600_000 } satisfies Consent, mcpStateSecret())
     const store = await cookies()
     store.set(CONSENT_COOKIE, nonce, { ...identitySessionCookieOptions, maxAge: 600 })
-    return new Response(`<!doctype html><html><head><title>Authorize application</title></head><body><main>
-      <h1>Connect to ${escape(String(input.client.display_name || input.clientId))}?</h1>
-      <p>Client: ${escape(input.clientId)}</p><p>Resource: ${escape(input.resource)}</p>
-      <p>Requested permissions: ${escape(input.scope.join(', '))}</p>
-      <p>Only approve an application you intended to connect. Human publications still require your signature.</p>
-      <form method="post" action="/oauth/authorize"><input type="hidden" name="consent" value="${escape(token)}">
-      <button name="decision" value="approve">Allow access</button> <button name="decision" value="deny">Cancel</button></form>
-      </main></body></html>`, { headers })
+    return Response.json({
+      clientId: input.clientId,
+      displayName: String(input.client.display_name || input.clientId),
+      resource: input.resource,
+      scope: input.scope,
+      consent: token,
+    }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return errorResponse(error) }
 }
 
@@ -86,6 +80,6 @@ export async function POST(request: Request): Promise<Response> {
     destination.searchParams.set('iss', serviceOrigin())
     const state = url.searchParams.get('state')
     if (state) destination.searchParams.set('state', state)
-    return new Response(null, { status: 303, headers: { Location: destination.toString(), 'Cache-Control': 'no-store' } })
+    return Response.json({ redirectUrl: destination.toString() }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return errorResponse(error) }
 }

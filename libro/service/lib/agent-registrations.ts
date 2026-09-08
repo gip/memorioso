@@ -225,8 +225,6 @@ export async function relayAgentSigning(capability: string) {
     if (!row?.transaction) throw new ServiceError('NOT_PREPARED', 'Agent authorization has not been prepared', 409)
     if (row.transaction_hash) hash = row.transaction_hash
     else {
-      const sponsor = await client.query('SELECT 1 FROM libro_sponsorship_bindings WHERE identity_id = $1', [row.identity_id])
-      if (!sponsor.rows[0]) throw new ServiceError('SPONSORSHIP_REQUIRED', 'Sponsorship proof is required for relayed gas', 402)
       await client.query('SELECT pg_advisory_xact_lock($1)', [480001])
       hash = await relayRegistration(row.transaction as HumanRegistrationTransaction)
       await client.query('UPDATE libro_agent_registrations SET transaction_hash = $2 WHERE id = $1', [row.id, hash.toLowerCase()])

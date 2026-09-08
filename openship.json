@@ -895,6 +895,12 @@
       "path": "lib/libro-service/oauth-state.ts"
     },
     {
+      "path": "lib/libro-service/sponsored-transaction.test.ts"
+    },
+    {
+      "path": "lib/libro-service/sponsored-transaction.ts"
+    },
+    {
       "path": "lib/libro-service/token-store.ts"
     },
     {

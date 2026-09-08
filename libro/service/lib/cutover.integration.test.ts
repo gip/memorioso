@@ -12,15 +12,16 @@ const test = vi.hoisted(() => {
     scoped.searchParams.set('options', `-c search_path=${schema},public`)
     process.env.DATABASE_URL = scoped.toString()
   }
-  return { url, schema, identity: '', verifyHuman: vi.fn(), verifyAgent: vi.fn(), verifyRevoke: vi.fn() }
+  return { url, schema, identity: '', verifyHuman: vi.fn(), verifyAgent: vi.fn(), verifyRevoke: vi.fn(), relay: vi.fn(), wait: vi.fn() }
 })
 vi.mock('./session', async (original) => ({ ...await original<object>(), browserIdentityId: async () => test.identity }))
 vi.mock('./chain', async (original) => ({ ...await original<object>(),
   verifyHumanRegistration: test.verifyHuman, verifyAgentRegistration: test.verifyAgent, verifyAgentRevocation: test.verifyRevoke,
+  relayRegistration: test.relay, waitForRegistration: test.wait,
 }))
 import { pool } from './db'
 import { createHumanChallenge, getSigningChallenge } from './human-publications'
-import { finalizeSigning, prepareSigning, signingContext, recordWalletSubmission } from './human-signing'
+import { finalizeSigning, prepareSigning, signingContext, recordWalletSubmission, relaySigning } from './human-signing'
 import { createAgentRegistrationChallenge, finalizeAgentSigning } from './agent-registrations'
 import { revokeAgent } from './agent-revocation'
 import { authenticateBearer, assertPrincipalScope, exchangeAuthorizationCode, issueAuthorizationCode, type OAuthPrincipal } from './oauth'
@@ -62,6 +63,8 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
   beforeEach(async () => {
     const tables = await pool.query('SELECT tablename FROM pg_tables WHERE schemaname = $1', [test.schema])
     await pool.query(`TRUNCATE ${tables.rows.map((row) => `"${test.schema}"."${row.tablename}"`).join(',')} CASCADE`)
+    test.relay.mockReset().mockResolvedValue(hash('a'))
+    test.wait.mockReset().mockResolvedValue(undefined)
     test.verifyHuman.mockResolvedValue(true)
     test.verifyAgent.mockResolvedValue(true)
     test.verifyRevoke.mockResolvedValue(true)
@@ -114,6 +117,25 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
         expires_at_min: 999999999, issuer_schema_id: 1, signal_hash: row.signal_hash }] }
     return { value, capability, proof }
   }
+
+  it('sponsors a verified publication without a separate sponsorship proof and reuses its transaction', async () => {
+    const item = await challenge()
+    const prepared = await prepareSigning(item.capability, item.proof)
+    expect((await pool.query('SELECT * FROM libro_sponsorship_bindings')).rows).toHaveLength(0)
+    expect(await relaySigning(item.capability, prepared.registrationId)).toEqual({ transactionHash: hash('a') })
+    await relaySigning(item.capability, prepared.registrationId)
+    expect(test.relay).toHaveBeenCalledTimes(1)
+    test.identity = randomUUID()
+    await expect(relaySigning(item.capability, prepared.registrationId)).rejects.toMatchObject({ code: 'IDENTITY_MISMATCH' })
+  })
+
+  it('does not relay a publication with a pending World wallet operation', async () => {
+    const item = await challenge()
+    const prepared = await prepareSigning(item.capability, item.proof)
+    await recordWalletSubmission(item.capability, prepared.registrationId, hash('b'))
+    await expect(relaySigning(item.capability, prepared.registrationId)).rejects.toMatchObject({ code: 'SUBMISSION_CONFLICT' })
+    expect(test.relay).not.toHaveBeenCalled()
+  })
 
   it('records an implicit claim and prepares the second publication without claiming again', async () => {
     const first = await challenge()

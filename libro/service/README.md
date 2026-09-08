@@ -75,7 +75,9 @@ migration checksums are unchanged. A fresh `db:init` includes these changes.
 OAuth connects automatically after authentication, without an application approval screen.
 Request binding, origin, PKCE, redirect URI, and scope validation still apply. Login selects an existing session by handle and requires a fresh World
 proof bound to that identity; possession of the handle or session identifier never authenticates.
-The Memorioso signing widgets request user presence. Keep the original World RP and session bindings
+Publication signing uses a fresh, signal-bound Proof of Human session proof without requiring the
+optional World App presence check, matching the draft publisher. Handle claims and agent authorization
+still request user presence. Keep the original World RP and session bindings
 when moving existing identities.
 
 Gas sponsorship is automatic for publications, handle claims, and agent authorization. Memorioso

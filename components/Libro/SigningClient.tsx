@@ -147,7 +147,8 @@ export function SigningClient({ capability }: { capability: string }) {
           }}
           app_id={context.appId}
           rp_context={context.rpContext}
-          require_user_presence={true}
+          // Match draft publishing: require the session proof without optional Face Auth.
+          require_user_presence={false}
           existing_session_id={context.existingSessionId}
           environment={context.environment}
           constraints={constraints}

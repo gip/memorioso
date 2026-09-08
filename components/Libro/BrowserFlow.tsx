@@ -15,7 +15,6 @@ type Review = {
 export function BrowserFlow({ kind, capability, query }: { kind: string; capability?: string; query: string }) {
   const [review, setReview] = useState<Review | null>(null)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const path = kind === 'authorize' ? `/oauth/authorize?${query}` : `/api/v1/browser/${kind}/${encodeURIComponent(capability || '')}`
   useEffect(() => {
@@ -29,36 +28,24 @@ export function BrowserFlow({ kind, capability, query }: { kind: string; capabil
         return
       }
       if (!response.ok) throw new Error(body?.error?.message || 'Could not load this request')
+      if (kind === 'authorize') {
+        const connected = await fetch('/api/libro/browser/oauth/authorize', {
+          method: 'POST', body: new URLSearchParams({ consent: body.consent }),
+        })
+        const result = await connected.json()
+        if (!active) return
+        if (!connected.ok) throw new Error(result?.error?.message || 'Could not connect this application')
+        window.location.assign(result.redirectUrl)
+        return
+      }
       setReview(body)
     }).catch((error) => { if (active) setError(error instanceof Error ? error.message : 'Could not load this request') })
     return () => { active = false }
-  }, [path, attempt])
-
-  async function consent(decision: 'approve' | 'deny') {
-    setBusy(true); setError('')
-    try {
-      const response = await fetch('/api/libro/browser/oauth/authorize', { method: 'POST',
-        body: new URLSearchParams({ consent: review?.consent || '', decision }) })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body?.error?.message || 'Could not authorize this application')
-      window.location.assign(body.redirectUrl)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not authorize this application')
-      setBusy(false)
-    }
-  }
+  }, [path, attempt, kind])
 
   return <div className="space-y-4 py-8">
     {error && <div role="alert"><p>{error}</p><Button onClick={() => { setReview(null); setAttempt((value) => value + 1) }}>Try again</Button></div>}
-    {!review && !error && <p>Loading request…</p>}
-    {review && kind === 'authorize' && <>
-      <h1 className="text-xl font-semibold">Connect to {review.displayName}?</h1>
-      <p className="text-sm text-muted-foreground">{review.clientId}</p>
-      <p>Requested permissions: {review.scope?.join(', ')}</p>
-      <p>Only approve an application you intended to connect. Publications still require your signature.</p>
-      <div className="flex gap-3"><Button disabled={busy} onClick={() => consent('approve')}>Allow access</Button>
-        <Button variant="outline" disabled={busy} onClick={() => consent('deny')}>Cancel</Button></div>
-    </>}
+    {!review && !error && <p>{kind === 'authorize' ? 'Connecting…' : 'Loading request…'}</p>}
     {review?.publication && kind === 'sign' && <>
       <h1 className="text-xl font-semibold">{review.publication.publication_title || 'Untitled short'}</h1>
       {review.publication.publication_subtitle && <p>{review.publication.publication_subtitle}</p>}

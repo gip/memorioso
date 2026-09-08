@@ -5,7 +5,7 @@ handle/session bindings, human and agent publication workflows, OAuth APIs, MCP,
 database, the durable event outbox, chain verification, and the Libro relayer. Memorioso remains a
 client with drafts, local author projections, access policy, feeds, and all browser presentation.
 
-Login, handle selection, OAuth consent, human signing, handle claims, and agent authorization live
+Login, handle selection, OAuth connection, human signing, handle claims, and agent authorization live
 under Memorioso's `/libro/` routes. The login screen reuses the same `WorldIdLoginDialog` as legacy
 Memorioso. Libro's OAuth metadata and MCP signing URLs point to `NEXT_PUBLIC_APP_URL`, which must
 be configured to the Memorioso origin on the service deployment. `LIBRO_SERVICE_URL` remains the
@@ -14,7 +14,7 @@ backend issuer and MCP/API origin. There are no service-hosted login or signing 
 Memorioso's `/api/libro/browser/` proxy allows only the browser operations needed by these screens.
 It forwards only Libro browser cookies, scopes returned cookies to that path, and checks the
 Memorioso Origin on mutations. It never forwards the Memorioso session or OAuth bearer tokens.
-Libro still verifies World proofs and owns consent, identity binding, and canonical writes.
+Libro still verifies World proofs and owns authorization, identity binding, and canonical writes.
 Deploy the updated app and service together. Already-issued service-hosted signing links redirect
 to Memorioso, preserving prepared-operation recovery without serving a Libro frontend.
 
@@ -62,18 +62,18 @@ canonical writes and payment settlements paused while applying 020–022; do not
 inserts and access/price updates synchronized throughout the shadow-copy period. Existing
 migration checksums are unchanged. A fresh `db:init` includes these changes.
 
-OAuth now requires explicit consent for each authorization request. Sign in again to grant the
-new `revoke_agent` scope. Login selects an existing session by handle and requires a fresh World
+OAuth connects automatically after authentication, without an application approval screen.
+Request binding, origin, PKCE, redirect URI, and scope validation still apply. Login selects an existing session by handle and requires a fresh World
 proof bound to that identity; possession of the handle or session identifier never authenticates.
 The Memorioso signing widgets request user presence. Keep the original World RP and session bindings
 when moving existing identities.
 
 Ship the updated extension before removing `WORLD_ID_RP_SIGNING_KEY` from Memorioso. Its **Connect
-with Libro** button opens browser OAuth, then asks the user to approve the extension. A separate,
+with Libro** button opens browser OAuth, then automatically connects the extension. A separate,
 short-lived polling secret delivers the extension token; no OAuth tokens are returned to the
 extension. **Renew Libro authorization** restarts that flow when the write grant ages out. Old
 extension proof-login clients must upgrade. `SESSION_SECRET` also protects extension connection
-consent and token derivation; keep it configured on Memorioso.
+request binding and token derivation; keep it configured on Memorioso.
 
 The existing author panel lists and revokes service-managed agents through authenticated service
 proxies. MCP exposes `revoke_agent`; callers broadcast its prepared transaction using the

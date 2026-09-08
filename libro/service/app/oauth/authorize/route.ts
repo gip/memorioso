@@ -60,23 +60,22 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    if (request.headers.get('origin') !== serviceOrigin()) throw new ServiceError('invalid_request', 'Invalid consent origin', 403)
+    if (request.headers.get('origin') !== serviceOrigin()) throw new ServiceError('invalid_request', 'Invalid authorization origin', 403)
     const form = new URLSearchParams(await request.text())
     const consent = verifyState<Consent>(form.get('consent') || '', mcpStateSecret())
     const store = await cookies()
     if (!consent || !Number.isFinite(consent.expiresAt) || consent.expiresAt <= Date.now() || consent.nonce !== store.get(CONSENT_COOKIE)?.value) {
-      throw new ServiceError('invalid_request', 'Consent expired; start authorization again', 400)
+      throw new ServiceError('invalid_request', 'Authorization expired; start authorization again', 400)
     }
     const url = new URL(consent.requestUrl)
     const input = await authorization(url)
     const identityId = await currentIdentity(input.scope)
     if (!identityId || identityId !== consent.identityId) throw new ServiceError('AUTH_REQUIRED', 'Verify your identity again before authorizing', 401)
-    const decision = form.get('decision')
-    if (decision !== 'approve' && decision !== 'deny') throw new ServiceError('invalid_request', 'Consent decision is required', 400)
     store.set(CONSENT_COOKIE, '', { ...identitySessionCookieOptions, maxAge: 0 })
     const destination = new URL(input.redirectUri)
-    if (decision === 'approve') destination.searchParams.set('code', await issueAuthorizationCode({ ...input, identityId }))
-    else destination.searchParams.set('error', 'access_denied')
+    // Honor cancellation from browser tabs opened before the consent screen was removed.
+    if (form.get('decision') === 'deny') destination.searchParams.set('error', 'access_denied')
+    else destination.searchParams.set('code', await issueAuthorizationCode({ ...input, identityId }))
     destination.searchParams.set('iss', serviceOrigin())
     const state = url.searchParams.get('state')
     if (state) destination.searchParams.set('state', state)

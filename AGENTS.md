@@ -45,7 +45,7 @@ Configuration depends on whether the deployment runs legacy flows or uses the st
   reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
   static routes and an empty feed. Any new prerendered read needs the same guard.
 - `DATABASE_URL_UNPOOLED` is preferred by migrations, with `DATABASE_URL` as fallback.
-- `SESSION_SECRET` for the signed Memorioso session cookie and extension connection consent/token derivation.
+- `SESSION_SECRET` for the signed Memorioso session cookie and extension connection request/token derivation.
 - `NEXT_PUBLIC_APP_URL` for public links.
 - `NEXT_PUBLIC_WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`, and
   `NEXT_PUBLIC_WORLD_ID_ENVIRONMENT` for World ID 4.0. After cutover, only Libro receives the RP signing key; upgrade the extension before removing it from Memorioso.
@@ -87,7 +87,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/db/` contains the Postgres pool, SQL schema, numbered migrations, and cached read helpers.
 - `lib/libro-service/` contains the service HTTP client, encrypted OAuth token store, OAuth state, and legacy-write cutover guard.
 - `libro/core/src/` contains shared canonical payload, proof, and protocol helpers exported as `@libro/core`.
-- `libro/service/` is a separate Next.js app with its own database schema/migrations, OAuth APIs, MCP, and test configuration. It has no frontend: Memorioso hosts login, consent, and signing under `app/libro/` and `components/Libro/`, using the allowlisted `/api/libro/browser/` proxy. Its `@/` alias resolves within the service.
+- `libro/service/` is a separate Next.js app with its own database schema/migrations, OAuth APIs, MCP, and test configuration. It has no frontend: Memorioso hosts login, connection, and signing under `app/libro/` and `components/Libro/`, using the allowlisted `/api/libro/browser/` proxy. Its `@/` alias resolves within the service.
 - `libro/chrome-extension/` contains the verifier/signing extension and its production/staging builds.
 - `lib/draft-crypto/` contains browser-side draft encryption: the WebCrypto primitives, the key
   wrappers and unlock flow, the per-device key cache, and the row helpers every draft surface reads through.
@@ -143,8 +143,8 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - Run Memorioso migrations through 022 before deploying the updated client/extension. Pause canonical writes and payment settlements while applying 020–022; do not ship 020 alone. Migration 021 synchronizes legacy publication policies during shadow copying.
 - Memorioso service reads join canonical Libro data to local `publication_policies`. Preserve local feed membership and policy; do not turn Memorioso feeds into an unfiltered Libro feed.
 - `/api/libro/events` authenticates webhook events, deduplicates them, and updates local projections transactionally. Preserve pending-publication ownership checks and atomic event acknowledgement.
-- Libro OAuth requires explicit consent. Write grants require recent World verification. Handles and session identifiers are lookup values, never authentication. Keep discovered/dynamically registered clients outside trusted author-reference namespaces.
-- The extension connects through browser OAuth followed by extension consent. A separate short-lived polling secret delivers an extension token; do not expose OAuth tokens to the extension or restore legacy proof-login after cutover.
+- Libro OAuth connects automatically after authentication, without a separate consent prompt; preserve request binding, origin, PKCE, redirect URI, and scope validation. Write grants require recent World verification. Handles and session identifiers are lookup values, never authentication. Keep discovered/dynamically registered clients outside trusted author-reference namespaces.
+- The extension connects through browser OAuth followed by automatic extension connection. A separate short-lived polling secret delivers an extension token; do not expose OAuth tokens to the extension or restore legacy proof-login after cutover.
 - Agent revocation is recorded only after a matching on-chain `AgentRevoked` event. Prepared human publications can resume stored transactions past the initial five-minute signing window; preserve operation hashes and recovery without issuing a second proof.
 - Use the checkpointed `pnpm libro:migrate:dry-run` / `pnpm libro:migrate` copy procedure from the service README. After Libro accepts writes, rollback requires a write freeze and validated reverse copy, not simply reversing flags.
 

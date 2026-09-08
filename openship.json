@@ -1468,6 +1468,9 @@
       "path": "libro/service/lib/handles.ts"
     },
     {
+      "path": "libro/service/lib/human-publications.test.ts"
+    },
+    {
       "path": "libro/service/lib/human-publications.ts"
     },
     {

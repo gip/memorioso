@@ -1,6 +1,7 @@
 import {
   extractReadableText,
   parseLibroPublication,
+  parseLegacyPublication,
   type LibroPublicationRecord,
   type LibroPublicationSummary,
 } from '@libro/core'
@@ -12,10 +13,11 @@ function record(row: Record<string, unknown>): LibroPublicationRecord {
   return {
     id: String(row.id),
     authorId: String(row.author_id),
-    identityId: String(row.identity_id),
+    identityId: row.identity_id == null ? null : String(row.identity_id),
     signalHash: String(row.signal_hash) as `0x${string}`,
     authorshipClass: row.authorship_class === 'agent' ? 'agent' : 'human',
-    signal: parseLibroPublication(row.signal),
+    legacyProof: row.legacy_proof === true,
+    signal: row.legacy_proof === true ? parseLegacyPublication(row.signal) : parseLibroPublication(row.signal),
     proof: row.proof,
     version: String(row.version),
     originClientId: row.origin_client_id ? String(row.origin_client_id) : null,
@@ -26,13 +28,14 @@ function record(row: Record<string, unknown>): LibroPublicationRecord {
 }
 
 function summary(row: Record<string, unknown>): LibroPublicationSummary {
-  const signal = parseLibroPublication(row.signal)
+  const signal = row.legacy_proof === true ? parseLegacyPublication(row.signal) : parseLibroPublication(row.signal)
   const text = extractReadableText(signal.publication_content.html)
   return {
     id: String(row.id),
     authorId: String(row.author_id),
     signalHash: String(row.signal_hash) as `0x${string}`,
     authorshipClass: row.authorship_class === 'agent' ? 'agent' : 'human',
+    legacyProof: row.legacy_proof === true,
     publicationDate: signal.publication_date,
     authorName: signal.author_name_libro,
     title: signal.publication_title,

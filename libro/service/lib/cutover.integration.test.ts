@@ -27,6 +27,8 @@ import { authenticateBearer, assertPrincipalScope, exchangeAuthorizationCode, is
 import { POST as mcp } from '../app/mcp/route'
 import { verifyIdentity } from './world-id'
 import { POST as loginContext } from '../app/api/v1/identity/context/route'
+import { getPublication, listPublications } from './publications'
+import { publicationManifest } from './imports'
 
 const hash = (byte: string) => `0x${byte.repeat(64)}` as `0x${string}`
 const sessionId = `session_${'1'.repeat(64)}${'2'.repeat(64)}`
@@ -72,6 +74,27 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     principal = { identityId: test.identity, authorId: test.identity, name: 'Ada', handle: 'ada', bio: '',
       sessionCommitment: hash('1'), clientId: 'client', resource: 'https://libro.test/mcp',
       scope: ['profile', 'publish', 'register_agent', 'revoke_agent'], authorNamespace: null, verifiedAt: new Date().toISOString() }
+  })
+
+  it('serves historical records without granting identity or Libro verification', async () => {
+    const id = randomUUID()
+    const signal = { author_id_libro: id, author_name_libro: 'Historical author', author_bio_libro: '',
+      publication_date: '2024-01-01T12:00:00.000Z', publication_title: 'Historical title',
+      publication_subtitle: '', publication_content: { html: '<p>Original prose</p>' } }
+    const proof = { proof: '0x12', merkle_root: '0x34', nullifier_hash: '0x56', verification_level: 'orb' }
+    await pool.query("INSERT INTO libro_authors (id,name,handle) VALUES ($1,'Historical author','historical')", [id])
+    const row = await pool.query(`INSERT INTO libro_publications
+      (author_id,signal_hash,authorship_class,signal,proof,version,title,date,legacy_proof)
+      VALUES ($1,$2,'human',$3,$4,'1','Historical title','2024-01-01',TRUE) RETURNING id`, [id,hash('3'),signal,proof])
+    const publication = await getPublication(String(row.rows[0].id))
+    expect(publication).toMatchObject({ signal, proof, identityId: null, legacyProof: true })
+    expect((await listPublications({ limit: 10, offset: 0 }))[0]).toMatchObject({ legacyProof: true, title: 'Historical title' })
+    expect(() => publicationManifest(publication!)).toThrow('legacy World ID proof')
+    const login = await loginContext(new Request('https://libro.test/api/v1/identity/context', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'login', handle: 'historical' }),
+    }))
+    expect(login.status).toBe(401)
+    expect((await login.json()).error.code).toBe('IDENTITY_NOT_FOUND')
   })
 
   async function challenge() {

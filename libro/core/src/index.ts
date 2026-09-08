@@ -169,10 +169,11 @@ export type LibroAgentAuthority = {
 export type LibroPublicationRecord = {
   id: string
   authorId: string
-  identityId: string
+  identityId: string | null
   signalHash: Hex
   authorshipClass: 'human' | 'agent'
-  signal: LibroPublicationPayload
+  signal: LibroPublicationPayload | LegacyPublicationPayload
+  legacyProof?: boolean
   proof: unknown
   version: string
   originClientId: string | null
@@ -186,6 +187,7 @@ export type LibroPublicationSummary = {
   authorId: string
   signalHash: Hex
   authorshipClass: 'human' | 'agent'
+  legacyProof?: boolean
   publicationDate: string
   authorName: string
   title: string
@@ -853,6 +855,37 @@ export function parseLibroAuthorReference(value: unknown): LibroAuthorReference 
     throw new Error('author_reference.id must be a trimmed non-empty string of at most 256 characters')
   }
   return { namespace, id }
+}
+
+export type LegacyPublicationPayload = {
+  author_id_libro: string
+  author_name_libro: string
+  author_handle_libro?: string
+  author_bio_libro: string
+  publication_date: string
+  publication_title: string
+  publication_subtitle: string
+  publication_content: { html: string }
+}
+
+/** Historical read/copy compatibility only; never accepted by Libro signing or chain verification. */
+export function parseLegacyPublication(value: unknown): LegacyPublicationPayload {
+  if (!isRecord(value) || 'publication_schema' in value) throw new Error('Not a legacy publication')
+  const allowed = new Set(['author_id_libro', 'author_name_libro', 'author_handle_libro', 'author_bio_libro',
+    'publication_date', 'publication_title', 'publication_subtitle', 'publication_content'])
+  if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error('Unsupported legacy publication field')
+  for (const key of allowed) {
+    if (key !== 'publication_content' && !(key === 'author_handle_libro' && value[key] === undefined)) requireString(value, key)
+  }
+  if (!isRecord(value.publication_content) || typeof value.publication_content.html !== 'string' ||
+      !Number.isFinite(Date.parse(value.publication_date as string))) throw new Error('Invalid legacy publication content or date')
+  return value as LegacyPublicationPayload
+}
+
+export function isLegacyPublicationProof(value: unknown): boolean {
+  return isRecord(value) && value.verification_level === 'orb' &&
+    Object.keys(value).length === 4 && ['proof', 'merkle_root', 'nullifier_hash'].every((key) =>
+      typeof value[key] === 'string' && /^0x[0-9a-f]+$/i.test(value[key] as string))
 }
 
 export function parseLibroPublicationV1(value: unknown): LibroPublicationV1Payload {

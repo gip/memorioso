@@ -1,6 +1,7 @@
 import pg from 'pg'
-import { canonicalPublicationSignal, hashPublicationSignal } from '@libro/core'
+import { canonicalPublicationSignal, hashPublicationSignal, isLegacyPublicationProof, parseLegacyPublication, parseLibroPublication } from '@libro/core'
 import { createHash } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 
 const { Pool } = pg
 
@@ -47,10 +48,10 @@ async function upsertIdentity(target, row) {
   )
 }
 
-async function copyAll(source, target, options) {
+export async function copyAll(source, target, options) {
   const report = {
     identities: 0, handles: 0, challenges: 0, publications: 0, humanRegistrations: 0,
-    agents: 0, agentDocuments: 0, signalMismatches: [], targetCounts: {}, countMismatches: [],
+    agents: 0, agentDocuments: 0, legacyPublications: 0, legacyAuthors: 0, signalMismatches: [], targetCounts: {}, countMismatches: [],
   }
   const identities = await source.query(
     `SELECT u.id AS user_id, u.world_id_session_id, u.world_id_session_commitment,
@@ -119,26 +120,63 @@ async function copyAll(source, target, options) {
 
   const publications = await source.query('SELECT * FROM publications ORDER BY id')
   report.publications = publications.rowCount || 0
+  const identityIds = new Set(identities.rows.map((row) => row.author_id))
+  const historicalAuthors = new Set()
   for (const row of publications.rows) {
-    const expected = signalHashFromProof(row.proof)
+    const legacy = row.version === '1' && isLegacyPublicationProof(row.proof)
+    if (legacy) parseLegacyPublication(row.signal)
+    else parseLibroPublication(row.signal)
     const computed = hashPublicationSignal(canonicalPublicationSignal(row.signal))
+    const expected = legacy ? computed : signalHashFromProof(row.proof)
     if (!expected || expected.toLowerCase() !== computed.toLowerCase()) {
-      report.signalMismatches.push({ publicationId: String(row.id), expected, computed })
+      report.signalMismatches.push({
+        publicationId: String(row.id),
+        reason: expected ? 'hash_mismatch' : 'missing_proof_hash',
+        proofType: row.proof?.proof_type || null,
+        protocolVersion: row.proof?.protocol_version || null,
+        publicationSchema: row.signal?.publication_schema || null,
+        expected,
+        computed,
+      })
       continue
     }
+    if (legacy) {
+      report.legacyPublications += 1
+      if (!identityIds.has(row.authorId) && !historicalAuthors.has(row.authorId)) {
+        historicalAuthors.add(row.authorId)
+        const author = (await source.query('SELECT * FROM authors WHERE id = $1', [row.authorId])).rows[0]
+        if (!author) throw new Error(`Legacy publication ${row.id} has no author`)
+        if (!options.dryRun) await target.query(
+          `INSERT INTO libro_authors (id, identity_id, name, handle, bio, created_at, modified_at)
+           VALUES ($1,NULL,$2,$3,$4,$5,$6)
+           ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, bio=EXCLUDED.bio, modified_at=EXCLUDED.modified_at`,
+          [author.id, author.name, author.handle, author.bio, author.created_at, author.modified_at],
+        )
+      }
+    } else if (!identityIds.has(row.authorId)) throw new Error(`Publication ${row.id} has no migratable identity`)
     if (!options.dryRun) await target.query(
       `INSERT INTO libro_publications
         (id, author_id, identity_id, origin_client_id, client_reference, signal_hash,
-         authorship_class, signal, proof, version, title, subtitle, date, created_at, modified_at)
-       VALUES ($1, $2, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         authorship_class, signal, proof, version, title, subtitle, date, created_at, modified_at, legacy_proof)
+       VALUES ($1, $2, $14, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $15)
        ON CONFLICT (id) DO UPDATE SET signal_hash = EXCLUDED.signal_hash,
          signal = EXCLUDED.signal, proof = EXCLUDED.proof, modified_at = EXCLUDED.modified_at`,
       [row.id, row.authorId, originClientId, expected.toLowerCase(),
         row.proof?.proof_type === 'human_authorized_agent_signature' ? 'agent' : 'human',
-        row.signal, row.proof, row.version, row.title, row.subtitle, row.date, row.created_at, row.modified_at],
+        row.signal, row.proof, row.version, row.title, row.subtitle, row.date, row.created_at, row.modified_at,
+        identityIds.has(row.authorId) ? row.authorId : null, legacy],
+    )
+    if (!options.dryRun && options.linkSourceIdentities && legacy) await source.query(
+      `INSERT INTO publication_policies (publication_id, signal_hash, "authorId", access, access_price_usd, created_at, modified_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (publication_id) DO NOTHING`,
+      [row.id, computed, row.authorId, row.access, row.access_price_usd, row.created_at, row.modified_at],
     )
   }
-  if (report.signalMismatches.length) throw new Error(`Canonical signal mismatch for ${report.signalMismatches.length} publication(s)`)
+  report.legacyAuthors = historicalAuthors.size
+  if (report.signalMismatches.length) {
+    console.error(JSON.stringify({ signalMismatches: report.signalMismatches }, null, 2))
+    throw new Error(`Canonical signal mismatch for ${report.signalMismatches.length} publication(s)`)
+  }
 
   const human = await source.query('SELECT * FROM libro_publish_registrations ORDER BY created_at, id')
   report.humanRegistrations = human.rowCount || 0
@@ -233,6 +271,8 @@ async function copyAll(source, target, options) {
         'UPDATE users SET libro_identity_id = $1 WHERE id = $2 AND libro_identity_id IS DISTINCT FROM $1',
         [row.author_id, row.user_id],
       )
+      await source.query('UPDATE authors SET libro_service_managed = TRUE WHERE id = ANY($1::uuid[])',
+        [[...identityIds, ...historicalAuthors]])
     }
   }
   return report
@@ -265,4 +305,4 @@ async function main() {
   }
 }
 
-await main()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main()

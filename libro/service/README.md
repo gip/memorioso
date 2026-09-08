@@ -34,6 +34,15 @@ registered clients receive a trusted author-reference namespace.
 
 ## P1 cutover prerequisites
 
+For databases containing historical World ID publications, also apply Memorioso migration **023**
+and Libro migration **002** before copying. The copy preserves the original IDs, signed JSON and
+proof JSON. Historical records are explicitly marked `legacyProof`; their derived signal hash is
+a lookup fingerprint, not evidence of a Libro registration. Historical author profiles without
+World ID 4 session bindings have a null identity and cannot authenticate. Libro's chain verification
+and manifest paths reject these records instead of representing them as modern on-chain proofs.
+The final `--link-source-identities` step installs local access policies for historical publications
+and marks copied author projections as service-managed. Feeds, counts and sitemaps retain them.
+
 Run Memorioso migrations through **022** before deploying the updated client or extension. Keep
 canonical writes and payment settlements paused while applying 020–022; do not deploy 020 alone.
 021 backfills policies created since 020 and installs a trigger that keeps legacy publication

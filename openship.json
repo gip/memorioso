@@ -115,6 +115,7 @@
   "ignore": [
     ".claude/**",
     ".env**",
+    "libro/service/.env**",
     ".gstack/**",
     ".next/**",
     ".pnpm-store/**",
@@ -789,6 +790,9 @@
       "path": "lib/db/migrations/022_libro_extension_connections.sql"
     },
     {
+      "path": "lib/db/migrations/023_legacy_publication_policies.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
@@ -1200,6 +1204,9 @@
       "path": "libro/core/src/index.ts"
     },
     {
+      "path": "libro/core/src/legacy.test.ts"
+    },
+    {
       "path": "libro/core/src/verify-chain.test.ts"
     },
     {
@@ -1392,6 +1399,9 @@
       "path": "libro/service/db/migrations/001_initial_service.sql"
     },
     {
+      "path": "libro/service/db/migrations/002_legacy_publications.sql"
+    },
+    {
       "path": "libro/service/db/schema.sql"
     },
     {
@@ -1552,6 +1562,9 @@
     },
     {
       "path": "scripts/migrate-to-libro-service.mjs"
+    },
+    {
+      "path": "scripts/migrate-to-libro-service.test.mjs"
     },
     {
       "path": "scripts/openship-manifest.mjs"

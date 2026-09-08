@@ -91,6 +91,7 @@ export async function importPublication(input: {
 }
 
 export function publicationManifest(publication: LibroPublicationRecord): LibroEmbedManifestV1 {
+  if (publication.legacyProof) throw new ServiceError('LEGACY_PROOF', 'This historical publication has a legacy World ID proof, not a Libro chain registration', 422)
   const imported = publication.proof as { manifest?: unknown }
   if (imported?.manifest) return imported.manifest as LibroEmbedManifestV1
   const proof = publication.proof as Record<string, any>

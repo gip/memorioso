@@ -52,7 +52,7 @@ export function BrowserFlow({ kind, capability, query }: { kind: string; capabil
       <p>By {review.publication.author_name_libro} (@{review.publication.author_handle_libro})</p>
       <h2>Review your publication</h2>
       <pre className="whitespace-pre-wrap break-words">{review.publication.publication_content.html}</pre>
-      <SigningClient capability={capability!} />
+      <SigningClient key={capability} capability={capability!} />
     </>}
     {review && kind === 'sign-agent' && <>
       <h1 className="text-xl font-semibold">Authorize an agent for @{review.handle}</h1>

@@ -97,9 +97,11 @@ registered controller wallet and supply the receipt for finalization. A matching
 `AgentRevoked` event is required before recording revocation locally.
 
 Prepared human publications remain recoverable after the initial five-minute signing window.
-Reopen the signing link and press **Sign with World ID** to resume its stored transaction instead
-of creating another proof. World wallet operation hashes are saved before polling. New, unprepared
-challenges still expire normally. Successful finalization and its handle claim commit together.
+Opening the signing link starts signing automatically, or resumes its stored transaction instead
+of creating another proof. The draft publish action opens World ID directly without a second start
+button. A retry button appears only after a failure or cancellation. World wallet operation hashes
+are saved before polling. New, unprepared challenges still expire normally. Successful finalization
+and its handle claim commit together.
 
 ## Regression verification
 

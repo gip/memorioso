@@ -480,6 +480,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       setIsConfirmOpen(false)
       setError(null)
       setPublishStatus(null)
+      setExternalSigningUrl(null)
       setPublishStep(0)
       publishHostVerifyError.current = null
       setIsEditingDisabled(true)
@@ -512,7 +513,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         if (typeof response.externalSigningUrl === 'string') {
           setExternalSigningUrl(response.externalSigningUrl)
           setPublishStep(1)
-          setPublishStatus('Sign your publication with World ID')
+          setPublishStatus('Signing your publication…')
           await waitForExternalLibroPublication(publishDraftId)
           return
         }
@@ -911,7 +912,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (<>
         {externalSigningUrl && <div className="my-4 space-y-3">
-          <SigningClient capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
+          <SigningClient key={externalSigningUrl} capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
         </div>}
         <PublishProgress step={publishStep} status={publishStatus} />
       </>)}

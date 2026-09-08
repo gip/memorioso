@@ -574,6 +574,9 @@
       "path": "components/Libro/IdentityClient.tsx"
     },
     {
+      "path": "components/Libro/SigningClient.test.tsx"
+    },
+    {
       "path": "components/Libro/SigningClient.tsx"
     },
     {

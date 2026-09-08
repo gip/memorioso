@@ -325,6 +325,12 @@
       "path": "app/api/libro/agent-registration/route.ts"
     },
     {
+      "path": "app/api/libro/browser/[...path]/route.test.ts"
+    },
+    {
+      "path": "app/api/libro/browser/[...path]/route.ts"
+    },
+    {
       "path": "app/api/libro/events/route.ts"
     },
     {
@@ -404,6 +410,9 @@
     },
     {
       "path": "app/layout.tsx"
+    },
+    {
+      "path": "app/libro/[...flow]/page.tsx"
     },
     {
       "path": "app/not-found.tsx"
@@ -551,6 +560,21 @@
     },
     {
       "path": "components/LatestPublications/index.tsx"
+    },
+    {
+      "path": "components/Libro/AgentSigningClient.tsx"
+    },
+    {
+      "path": "components/Libro/BrowserFlow.tsx"
+    },
+    {
+      "path": "components/Libro/ClaimClient.tsx"
+    },
+    {
+      "path": "components/Libro/IdentityClient.tsx"
+    },
+    {
+      "path": "components/Libro/SigningClient.tsx"
     },
     {
       "path": "components/MemMark/index.tsx"
@@ -872,6 +896,12 @@
     },
     {
       "path": "lib/libro-service/token-store.ts"
+    },
+    {
+      "path": "lib/libro-service/wallet-receipt.test.ts"
+    },
+    {
+      "path": "lib/libro-service/wallet-receipt.ts"
     },
     {
       "path": "lib/libro/__tests__/client.test.ts"
@@ -1264,6 +1294,12 @@
       "path": "libro/service/app/api/v1/authors/[idOrHandle]/route.ts"
     },
     {
+      "path": "libro/service/app/api/v1/browser/[kind]/[capability]/route.test.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/browser/[kind]/[capability]/route.ts"
+    },
+    {
       "path": "libro/service/app/api/v1/handle-claims/route.ts"
     },
     {
@@ -1286,6 +1322,15 @@
     },
     {
       "path": "libro/service/app/api/v1/identity/context/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/handle/route.test.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/handle/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/hint/route.ts"
     },
     {
       "path": "libro/service/app/api/v1/identity/verify/route.ts"
@@ -1339,22 +1384,7 @@
       "path": "libro/service/app/api/v1/user-operations/[userOpHash]/route.ts"
     },
     {
-      "path": "libro/service/app/claim/[capability]/ClaimClient.tsx"
-    },
-    {
-      "path": "libro/service/app/claim/[capability]/page.tsx"
-    },
-    {
-      "path": "libro/service/app/globals.css"
-    },
-    {
-      "path": "libro/service/app/identity/IdentityClient.tsx"
-    },
-    {
-      "path": "libro/service/app/identity/page.tsx"
-    },
-    {
-      "path": "libro/service/app/layout.tsx"
+      "path": "libro/service/app/claim/[capability]/route.ts"
     },
     {
       "path": "libro/service/app/mcp/route.test.ts"
@@ -1378,22 +1408,13 @@
       "path": "libro/service/app/oauth/token/route.ts"
     },
     {
-      "path": "libro/service/app/page.tsx"
+      "path": "libro/service/app/route.ts"
     },
     {
-      "path": "libro/service/app/providers.tsx"
+      "path": "libro/service/app/sign-agent/[capability]/route.ts"
     },
     {
-      "path": "libro/service/app/sign-agent/[capability]/AgentSigningClient.tsx"
-    },
-    {
-      "path": "libro/service/app/sign-agent/[capability]/page.tsx"
-    },
-    {
-      "path": "libro/service/app/sign/[capability]/SigningClient.tsx"
-    },
-    {
-      "path": "libro/service/app/sign/[capability]/page.tsx"
+      "path": "libro/service/app/sign/[capability]/route.ts"
     },
     {
       "path": "libro/service/db/migrations/001_initial_service.sql"
@@ -1412,6 +1433,9 @@
     },
     {
       "path": "libro/service/lib/agent-revocation.ts"
+    },
+    {
+      "path": "libro/service/lib/browser-config.test.ts"
     },
     {
       "path": "libro/service/lib/chain.ts"
@@ -1475,12 +1499,6 @@
     },
     {
       "path": "libro/service/lib/sponsorship.ts"
-    },
-    {
-      "path": "libro/service/lib/wallet-receipt.test.ts"
-    },
-    {
-      "path": "libro/service/lib/wallet-receipt.ts"
     },
     {
       "path": "libro/service/lib/world-id.ts"

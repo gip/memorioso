@@ -1,9 +1,10 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { MiniKit } from '@worldcoin/minikit-js'
-import { waitForUserOperation } from '@/lib/wallet-receipt'
+import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
 type Context = {
   appId: `app_${string}`
@@ -27,13 +28,13 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
   const constraints = useMemo(() => CredentialRequest('proof_of_human', { signal }), [signal])
   async function begin() {
     try {
-      setContext(await value(await fetch(`/api/v1/handle-signing/${capability}/context`, { method: 'POST' })))
+      setContext(await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/context`, { method: 'POST' })))
       setOpen(true)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not start handle claim') }
   }
   async function verify(idkitResult: IDKitResultSession) {
     setMessage('Preparing handle claim…')
-    const prepared = await value(await fetch(`/api/v1/handle-signing/${capability}/prepare`, {
+    const prepared = await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/prepare`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idkitResult }),
     }))
     let transactionHash = prepared.transactionHash
@@ -42,15 +43,15 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
       if (sent.executedWith !== 'minikit') throw new Error('World wallet is required')
       transactionHash = await waitForUserOperation(sent.data.userOpHash)
     } else if (!transactionHash) {
-      transactionHash = (await value(await fetch(`/api/v1/handle-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
+      transactionHash = (await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
     }
-    await value(await fetch(`/api/v1/handle-signing/${capability}/finalize`, {
+    await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/finalize`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionHash }),
     }))
     setMessage('Handle claimed. Return to your MCP client.')
   }
   return <div>
-    <button type="button" onClick={begin}>Claim handle with World ID</button>
+    <Button type="button" onClick={begin}>Claim handle with World ID</Button>
     {message && <p>{message}</p>}
     {context && <IDKitSessionWidget open={open} onOpenChange={setOpen}
       app_id={context.appId} rp_context={context.rpContext} require_user_presence={true}

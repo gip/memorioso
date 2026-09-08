@@ -1,6 +1,6 @@
 export async function waitForUserOperation(hash: string): Promise<string> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    const response = await fetch(`/api/v1/user-operations/${encodeURIComponent(hash)}`, { cache: 'no-store' })
+    const response = await fetch(`/api/libro/browser/api/v1/user-operations/${encodeURIComponent(hash)}`, { cache: 'no-store' })
     const body = await response.json().catch(() => null)
     if (response.status !== 202) {
       if (!response.ok) throw new Error(body?.error?.message || 'World wallet receipt lookup failed')

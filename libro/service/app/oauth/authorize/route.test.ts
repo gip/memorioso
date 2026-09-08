@@ -12,7 +12,7 @@ const url = () => 'https://libro.test/oauth/authorize?'+new URLSearchParams({ cl
   resource:'https://libro.test/mcp', code_challenge:'a'.repeat(43), code_challenge_method:'S256', scope:'profile publish', state:'client-state' })
 async function consentToken() {
   const response = await GET(new Request(url()))
-  return { response, html: await response.text() }
+  return { response, body: await response.json() }
 }
 function post(token: string, decision = 'approve', origin = 'https://libro.test') {
   return POST(new Request('https://libro.test/oauth/authorize', { method:'POST', headers:{ Origin:origin }, body:new URLSearchParams({ consent:token, decision }) }))
@@ -23,21 +23,23 @@ describe('OAuth consent', () => {
     process.env.LIBRO_MCP_STATE_SECRET='consent-test-secret-at-least-thirty-two-bytes'
     state.identity='identity-1'; state.verifiedAt=new Date(); state.cookie.clear(); state.issue.mockReset().mockResolvedValue('approved-code')
   })
-  it('GET displays escaped client details without issuing a grant; explicit approval issues the code', async () => {
-    const { response,html }=await consentToken()
+  it('GET returns client details as JSON without issuing a grant; explicit approval issues the code', async () => {
+    const { response,body }=await consentToken()
     expect(response.status).toBe(200)
-    expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;')
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(body.displayName).toBe('<script>bad</script>')
     expect(state.issue).not.toHaveBeenCalled()
-    const token=html.match(/name="consent" value="([^"]+)"/)![1]
+    const token=body.consent
     const approved=await post(token)
-    expect(approved.status).toBe(303)
-    expect(approved.headers.get('location')).toContain('code=approved-code')
-    expect(approved.headers.get('location')).toContain('state=client-state')
+    expect(approved.status).toBe(200)
+    const approvedBody = await approved.json()
+    expect(approvedBody.redirectUrl).toContain('code=approved-code')
+    expect(approvedBody.redirectUrl).toContain('state=client-state')
     expect(state.issue).toHaveBeenCalledWith(expect.objectContaining({ identityId:'identity-1', scope:['profile','publish'] }))
     expect((await post(token)).status).toBe(400)
   })
   it('rejects cross-origin, tampered, wrong-cookie, and wrong-identity approvals', async () => {
-    const {html}=await consentToken();const token=html.match(/name="consent" value="([^"]+)"/)![1]
+    const {body}=await consentToken();const token=body.consent
     expect((await post(token,'approve','https://attacker.test')).status).toBe(403)
     expect((await post(token+'invalid')).status).toBe(400)
     state.identity='another-identity'
@@ -47,10 +49,10 @@ describe('OAuth consent', () => {
     expect(state.issue).not.toHaveBeenCalled()
   })
   it('denial returns access_denied and stale verification requires login', async () => {
-    const {html}=await consentToken();const token=html.match(/name="consent" value="([^"]+)"/)![1]
-    expect((await post(token,'deny')).headers.get('location')).toContain('error=access_denied')
+    const {body}=await consentToken();const token=body.consent
+    expect((await (await post(token,'deny')).json()).redirectUrl).toContain('error=access_denied')
     expect(state.issue).not.toHaveBeenCalled()
     state.verifiedAt=new Date(Date.now()-25*3600000)
-    expect((await GET(new Request(url()))).headers.get('location')).toContain('/identity?continue=')
+    expect((await GET(new Request(url()))).status).toBe(401)
   })
 })

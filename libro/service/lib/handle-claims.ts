@@ -6,7 +6,7 @@ import { pool, type DatabaseClient } from './db'
 import type { OAuthPrincipal } from './oauth'
 import { assertWritesEnabled, ServiceError } from './errors'
 import { deriveCapability, sha256 } from './crypto'
-import { serviceOrigin, signingCapabilitySecret } from './config'
+import { browserUrl, signingCapabilitySecret } from './config'
 import { browserIdentityId } from './session'
 import { assertSessionResult, issueRpContext, sessionCommitment, verifyWithWorld } from './world-id'
 import { prepareHandleClaim, relayRegistration, verifyHandleClaim, waitForRegistration, type HumanRegistrationTransaction } from './chain'
@@ -33,7 +33,7 @@ export async function createHandleClaimChallenge(principal: OAuthPrincipal) {
     [id, principal.identityId, principal.clientId, principal.handle, hashLibroHandle(principal.handle),
       signalText, hashPublicationSignal(signalText), sha256(capability)],
   )
-  return { finalized: false, requestId: id, handle: principal.handle, signingUrl: new URL(`/claim/${capability}`, serviceOrigin()).toString() }
+  return { finalized: false, requestId: id, handle: principal.handle, signingUrl: browserUrl(`/claim/${capability}`) }
 }
 
 export async function getHandleClaimSigningRequest(capability: string) {

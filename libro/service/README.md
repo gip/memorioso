@@ -1,9 +1,22 @@
 # Libro service
 
-`libro/service` is the authoritative identity and publishing service. It owns canonical authors,
-handle/session bindings, human and agent publication workflows, OAuth, MCP, the publication
+`libro/service` is the headless MCP, identity, and publishing service. It has no frontend. It owns canonical authors,
+handle/session bindings, human and agent publication workflows, OAuth APIs, MCP, the publication
 database, the durable event outbox, chain verification, and the Libro relayer. Memorioso remains a
-client with drafts, local author projections, access policy, feeds, and presentation.
+client with drafts, local author projections, access policy, feeds, and all browser presentation.
+
+Login, handle selection, OAuth consent, human signing, handle claims, and agent authorization live
+under Memorioso's `/libro/` routes. The login screen reuses the same `WorldIdLoginDialog` as legacy
+Memorioso. Libro's OAuth metadata and MCP signing URLs point to `NEXT_PUBLIC_APP_URL`, which must
+be configured to the Memorioso origin on the service deployment. `LIBRO_SERVICE_URL` remains the
+backend issuer and MCP/API origin. There are no service-hosted login or signing pages.
+
+Memorioso's `/api/libro/browser/` proxy allows only the browser operations needed by these screens.
+It forwards only Libro browser cookies, scopes returned cookies to that path, and checks the
+Memorioso Origin on mutations. It never forwards the Memorioso session or OAuth bearer tokens.
+Libro still verifies World proofs and owns consent, identity binding, and canonical writes.
+Deploy the updated app and service together. Already-issued service-hosted signing links redirect
+to Memorioso, preserving prepared-operation recovery without serving a Libro frontend.
 
 ## Local setup
 
@@ -52,7 +65,7 @@ migration checksums are unchanged. A fresh `db:init` includes these changes.
 OAuth now requires explicit consent for each authorization request. Sign in again to grant the
 new `revoke_agent` scope. Login selects an existing session by handle and requires a fresh World
 proof bound to that identity; possession of the handle or session identifier never authenticates.
-The service signing widgets request user presence. Keep the original World RP and session bindings
+The Memorioso signing widgets request user presence. Keep the original World RP and session bindings
 when moving existing identities.
 
 Ship the updated extension before removing `WORLD_ID_RP_SIGNING_KEY` from Memorioso. Its **Connect

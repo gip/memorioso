@@ -5,7 +5,12 @@ import { getLibroAccessToken } from './token-store'
 
 type ErrorEnvelope = { error?: { code: string; message: string; retryable: boolean } }
 
-export class LibroServiceUnavailableError extends Error {}
+export class LibroServiceUnavailableError extends Error {
+  constructor(message: string, public readonly status = 502, public readonly code = 'LIBRO_SERVICE_UNAVAILABLE') {
+    super(message)
+    this.name = 'LibroServiceUnavailableError'
+  }
+}
 
 export function libroServiceReadsEnabled(): boolean {
   return process.env.LIBRO_SERVICE_READS_ENABLED === '1'
@@ -122,12 +127,16 @@ export async function createServiceHumanPublication(input: {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ publication: input.publication, clientReference: input.clientReference }),
     cache: 'no-store',
-  })
+  }).catch(() => { throw new LibroServiceUnavailableError('Libro service could not be reached') })
   const body = await response.json().catch(() => null) as {
-    challengeId?: string; signalHash?: string; signingUrl?: string; error?: { message?: string }
+    challengeId?: string; signalHash?: string; signingUrl?: string; error?: { message?: string; code?: string }
   } | null
   if (!response.ok || !body?.challengeId || !body.signalHash || !body.signingUrl) {
-    throw new LibroServiceUnavailableError(body?.error?.message || 'Libro publication challenge failed')
+    throw new LibroServiceUnavailableError(
+      body?.error?.message || 'Libro publication challenge failed',
+      response.ok ? 502 : response.status,
+      body?.error?.code,
+    )
   }
   return body as { challengeId: string; signalHash: string; signingUrl: string }
 }

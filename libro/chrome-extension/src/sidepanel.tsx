@@ -475,7 +475,8 @@ export function App(): JSX.Element {
           app_id={job.context.appId}
           rp_context={job.context.rpContext}
           existing_session_id={job.context.existingSessionId}
-          require_user_presence={true}
+          // Match browser publishing: require the session proof without optional Face Auth.
+          require_user_presence={false}
           environment={job.context.environment}
           constraints={publicationConstraints}
           handleVerify={verifyPublication}

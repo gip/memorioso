@@ -4,9 +4,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SigningClient } from './SigningClient'
 
-const widget = vi.hoisted(() => ({ props: null as null | { open: boolean; onOpenChange: (open: boolean) => void } }))
+const widget = vi.hoisted(() => ({ props: null as null | {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  require_user_presence?: boolean
+  existing_session_id: string
+  constraints: unknown
+} }))
 vi.mock('@worldcoin/idkit', () => ({
-  CredentialRequest: () => ({}),
+  CredentialRequest: (identifier: string, options: { signal: string }) => ({ identifier, ...options }),
   IDKitSessionWidget: (props: typeof widget.props) => { widget.props = props; return null },
 }))
 vi.mock('@/lib/libro-service/sponsored-transaction', () => ({ sendSponsoredWorldTransaction: vi.fn() }))
@@ -54,6 +60,13 @@ describe('automatic publication signing', () => {
     expect(widget.props).toBeNull()
     expect(container.textContent).toContain('signed and published')
     expect(container.querySelector('button')).toBeNull()
+  })
+  it('requests a publication-bound human session proof without optional presence checking', async () => {
+    fetcher.mockResolvedValue(Response.json(context))
+    await mount()
+    expect(widget.props?.require_user_presence).toBe(false)
+    expect(widget.props?.existing_session_id).toBe(context.existingSessionId)
+    expect(widget.props?.constraints).toEqual({ identifier: 'proof_of_human', signal: context.signalText })
   })
   it('shows retry only after an error and restarts when requested', async () => {
     fetcher.mockRejectedValueOnce(new Error('Service unavailable')).mockResolvedValueOnce(Response.json(context))

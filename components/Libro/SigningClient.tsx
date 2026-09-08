@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CredentialRequest,
   IDKitSessionWidget,
@@ -41,28 +41,17 @@ async function responseBody(response: Response) {
 export function SigningClient({ capability }: { capability: string }) {
   const [context, setContext] = useState<SigningContext | null>(null)
   const [open, setOpen] = useState(false)
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState('Starting World ID signing…')
+  const started = useRef(false)
+  const verifying = useRef(false)
   const [error, setError] = useState('')
   const [publicationId, setPublicationId] = useState<string | null>(null)
   const constraints = useMemo(() => context
     ? CredentialRequest('proof_of_human', { signal: context.signalText })
     : null, [context])
 
-  async function begin() {
-    setError('')
-    setStatus('Starting World ID signing…')
-    try {
-      const response = await fetch(`/api/libro/browser/api/v1/signing/${capability}/context`, { method: 'POST' })
-      const body = await responseBody(response)
-      if (body.prepared) await complete(body.prepared)
-      else { setContext(body); setOpen(true) }
-    } catch (reason) {
-      setStatus('')
-      setError(reason instanceof Error ? reason.message : 'Could not start signing')
-    }
-  }
-
   async function sign(result: IDKitResultSession) {
+    verifying.current = true
     setStatus('Preparing the on-chain registration…')
     const prepared = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/prepare`, {
       method: 'PUT',
@@ -72,7 +61,7 @@ export function SigningClient({ capability }: { capability: string }) {
     await complete(prepared)
   }
 
-  async function complete(prepared: Prepared) {
+  const complete = useCallback(async (prepared: Prepared) => {
     if (prepared.publicationId) {
       setPublicationId(prepared.publicationId)
       setStatus('Published')
@@ -117,18 +106,45 @@ export function SigningClient({ capability }: { capability: string }) {
     }))
     setPublicationId(finalized.publicationId)
     setStatus('Published')
-  }
+  }, [capability])
+
+  const begin = useCallback(async () => {
+    verifying.current = false
+    setError('')
+    setStatus('Starting World ID signing…')
+    try {
+      const response = await fetch(`/api/libro/browser/api/v1/signing/${capability}/context`, { method: 'POST' })
+      const body = await responseBody(response)
+      if (body.prepared) await complete(body.prepared)
+      else { setContext(body); setOpen(true) }
+    } catch (reason) {
+      setStatus('')
+      setError(reason instanceof Error ? reason.message : 'Could not start signing')
+    }
+  }, [capability, complete])
+
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    void begin()
+  }, [begin])
 
   return (
     <div>
-      <Button type="button" onClick={begin} disabled={Boolean(status && status !== 'Published')}>Sign with World ID</Button>
+      {error && <Button type="button" onClick={begin}>Try again</Button>}
       {status && <p>{status}</p>}
       {error && <p role="alert">{error}</p>}
       {publicationId && <p>Your publication is signed and published.</p>}
       {context && constraints && (
         <IDKitSessionWidget
           open={open}
-          onOpenChange={(value) => { setOpen(value); if (!value) setStatus('') }}
+          onOpenChange={(value) => {
+            setOpen(value)
+            if (!value && !verifying.current) {
+              setStatus('')
+              setError('Signing was canceled.')
+            }
+          }}
           app_id={context.appId}
           rp_context={context.rpContext}
           require_user_presence={true}

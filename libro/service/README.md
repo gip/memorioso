@@ -78,6 +78,12 @@ proof bound to that identity; possession of the handle or session identifier nev
 The Memorioso signing widgets request user presence. Keep the original World RP and session bindings
 when moving existing identities.
 
+Gas sponsorship is automatic for publications, handle claims, and agent authorization. Memorioso
+uses World App sponsorship when available and otherwise submits the prepared transaction to the
+Libro relayer. No separate sponsorship proof or gas opt-in is required; the action's World ID proof
+and identity-bound signing capability still authorize it. Libro needs its funded
+`LIBRO_RELAYER_PRIVATE_KEY` for this path.
+
 Ship the updated extension before removing `WORLD_ID_RP_SIGNING_KEY` from Memorioso. Its **Connect
 with Libro** button opens browser OAuth, then automatically connects the extension. A separate,
 short-lived polling secret delivers the extension token; no OAuth tokens are returned to the

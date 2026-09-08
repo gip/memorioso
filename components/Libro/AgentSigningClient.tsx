@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
-import { MiniKit } from '@worldcoin/minikit-js'
+import { sendSponsoredWorldTransaction } from '@/lib/libro-service/sponsored-transaction'
 import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
 type Context = {
@@ -44,13 +44,12 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
     }))
     let transactionHash = prepared.transactionHash
     let userOpHash: string | undefined
-    if (!transactionHash && MiniKit.isInstalled()) {
-      setStatus('Approve the agent authorization in World wallet…')
-      const sent = await MiniKit.sendTransaction(prepared.transaction)
-      if (sent.executedWith !== 'minikit') throw new Error('World wallet authorization is required')
-      userOpHash = sent.data.userOpHash
-      transactionHash = await waitForUserOperation(userOpHash)
-    } else if (!transactionHash) {
+    if (!transactionHash) {
+      setStatus('Submitting the agent authorization…')
+      userOpHash = await sendSponsoredWorldTransaction(prepared.transaction) || undefined
+      if (userOpHash) transactionHash = await waitForUserOperation(userOpHash)
+    }
+    if (!transactionHash) {
       setStatus('Requesting sponsored gas…')
       transactionHash = (await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
     }

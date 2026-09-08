@@ -188,8 +188,6 @@ export async function relaySigning(capability: string, registrationId: string) {
       hash = row.transaction_hash
     } else {
       if (row.user_op_hash) throw new ServiceError('SUBMISSION_CONFLICT', 'Resume the pending World wallet operation', 409)
-      const sponsor = await client.query('SELECT 1 FROM libro_sponsorship_bindings WHERE identity_id = $1', [identity.id])
-      if (!sponsor.rows[0]) throw new ServiceError('SPONSORSHIP_REQUIRED', 'A fixed Libro sponsorship proof is required before sponsored gas', 402)
       await client.query('SELECT pg_advisory_xact_lock($1)', [480001])
       hash = await relayRegistration(row.transaction as HumanRegistrationTransaction)
       await client.query('UPDATE libro_human_registrations SET transaction_hash = $2, submission_method = $3 WHERE id = $1', [row.id, hash.toLowerCase(), 'libro_relayer'])

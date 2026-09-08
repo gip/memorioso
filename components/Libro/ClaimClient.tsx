@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
 import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
-import { MiniKit } from '@worldcoin/minikit-js'
+import { sendSponsoredWorldTransaction } from '@/lib/libro-service/sponsored-transaction'
 import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
 type Context = {
@@ -38,11 +38,11 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idkitResult }),
     }))
     let transactionHash = prepared.transactionHash
-    if (!transactionHash && MiniKit.isInstalled()) {
-      const sent = await MiniKit.sendTransaction(prepared.transaction)
-      if (sent.executedWith !== 'minikit') throw new Error('World wallet is required')
-      transactionHash = await waitForUserOperation(sent.data.userOpHash)
-    } else if (!transactionHash) {
+    if (!transactionHash) {
+      const userOpHash = await sendSponsoredWorldTransaction(prepared.transaction)
+      if (userOpHash) transactionHash = await waitForUserOperation(userOpHash)
+    }
+    if (!transactionHash) {
       transactionHash = (await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
     }
     await value(await fetch(`/api/libro/browser/api/v1/handle-signing/${capability}/finalize`, {

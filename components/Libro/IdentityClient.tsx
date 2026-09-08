@@ -57,7 +57,7 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
       continueAs={continueAs} error={error} lookupUrl={`${base}/handle`} />
     {context && <IDKitSessionWidget key={context.rpContext.nonce} open={open} onOpenChange={setOpen}
       app_id={context.appId} rp_context={context.rpContext} environment={context.environment}
-      require_user_presence={true} existing_session_id={context.existingSessionId || undefined}
+      existing_session_id={context.existingSessionId || undefined}
       constraints={constraints} polling={{ interval: 1000, timeout: 120_000 }} handleVerify={verify}
       onError={(code) => setError((current) => current || `World ID login failed: ${code}`)}
       onSuccess={() => {

@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@worldcoin/idkit@4.2.2>@worldcoin/idkit-core': 4.2.4
+
+patchedDependencies:
+  '@worldcoin/idkit-core@4.2.4':
+    hash: a05ec1d1681df77814b47806375e4d038788038a849479629fb45cad77820983
+    path: patches/@worldcoin__idkit-core@4.2.4.patch
+
 importers:
 
   .:
@@ -74,6 +82,9 @@ importers:
       '@worldcoin/idkit':
         specifier: 4.2.2
         version: 4.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@worldcoin/idkit-core':
+        specifier: 4.2.4
+        version: 4.2.4(patch_hash=a05ec1d1681df77814b47806375e4d038788038a849479629fb45cad77820983)
       '@worldcoin/minikit-js':
         specifier: 2.0.3
         version: 2.0.3(react@19.2.6)(typescript@5.7.3)(viem@2.48.11(typescript@5.7.3)(zod@4.4.3))(zod@4.4.3)
@@ -1625,8 +1636,8 @@ packages:
   '@worldcoin/idkit-core@4.2.2':
     resolution: {integrity: sha512-CUqxy6TprCo3RhTpnfaEQbjqhNf2lc9C0Z9FH1KNbodo6MoIqpDvUSytlSP5toDRhlieETiClwlV34masRgovw==}
 
-  '@worldcoin/idkit-core@4.2.3':
-    resolution: {integrity: sha512-XvQ/rUjXAjD8KZugot2BH/qcE1A0EkXHQuBgeC5QHzoJbC9MUhynuSl0EHJek6eer1n8LTWnfGwYJCk+uW7rMQ==}
+  '@worldcoin/idkit-core@4.2.4':
+    resolution: {integrity: sha512-R7nupFbXtk1h0ErnDDlarYlGqnFBLzy96xcMWOHqzkt7Wzs788cyxHZqgJHRsSnWx6LMToxp5kO3zr5N4rBatA==}
 
   '@worldcoin/idkit-server@1.1.1':
     resolution: {integrity: sha512-iO4Kd3QBLzJak3BPz5eIzRjW0kT8Px5c3LbNzvCKMnczLvVSKoWqdvGiJlkK8Dp29KstNI62iv4ak0z8nzui/Q==}
@@ -5016,7 +5027,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@worldcoin/idkit-server': 1.1.1
 
-  '@worldcoin/idkit-core@4.2.3':
+  '@worldcoin/idkit-core@4.2.4(patch_hash=a05ec1d1681df77814b47806375e4d038788038a849479629fb45cad77820983)':
     dependencies:
       '@noble/hashes': 1.8.0
       '@worldcoin/idkit-server': 1.1.1
@@ -5035,7 +5046,7 @@ snapshots:
 
   '@worldcoin/idkit@4.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@worldcoin/idkit-core': 4.2.3
+      '@worldcoin/idkit-core': 4.2.4(patch_hash=a05ec1d1681df77814b47806375e4d038788038a849479629fb45cad77820983)
       qrcode: 1.5.4
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)

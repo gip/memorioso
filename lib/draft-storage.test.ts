@@ -5,6 +5,7 @@ import {
   MAX_DRAFT_CIPHERTEXT_LENGTH,
   parseDraftStorageFields,
 } from './draft-storage'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from './publication-limits'
 
 const envelope = JSON.stringify({ v: 1, alg: 'A256GCM', iv: 'aaaa', ct: 'bbbb' })
 
@@ -86,6 +87,23 @@ describe('parseDraftStorageFields', () => {
       .toEqual({ ok: false, message: 'Draft content is required' })
     expect(parseDraftStorageFields({ title: 'A title', subtitle: 7, content: { html: '' } }))
       .toEqual({ ok: false, message: 'Draft subtitle must be a string' })
+  })
+
+  it('accepts a subtitle at the maximum length and rejects longer subtitles', () => {
+    expect(parseDraftStorageFields({
+      title: 'A title',
+      subtitle: 'x'.repeat(PUBLICATION_SUBTITLE_MAX_LENGTH),
+      content: { html: '' },
+    })).toMatchObject({ ok: true })
+
+    expect(parseDraftStorageFields({
+      title: 'A title',
+      subtitle: 'x'.repeat(PUBLICATION_SUBTITLE_MAX_LENGTH + 1),
+      content: { html: '' },
+    })).toEqual({
+      ok: false,
+      message: `Draft subtitle must be ${PUBLICATION_SUBTITLE_MAX_LENGTH} characters or fewer`,
+    })
   })
 })
 

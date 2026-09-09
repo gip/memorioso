@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import NextLink from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -14,6 +14,7 @@ import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
+import { Textarea } from '@/components/ui/textarea'
 import { Bold, Italic, Strikethrough, Quote, LinkIcon, ImageIcon, List, ListOrdered, ChevronDown, Underline as UnderlineIcon } from 'lucide-react'
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import './editor.css'
 import type { Author } from '@/lib/db/objects'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from '@/lib/publication-limits'
 import { all, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(all)
@@ -135,9 +137,32 @@ export default function Editor({
   const [author, setLocalAuthor] = useState<Author[]>(findAuthor())
   const [title, setLocalTitle] = useState(initialTitle)
   const [subtitle, setLocalSubtitle] = useState(initialSubtitle)
+  const subtitleRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
+
+  useLayoutEffect(() => {
+    const textarea = subtitleRef.current
+    if (!textarea) return
+
+    const resize = () => {
+      textarea.style.height = '0px'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+    resize()
+
+    let width = textarea.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      const nextWidth = textarea.getBoundingClientRect().width
+      if (nextWidth !== width) {
+        width = nextWidth
+        resize()
+      }
+    })
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [subtitle, editable])
 
   useEffect(() => {
     setLocalAuthor(findAuthor())
@@ -442,17 +467,20 @@ export default function Editor({
         />
         
         {editable || subtitle ? (
-          <Input
-            type="text"
+          <Textarea
+            ref={subtitleRef}
+            rows={1}
+            aria-label="Subtitle"
             value={subtitle}
             onChange={(e) => {
-              const newValue = e.target.value.slice(0, 80);
+              const newValue = e.target.value.slice(0, PUBLICATION_SUBTITLE_MAX_LENGTH);
               setLocalSubtitle(newValue);
               setSubtitle(newValue);
             }}
             placeholder="Add a subtitle..."
-            className="editor-input px-0 text-base text-muted-foreground sm:text-xl
-                       placeholder:text-muted-foreground/30 break-words"
+            maxLength={PUBLICATION_SUBTITLE_MAX_LENGTH}
+            className="editor-input min-h-9 w-full resize-none overflow-hidden border-0 px-0 py-1 text-base leading-7 text-muted-foreground sm:text-xl md:text-xl
+                       placeholder:text-muted-foreground/30 whitespace-pre-wrap break-words"
             readOnly={!editable}
           />
         ) : null}

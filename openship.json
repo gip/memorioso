@@ -193,6 +193,9 @@
       "path": "app/api/auth/libro/start/route.ts"
     },
     {
+      "path": "app/api/auth/logout/route.test.ts"
+    },
+    {
       "path": "app/api/auth/logout/route.ts"
     },
     {
@@ -1343,6 +1346,9 @@
     },
     {
       "path": "libro/service/app/api/v1/identity/hint/route.ts"
+    },
+    {
+      "path": "libro/service/app/api/v1/identity/verify/route.test.ts"
     },
     {
       "path": "libro/service/app/api/v1/identity/verify/route.ts"

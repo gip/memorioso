@@ -34,7 +34,11 @@ export async function POST(request: Request): Promise<Response> {
     store.set(LIBRO_SESSION_COOKIE, createIdentitySession(result.identityId), identitySessionCookieOptions)
     const sessionId = (body.payload as { session_id?: unknown })?.session_id
     if (typeof sessionId === 'string') {
-      store.set(LIBRO_WORLD_SESSION_HINT_COOKIE, createWorldSessionHint(sessionId), identitySessionCookieOptions)
+      store.set(LIBRO_WORLD_SESSION_HINT_COOKIE, createWorldSessionHint(sessionId), {
+        ...identitySessionCookieOptions,
+        // Remember the login name independently of the one-day authenticated session.
+        maxAge: 60 * 60 * 24 * 365,
+      })
     }
     return Response.json({ success: true, identity: result }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {

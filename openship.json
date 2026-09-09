@@ -496,6 +496,9 @@
       "path": "app/terms/page.tsx"
     },
     {
+      "path": "app/world-id/return/page.tsx"
+    },
+    {
       "path": "components.json"
     },
     {
@@ -673,6 +676,18 @@
       "path": "components/WorldIdLoginDialog/index.tsx"
     },
     {
+      "path": "components/WorldIdReturn.test.tsx"
+    },
+    {
+      "path": "components/WorldIdReturn.tsx"
+    },
+    {
+      "path": "components/WorldIdSessionWidget.test.tsx"
+    },
+    {
+      "path": "components/WorldIdSessionWidget.tsx"
+    },
+    {
       "path": "components/YourDraftsButton/index.tsx"
     },
     {
@@ -704,6 +719,9 @@
     },
     {
       "path": "components/ui/textarea.tsx"
+    },
+    {
+      "path": "docs/world-id-mobile-return.md"
     },
     {
       "path": "lib/__tests__/auth-session.test.ts"
@@ -1067,6 +1085,21 @@
     },
     {
       "path": "lib/world-id/constants.ts"
+    },
+    {
+      "path": "lib/world-id/mobile-bridge.test.ts"
+    },
+    {
+      "path": "lib/world-id/mobile-bridge.ts"
+    },
+    {
+      "path": "lib/world-id/mobile-complete.test.ts"
+    },
+    {
+      "path": "lib/world-id/mobile-complete.ts"
+    },
+    {
+      "path": "lib/world-id/mobile-store.ts"
     },
     {
       "path": "lib/world-id/proof.ts"
@@ -1553,6 +1586,9 @@
     },
     {
       "path": "package.json"
+    },
+    {
+      "path": "patches/@worldcoin__idkit-core@4.2.4.patch"
     },
     {
       "path": "pnpm-lock.yaml"

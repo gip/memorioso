@@ -1,7 +1,9 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import { useEffect, useMemo, useState } from 'react'
-import { CredentialRequest, IDKitSessionWidget, any as anyCredential, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
+import { CredentialRequest, any as anyCredential, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { WorldIdLoginDialog } from '@/components/WorldIdLoginDialog'
 
 type Context = { appId: `app_${string}`; environment: 'production' | 'staging'; rpContext: RpContext; existingSessionId: `session_${string}` | null }
@@ -55,7 +57,8 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
       onLogin={(handle) => begin(handle, 'login')} onSignup={(handle) => begin(handle, 'signup')}
       onContinue={() => continueAs ? begin(continueAs, 'login') : Promise.resolve()}
       continueAs={continueAs} error={error} lookupUrl={`${base}/handle`} />
-    {context && <IDKitSessionWidget key={context.rpContext.nonce} open={open} onOpenChange={setOpen}
+    {context && <WorldIdSessionWidget mobileOperation={{ kind: 'identity', handle: pending?.handle ?? '', intent: pending?.intent ?? 'login', destination: continueUrl }}
+      key={context.rpContext.nonce} open={open} onOpenChange={setOpen}
       app_id={context.appId} rp_context={context.rpContext} environment={context.environment}
       existing_session_id={context.existingSessionId || undefined}
       constraints={constraints} polling={{ interval: 1000, timeout: 120_000 }} handleVerify={verify}

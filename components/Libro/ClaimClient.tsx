@@ -1,8 +1,10 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
-import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
+import { CredentialRequest, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { sendSponsoredWorldTransaction } from '@/lib/libro-service/sponsored-transaction'
 import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
@@ -53,7 +55,7 @@ export function ClaimClient({ capability, signal }: { capability: string; signal
   return <div>
     <Button type="button" onClick={begin}>Claim handle with World ID</Button>
     {message && <p>{message}</p>}
-    {context && <IDKitSessionWidget open={open} onOpenChange={setOpen}
+    {context && <WorldIdSessionWidget mobileOperation={{ kind: 'handle-signing', capability }} open={open} onOpenChange={setOpen}
       app_id={context.appId} rp_context={context.rpContext} require_user_presence={true}
           existing_session_id={context.existingSessionId}
       environment={context.environment} constraints={constraints}

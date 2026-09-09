@@ -1,10 +1,11 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import { Button } from '@/components/ui/button'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CredentialRequest,
-  IDKitSessionWidget,
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
@@ -38,7 +39,7 @@ async function responseBody(response: Response) {
 }
 
 
-export function SigningClient({ capability }: { capability: string }) {
+export function SigningClient({ capability, mobilePublication }: { capability: string; mobilePublication?: { draftId: string; kind: 'article' | 'short' } }) {
   const [context, setContext] = useState<SigningContext | null>(null)
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState('Starting World ID signing…')
@@ -136,7 +137,8 @@ export function SigningClient({ capability }: { capability: string }) {
       {error && <p role="alert">{error}</p>}
       {publicationId && <p>Your publication is signed and published.</p>}
       {context && constraints && (
-        <IDKitSessionWidget
+        <WorldIdSessionWidget
+          mobileOperation={{ kind: 'signing', capability, publication: mobilePublication }}
           open={open}
           onOpenChange={(value) => {
             setOpen(value)

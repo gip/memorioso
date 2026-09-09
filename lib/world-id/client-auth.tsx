@@ -1,5 +1,7 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import {
   createContext,
   ReactNode,
@@ -13,12 +15,12 @@ import {
 import { useRouter } from 'next/navigation'
 import {
   CredentialRequest,
-  IDKitSessionWidget,
   any as anyCredential,
   type ConstraintNode,
   type IDKitResultSession,
   type RpContext,
 } from '@worldcoin/idkit'
+import { clearMobileFlows, pruneMobileFlows } from '@/lib/world-id/mobile-store'
 import type { WorldIdSessionResponse, WorldIdSessionUser } from '@/lib/auth-types'
 import { isWorldIdSessionId, WORLD_ID_LOGIN_CREDENTIALS } from '@/lib/world-id/constants'
 import { normalizeUserHandle } from '@/lib/handle'
@@ -164,6 +166,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    try { pruneMobileFlows() } catch { /* Storage can be unavailable in private browsing. */ }
     refreshSession().catch(() => {
       setUser(null)
       setStatus('unauthenticated')
@@ -301,6 +304,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   }, [activeContext, pendingLogin])
 
   const signOut = useCallback(async () => {
+    try { clearMobileFlows() } catch { /* Storage can be unavailable in private browsing. */ }
     setError(null)
     cachedLoginContextRef.current = null
     setIsOpen(false)
@@ -345,7 +349,8 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
         error={error}
       />
       {activeContext && (
-        <IDKitSessionWidget
+        <WorldIdSessionWidget
+          mobileOperation={{ kind: 'login', handle: pendingLogin?.handle ?? '', intent: pendingLogin?.intent ?? 'login' }}
           key={activeContext.rpContext.nonce}
           open={isOpen}
           onOpenChange={(open) => {

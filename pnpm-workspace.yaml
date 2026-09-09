@@ -10,3 +10,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@worldcoin/idkit-core@4.2.1'
   - '@worldcoin/idkit@4.2.0'
+overrides:
+  '@worldcoin/idkit@4.2.2>@worldcoin/idkit-core': 4.2.4
+patchedDependencies:
+  '@worldcoin/idkit-core@4.2.4': patches/@worldcoin__idkit-core@4.2.4.patch

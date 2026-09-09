@@ -46,7 +46,7 @@ export function WorldIdSessionWidget({ mobileOperation, ...props }: Props) {
         const connectorURI = await createMobileRequest(flow, props.constraints, origin)
         if (!mounted.current || !latest.current.open) { started.current = false; return }
         saveMobileFlow({ ...flow, connectorURI })
-        window.location.assign(callbackUrl(id, origin))
+        window.location.assign(`${callbackUrl(id, origin)}&launch=1`)
       } catch (reason) {
         if (!mounted.current) return
         setError(reason instanceof Error ? reason.message : 'Could not save verification on this device')

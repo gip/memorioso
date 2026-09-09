@@ -11,12 +11,14 @@ export function WorldIdReturn() {
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [showRecovery, setShowRecovery] = useState(false)
   useEffect(() => {
     const id = new URL(window.location.href).searchParams.get('flow') || ''
     let active = true
     let running = false
     let stopped = false
     let controller = new AbortController()
+    const recoveryTimer = setTimeout(() => { setShowRecovery(true) }, 4000)
     const tick = async () => {
       if (!active || running || stopped || document.visibilityState === 'hidden') return
       if (controller.signal.aborted) controller = new AbortController()
@@ -31,6 +33,7 @@ export function WorldIdReturn() {
             stopped = true
             setFlow(saved)
             setBusy(false)
+            if (saved.completed.destination) window.location.replace(safeReturnPath(saved.completed.destination, window.location.origin))
             return
           }
           if (!saved.result && !saved.prepared) {
@@ -39,6 +42,14 @@ export function WorldIdReturn() {
             }
             if (!active) return
             setFlow({ ...saved })
+            const url = new URL(window.location.href)
+            if (url.searchParams.get('launch') === '1') {
+              // Consume the launch before leaving so back/reload cannot reopen World App.
+              url.searchParams.delete('launch')
+              window.history.replaceState(window.history.state, '', url.href)
+              window.location.assign(saved.connectorURI)
+              return
+            }
             const result = await pollMobileRequest(saved, controller.signal)
             if (!result) return
             saved.result = result
@@ -76,6 +87,7 @@ export function WorldIdReturn() {
       active = false
       controller.abort()
       clearInterval(timer)
+      clearTimeout(recoveryTimer)
       window.removeEventListener('pageshow', resume)
       window.removeEventListener('pagehide', pause)
       window.removeEventListener('focus', resume)
@@ -95,19 +107,17 @@ export function WorldIdReturn() {
   }
 
   return <main className="mx-auto max-w-md space-y-5 px-4 py-12">
-    <h1 className="text-2xl font-semibold">World ID verification</h1>
     {flow?.completed ? <>
       <p role="status">{flow.completed.message}</p>
-      <Button onClick={() => { void leave() }}>Continue</Button>
     </> : <>
-      <p role="status">{busy ? 'Completing verification…' : 'Verify in World App, then return to this page.'}</p>
-      {!busy && flow?.connectorURI && !error && <Button asChild><a href={flow.connectorURI} rel="noreferrer">Open World App</a></Button>}
-      {!busy && !error && <p className="text-sm text-muted-foreground">If you are not returned automatically, use the back button at the top of World App or switch back to this browser. This page will keep your place.</p>}
+      {!error && <p role="status">{!busy && showRecovery ? 'Waiting for verification in World App…' : 'Completing verification…'}</p>}
+      {showRecovery && !busy && flow?.connectorURI && !error && <Button asChild><a href={flow.connectorURI} rel="noreferrer">Open World App</a></Button>}
+      {showRecovery && !busy && !error && <p className="text-sm text-muted-foreground">If World App did not open, use the button above. After verifying, switch back to this browser if you are not returned automatically.</p>}
       {error && <>
         <p role="alert">{error}</p>
         <Button onClick={() => { setError(''); setAttempt((value) => value + 1) }}>Resume verification</Button>
       </>}
-      <div><Button variant="ghost" disabled={busy} onClick={() => { void leave() }}>Return to Memorioso</Button></div>
     </>}
+    {(error || showRecovery && !flow?.completed?.destination) && <div><Button variant="ghost" disabled={busy} onClick={() => { void leave() }}>Return to Memorioso</Button></div>}
   </main>
 }

@@ -33,6 +33,8 @@ beforeEach(() => {
   vi.mocked(createMobileRequest).mockReset()
   vi.mocked(pollMobileRequest).mockReset().mockResolvedValue(null)
   vi.mocked(completeMobileFlow).mockReset()
+  vi.spyOn(window.location, 'assign').mockImplementation(() => undefined)
+  vi.spyOn(window.location, 'replace').mockImplementation(() => undefined)
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -42,6 +44,7 @@ afterEach(async () => {
   container.remove()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('mobile return page', () => {
@@ -51,9 +54,45 @@ describe('mobile return page', () => {
     expect(createMobileRequest).not.toHaveBeenCalled()
     expect(pollMobileRequest).toHaveBeenCalledTimes(1)
     expect(completeMobileFlow).not.toHaveBeenCalled()
-    expect(container.querySelector('a')?.href).toBe(saved().connectorURI)
+    expect(container.querySelector('a')).toBeNull()
+    expect(window.location.assign).not.toHaveBeenCalled()
     await act(async () => { window.dispatchEvent(new Event('focus')) })
     expect(pollMobileRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('automatically opens the saved connector once and resumes on return without reopening World App', async () => {
+    saveMobileFlow(saved())
+    window.history.replaceState(null, '', `/world-id/return?flow=${id}&launch=1`)
+    await act(async () => root.render(<React.StrictMode><WorldIdReturn /></React.StrictMode>))
+    expect(window.location.assign).toHaveBeenCalledExactlyOnceWith(saved().connectorURI)
+    expect(window.location.search).not.toContain('launch')
+    expect(container.querySelector('button')).toBeNull()
+    await act(async () => { window.dispatchEvent(new Event('pageshow')) })
+    expect(pollMobileRequest).toHaveBeenCalled()
+    expect(window.location.assign).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers a delayed manual fallback if the browser does not open World App', async () => {
+    vi.useFakeTimers()
+    saveMobileFlow(saved())
+    window.history.replaceState(null, '', `/world-id/return?flow=${id}&launch=1`)
+    await act(async () => root.render(<WorldIdReturn />))
+    expect(container.querySelector('a')).toBeNull()
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
+    expect(container.querySelector('a')?.href).toBe(saved().connectorURI)
+  })
+
+  it.each([false, true])('automatically returns to the destination, including a previously completed flow (%s)', async (alreadyCompleted) => {
+    const completed = { message: 'You are signed in.', destination: '/draft/123' }
+    saveMobileFlow({ ...saved(), ...(alreadyCompleted ? { completed } : {}) })
+    vi.mocked(pollMobileRequest).mockResolvedValue({ protocol_version: '4.0', nonce: 'nonce', environment: 'staging', session_id: 'session_test', responses: [] })
+    vi.mocked(completeMobileFlow).mockImplementation(async (flow) => {
+      saveMobileFlow({ ...flow, completed })
+    })
+    await act(async () => root.render(<WorldIdReturn />))
+    expect(window.location.replace).toHaveBeenCalledExactlyOnceWith('/draft/123')
+    expect(completeMobileFlow).toHaveBeenCalledTimes(alreadyCompleted ? 0 : 1)
+    expect(container.textContent).not.toContain('Continue')
   })
 
   it('does not create a replacement proof when an unknown or expired callback arrives', async () => {

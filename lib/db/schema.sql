@@ -8,6 +8,7 @@ CREATE TABLE users
   world_id_session_nullifier TEXT,
   world_id_credential_identifier VARCHAR(255),
   libro_identity_status VARCHAR(16) NOT NULL DEFAULT 'session_bound',
+  libro_identity_id UUID UNIQUE,
   -- Whether this author wants their drafts encrypted. NULL means not yet asked;
   -- 'none' means asked and declined, which is a different thing.
   draft_encryption VARCHAR(16) CHECK (draft_encryption IS NULL OR draft_encryption IN ('passphrase', 'none')),
@@ -36,6 +37,7 @@ CREATE TABLE authors (
     handle VARCHAR(32) NOT NULL UNIQUE,
     bio TEXT,
     avatar TEXT,
+    libro_service_managed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT authors_login_handle_fk FOREIGN KEY ("userId", handle)
@@ -81,13 +83,28 @@ CREATE INDEX idx_publications_author_date
 CREATE INDEX idx_publications_user_date
     ON publications("userId", date DESC);
 
+-- Memorioso presentation policy remains local after Libro becomes authoritative for
+-- canonical publication data. There is intentionally no cross-database foreign key.
+CREATE TABLE publication_policies (
+    publication_id BIGINT PRIMARY KEY,
+    signal_hash VARCHAR(78) NOT NULL UNIQUE,
+    "authorId" UUID NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    origin_client_id TEXT,
+    access VARCHAR(16) NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'gated')),
+    access_price_usd NUMERIC(10, 6) CHECK (access_price_usd IS NULL OR access_price_usd > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_publication_policies_author
+    ON publication_policies("authorId", publication_id DESC);
+
 -- One settled x402 payment unlocks one publication for one payer, forever.
 -- A row is reserved before the transfer is broadcast (settled_at NULL) and completed
 -- once the receipt confirms, so a crash between the two cannot take money without
 -- granting access. The unique authorization_nonce doubles as the broadcast lock.
 CREATE TABLE publication_access_grants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "publicationId" BIGINT NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+    "publicationId" BIGINT NOT NULL REFERENCES publication_policies(publication_id) ON DELETE CASCADE,
     payer_address VARCHAR(42) NOT NULL,
     scheme VARCHAR(16) NOT NULL,
     network VARCHAR(32) NOT NULL,
@@ -140,6 +157,47 @@ CREATE TABLE drafts (
         OR
         (encryption = 'v1' AND ciphertext IS NOT NULL AND title IS NULL AND subtitle IS NULL AND content IS NULL)
     )
+);
+
+CREATE TABLE pending_libro_publications (
+    service_challenge_id UUID PRIMARY KEY,
+    client_reference TEXT NOT NULL UNIQUE,
+    "userId" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "authorId" UUID NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    "draftId" UUID NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+    signal_hash VARCHAR(78) NOT NULL,
+    access VARCHAR(16) NOT NULL CHECK (access IN ('public', 'gated')),
+    access_price_usd NUMERIC(10, 6) CHECK (access_price_usd IS NULL OR access_price_usd > 0),
+    acknowledged_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE ("draftId", signal_hash)
+);
+CREATE INDEX idx_pending_libro_publications_draft
+    ON pending_libro_publications("draftId", created_at DESC);
+
+CREATE TABLE processed_libro_events (
+    event_id UUID PRIMARY KEY,
+    event_type VARCHAR(64) NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE draft_publication_acknowledgements (
+    "draftId" UUID PRIMARY KEY REFERENCES drafts(id) ON DELETE CASCADE,
+    publication_id BIGINT NOT NULL UNIQUE,
+    signal_hash VARCHAR(78) NOT NULL UNIQUE,
+    service_event_id UUID NOT NULL UNIQUE REFERENCES processed_libro_events(event_id) ON DELETE RESTRICT,
+    acknowledged_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE libro_oauth_sessions (
+    "userId" INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    access_token_ciphertext TEXT NOT NULL,
+    refresh_token_ciphertext TEXT NOT NULL,
+    access_expires_at TIMESTAMPTZ NOT NULL,
+    refresh_expires_at TIMESTAMPTZ NOT NULL,
+    scope TEXT[] NOT NULL,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- The author's data key, wrapped once per secret that may open it.
@@ -459,3 +517,53 @@ CREATE TRIGGER update_openship_changes_modified_at
     BEFORE UPDATE ON openship_changes
     FOR EACH ROW
     EXECUTE FUNCTION update_modified_at_column();
+
+-- Keep the legacy writer compatible throughout the shadow-copy period.
+CREATE OR REPLACE FUNCTION sync_legacy_publication_policy() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO publication_policies
+    (publication_id, signal_hash, "authorId", access, access_price_usd, created_at, modified_at)
+  VALUES (NEW.id, LOWER(COALESCE(NEW.proof->>'signal_hash',
+    NEW.proof->'agent_document_signature'->>'document_signal_hash')),
+    NEW."authorId", NEW.access, NEW.access_price_usd, NEW.created_at, NEW.modified_at)
+  ON CONFLICT (publication_id) DO UPDATE SET
+    signal_hash = EXCLUDED.signal_hash, "authorId" = EXCLUDED."authorId",
+    access = EXCLUDED.access, access_price_usd = EXCLUDED.access_price_usd,
+    modified_at = EXCLUDED.modified_at;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_legacy_publication_policy ON publications;
+CREATE TRIGGER sync_legacy_publication_policy AFTER INSERT OR UPDATE ON publications
+FOR EACH ROW EXECUTE FUNCTION sync_legacy_publication_policy();
+
+CREATE TABLE libro_extension_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  poll_hash CHAR(64) NOT NULL UNIQUE,
+  "userId" INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '10 minutes',
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Legacy proofs have no stored signal hash. The copy command installs their derived
+-- lookup hash without modifying the signed payload or the historical proof.
+CREATE OR REPLACE FUNCTION sync_legacy_publication_policy() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE policy_hash TEXT;
+BEGIN
+  policy_hash := LOWER(COALESCE(NEW.proof->>'signal_hash',
+    NEW.proof->'agent_document_signature'->>'document_signal_hash',
+    (SELECT signal_hash FROM publication_policies WHERE publication_id = NEW.id)));
+  IF policy_hash IS NULL THEN RETURN NEW; END IF;
+  INSERT INTO publication_policies
+    (publication_id, signal_hash, "authorId", access, access_price_usd, created_at, modified_at)
+  VALUES (NEW.id, policy_hash, NEW."authorId", NEW.access, NEW.access_price_usd, NEW.created_at, NEW.modified_at)
+  ON CONFLICT (publication_id) DO UPDATE SET
+    signal_hash = EXCLUDED.signal_hash, "authorId" = EXCLUDED."authorId",
+    access = EXCLUDED.access, access_price_usd = EXCLUDED.access_price_usd,
+    modified_at = EXCLUDED.modified_at;
+  RETURN NEW;
+END;
+$$;

@@ -30,13 +30,14 @@ export const MANIFEST_NAME = 'openship.json'
 // would do it. `.env.example` is the deliberate exception: it is tracked, it is published today,
 // and it carries names without values.
 const REFUSED_PATTERNS = ['.env**']
-const REFUSED_EXCEPTIONS = ['.env.example']
+const REFUSED_EXCEPTIONS = ['.env.example', 'libro/chrome-extension/.env.example']
 // Refused at any depth, which the prefix grammar cannot express: a pnpm workspace has a
 // node_modules under every package.
 const REFUSED_SEGMENTS = ['node_modules', '.git']
 
 const isRefused = (filePath) => {
   if (REFUSED_EXCEPTIONS.includes(filePath)) return false
+  if (path.posix.basename(filePath).startsWith('.env')) return true
   if (filePath.split('/').some((segment) => REFUSED_SEGMENTS.includes(segment))) return true
   return matchesAny(filePath, REFUSED_PATTERNS)
 }

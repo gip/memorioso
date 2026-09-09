@@ -50,7 +50,7 @@ type SigningJob = {
   normalizedText?: string
   author?: { id: string; name: string; handle: string }
   context?: Record<string, unknown>
-  stage: 'proof' | 'prepared' | 'relayed' | 'finalized'
+  stage: 'proof' | 'external' | 'prepared' | 'relayed' | 'finalized'
   registrationId?: string
   transactionHash?: string
   publicationId?: string
@@ -86,7 +86,7 @@ function normalizedSigningJob(value: unknown): SigningJob | undefined {
   if (
     typeof raw.draftId !== 'string' || typeof raw.signingId !== 'string' ||
     typeof raw.challengeId !== 'string' ||
-    !['proof', 'prepared', 'relayed', 'finalized'].includes(String(raw.stage))
+    !['proof', 'external', 'prepared', 'relayed', 'finalized'].includes(String(raw.stage))
   ) return undefined
 
   const job: SigningJob = {
@@ -451,7 +451,7 @@ async function currentState(): Promise<Record<string, unknown>> {
   if (job && typeof stored[SESSION_KEY] === 'object') {
     try {
       const recovery = await apiFetch<{
-        stage: 'challenge' | 'prepared' | 'registered' | 'finalized'
+        stage: 'challenge' | 'external' | 'prepared' | 'registered' | 'finalized'
         registrationId?: string
         transactionHash?: string
         publicationId?: string
@@ -523,6 +523,30 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
     case 'LIBRO_HANDLE_LOOKUP':
       if (typeof message.handle !== 'string') throw new Error('A Memorioso handle is required')
       return apiFetch(`/api/auth/handle?handle=${encodeURIComponent(message.handle)}`, {}, false)
+    case 'LIBRO_SERVICE_AUTH_START': {
+      const connection = await apiFetch<{ id: string; pollToken: string; authorizationUrl: string }>('/api/extension/auth/connect', { method: 'POST' }, false)
+      await chrome.storage.session.set({ libroConnection: connection })
+      await chrome.tabs.create({ url: connection.authorizationUrl })
+      return { success: true }
+    }
+    case 'LIBRO_SERVICE_AUTH_POLL': {
+      const storedConnection = await chrome.storage.session.get('libroConnection')
+      const connection = storedConnection.libroConnection as { id: string; pollToken: string } | undefined
+      if (!connection) throw new Error('Start connecting the extension again')
+      const response = await fetch(`${API_ORIGIN}/api/extension/auth/connect/${connection.id}/token`, {
+        method: 'POST', headers: { Authorization: `Bearer ${connection.pollToken}` }, credentials: 'omit',
+      })
+      const result = await response.json()
+      if (response.status === 202) return { success: true, pending: true }
+      if (!response.ok || !result.token) throw new Error(result.message || 'Extension connection failed')
+      await chrome.storage.local.set({ [TOKEN_KEY]: result.token })
+      const session = await apiFetch<Record<string, unknown>>('/api/extension/auth/session')
+      await chrome.storage.local.set({ [SESSION_KEY]: session })
+      await chrome.storage.session.remove('libroConnection')
+      return { success: true, ...session }
+    }
+    case 'LIBRO_AUTH_MODE':
+      return apiFetch('/api/auth/session', {}, false)
     case 'LIBRO_AUTH_CONTEXT':
       return apiFetch('/api/extension/auth/context', {
         method: 'POST',
@@ -585,6 +609,18 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
         method: 'POST',
         body: JSON.stringify({ text: message.text }),
       })
+      if (typeof response.externalSigningUrl === 'string') {
+        const job: SigningJob = {
+          version: SIGNING_JOB_VERSION,
+          draftId: response.draftId as string,
+          signingId: response.signingId as string,
+          challengeId: response.challengeId as string,
+          stage: 'external',
+        }
+        await saveSigningJob(job)
+        await chrome.tabs.create({ url: response.externalSigningUrl })
+        return { success: true, job }
+      }
       const job: SigningJob = {
         version: SIGNING_JOB_VERSION,
         draftId: response.draftId as string,
@@ -629,7 +665,23 @@ async function handleMessage(message: Record<string, unknown>): Promise<unknown>
       const job = await readSigningJob()
       if (!job) throw new Error('No inline signing request is active')
       let finalized: SigningJob
-      if (job.stage === 'finalized' && job.publicationId) {
+      if (job.stage === 'external') {
+        const recovery = await apiFetch<{
+          stage: 'external' | 'finalized'
+          transactionHash?: string
+          publicationId?: string
+        }>(`/api/extension/signatures/${job.signingId}`)
+        if (recovery.stage !== 'finalized' || !recovery.publicationId) {
+          throw new Error('Complete the World ID signature in the Libro tab, then try again')
+        }
+        finalized = {
+          ...job,
+          stage: 'finalized',
+          transactionHash: recovery.transactionHash,
+          publicationId: recovery.publicationId,
+        }
+        await saveSigningJob(finalized)
+      } else if (job.stage === 'finalized' && job.publicationId) {
         finalized = job
       } else {
         if (!job.registrationId || !job.transactionHash) throw new Error('The Libro registration has not been relayed')

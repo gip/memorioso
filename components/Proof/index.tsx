@@ -537,8 +537,8 @@ export const Proof = ({
           ) : (
             <p className="mt-2 text-[14.5px] leading-[1.6] text-muted-foreground">
               Every hash, signature, and transaction above is public and checkable on
-              World Chain. The signed text itself is gated, so the runnable snippet
-              appears once you can read the publication.
+              World Chain. Memorioso hides the runnable snippet until you have local
+              access, but Libro’s canonical public API may expose the complete signed body.
             </p>
           )}
         </section>

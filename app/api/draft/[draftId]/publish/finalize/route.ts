@@ -30,6 +30,7 @@ import {
   getLockedPublishChallenge,
 } from '@/lib/publish-validation'
 import type { WorldIdProofV4 } from '@/types'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type FinalizeRequest = {
   registrationId?: string
@@ -85,6 +86,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ draftId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const requestId = randomUUID()
   const startedAt = Date.now()
   let authenticatedUser

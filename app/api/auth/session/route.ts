@@ -8,5 +8,6 @@ export async function GET() {
     success: true,
     authenticated: Boolean(user),
     user,
+    libroAuthEnabled: process.env.LIBRO_SERVICE_WRITES_ENABLED === '1',
   })
 }

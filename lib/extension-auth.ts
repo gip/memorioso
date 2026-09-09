@@ -145,6 +145,7 @@ export async function getExtensionSession(request: NextRequest): Promise<Extensi
        u.name,
        u.handle,
        u.world_id_session_id,
+       u.libro_identity_id,
        u.world_id_credential_identifier`,
     [hashExtensionToken(token)]
   )
@@ -158,7 +159,7 @@ export async function getExtensionSession(request: NextRequest): Promise<Extensi
       id: row.user_id,
       subject: row.name,
       handle: row.handle,
-      worldIdSessionId: row.world_id_session_id,
+      worldIdSessionId: row.world_id_session_id || `libro_identity_${row.libro_identity_id}`,
       worldIdCredentialIdentifier: row.world_id_credential_identifier,
     },
   }

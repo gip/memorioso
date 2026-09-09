@@ -74,12 +74,15 @@ ${isApiWritable() ? '\n  This deployment explicitly allows app/api/**.\n' : ''}
 export const buildOpenshipInstructions = (origin: string): string => {
   const manifest = getOpenshipManifest()
   const commit = getOpenshipCommit()
+  const mcp = process.env.LIBRO_SERVICE_URL
+    ? new URL('/mcp', process.env.LIBRO_SERVICE_URL).toString()
+    : null
 
   return `OPENSHIP ${OPENSHIP_VERSION}
 ${origin}
 
-Memorioso implements OpenShip Sources and Changes. It does not publish an OpenShip
-Systems document. All discovery and source GETs are public and CORS-readable.
+Memorioso implements OpenShip Sources, Systems and Changes. All discovery, Sources
+and Systems GETs are public and CORS-readable.
 
 PROJECT
   ${manifest.project.name}
@@ -96,8 +99,25 @@ START HERE
   The discovery document has "capability": "discovery" and a capabilities map.
   Its Sources entry links the manifest, bundle, exact-file endpoint, archive, and
   these instructions. Its Changes entry links policy, submission, and status.
+  Its Systems entry links a self-contained source snapshot and architecture graph.
   The advertised skill is served from the vendored package at:
   ${origin}/openship/file/skills/openship/SKILL.md
+
+${mcp ? `MCP
+  Connect to ${mcp} and call the public "openship" tool. Use
+  { "operation": "manifest" } to inspect the verified file set, then
+  { "operation": "read", "path": "<exact manifest path>" } for source files.
+  OpenShip reads through this tool do not require OAuth.
+
+` : ''}\
+RETRIEVE SYSTEMS
+  GET ${origin}/openship/systems.json.
+  Validate the OpenShip Systems v1 document, including its complete embedded Sources
+  manifest and bundle, graph, source selectors, document hashes and context references.
+  The embedded snapshot is identical to the standalone Sources endpoints below.
+  This describes supported architecture, not live service health. Legacy and optional
+  components are marked. Libro MCP remains Sources-only.
+  Human viewer: https://openship.dev/view?url=${encodeURIComponent(origin)}&view=system&panel=architecture
 
 RETRIEVE SOURCES
   1. GET ${origin}/openship/manifest.json.

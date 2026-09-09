@@ -14,6 +14,7 @@ import {
   validateSessionCredentialResponses,
   validateWorldIdSessionResult,
 } from '@/lib/world-id/proof'
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type RequestBody = { idkitResult?: IDKitResultSession }
 
@@ -21,6 +22,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ registrationId: string }> }
 ): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse()
+  if (retired) return retired
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
 

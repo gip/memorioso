@@ -22,12 +22,17 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<Authe
   const client = await pool.connect()
 
   try {
-    const { rows } = await client.query(
-      `SELECT id, name, handle, world_id_session_id, world_id_credential_identifier
-       FROM users
-       WHERE id = $1 AND world_id_session_id = $2`,
-      [session.userId, session.worldIdSessionId]
-    )
+    const { rows } = session.v === 1
+      ? await client.query(
+        `SELECT id, name, handle, world_id_session_id, world_id_credential_identifier, libro_identity_id
+         FROM users WHERE id = $1 AND world_id_session_id = $2`,
+        [session.userId, session.worldIdSessionId]
+      )
+      : await client.query(
+        `SELECT id, name, handle, world_id_session_id, world_id_credential_identifier, libro_identity_id
+         FROM users WHERE id = $1 AND libro_identity_id = $2`,
+        [session.userId, session.libroIdentityId]
+      )
 
     if (rows.length === 0) {
       return null
@@ -37,7 +42,7 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<Authe
       id: rows[0].id,
       subject: rows[0].name,
       handle: rows[0].handle,
-      worldIdSessionId: rows[0].world_id_session_id,
+      worldIdSessionId: rows[0].world_id_session_id || `libro_identity_${rows[0].libro_identity_id}`,
       worldIdCredentialIdentifier: rows[0].world_id_credential_identifier,
     }
   } finally {

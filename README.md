@@ -10,7 +10,11 @@ The first iteration of Memorioso (the product) and Libro (the protocol) is built
 
 ## Libro
 
-Libro is a permissionless protocol for registering human-authored publications on World Chain. Each publication is bound to a verified World ID 4.0 session proof, so authorship can be checked on-chain without revealing who the author is. Handle owners can also authorize agents to publish on their behalf; those signatures are kept semantically distinct from direct human authorship. The protocol lives in `LibroRegistry`, a single contract under `libro/contracts` with its own Foundry test suite. Anyone can query the registry directly to verify a publication, independent of Memorioso.
+Libro is a permissionless protocol and standalone service for registering human-authored publications on World Chain. Each publication is bound to a verified World ID 4.0 session proof, so authorship can be checked on-chain without revealing who the author is. Handle owners can also authorize agents to publish on their behalf; those signatures are kept semantically distinct from direct human authorship. The protocol lives in `LibroRegistry`, a single contract under `libro/contracts` with its own Foundry test suite, while `libro/service` owns identity, canonical records, OAuth, MCP, and chain-facing writes. Anyone can query Libro or the registry directly to verify a publication, independent of Memorioso.
+
+Memorioso access gates are presentation policy rather than confidentiality. Libro's public API and
+MCP may return the complete canonical signed payload. See [`libro/service/README.md`](./libro/service/README.md)
+for service setup and the freeze/delta-copy/cutover/rollback runbook.
 
 ## Agents
 
@@ -25,6 +29,10 @@ fetch every file, and rebuild the repository — no git, no registry, no credent
 ```sh
 curl -sL https://memorioso.xyz/openship/source.tar.gz | tar xz
 ```
+
+The Libro MCP also exposes Memorioso's verified OpenShip snapshot without authentication. Connect
+to the configured Libro `/mcp` endpoint and call `openship` with `{"operation":"manifest"}`, then
+read exact files with `{"operation":"read","path":"app/page.tsx"}`.
 
 OpenShip is a protocol rather than a Memorioso feature; any site can implement it. Memorioso
 implements Sources and Changes, not Systems. The complete pinned v1 skill and specifications are

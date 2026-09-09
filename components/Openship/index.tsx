@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react'
 type View = 'human' | 'agent'
 
 const VIEWS: { view: View; label: string; hint: string }[] = [
-  { view: 'human', label: 'Human', hint: 'What Openship is and why it exists' },
+  { view: 'human', label: 'Human', hint: 'What OpenShip is and why it exists' },
   { view: 'agent', label: 'Agent', hint: 'Instructions for retrieving the source' },
 ]
 
@@ -28,7 +28,7 @@ const OpenshipViews = ({ human, agent }: Props) => {
       </div>
 
       <div className="mt-10 border-t pt-5 sm:mt-12">
-        <div className="flex items-center gap-1" role="tablist" aria-label="Openship audience">
+        <div className="flex items-center gap-1" role="tablist" aria-label="OpenShip audience">
           {VIEWS.map(item => (
             <button
               key={item.view}

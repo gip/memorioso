@@ -1,6 +1,7 @@
 packages:
   - "."
   - "libro/core"
+  - "libro/service"
   - "libro/chrome-extension"
 
 allowBuilds:

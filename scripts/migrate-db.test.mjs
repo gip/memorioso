@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises'
 import {
   assertDestructiveMigrationConfirmed,
   buildMigrationPlan,
+  createMigrationConfig,
+  parseMigrationArguments,
   parseMigrationFileNames,
   selectMigrationDatabaseUrl,
 } from './migrate-db.mjs'
@@ -17,6 +19,27 @@ it('requires an explicit backup confirmation for destructive migration 013', () 
 })
 
 describe('database migration runner', () => {
+  it('accepts an isolated migration directory, table, lock, and application name', () => {
+    const config = parseMigrationArguments([
+      '--directory', 'libro/service/db/migrations',
+      '--table', 'libro_schema_migrations',
+      '--lock-id', '7165831947293472',
+      '--application-name', 'libro-service-db-migrate',
+    ])
+
+    expect(config.directory).toMatch(/libro\/service\/db\/migrations$/)
+    expect(config.table).toBe('libro_schema_migrations')
+    expect(config.lockId).toBe('7165831947293472')
+    expect(config.applicationName).toBe('libro-service-db-migrate')
+  })
+
+  it('rejects migration identifiers that could be interpolated as SQL', () => {
+    expect(() => createMigrationConfig({ table: 'schema; DROP TABLE users' })).toThrow(
+      'lowercase PostgreSQL identifier',
+    )
+    expect(() => createMigrationConfig({ lockId: '1); SELECT 1' })).toThrow('signed bigint')
+  })
+
   it('discovers migrations in numeric order without requiring consecutive versions', () => {
     expect(
       parseMigrationFileNames([

@@ -4,13 +4,23 @@ import { cookies } from 'next/headers'
 export const AUTH_SESSION_COOKIE = 'memorioso_world_id_session' as const
 export const AUTH_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
-type AuthSessionPayload = {
+type LegacyAuthSessionPayload = {
   v: 1
   userId: number
   worldIdSessionId: string
   iat: number
   exp: number
 }
+
+type LibroAuthSessionPayload = {
+  v: 2
+  userId: number
+  libroIdentityId: string
+  iat: number
+  exp: number
+}
+
+export type AuthSessionPayload = LegacyAuthSessionPayload | LibroAuthSessionPayload
 
 function requireSessionSecret(): string {
   const value = process.env.SESSION_SECRET
@@ -34,12 +44,12 @@ function decodePayload(value: string): AuthSessionPayload | null {
   try {
     const payload = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<AuthSessionPayload>
     if (
-      payload.v !== 1 ||
+      (payload.v !== 1 && payload.v !== 2) ||
       typeof payload.userId !== 'number' ||
-      typeof payload.worldIdSessionId !== 'string' ||
-      payload.worldIdSessionId.length === 0 ||
       typeof payload.iat !== 'number' ||
-      typeof payload.exp !== 'number'
+      typeof payload.exp !== 'number' ||
+      (payload.v === 1 && (typeof payload.worldIdSessionId !== 'string' || payload.worldIdSessionId.length === 0)) ||
+      (payload.v === 2 && (typeof payload.libroIdentityId !== 'string' || payload.libroIdentityId.length === 0))
     ) {
       return null
     }
@@ -60,6 +70,18 @@ export function createAuthSessionToken(userId: number, worldIdSessionId: string)
     exp: now + AUTH_SESSION_MAX_AGE_SECONDS,
   })
 
+  return `${encodedPayload}.${sign(encodedPayload)}`
+}
+
+export function createLibroAuthSessionToken(userId: number, libroIdentityId: string): string {
+  const now = Math.floor(Date.now() / 1000)
+  const encodedPayload = encodePayload({
+    v: 2,
+    userId,
+    libroIdentityId,
+    iat: now,
+    exp: now + AUTH_SESSION_MAX_AGE_SECONDS,
+  })
   return `${encodedPayload}.${sign(encodedPayload)}`
 }
 

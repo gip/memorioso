@@ -55,6 +55,7 @@ import {
   finalizePublicationWithRetry,
   type FinalizePublishPayload,
 } from '@/lib/libro/finalize-client'
+import { SigningClient } from '@/components/Libro/SigningClient'
 import type { LibroRegistrationTransaction } from '@/lib/libro/proof'
 import { createLibroPublicClient, hasMeaningfulPublicationBody } from '@libro/core'
 import {
@@ -187,6 +188,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const [externalSigningUrl, setExternalSigningUrl] = useState<string | null>(null)
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId)
@@ -457,11 +459,28 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     })
   }
 
+  const waitForExternalLibroPublication = async (draftId: string): Promise<void> => {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const raw = await fetch(`/api/draft/${draftId}/publish/status`, { cache: 'no-store' })
+      const response = await raw.json().catch(() => null)
+      if (raw.ok && response?.state === 'finalized' && response.publicationId) {
+        clearLocalDraft()
+        router.replace(`${publicationPath(draft?.publicationType || 'article', response.publicationId)}?signed=1`)
+        return
+      }
+      if (response?.state === 'expired') throw new Error('Libro signing request expired before it was completed')
+      if (!raw.ok && raw.status !== 502) throw new Error(response?.message || 'Libro publication status failed')
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+    throw new Error('Libro signing is still pending. Reopen the draft to resume status checks.')
+  }
+
   const handlePublish = async () => {
     try {
       setIsConfirmOpen(false)
       setError(null)
       setPublishStatus(null)
+      setExternalSigningUrl(null)
       setPublishStep(0)
       publishHostVerifyError.current = null
       setIsEditingDisabled(true)
@@ -487,9 +506,17 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
           content: draft?.content ?? { html: '' },
         }),
       })
-      const response = await raw.json()
+      const response = await raw.json().catch(() => null)
+      if (!response) throw new Error(`Failed to start publication signing (HTTP ${raw.status})`)
 
-      if (response.success) {
+      if (raw.ok && response.success) {
+        if (typeof response.externalSigningUrl === 'string') {
+          setExternalSigningUrl(response.externalSigningUrl)
+          setPublishStep(1)
+          setPublishStatus('Signing your publication…')
+          await waitForExternalLibroPublication(publishDraftId)
+          return
+        }
         const nextPublishContext: PublishContext = {
           challengeId: response.challengeId,
           appId: response.appId,
@@ -712,11 +739,17 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // Debounced autosave: no Save button, work is never lost. Anonymous writers
   // are saved to this device instead of the account.
   useEffect(() => {
-    if (isEditingDisabled || !hasText) return
+    if (isEditingDisabled || loading || !isLocalRestored || isDraftLocked) return
+    if (status === 'loading' || (isAuthenticated && draftKeyStatus === 'loading')) return
+    // Loading an existing draft is not an edit, even while its author or key
+    // is being resolved. Also clear a canceled debounce when an edit is undone.
+    if (!isDraftChanged() || (!currentDraftId && !hasText)) {
+      setSaveState((previous) => previous === 'saving' ? 'idle' : previous)
+      return
+    }
     // A locked writer keeps saving to this device rather than to their account:
     // the work survives, and no prose reaches a database that cannot hold it.
     const shouldSaveLocally = status !== 'authenticated' || isDraftKeyLocked || !isDraftAuthorReady
-    if (!shouldSaveLocally && !isDraftChanged()) return
 
     setSaveState('saving')
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
@@ -750,7 +783,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [draft, isEditingDisabled, isDraftChanged, hasText, status, isDraftKeyLocked, isDraftAuthorReady, currentDraftId])
+  }, [draft, isEditingDisabled, loading, isLocalRestored, isDraftLocked, isDraftChanged, hasText, status, isAuthenticated, draftKeyStatus, isDraftKeyLocked, isDraftAuthorReady, currentDraftId])
 
   // Adoption: the moment the writer signs in, their local draft becomes a real
   // draft on their account. handleSave adopts the new id and rewrites the URL
@@ -883,9 +916,12 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       {/* The one-time choice, asked where it starts to matter rather than at sign-in. */}
       <DraftEncryptionSetup />
       {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
-      {publishStep !== null && (
+      {publishStep !== null && (<>
+        {externalSigningUrl && <div className="my-4 space-y-3">
+          <SigningClient key={externalSigningUrl} capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
+        </div>}
         <PublishProgress step={publishStep} status={publishStatus} />
-      )}
+      </>)}
       {/* Parks below the mobile bar and aligns to the shared 700px column on desktop. */}
       <div className="sticky top-14 z-20 -mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-background/95 px-4 py-2.5 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur lg:top-0 lg:mx-0 lg:flex lg:justify-between lg:px-0 lg:shadow-none">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground sm:text-xs">

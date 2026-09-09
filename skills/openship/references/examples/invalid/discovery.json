@@ -2,12 +2,17 @@
   "openship": "1.0",
   "capability": "discovery",
   "project": { "name": "Broken", "description": "Sources is missing." },
+  "agent": {
+    "summary": "OpenShip exposes capabilities for a running project.",
+    "instructions": "Fetch and read agent.skill before using any capability.",
+    "skill": "https://example.com/openship/file/skills/openship/SKILL.md"
+  },
   "capabilities": {
     "changes": {
+      "description": "Submit a patch against a published source digest.",
       "policy": "https://example.com/openship/policy.json",
       "submit": "https://example.com/openship/changes",
       "status": "https://example.com/openship/changes/{changeId}"
     }
   }
 }
-

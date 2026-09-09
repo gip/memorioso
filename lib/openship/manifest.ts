@@ -3,6 +3,7 @@
 // under skills/openship/references/openship-sources.md.
 
 import { gunzipSync } from 'node:zlib'
+import { composeOpenshipSystems } from './systems.mjs'
 import {
   OPENSHIP_BUNDLE_GZIP_BASE64,
   OPENSHIP_COMMIT,
@@ -16,6 +17,20 @@ import {
 } from '@/lib/openship/generated/bundle'
 
 export const OPENSHIP_VERSION = '1.0'
+
+export const OPENSHIP_AGENT = {
+  summary:
+    'OpenShip lets Memorioso publish verifiable sources and structured system design, and accept isolated candidate changes.',
+  instructions:
+    'Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.',
+} as const
+
+export const OPENSHIP_CAPABILITY_DESCRIPTIONS = {
+  sources: 'Retrieve and verify the exact source snapshot published by this deployment.',
+  systems: 'Retrieve the structured system design with its complete, integrity-checked Sources snapshot.',
+  changes:
+    'Submit a patch against the published source digest and inspect an isolated candidate result.',
+} as const
 
 export type OpenshipEncoding = 'utf-8' | 'base64'
 
@@ -77,6 +92,7 @@ export type OpenshipFileSet = 'manifest' | 'git' | 'none'
 export const OPENSHIP_ENDPOINTS = {
   manifest: '/openship/manifest.json',
   bundle: '/openship/bundle.json',
+  systems: '/openship/systems.json',
   file: '/openship/file/{path}',
   archive: '/openship/source.tar.gz',
   instructions: '/openship/agent.txt',
@@ -159,6 +175,15 @@ const decompressBundleJson = (): string =>
 export const getOpenshipBundleJson = (): string => {
   getBundle()
   return bundleJsonCache as string
+}
+
+let systemsJsonCache: string | null = null
+
+export const getOpenshipSystemsJson = (): string => {
+  systemsJsonCache ??= JSON.stringify(composeOpenshipSystems(
+    getOpenshipManifest(), JSON.parse(getOpenshipBundleJson())
+  ))
+  return systemsJsonCache
 }
 
 export type OpenshipFileResult = {

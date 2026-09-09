@@ -6,17 +6,21 @@ Read [openship.md](openship.md) first for discovery, transport, and caching rule
 
 ## Endpoints
 
-Discovery advertises two required and three optional URLs:
+Discovery advertises two required and four optional URLs:
 
 | Link | Required | Meaning |
 |---|---:|---|
 | `manifest` | Yes | Project identity and file metadata, without content. |
 | `bundle` | Yes | Every file's encoded content in one JSON document. |
+| `mcp` | No | A public MCP endpoint implementing the OpenShip Sources binding. |
 | `file` | No | Raw content for one manifest path. |
 | `archive` | No | The manifest file set as a compressed archive. |
 | `instructions` | No | Plain-language project-specific retrieval guidance. |
 
 All reads are public, CORS-readable GET requests.
+
+See [openship-mcp.md](openship-mcp.md) when `mcp` is advertised. The HTTP Manifest and Bundle
+remain normative and required.
 
 ## Manifest
 
@@ -140,4 +144,3 @@ A consumer MUST finish validation before executing any retrieved code.
 ## Security
 
 Serving Sources makes every included byte public. Producers MUST NOT publish secrets, environment values, signing keys, private deployment configuration, or data exports. File selection is the primary security boundary; filters and pattern scans are defense in depth.
-

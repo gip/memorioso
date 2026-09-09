@@ -50,6 +50,10 @@ export const GatedBody = async ({
           is all it takes.
           {priceUsd ? ` Agents can pay $${priceUsd} in USDC over x402 instead.` : ''}
         </p>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          This is a Memorioso presentation gate, not confidentiality: Libro’s canonical
+          public API may expose the complete signed publication.
+        </p>
         <UnlockDialog
           contentEndpoint={`${appUrl}${publicationContentPath(publicationId)}`}
           priceUsd={priceUsd}

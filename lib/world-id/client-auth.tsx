@@ -140,6 +140,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
   const [hintHandle, setHintHandle] = useState<string | null>(null)
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null)
   const [isWorldAppLoginPending, setIsWorldAppLoginPending] = useState(false)
+  const [libroAuthEnabled, setLibroAuthEnabled] = useState(false)
   const cachedLoginContextRef = useRef<WorldIdLoginContext | null>(null)
 
   const loginConstraints = useMemo<ConstraintNode>(() => createWorldIdLoginConstraints(), [])
@@ -151,6 +152,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     })
     const body = await response.json() as WorldIdSessionResponse
 
+    if (body.success) setLibroAuthEnabled(body.libroAuthEnabled === true)
     if (body.success && body.authenticated) {
       setUser(body.user)
       setStatus('authenticated')
@@ -172,6 +174,12 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     setIsOpen(false)
 
+    if (libroAuthEnabled) {
+      const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      window.location.assign(`/api/auth/libro/start?returnTo=${encodeURIComponent(returnTo)}`)
+      return
+    }
+
     let loginContext
     try {
       loginContext = await fetchLoginContext()
@@ -187,7 +195,7 @@ export function WorldIdAuthProvider({ children }: { children: ReactNode }) {
     setHintHandle(loginContext.existingSessionId ? loginContext.existingHandle ?? null : null)
     setPendingLogin(null)
     setIsLoginDialogOpen(true)
-  }, [])
+  }, [libroAuthEnabled])
 
   const startContinueFlow = useCallback(async () => {
     setError(null)

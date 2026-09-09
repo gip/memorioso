@@ -32,6 +32,7 @@ it('creates and saves the connector before navigation, without persisting draft 
     expect(record).not.toContain('constraints')
     expect(JSON.parse(record)).toMatchObject({ signalHashes: { proof_of_human: 'hashed-signal' }, connectorURI: 'https://world.org/verify?i=request&k=key' })
     expect(navigate.mock.calls[0][0]).toContain('/world-id/return?flow=')
+    expect(new URL(navigate.mock.calls[0][0]).searchParams.get('launch')).toBe('1')
   } finally { await act(async () => root.unmount()) }
 })
 

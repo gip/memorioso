@@ -6,6 +6,7 @@ import {
   normalizedUnicodeLength,
 } from '@libro/core'
 import type { PublicationContent, PublicationKind, PublicationRecord } from '@/types'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from '@/lib/publication-limits'
 
 export const PUBLICATION_KINDS = ['short', 'article'] as const
 export type { PublicationKind }
@@ -57,6 +58,9 @@ export function validatePublicationForKind(input: {
 }): string | null {
   if (input.kind === 'article') {
     if (typeof input.title !== 'string' || !input.title.trim()) return 'Article title is required'
+    if (typeof input.subtitle === 'string' && input.subtitle.length > PUBLICATION_SUBTITLE_MAX_LENGTH) {
+      return `Article subtitles are limited to ${PUBLICATION_SUBTITLE_MAX_LENGTH} characters`
+    }
     if (!hasMeaningfulPublicationBody(input.content)) return 'Article body is required'
     return null
   }

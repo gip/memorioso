@@ -59,6 +59,7 @@ vi.mock('@/lib/libro/config', () => ({
 }))
 
 import { POST } from './route'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from '@/lib/publication-limits'
 
 function request(body: unknown): NextRequest {
   return {
@@ -284,6 +285,17 @@ describe('publish context route', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
       message: 'Publication content is required',
+    })
+  })
+
+  it('accepts a subtitle at the maximum length and rejects longer subtitles', async () => {
+    const accepted = await publish({ subtitle: 'x'.repeat(PUBLICATION_SUBTITLE_MAX_LENGTH) })
+    expect(accepted.status).toBe(200)
+
+    const rejected = await publish({ subtitle: 'x'.repeat(PUBLICATION_SUBTITLE_MAX_LENGTH + 1) })
+    expect(rejected.status).toBe(400)
+    await expect(rejected.json()).resolves.toMatchObject({
+      message: `Article subtitles are limited to ${PUBLICATION_SUBTITLE_MAX_LENGTH} characters`,
     })
   })
 

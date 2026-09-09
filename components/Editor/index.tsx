@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog"
 import './editor.css'
 import type { Author } from '@/lib/db/objects'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from '@/lib/publication-limits'
 import { all, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(all)
@@ -446,11 +447,12 @@ export default function Editor({
             type="text"
             value={subtitle}
             onChange={(e) => {
-              const newValue = e.target.value.slice(0, 80);
+              const newValue = e.target.value.slice(0, PUBLICATION_SUBTITLE_MAX_LENGTH);
               setLocalSubtitle(newValue);
               setSubtitle(newValue);
             }}
             placeholder="Add a subtitle..."
+            maxLength={PUBLICATION_SUBTITLE_MAX_LENGTH}
             className="editor-input px-0 text-base text-muted-foreground sm:text-xl
                        placeholder:text-muted-foreground/30 break-words"
             readOnly={!editable}

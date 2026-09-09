@@ -10,6 +10,7 @@
 // the ciphertext that replaced it.
 
 import { DRAFT_ENCRYPTION_V1 } from '@/lib/draft-crypto'
+import { PUBLICATION_SUBTITLE_MAX_LENGTH } from '@/lib/publication-limits'
 
 /** Room for a long article plus base64 overhead, without allowing unbounded rows. */
 export const MAX_DRAFT_CIPHERTEXT_LENGTH = 4_000_000
@@ -70,6 +71,9 @@ export function parseDraftStorageFields(body: DraftBody): DraftStorageParse {
   }
   if (body.subtitle !== undefined && body.subtitle !== null && typeof body.subtitle !== 'string') {
     return { ok: false, message: 'Draft subtitle must be a string' }
+  }
+  if (typeof body.subtitle === 'string' && body.subtitle.length > PUBLICATION_SUBTITLE_MAX_LENGTH) {
+    return { ok: false, message: `Draft subtitle must be ${PUBLICATION_SUBTITLE_MAX_LENGTH} characters or fewer` }
   }
   if (typeof body.content !== 'object' || body.content === null) {
     return { ok: false, message: 'Draft content is required' }

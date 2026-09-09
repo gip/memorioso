@@ -1036,6 +1036,9 @@
       "path": "lib/publication-kind.ts"
     },
     {
+      "path": "lib/publication-limits.ts"
+    },
+    {
       "path": "lib/publication-status.ts"
     },
     {

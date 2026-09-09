@@ -27,7 +27,7 @@ export const OPENSHIP_AGENT = {
 
 export const OPENSHIP_CAPABILITY_DESCRIPTIONS = {
   sources: 'Retrieve and verify the exact source snapshot published by this deployment.',
-  systems: 'Retrieve the structured system design with its complete, integrity-checked Sources snapshot.',
+  systems: 'Retrieve logical, technical and provider layers plus instance descriptions and the complete, integrity-checked Sources snapshot.',
   changes:
     'Submit a patch against the published source digest and inspect an isolated candidate result.',
 } as const

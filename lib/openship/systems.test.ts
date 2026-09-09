@@ -38,8 +38,8 @@ describe('OpenShip Systems provider', () => {
   })
 
   it.each([
-    ['invalid edge', (model: ReturnType<typeof JSON.parse>) => { model.edges[0].toNodeId = 'missing' }],
-    ['unmatched source selector', (model: ReturnType<typeof JSON.parse>) => { model.nodes[0].sourceSelectors = ['missing/**'] }],
+    ['invalid edge', (model: ReturnType<typeof JSON.parse>) => { model.layers[0].edges[0].toNodeId = 'missing' }],
+    ['unmatched source selector', (model: ReturnType<typeof JSON.parse>) => { model.layers[0].nodes[0].sourceSelectors = ['missing/**'] }],
     ['corrupted document hash', (model: ReturnType<typeof JSON.parse>) => { model.context.documents[0].text += ' changed' }],
     ['unresolved context reference', (model: ReturnType<typeof JSON.parse>) => { model.context.matrix[0].documentRefs = [`sha256:${'0'.repeat(64)}`] }],
   ])('rejects %s during composition', (_name, change) => {
@@ -57,7 +57,7 @@ describe('OpenShip Systems provider', () => {
 
   it('preserves storage, relayer, cutover and sandbox boundaries in the model', async () => {
     const { system } = await GET().json()
-    const nodes = new Map(system.nodes.map((node: { id: string; parentId?: string }) => [node.id, node.parentId]))
+    const nodes = new Map(system.layers.find((layer: { role: string }) => layer.role === 'technical').nodes.map((node: { id: string; parentId?: string }) => [node.id, node.parentId]))
     expect(nodes.get('p.app-db')).not.toEqual(nodes.get('p.libro-db'))
     expect(nodes.get('p.build')).toBe('c.sandbox')
     expect(nodes.get('p.worker')).toBe('h.build')
@@ -74,4 +74,44 @@ describe('OpenShip Systems provider', () => {
     expect(url.searchParams.get('view')).toBe('system')
     expect(url.searchParams.get('panel')).toBe('architecture')
   })
+})
+
+it('publishes three mapped layers and an unresolved Vercel/Neon production target', async () => {
+  const document = await GET().json()
+  expect(document.systemsVersion).toBe('2.0')
+  const { layers, instances, refinements } = document.system
+  expect(layers.map((layer: { role: string }) => layer.role)).toEqual(['logical', 'technical', 'provider'])
+  const provider = layers[2]
+  const app = provider.nodes.find((node: { id: string }) => node.id === 'provider.h.memorioso')
+  const libro = provider.nodes.find((node: { id: string }) => node.id === 'provider.h.libro')
+  expect(app.metadata.provider).toBe('Vercel')
+  expect(libro.metadata.provider).toBe('Vercel')
+  const stores = provider.nodes.filter((node: { kind: string }) => node.kind === 'Store')
+  expect(stores).toHaveLength(2)
+  expect(new Set(stores.map((node: { parentId: string }) => node.parentId)).size).toBe(2)
+  expect(stores.every((node: { name: string }) => node.name.includes('Neon'))).toBe(true)
+  expect(instances[0].id).toBe('production')
+  expect(instances[0].bindings.every((binding: { resourceId?: string; state?: unknown }) => binding.resourceId === undefined && binding.state === undefined)).toBe(true)
+  expect(refinements.some((ref: { fromNodeId: string; toNodeId: string }) => ref.fromNodeId === 'provider.p.app-db' && ref.toNodeId === 'p.app-db')).toBe(true)
+  const schemaArtifacts = document.system.context.artifacts.filter((artifact: { nodeId: string }) => artifact.nodeId === 'p.app-db' || artifact.nodeId === 'p.libro-db')
+  expect(schemaArtifacts).toHaveLength(2)
+  expect(schemaArtifacts.every((artifact: { sourcePaths: string[] }) => artifact.sourcePaths.some(path => path.endsWith('/schema.sql')))).toBe(true)
+})
+
+it('never copies runtime credentials into the public Systems document', () => {
+  const keys = ['DATABASE_URL', 'SESSION_SECRET', 'VERCEL_TOKEN', 'LIBRO_RELAYER_PRIVATE_KEY']
+  const previous = keys.map(key => process.env[key])
+  const sentinel = ['private', 'runtime', Date.now(), Math.random()].join('-')
+  try {
+    for (const key of keys) process.env[key] = sentinel
+    const { manifest, bundle } = snapshot()
+    const serialized = JSON.stringify(composeOpenshipSystems(manifest, bundle))
+    expect(serialized).not.toContain(sentinel)
+    expect(serialized).toContain('secretRef')
+  } finally {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key]
+      else process.env[key] = previous[index]
+    })
+  }
 })

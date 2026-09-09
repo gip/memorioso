@@ -1,98 +1,101 @@
-# OpenShip Systems v1
+# OpenShip Systems 2.0
 
-OpenShip Systems is the advanced OpenShip capability. It publishes one self-contained JSON document containing a complete Sources snapshot, a typed architecture graph, and optional context for humans and agents.
+Systems publishes one JSON document containing a complete Sources snapshot, ordered design layers, explicit implementation mappings, optional instance descriptions, and shared context. Systems 2.0 replaces the previous single-graph format; legacy Systems documents are unsupported. Sources and Changes remain OpenShip 1.0.
 
-Systems is JSON-only in v1. Legacy directory or YAML bundles are not canonical OpenShip Systems representations.
-
-## Top-level document
+## Envelope and system
 
 ```json
 {
   "openship": "1.0",
   "capability": "systems",
-  "source": {
-    "manifest": { "openship": "1.0", "capability": "sources", "digest": "sha256:..." },
-    "bundle": { "openship": "1.0", "capability": "sources", "digest": "sha256:...", "files": {} }
-  },
+  "systemsVersion": "2.0",
+  "source": { "manifest": {}, "bundle": {} },
   "system": {
-    "id": "example-system",
-    "name": "Example system",
-    "rootNodeId": "s.root",
-    "nodes": [],
-    "edges": []
+    "id": "example",
+    "name": "Example",
+    "layers": [],
+    "refinements": [],
+    "instances": []
   }
 }
 ```
 
-`source.manifest` and `source.bundle` MUST form a valid, complete Sources snapshot. External URLs or omitted contents are not self-contained and are non-conformant.
+This illustrates the envelope only: `source.manifest` and `source.bundle` MUST be valid, complete Sources, and `layers` MUST contain at least one layer. See [the complete layered example](examples/valid/systems-layered.json) and [the schema](schemas/systems.schema.json).
 
-See [schemas/systems.schema.json](schemas/systems.schema.json).
+The old `system.nodes`, `system.edges`, and `system.rootNodeId` members are forbidden. Metadata and unrecognized extension members MUST be preserved. Self-containment covers the design and source bytes; external secret and runtime-state references need not resolve within the document. Consumers MUST NOT interpret validation as proof of deployment or runtime health.
 
-## Nodes and containment
+## Ordered design layers
 
-Node kinds are closed in v1:
+Each layer has `id`, `name`, `role`, `rootNodeId`, `nodes`, and `edges`. Array order runs from abstract to concrete. Layer IDs MUST be unique. Roles are `logical`, `technical`, `provider`, or `custom`; roles MAY repeat and standard roles MAY be omitted.
 
-| Kind | Meaning |
+| Recommended role | Decisions represented |
 |---|---|
-| `Root` | The logical boundary of the described system. |
-| `Host` | An execution environment or external platform. |
-| `Container` | A grouped runtime unit hosted by a Host. |
-| `Process` | A running service or executable component. |
-| `Library` | A reusable code dependency outside runtime containment. |
+| logical | Responsibilities, contracts, logical entities and invariants, required initial data. |
+| technical | Frameworks, runtimes, database engines, schemas, migrations and seed scripts. |
+| provider | Hosting providers, intended regions, resources and deployment settings. |
 
-Canonical node shape:
+Any positive number of layers is supported. Each is an explicit graph, not a generated projection or an inherited configuration overlay. Alternative branches are not defined in this version.
 
-```json
-{
-  "id": "p.api",
-  "kind": "Process",
-  "name": "API",
-  "parentId": "h.runtime",
-  "sourceSelectors": ["apps/api/**", "packages/contracts/index.ts"],
-  "metadata": { "runtime": "node", "ownership": "first_party" }
-}
-```
+## Nodes, containment and sources
 
-Rules:
-
-- Every node has `metadata.ownership`, whose value is `first_party` or `third_party`.
-- `first_party` means the system publisher owns or controls the component's implementation or operation. `third_party` means an external provider owns or controls it.
-- Exactly one node has kind `Root`; its ID equals `rootNodeId` and it has no parent.
-- Every Host has the Root as parent.
-- Every Container has a Host parent.
-- Every Process has a Host or Container parent.
-- Library has no parent. Process and Library cannot contain children.
-- IDs are unique and match `^[A-Za-z0-9._:-]+$`.
-- The containment graph is acyclic.
-- Metadata is open-ended beyond the required, typed `ownership` member. Boundary, ID prefixes, host naming, and other metadata are not required by v1.
-
-### Source selectors
-
-`sourceSelectors` is optional. An exact path selects itself. A selector ending in `/**` selects that directory and descendants. No other wildcard syntax is defined.
-
-Every selector MUST match at least one Manifest path. Multiple nodes MAY select the same path and some source paths MAY remain unassigned.
-
-## Edges
-
-Edge types are closed in v1:
-
-| Type | Source | Target | Cycle rule |
-|---|---|---|---|
-| `Runtime` | Process | Process or Container | Cycles allowed. |
-| `Dataflow` | Process | Process or Container | Projected graph must be acyclic. |
-| `Dependency` | Process | Library | Graph must be acyclic. |
+Node kinds are `Root`, `Block`, `Store`, `Host`, `Container`, `Process`, and `Library`. Block describes a capability; Store describes persistent data. The other kinds describe a system boundary, execution environment, grouped runtime, executable component, and reusable dependency respectively.
 
 ```json
 {
-  "id": "e.api.database",
-  "type": "Runtime",
-  "fromNodeId": "p.api",
-  "toNodeId": "p.database",
-  "metadata": { "protocol": "pgwire", "layer7": "postgresql-sql" }
+  "id": "technical.database",
+  "kind": "Store",
+  "name": "PostgreSQL database",
+  "parentId": "technical.root",
+  "metadata": { "ownership": "first_party" },
+  "sourceSelectors": ["db/**"],
+  "configuration": [
+    { "name": "engine", "description": "Database engine", "required": true, "value": "PostgreSQL" }
+  ]
 }
 ```
 
-Root and Host cannot be edge endpoints under these rules. A Container target represents an opaque routing boundary.
+- Node IDs MUST be globally unique across all layers. IDs match `^[A-Za-z0-9._:-]+$`.
+- Each layer MUST have exactly one parentless Root identified by its `rootNodeId`. Every other node, including Library, MUST have a parent in the same layer. Containment MUST be acyclic; no kind-specific parent restrictions apply.
+- Every node MUST declare `metadata.ownership`: `first_party` means publisher-controlled implementation or operation; `third_party` means external control.
+- Optional source selectors select an exact Manifest path or a directory ending in `/**`. No other wildcards are supported. Every selector MUST match at least one Manifest path. Sharing selected paths is allowed.
+
+## Connections and refinements
+
+Layer-local edges have `id`, `type`, `fromNodeId`, `toNodeId`, and optional metadata. IDs MUST be unique within their layer. Endpoints MUST be non-root nodes in that layer. Types are Runtime (cycles allowed), Dataflow (acyclic), and Dependency (acyclic). Endpoint kinds do not constrain the connection type.
+
+Refinements have `id`, `fromNodeId`, and `toNodeId`. IDs MUST be unique within `system.refinements`. The source MUST belong to a later layer than the target. Thus the concrete source implements the more abstract target. Many-to-many mappings, skipped layers, and root mappings are allowed. Refinements neither imply containment nor copy configuration, documents, or runtime edges.
+
+## Configuration
+
+Nodes and instance bindings MAY contain a `configuration` array. Each entry requires a unique `name`, a nonempty `description`, and a boolean `required` flag. Optional `value` contains JSON data; its absence means unresolved, whereas an explicit null is a supplied value.
+
+A sensitive entry uses `sensitive: true` and MUST NOT contain a literal value. An optional `secretRef` is `{ "nodeId": "provider.app", "key": "DATABASE_URL" }`; its node MUST exist and scopes the external key to a component. Any entry with `secretRef` MUST NOT also contain `value`. A secret reference is descriptive: validation does not resolve it or require the external key to exist. Producers MUST classify credentials as sensitive and MUST NOT publish credential values elsewhere in metadata or context.
+
+## Instances and database state
+
+Instances are separate from design layers. Each has a unique `id`, `name`, `environment`, `layerId`, and `bindings` array. Multiple instances MAY bind the same layer. Each binding refers to a distinct non-root node in that layer and MAY include `resourceId`, configuration, and database `state`. Missing resource IDs are unresolved.
+
+```json
+{
+  "id": "production",
+  "name": "Production target",
+  "environment": "production",
+  "layerId": "provider",
+  "bindings": [{
+    "nodeId": "provider.database",
+    "configuration": [{
+      "name": "DATABASE_URL", "description": "Database connection", "required": true,
+      "sensitive": true, "secretRef": { "nodeId": "provider.database", "key": "DATABASE_URL" }
+    }]
+  }]
+}
+```
+
+Instance values are explicit observations or supplied descriptions, never implicit overrides of intended design values. Consumers SHOULD display them separately.
+
+Only Store bindings may include state. State MAY contain `appliedMigration` and a `snapshot` object with required `ref` and RFC3339 `capturedAt`, and optional `sha256:...` digest. Omitted state means not supplied, not an empty database. References are opaque identifiers; consumers MUST NOT automatically fetch or restore them.
+
+Logical entities and invariants belong in shared Data Model documents assigned to Store nodes. Technical schema, migration and seed files use source selectors or Code artifacts. Actual database records are not required. A snapshot reference does not establish that a deployment currently contains that state.
 
 ## Optional context
 
@@ -139,11 +142,11 @@ kind + "\n" + title + "\n" + language + "\n" + text
 
 Matrix assignments connect a node, a declared concern, and one or more `Document` or `Skill` hashes. References MUST resolve to documents of the corresponding kind.
 
-Prompts are not ordinary matrix references. `systemPromptRefs` belongs to context, references only `Prompt` documents, and applies only to the Root.
+Prompts are not ordinary matrix references. `systemPromptRefs` belongs to context, references only `Prompt` documents, and applies to the overall system.
 
 ### Artifacts
 
-Artifact types are `Summary`, `Docs`, and `Code`. Each belongs to one node and one declared concern.
+Artifact types are `Summary`, `Docs`, and `Code`. Each belongs to one globally identified node and one declared concern.
 
 - Summary and Docs carry UTF-8 `text` and optional language.
 - Code carries `sourcePaths` that resolve to Manifest files.
@@ -153,13 +156,11 @@ Artifact IDs are unique within the system.
 
 ## Validation order
 
-A consumer SHOULD validate in this order:
+1. Envelope, Systems version, and embedded Sources integrity.
+2. Layer IDs, global node IDs, roots, containment, configuration and source selectors.
+3. Layer-local edges and cycle checks.
+4. Refinement endpoints and order.
+5. Instance membership, bindings, configuration, state and secret scopes.
+6. Shared document hashes, concerns, matrix/artifact references, prompts and supersession chains.
 
-1. Top-level schema and embedded Sources.
-2. Node IDs, root, containment, and parent kinds.
-3. Edge endpoints and cycle rules.
-4. Source selectors.
-5. Concern declarations and document hashes.
-6. Matrix, prompt, artifact, and supersession references.
-
-Unknown metadata keys MUST be preserved. Unknown node, edge, document, or artifact kinds are invalid in v1.
+Unknown node, edge, document, artifact or layer-role values are invalid. Use the `custom` role for additional refinement levels.

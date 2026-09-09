@@ -7,6 +7,7 @@ export function openshipViewerUrl(origin: string): string {
   if (origin) url.searchParams.set('url', new URL(origin).origin)
   url.searchParams.set('view', 'system')
   url.searchParams.set('panel', 'architecture')
+  url.searchParams.set('layer', 'logical')
   return url.toString()
 }
 

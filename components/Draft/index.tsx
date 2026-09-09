@@ -739,11 +739,17 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // Debounced autosave: no Save button, work is never lost. Anonymous writers
   // are saved to this device instead of the account.
   useEffect(() => {
-    if (isEditingDisabled || !hasText) return
+    if (isEditingDisabled || loading || !isLocalRestored || isDraftLocked) return
+    if (status === 'loading' || (isAuthenticated && draftKeyStatus === 'loading')) return
+    // Loading an existing draft is not an edit, even while its author or key
+    // is being resolved. Also clear a canceled debounce when an edit is undone.
+    if (!isDraftChanged() || (!currentDraftId && !hasText)) {
+      setSaveState((previous) => previous === 'saving' ? 'idle' : previous)
+      return
+    }
     // A locked writer keeps saving to this device rather than to their account:
     // the work survives, and no prose reaches a database that cannot hold it.
     const shouldSaveLocally = status !== 'authenticated' || isDraftKeyLocked || !isDraftAuthorReady
-    if (!shouldSaveLocally && !isDraftChanged()) return
 
     setSaveState('saving')
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
@@ -777,7 +783,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [draft, isEditingDisabled, isDraftChanged, hasText, status, isDraftKeyLocked, isDraftAuthorReady, currentDraftId])
+  }, [draft, isEditingDisabled, loading, isLocalRestored, isDraftLocked, isDraftChanged, hasText, status, isAuthenticated, draftKeyStatus, isDraftKeyLocked, isDraftAuthorReady, currentDraftId])
 
   // Adoption: the moment the writer signs in, their local draft becomes a real
   // draft on their account. handleSave adopts the new id and rewrites the URL

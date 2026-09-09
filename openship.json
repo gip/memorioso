@@ -517,6 +517,9 @@
       "path": "components/Divider/index.tsx"
     },
     {
+      "path": "components/Draft/index.test.tsx"
+    },
+    {
       "path": "components/Draft/index.tsx"
     },
     {

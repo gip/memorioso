@@ -1,8 +1,10 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
-import { CredentialRequest, IDKitSessionWidget, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
+import { CredentialRequest, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { sendSponsoredWorldTransaction } from '@/lib/libro-service/sponsored-transaction'
 import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
 
@@ -64,7 +66,8 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
     <Button type="button" onClick={begin}>Authorize agent with World ID</Button>
     {status && <p>{status}</p>}
     {error && <p role="alert">{error}</p>}
-    {context && <IDKitSessionWidget
+    {context && <WorldIdSessionWidget
+      mobileOperation={{ kind: 'agent-signing', capability }}
       open={open}
       onOpenChange={setOpen}
       app_id={context.appId}

@@ -1,5 +1,7 @@
 'use client'
 
+import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
+
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -22,7 +24,6 @@ import {
 import { ArrowRight, FileText, MessageSquareText, MoreVertical, Trash2, Check, Loader2 } from 'lucide-react'
 import { FeedItem } from '@/components/FeedItem'
 import {
-  IDKitSessionWidget,
   CredentialRequest,
   type IDKitResultSession,
   type RpContext,
@@ -885,7 +886,8 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   return (
     <div className="space-y-3 pb-10 pt-2 sm:space-y-4 sm:py-4">
       {publishContext && worldIdConstraints && (
-        <IDKitSessionWidget
+        <WorldIdSessionWidget
+          mobileOperation={{ kind: 'draft', draftId: currentDraftId!, challengeId: publishContext.challengeId, publicationKind: draft?.publicationType || 'article' }}
           open={isWorldIdOpen}
           onOpenChange={(open) => {
             setIsWorldIdOpen(open)
@@ -918,7 +920,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       {(draftKeyStatus === 'locked' || draftKeyStatus === 'unavailable') && isAuthenticated && <DraftLockNotice />}
       {publishStep !== null && (<>
         {externalSigningUrl && <div className="my-4 space-y-3">
-          <SigningClient key={externalSigningUrl} capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
+          <SigningClient mobilePublication={currentDraftId ? { draftId: currentDraftId, kind: draft?.publicationType || 'article' } : undefined} key={externalSigningUrl} capability={new URL(externalSigningUrl).pathname.split('/').pop()!} />
         </div>}
         <PublishProgress step={publishStep} status={publishStatus} />
       </>)}

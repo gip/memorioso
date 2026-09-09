@@ -1,0 +1,96 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 59c53701e49d30c7704691b4ca6935b77ebc852c..dad30665440e8d595e375419d35eba55007ce6d2 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -3175,3 +3175,27 @@ exports.proofOfHuman = proofOfHuman;
+ exports.secureDocumentLegacy = secureDocumentLegacy;
+ exports.selfieCheckLegacy = selfieCheckLegacy;
+ exports.setDebug = setDebug;
++
++// Memorioso: expose the existing WASM decoder so a persisted bridge request can
++// resume without creating a second proof request. No verification is done here.
++async function decodeSessionBridgeResponse(payload, options) {
++  await initIDKit();
++  if (payload.error_code) throw new Error(payload.error_code);
++  const proof = payload.proof_response ?? payload;
++  if (proof.error) throw new Error(proof.error);
++  if (!proof.session_id || !Array.isArray(proof.responses)) throw new Error("unexpected_response");
++  if (options.require_user_presence && payload.user_presence_completed !== true) {
++    throw new Error("user_presence_failed");
++  }
++  const result = idkit_wasm_exports.proofResponseToIDKitResult(proof, {
++    nonce: options.nonce,
++    environment: options.environment,
++    signal_hashes: options.signal_hashes,
++    user_presence_completed: options.require_user_presence ? true : undefined,
++    identity_attested: payload.identity_attested,
++  });
++  result.integrity_bundle = payload.integrity_bundle;
++  return result;
++}
++
++exports.decodeSessionBridgeResponse = decodeSessionBridgeResponse;
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index f18900722ce0d292dadbff11c22ec0e8a2c2ff0d..312a7808538173c2baefd3d9579317ae586a68b2 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -877,3 +877,11 @@ declare function isDebug(): boolean;
+ declare function setDebug(enabled: boolean): void;
+ 
+ export { type AbiEncodedValue, type ConstraintNode, CredentialRequest, type CredentialRequestType, type CredentialType, type DeviceLegacyPreset, type DocumentLegacyPreset, type DocumentType, IDKit, type IDKitCompletionResult, type IDKitDebugReport, type IDKitErrorCode, IDKitErrorCodes, type IDKitInviteCodeRequest, type IDKitNamespace, type IDKitNamespaceOptions, type IDKitRequest, type IDKitRequestConfig, type IDKitResult, type IDKitResultSession, type IDKitSessionConfig, type IdentityAttribute, type IdentityCheckPreset, type IntegrityBundle, type IntegritySignatureFormat, type MiniAppDebugInfo, type MncPreset, type OrbLegacyPreset, type PassportPreset, type Preset, type ProofOfHumanPreset, type ResponseItemSession, type ResponseItemV3, type ResponseItemV4, type RpContext, type SecureDocumentLegacyPreset, type SelfieCheckLegacyPreset, type Status$1 as Status, type WaitOptions, all, any, createIDKitNamespace, deviceLegacy, documentLegacy, enumerate, identityCheck, isDebug, isInWorldApp, isNode, isReactNative, isWeb, mnc, orbLegacy, passport, proofOfHuman, secureDocumentLegacy, selfieCheckLegacy, setDebug };
++
++/** Local patch: decode a decrypted session bridge response using IDKit's WASM parser. */
++export declare function decodeSessionBridgeResponse(payload: unknown, options: {
++  nonce: string;
++  environment: string;
++  signal_hashes: Record<string, string>;
++  require_user_presence: boolean;
++}): Promise<IDKitResultSession>;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 1bcea278bc69835ca2a0fb2e6ea49e25b1a04c0e..d096c1094ee0827e661e2df86eda378fb2ca50f2 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -877,3 +877,11 @@ declare function isDebug(): boolean;
+ declare function setDebug(enabled: boolean): void;
+ 
+ export { type AbiEncodedValue, type ConstraintNode, CredentialRequest, type CredentialRequestType, type CredentialType, type DeviceLegacyPreset, type DocumentLegacyPreset, type DocumentType, IDKit, type IDKitCompletionResult, type IDKitDebugReport, type IDKitErrorCode, IDKitErrorCodes, type IDKitInviteCodeRequest, type IDKitNamespace, type IDKitNamespaceOptions, type IDKitRequest, type IDKitRequestConfig, type IDKitResult, type IDKitResultSession, type IDKitSessionConfig, type IdentityAttribute, type IdentityCheckPreset, type IntegrityBundle, type IntegritySignatureFormat, type MiniAppDebugInfo, type MncPreset, type OrbLegacyPreset, type PassportPreset, type Preset, type ProofOfHumanPreset, type ResponseItemSession, type ResponseItemV3, type ResponseItemV4, type RpContext, type SecureDocumentLegacyPreset, type SelfieCheckLegacyPreset, type Status$1 as Status, type WaitOptions, all, any, createIDKitNamespace, deviceLegacy, documentLegacy, enumerate, identityCheck, isDebug, isInWorldApp, isNode, isReactNative, isWeb, mnc, orbLegacy, passport, proofOfHuman, secureDocumentLegacy, selfieCheckLegacy, setDebug };
++
++/** Local patch: decode a decrypted session bridge response using IDKit's WASM parser. */
++export declare function decodeSessionBridgeResponse(payload: unknown, options: {
++  nonce: string;
++  environment: string;
++  signal_hashes: Record<string, string>;
++  require_user_presence: boolean;
++}): Promise<IDKitResultSession>;
+diff --git a/dist/index.js b/dist/index.js
+index 0000f0644e07efca1b91876dcad6e021d6daac63..d01bcd1d9092a9b2e36846528f9e23a6a88f85c7 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3142,3 +3142,27 @@ function isValidHex(s) {
+ }
+ 
+ export { CredentialRequest, IDKit, IDKitErrorCodes, all, any, createIDKitNamespace, deviceLegacy, documentLegacy, enumerate, hashSignal2 as hashSignal, identityCheck, isDebug, isInWorldApp, isNode, isReactNative, isWeb, mnc, orbLegacy, passport, proofOfHuman, secureDocumentLegacy, selfieCheckLegacy, setDebug };
++
++// Memorioso: expose the existing WASM decoder so a persisted bridge request can
++// resume without creating a second proof request. No verification is done here.
++async function decodeSessionBridgeResponse(payload, options) {
++  await initIDKit();
++  if (payload.error_code) throw new Error(payload.error_code);
++  const proof = payload.proof_response ?? payload;
++  if (proof.error) throw new Error(proof.error);
++  if (!proof.session_id || !Array.isArray(proof.responses)) throw new Error("unexpected_response");
++  if (options.require_user_presence && payload.user_presence_completed !== true) {
++    throw new Error("user_presence_failed");
++  }
++  const result = idkit_wasm_exports.proofResponseToIDKitResult(proof, {
++    nonce: options.nonce,
++    environment: options.environment,
++    signal_hashes: options.signal_hashes,
++    user_presence_completed: options.require_user_presence ? true : undefined,
++    identity_attested: payload.identity_attested,
++  });
++  result.integrity_bundle = payload.integrity_bundle;
++  return result;
++}
++
++export { decodeSessionBridgeResponse };

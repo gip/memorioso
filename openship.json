@@ -3,7 +3,7 @@
   "capability": "sources",
   "project": {
     "name": "Memorioso",
-    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. Legacy paths remain behind independent cutover flags.",
+    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. CONTRACT denotes a PROCESS running on consensus; LibroRegistry, WorldIDVerifier and USDC are contracts. Legacy paths remain behind independent cutover flags.",
     "homepage": "https://memorioso.xyz",
     "repository": "https://github.com/memorioso/memorioso",
     "license": "See LICENSE in the source tree if present; otherwise all rights reserved."

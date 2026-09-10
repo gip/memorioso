@@ -2,7 +2,7 @@
   "id": "memorioso",
   "name": "Memorioso and Libro",
   "metadata": {
-    "description": "Supported service-based publishing architecture, with legacy and optional paths explicitly marked.",
+    "description": "Supported service-based publishing architecture, with legacy and optional paths explicitly marked. Contracts are Processes running on consensus; LibroRegistry, WorldIDVerifier and USDC execute under World Chain consensus.",
     "primaryConfiguration": "Libro service cutover; read and write flags independent",
     "deploymentStatus": "Vercel + Neon intended target. Production bindings are unresolved; this is not verified deployment inventory."
   },
@@ -1064,12 +1064,13 @@
         },
         {
           "id": "p.registry",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "LibroRegistry",
           "metadata": {
             "ownership": "first_party",
             "runtime": "EVM contract",
-            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations."
+            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "h.chain",
           "sourceSelectors": [
@@ -1078,23 +1079,25 @@
         },
         {
           "id": "p.verifier",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "WorldIDVerifier proxy",
           "metadata": {
             "ownership": "third_party",
             "runtime": "EVM contract",
-            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address."
+            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "h.chain"
         },
         {
           "id": "p.usdc",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "USDC",
           "metadata": {
             "ownership": "third_party",
             "runtime": "EVM contract",
-            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
+            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "h.chain"
         },
@@ -1736,34 +1739,37 @@
         },
         {
           "id": "provider.p.registry",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "LibroRegistry",
           "metadata": {
             "ownership": "first_party",
             "runtime": "EVM contract",
-            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations."
+            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "provider.h.chain"
         },
         {
           "id": "provider.p.verifier",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "WorldIDVerifier proxy",
           "metadata": {
             "ownership": "third_party",
             "runtime": "EVM contract",
-            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address."
+            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "provider.h.chain"
         },
         {
           "id": "provider.p.usdc",
-          "kind": "Process",
+          "kind": "Contract",
           "name": "USDC",
           "metadata": {
             "ownership": "third_party",
             "runtime": "EVM contract",
-            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
+            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer.",
+            "execution": "Consensus-governed execution and state transitions on World Chain."
           },
           "parentId": "provider.h.chain"
         },

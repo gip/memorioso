@@ -124,6 +124,7 @@
             "Host",
             "Container",
             "Process",
+            "Contract",
             "Library",
             "Block",
             "Store"

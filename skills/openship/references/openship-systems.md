@@ -38,7 +38,11 @@ Any positive number of layers is supported. Each is an explicit graph, not a gen
 
 ## Nodes, containment and sources
 
-Node kinds are `Root`, `Block`, `Store`, `Host`, `Container`, `Process`, and `Library`. Block describes a capability; Store describes persistent data. The other kinds describe a system boundary, execution environment, grouped runtime, executable component, and reusable dependency respectively.
+Node kinds are `Root`, `Block`, `Store`, `Host`, `Container`, `Process`, `Contract`, and `Library`. Block describes a capability; Store describes persistent data. Root, Host, Container, Process, and Library describe a system boundary, execution environment, grouped runtime, executable component, and reusable dependency respectively.
+
+A **Contract** is a Process running on consensus: its execution and state transitions are governed by the consensus rules of its network. “Smart” is implied. Use `Contract` for consensus-executed components and `Process` for ordinary runtimes, including RPC servers and transaction relayers. Contract follows the same containment, connection, refinement, configuration, and instance-binding rules as Process; database `state` remains exclusive to Store bindings. The network can be described by a parent Host and configuration or metadata.
+
+`Contract` extends the node-kind vocabulary without changing the `openship: "1.0"` or `systemsVersion: "2.0"` envelope. Consumers with the previous closed vocabulary must update before accepting documents containing Contract.
 
 ```json
 {

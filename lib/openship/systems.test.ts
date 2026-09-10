@@ -131,3 +131,19 @@ it('declares overlapping domains across design layers with valid members', async
   expect(domains.find(domain => domain.id === 'memorioso-chrome-extension')?.nodeIds).toContain('p.extension')
   expect(domains.find(domain => domain.id === 'libro-mcp')?.nodeIds).toContain('p.libro-db')
 })
+
+it('distinguishes consensus contracts from RPC processes in both concrete layers', async () => {
+  const { system } = await GET().json()
+  for (const [role, prefix] of [['technical', ''], ['provider', 'provider.']]) {
+    const layer = system.layers.find((layer: { role: string }) => layer.role === role)
+    const nodes = new Map(layer.nodes.map((node: { id: string; kind: string; parentId: string; metadata: { execution?: string } }) => [node.id, node]))
+    for (const id of ['p.registry', 'p.verifier', 'p.usdc']) {
+      expect(nodes.get(`${prefix}${id}`)).toMatchObject({
+        kind: 'Contract',
+        parentId: `${prefix}h.chain`,
+        metadata: { execution: 'Consensus-governed execution and state transitions on World Chain.' },
+      })
+    }
+    expect(nodes.get(`${prefix}p.rpc`)).toMatchObject({ kind: 'Process' })
+  }
+})

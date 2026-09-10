@@ -257,8 +257,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       '@openship/protocol':
-        specifier: 0.0.3
-        version: 0.0.3
+        specifier: 0.1.0
+        version: 0.1.0
       '@worldcoin/idkit':
         specifier: 4.2.2
         version: 4.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -681,13 +681,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@openship/protocol@0.0.3':
-    resolution: {integrity: sha512-X0rV6Ukl0j7miGgdUp+mUTIl0zg5mXOrXj1Wd4De8D8uD5OxfveOkjISH4UA3EJzEUvIfawAYsTGlSgP7+KZ7Q==}
-    engines: {node: '>=20'}
-    hasBin: true
-
   '@openship/protocol@0.1.0':
-    resolution: {integrity: sha512-qTJCt8sgNZdQKDu87rVFjwHVmYkMJs5hLRNouMsA+j2ZQu6Eh9EPcxztASSRsXGl32WQ+nGKaR+CyIOlRoWgXw==}
+    resolution: {integrity: sha512-cVXMgzAQWv8t2MQBXDrCgislK+5NMaKA1PyT3AisJpO7p/lGWJxhn2A6nE9yRujBFxAEWhiUhEyNd/p6MzOjig==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -4144,10 +4139,6 @@ snapshots:
       fastq: 1.20.1
 
   '@nolyfill/is-core-module@1.0.39': {}
-
-  '@openship/protocol@0.0.3':
-    dependencies:
-      '@noble/hashes': 2.3.0
 
   '@openship/protocol@0.1.0':
     dependencies:

@@ -55,22 +55,22 @@ describe('OpenShip Systems provider', () => {
     expect(() => composeOpenshipSystems(manifest, bundle)).toThrow(/Missing/)
   })
 
-  it('preserves storage, relayer, cutover and sandbox boundaries in the model', async () => {
+  it('preserves storage, relayer and cutover boundaries in the model', async () => {
     const { system } = await GET().json()
     const nodes = new Map(system.layers.find((layer: { role: string }) => layer.role === 'technical').nodes.map((node: { id: string; parentId?: string }) => [node.id, node.parentId]))
     expect(nodes.get('p.app-db')).not.toEqual(nodes.get('p.libro-db'))
-    expect(nodes.get('p.build')).toBe('c.sandbox')
-    expect(nodes.get('p.worker')).toBe('h.build')
+    expect(nodes.has('p.build')).toBe(false)
+    expect(nodes.has('p.worker')).toBe(false)
     const prose = JSON.stringify(system)
-    for (const invariant of ['LIBRO_SERVICE_READS_ENABLED', 'LIBRO_SERVICE_WRITES_ENABLED', 'X402_RELAYER_PRIVATE_KEY', 'LIBRO_RELAYER_PRIVATE_KEY', 'non-extractable', 'not content confidentiality', 'no production secrets', 'separate registrable domain']) {
+    for (const invariant of ['LIBRO_SERVICE_READS_ENABLED', 'LIBRO_SERVICE_WRITES_ENABLED', 'X402_RELAYER_PRIVATE_KEY', 'LIBRO_RELAYER_PRIVATE_KEY', 'non-extractable', 'not content confidentiality']) {
       expect(prose).toContain(invariant)
     }
   })
 
   it('links to the supplied deployment origin without paths or secrets', () => {
-    const url = new URL(openshipViewerUrl('https://abc123.builds.example/openship'))
+    const url = new URL(openshipViewerUrl('https://memorioso.example/openship'))
     expect(url.origin).toBe('https://openship.dev')
-    expect(url.searchParams.get('url')).toBe('https://abc123.builds.example')
+    expect(url.searchParams.get('url')).toBe('https://memorioso.example')
     expect(url.searchParams.get('view')).toBe('system')
     expect(url.searchParams.get('panel')).toBe('architecture')
   })

@@ -35,7 +35,7 @@ to the configured Libro `/mcp` endpoint and call `openship` with `{"operation":"
 read exact files with `{"operation":"read","path":"app/page.tsx"}`.
 
 OpenShip is a protocol rather than a Memorioso feature; any site can implement it. Memorioso
-implements Sources and Changes, not Systems. The complete pinned v1 skill and specifications are
+implements Sources and Systems. The complete pinned v1 skill and specifications are
 vendored under [`skills/openship`](./skills/openship). The payload is generated at build time by
 `scripts/build-openship.mjs` from the explicit `openship.json` allowlist.
 

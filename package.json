@@ -15,7 +15,6 @@
     "openship:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs --write",
     "openship:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/openship-manifest.mjs",
     "openship:skill": "openship verify-skill skills/openship",
-    "openship:worker": "node --import ./scripts/openship-resolve.mjs scripts/openship-worker.mjs",
     "start": "next start",
     "pretest": "openship verify-skill skills/openship",
     "lint": "eslint .",
@@ -67,11 +66,9 @@
     "sanitize-html": "2.17.6",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "tldts": "^7.4.10",
     "viem": "^2.21.10"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.117.1",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^20",
     "@types/pg": "^8.11.10",

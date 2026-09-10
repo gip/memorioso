@@ -17,9 +17,8 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // The sitemap is prerendered at build time, and some build hosts (previews,
-  // Openship sandbox builds) have no database. Without one there is nothing to
-  // enumerate, so emit the static routes alone instead of failing the build.
+  // The sitemap is prerendered at build time, and preview builds may have no database.
+  // Without one, emit the static routes alone instead of failing the build.
   if (!process.env.DATABASE_URL) {
     return STATIC_ROUTES
   }

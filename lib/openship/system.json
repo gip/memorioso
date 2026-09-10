@@ -62,10 +62,10 @@
       },
       {
         "kind": "Document",
-        "hash": "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
-        "title": "OpenShip Sources, Systems and isolated Changes",
+        "hash": "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
+        "title": "OpenShip Sources and Systems",
         "language": "en",
-        "text": "Discovery advertises Sources, Systems and Changes. Systems embeds exactly the same complete verified Sources snapshot plus this architecture; it is public and CORS-readable. Libro MCP remains a public Sources-only manifest/read binding. Changes is optional and returns 501 while disabled. Submitted patches target the published digest. Pure gates run in the API and again in the worker; build, review and deployment gates follow. The resulting source digest determines buildId. Submitted code executes in a container without production secrets and without network after installation. VERCEL_TOKEN stays in the trusted worker and is passed only to deploy prebuilt output, which does not execute submitted code. Review and path filters are not the security boundary. Candidate domains must have a separate registrable domain, including from production siblings. A ready preview is never automatic production promotion."
+        "text": "Discovery advertises Sources and Systems. Systems embeds exactly the same complete verified Sources snapshot plus this architecture; it is public and CORS-readable. Libro MCP remains a public Sources-only manifest/read binding."
       },
       {
         "kind": "Document",
@@ -220,28 +220,7 @@
         "nodeId": "p.app",
         "concern": "Interfaces",
         "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "p.worker",
-        "concern": "Security",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "c.sandbox",
-        "concern": "Security",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "p.candidate",
-        "concern": "Deployment",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f"
         ]
       },
       {
@@ -274,7 +253,7 @@
           "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960",
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
       },
@@ -298,7 +277,7 @@
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
       },
@@ -320,15 +299,8 @@
           "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
-        ]
-      },
-      {
-        "nodeId": "logical.changes",
-        "concern": "General Specs",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
         ]
       },
       {
@@ -474,28 +446,7 @@
         "nodeId": "provider.p.app",
         "concern": "Interfaces",
         "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "provider.p.worker",
-        "concern": "Security",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "provider.c.sandbox",
-        "concern": "Security",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
-        ]
-      },
-      {
-        "nodeId": "provider.p.candidate",
-        "concern": "Deployment",
-        "documentRefs": [
-          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f"
         ]
       },
       {
@@ -591,7 +542,8 @@
           "lib/db/migrations/020_libro_service_cutover.sql",
           "lib/db/migrations/021_libro_legacy_policy_sync.sql",
           "lib/db/migrations/022_libro_extension_connections.sql",
-          "lib/db/migrations/023_legacy_publication_policies.sql"
+          "lib/db/migrations/023_legacy_publication_policies.sql",
+          "lib/db/migrations/024_remove_openship_changes.sql"
         ]
       },
       {
@@ -622,7 +574,8 @@
           "lib/db/migrations/020_libro_service_cutover.sql",
           "lib/db/migrations/021_libro_legacy_policy_sync.sql",
           "lib/db/migrations/022_libro_extension_connections.sql",
-          "lib/db/migrations/023_legacy_publication_policies.sql"
+          "lib/db/migrations/023_legacy_publication_policies.sql",
+          "lib/db/migrations/024_remove_openship_changes.sql"
         ]
       },
       {
@@ -715,16 +668,6 @@
           }
         },
         {
-          "id": "logical.changes",
-          "kind": "Block",
-          "name": "Isolated change building",
-          "parentId": "logical.root",
-          "metadata": {
-            "ownership": "first_party",
-            "responsibility": "Optional reviewed source changes and isolated candidates; no automatic promotion."
-          }
-        },
-        {
           "id": "logical.app-store",
           "kind": "Store",
           "name": "Memorioso data",
@@ -781,12 +724,6 @@
           "type": "Runtime",
           "fromNodeId": "logical.access",
           "toNodeId": "logical.app-store"
-        },
-        {
-          "id": "logical.changes.verification",
-          "type": "Runtime",
-          "fromNodeId": "logical.changes",
-          "toNodeId": "logical.verification"
         }
       ]
     },
@@ -873,45 +810,12 @@
           "parentId": "s.memorioso"
         },
         {
-          "id": "h.build",
-          "kind": "Host",
-          "name": "Optional OpenShip build host",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 80
-          },
-          "parentId": "s.memorioso"
-        },
-        {
-          "id": "h.review",
-          "kind": "Host",
-          "name": "Model review hosting",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 90
-          },
-          "parentId": "s.memorioso"
-        },
-        {
           "id": "h.deploy",
           "kind": "Host",
           "name": "Deployment and analytics platform",
           "metadata": {
             "ownership": "third_party",
             "order": 100
-          },
-          "parentId": "s.memorioso"
-        },
-        {
-          "id": "h.candidate",
-          "kind": "Host",
-          "name": "Isolated candidate origin",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 110
           },
           "parentId": "s.memorioso"
         },
@@ -962,7 +866,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Next.js 16 / Node.js 24",
-            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources/Systems and Changes endpoints.",
+            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources and Systems endpoints.",
             "legacy": "Legacy canonical writes are retired with 410 when LIBRO_SERVICE_WRITES_ENABLED=1; reads switch independently with LIBRO_SERVICE_READS_ENABLED=1."
           },
           "parentId": "h.memorioso",
@@ -1045,7 +949,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Postgres",
-            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants and Changes queue/status. Legacy canonical rows remain for cutover compatibility."
+            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants. Legacy canonical rows remain for cutover compatibility."
           },
           "parentId": "h.memorioso",
           "sourceSelectors": [
@@ -1193,91 +1097,6 @@
             "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
           },
           "parentId": "h.chain"
-        },
-        {
-          "id": "p.worker",
-          "kind": "Process",
-          "name": "Trusted OpenShip worker",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Poll queued changes, verify source snapshots, rerun gates, orchestrate sandbox and review, deploy prebuilt output, verify candidate digest and update status. Deployment credentials remain here."
-          },
-          "parentId": "h.build",
-          "sourceSelectors": [
-            "scripts/openship-worker.mjs",
-            "scripts/openship-review.mjs"
-          ],
-          "configuration": [
-            {
-              "name": "VERCEL_TOKEN",
-              "description": "Trusted worker only; never passed to candidate builds.",
-              "required": true,
-              "sensitive": true,
-              "secretRef": {
-                "nodeId": "p.worker",
-                "key": "VERCEL_TOKEN"
-              }
-            }
-          ]
-        },
-        {
-          "id": "c.sandbox",
-          "kind": "Container",
-          "name": "Untrusted candidate build sandbox",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Container boundary: no production secrets, network allowed for installation only."
-          },
-          "parentId": "h.build"
-        },
-        {
-          "id": "p.build",
-          "kind": "Process",
-          "name": "Candidate install, checks and build",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Execute submitted source in the isolated sandbox. Outputs are deployed without running submitted code in the trusted worker."
-          },
-          "parentId": "c.sandbox",
-          "sourceSelectors": [
-            "scripts/openship-worker.mjs"
-          ]
-        },
-        {
-          "id": "p.review",
-          "kind": "Process",
-          "name": "Model review API",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Review candidate patch and build evidence; a filter, not the security boundary."
-          },
-          "parentId": "h.review"
-        },
-        {
-          "id": "p.deploy",
-          "kind": "Process",
-          "name": "Deployment API",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Accept prebuilt output and route the candidate alias."
-          },
-          "parentId": "h.deploy"
-        },
-        {
-          "id": "p.candidate",
-          "kind": "Process",
-          "name": "Candidate Memorioso app",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Isolated preview on a different registrable domain. Never automatically promoted to production; serves its own resulting Sources digest."
-          },
-          "parentId": "h.candidate"
         },
         {
           "id": "p.analytics",
@@ -1516,83 +1335,6 @@
           }
         },
         {
-          "id": "e.agent-changes",
-          "type": "Runtime",
-          "fromNodeId": "p.agents",
-          "toNodeId": "p.app",
-          "metadata": {
-            "purpose": "Optional OpenShip patch submission",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-db",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "p.app-db",
-          "metadata": {
-            "purpose": "Poll queue and write change status",
-            "protocol": "Postgres",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-sources",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "p.app",
-          "metadata": {
-            "purpose": "Retrieve and verify published Sources",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-build",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "c.sandbox",
-          "metadata": {
-            "purpose": "Start isolated build",
-            "protocol": "container execution",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-review",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "p.review",
-          "metadata": {
-            "purpose": "Request model review",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-deploy",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "p.deploy",
-          "metadata": {
-            "purpose": "Deploy prebuilt artifact",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "e.worker-candidate",
-          "type": "Runtime",
-          "fromNodeId": "p.worker",
-          "toNodeId": "p.candidate",
-          "metadata": {
-            "purpose": "Verify candidate Sources digest",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
           "id": "e.app.core",
           "type": "Dependency",
           "fromNodeId": "p.app",
@@ -1620,12 +1362,6 @@
           "id": "e.libro.openship",
           "type": "Dependency",
           "fromNodeId": "p.libro",
-          "toNodeId": "l.openship"
-        },
-        {
-          "id": "e.worker.openship",
-          "type": "Dependency",
-          "fromNodeId": "p.worker",
           "toNodeId": "l.openship"
         }
       ],
@@ -1742,45 +1478,12 @@
           "parentId": "provider.s.memorioso"
         },
         {
-          "id": "provider.h.build",
-          "kind": "Host",
-          "name": "Optional OpenShip build host",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 80
-          },
-          "parentId": "provider.s.memorioso"
-        },
-        {
-          "id": "provider.h.review",
-          "kind": "Host",
-          "name": "Anthropic platform",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 90
-          },
-          "parentId": "provider.s.memorioso"
-        },
-        {
           "id": "provider.h.deploy",
           "kind": "Host",
           "name": "Vercel platform",
           "metadata": {
             "ownership": "third_party",
             "order": 100
-          },
-          "parentId": "provider.s.memorioso"
-        },
-        {
-          "id": "provider.h.candidate",
-          "kind": "Host",
-          "name": "Isolated candidate origin",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "order": 110
           },
           "parentId": "provider.s.memorioso"
         },
@@ -1823,7 +1526,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Next.js 16 / Node.js 24",
-            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources/Systems and Changes endpoints.",
+            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources and Systems endpoints.",
             "legacy": "Legacy canonical writes are retired with 410 when LIBRO_SERVICE_WRITES_ENABLED=1; reads switch independently with LIBRO_SERVICE_READS_ENABLED=1."
           },
           "parentId": "provider.h.memorioso",
@@ -1897,7 +1600,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Postgres",
-            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants and Changes queue/status. Legacy canonical rows remain for cutover compatibility."
+            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants. Legacy canonical rows remain for cutover compatibility."
           },
           "parentId": "provider.h.neon-memorioso",
           "configuration": [
@@ -2063,84 +1766,6 @@
             "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
           },
           "parentId": "provider.h.chain"
-        },
-        {
-          "id": "provider.p.worker",
-          "kind": "Process",
-          "name": "Trusted OpenShip worker",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Poll queued changes, verify source snapshots, rerun gates, orchestrate sandbox and review, deploy prebuilt output, verify candidate digest and update status. Deployment credentials remain here."
-          },
-          "parentId": "provider.h.build",
-          "configuration": [
-            {
-              "name": "VERCEL_TOKEN",
-              "description": "Trusted worker only; never passed to candidate builds.",
-              "required": true,
-              "sensitive": true,
-              "secretRef": {
-                "nodeId": "provider.p.worker",
-                "key": "VERCEL_TOKEN"
-              }
-            }
-          ]
-        },
-        {
-          "id": "provider.c.sandbox",
-          "kind": "Container",
-          "name": "Untrusted candidate build sandbox",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Container boundary: no production secrets, network allowed for installation only."
-          },
-          "parentId": "provider.h.build"
-        },
-        {
-          "id": "provider.p.build",
-          "kind": "Process",
-          "name": "Candidate install, checks and build",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Execute submitted source in the isolated sandbox. Outputs are deployed without running submitted code in the trusted worker."
-          },
-          "parentId": "provider.c.sandbox"
-        },
-        {
-          "id": "provider.p.review",
-          "kind": "Process",
-          "name": "Model review API",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Review candidate patch and build evidence; a filter, not the security boundary."
-          },
-          "parentId": "provider.h.review"
-        },
-        {
-          "id": "provider.p.deploy",
-          "kind": "Process",
-          "name": "Vercel deployment API",
-          "metadata": {
-            "ownership": "third_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Accept prebuilt output and route the candidate alias."
-          },
-          "parentId": "provider.h.deploy"
-        },
-        {
-          "id": "provider.p.candidate",
-          "kind": "Process",
-          "name": "Candidate Memorioso app",
-          "metadata": {
-            "ownership": "first_party",
-            "availability": "optional: OpenShip Changes",
-            "responsibility": "Isolated preview on a different registrable domain. Never automatically promoted to production; serves its own resulting Sources digest."
-          },
-          "parentId": "provider.h.candidate"
         },
         {
           "id": "provider.p.analytics",
@@ -2398,83 +2023,6 @@
           }
         },
         {
-          "id": "provider.e.agent-changes",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.agents",
-          "toNodeId": "provider.p.app",
-          "metadata": {
-            "purpose": "Optional OpenShip patch submission",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-db",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.p.app-db",
-          "metadata": {
-            "purpose": "Poll queue and write change status",
-            "protocol": "Postgres",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-sources",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.p.app",
-          "metadata": {
-            "purpose": "Retrieve and verify published Sources",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-build",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.c.sandbox",
-          "metadata": {
-            "purpose": "Start isolated build",
-            "protocol": "container execution",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-review",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.p.review",
-          "metadata": {
-            "purpose": "Request model review",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-deploy",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.p.deploy",
-          "metadata": {
-            "purpose": "Deploy prebuilt artifact",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
-          "id": "provider.e.worker-candidate",
-          "type": "Runtime",
-          "fromNodeId": "provider.p.worker",
-          "toNodeId": "provider.p.candidate",
-          "metadata": {
-            "purpose": "Verify candidate Sources digest",
-            "protocol": "HTTPS",
-            "availability": "optional: OpenShip Changes"
-          }
-        },
-        {
           "id": "provider.e.app.core",
           "type": "Dependency",
           "fromNodeId": "provider.p.app",
@@ -2502,12 +2050,6 @@
           "id": "provider.e.libro.openship",
           "type": "Dependency",
           "fromNodeId": "provider.p.libro",
-          "toNodeId": "provider.l.openship"
-        },
-        {
-          "id": "provider.e.worker.openship",
-          "type": "Dependency",
-          "fromNodeId": "provider.p.worker",
           "toNodeId": "provider.l.openship"
         }
       ],
@@ -2593,36 +2135,6 @@
       "toNodeId": "logical.access"
     },
     {
-      "id": "ref.p.worker.changes",
-      "fromNodeId": "p.worker",
-      "toNodeId": "logical.changes"
-    },
-    {
-      "id": "ref.c.sandbox.changes",
-      "fromNodeId": "c.sandbox",
-      "toNodeId": "logical.changes"
-    },
-    {
-      "id": "ref.p.build.changes",
-      "fromNodeId": "p.build",
-      "toNodeId": "logical.changes"
-    },
-    {
-      "id": "ref.p.review.changes",
-      "fromNodeId": "p.review",
-      "toNodeId": "logical.changes"
-    },
-    {
-      "id": "ref.p.deploy.changes",
-      "fromNodeId": "p.deploy",
-      "toNodeId": "logical.changes"
-    },
-    {
-      "id": "ref.p.candidate.changes",
-      "fromNodeId": "p.candidate",
-      "toNodeId": "logical.changes"
-    },
-    {
       "id": "ref.p.app-db.app-store",
       "fromNodeId": "p.app-db",
       "toNodeId": "logical.app-store"
@@ -2671,26 +2183,6 @@
       "id": "ref.provider.h.agents",
       "fromNodeId": "provider.h.agents",
       "toNodeId": "h.agents"
-    },
-    {
-      "id": "ref.provider.h.build",
-      "fromNodeId": "provider.h.build",
-      "toNodeId": "h.build"
-    },
-    {
-      "id": "ref.provider.h.review",
-      "fromNodeId": "provider.h.review",
-      "toNodeId": "h.review"
-    },
-    {
-      "id": "ref.provider.h.deploy",
-      "fromNodeId": "provider.h.deploy",
-      "toNodeId": "h.deploy"
-    },
-    {
-      "id": "ref.provider.h.candidate",
-      "fromNodeId": "provider.h.candidate",
-      "toNodeId": "h.candidate"
     },
     {
       "id": "ref.provider.p.browser",
@@ -2758,36 +2250,6 @@
       "toNodeId": "p.usdc"
     },
     {
-      "id": "ref.provider.p.worker",
-      "fromNodeId": "provider.p.worker",
-      "toNodeId": "p.worker"
-    },
-    {
-      "id": "ref.provider.c.sandbox",
-      "fromNodeId": "provider.c.sandbox",
-      "toNodeId": "c.sandbox"
-    },
-    {
-      "id": "ref.provider.p.build",
-      "fromNodeId": "provider.p.build",
-      "toNodeId": "p.build"
-    },
-    {
-      "id": "ref.provider.p.review",
-      "fromNodeId": "provider.p.review",
-      "toNodeId": "p.review"
-    },
-    {
-      "id": "ref.provider.p.deploy",
-      "fromNodeId": "provider.p.deploy",
-      "toNodeId": "p.deploy"
-    },
-    {
-      "id": "ref.provider.p.candidate",
-      "fromNodeId": "provider.p.candidate",
-      "toNodeId": "p.candidate"
-    },
-    {
       "id": "ref.provider.p.analytics",
       "fromNodeId": "provider.p.analytics",
       "toNodeId": "p.analytics"
@@ -2816,6 +2278,11 @@
       "id": "ref.logical.root",
       "fromNodeId": "s.memorioso",
       "toNodeId": "logical.root"
+    },
+    {
+      "id": "ref.provider.h.deploy",
+      "fromNodeId": "provider.h.deploy",
+      "toNodeId": "h.deploy"
     }
   ],
   "instances": [
@@ -2869,18 +2336,6 @@
         },
         {
           "nodeId": "provider.h.agents"
-        },
-        {
-          "nodeId": "provider.h.build"
-        },
-        {
-          "nodeId": "provider.h.review"
-        },
-        {
-          "nodeId": "provider.h.deploy"
-        },
-        {
-          "nodeId": "provider.h.candidate"
         },
         {
           "nodeId": "provider.p.browser"
@@ -3050,36 +2505,6 @@
           "nodeId": "provider.p.usdc"
         },
         {
-          "nodeId": "provider.p.worker",
-          "configuration": [
-            {
-              "name": "VERCEL_TOKEN",
-              "description": "Trusted worker only; never passed to candidate builds.",
-              "required": true,
-              "sensitive": true,
-              "secretRef": {
-                "nodeId": "provider.p.worker",
-                "key": "VERCEL_TOKEN"
-              }
-            }
-          ]
-        },
-        {
-          "nodeId": "provider.c.sandbox"
-        },
-        {
-          "nodeId": "provider.p.build"
-        },
-        {
-          "nodeId": "provider.p.review"
-        },
-        {
-          "nodeId": "provider.p.deploy"
-        },
-        {
-          "nodeId": "provider.p.candidate"
-        },
-        {
           "nodeId": "provider.p.analytics"
         },
         {
@@ -3093,6 +2518,9 @@
         },
         {
           "nodeId": "provider.h.neon-libro"
+        },
+        {
+          "nodeId": "provider.h.deploy"
         }
       ]
     }
@@ -3108,24 +2536,13 @@
         "logical.publication",
         "logical.verification",
         "logical.access",
-        "logical.changes",
         "logical.app-store",
         "h.clients",
         "h.memorioso",
         "p.browser",
         "p.app",
         "p.app-db",
-        "h.build",
-        "c.sandbox",
-        "p.worker",
-        "p.build",
-        "h.review",
-        "p.review",
-        "h.deploy",
-        "p.deploy",
         "p.analytics",
-        "h.candidate",
-        "p.candidate",
         "l.libro",
         "l.openship",
         "provider.h.clients",
@@ -3133,20 +2550,12 @@
         "provider.p.browser",
         "provider.p.app",
         "provider.p.app-db",
-        "provider.h.build",
-        "provider.c.sandbox",
-        "provider.p.worker",
-        "provider.p.build",
-        "provider.h.review",
-        "provider.p.review",
-        "provider.h.deploy",
-        "provider.p.deploy",
         "provider.p.analytics",
-        "provider.h.candidate",
-        "provider.p.candidate",
         "provider.l.libro",
         "provider.l.openship",
-        "provider.h.neon-memorioso"
+        "provider.h.neon-memorioso",
+        "h.deploy",
+        "provider.h.deploy"
       ]
     },
     {

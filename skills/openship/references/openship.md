@@ -7,7 +7,7 @@ OpenShip is a public interface between a running project and the people or agent
 
 1. **Sources** publishes an integrity-checked source snapshot.
 2. **Changes** accepts a patch against a Sources digest and produces an isolated candidate origin.
-3. **Systems** publishes a self-contained JSON description of source, architecture, infrastructure, and optional agent context.
+3. **Systems** publishes a self-contained JSON description of source, ordered design layers, instance bindings, and optional agent context. Systems uses the additional `systemsVersion: "2.0"` discriminator.
 
 Sources is the foundation. Changes depends on Sources. Systems embeds a complete Sources snapshot but does not require Changes.
 

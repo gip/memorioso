@@ -1,724 +1,11 @@
 {
   "id": "memorioso",
   "name": "Memorioso and Libro",
-  "rootNodeId": "s.memorioso",
   "metadata": {
     "description": "Supported service-based publishing architecture, with legacy and optional paths explicitly marked.",
-    "primaryConfiguration": "Libro service cutover; read and write flags independent"
+    "primaryConfiguration": "Libro service cutover; read and write flags independent",
+    "deploymentStatus": "Vercel + Neon intended target. Production bindings are unresolved; this is not verified deployment inventory."
   },
-  "nodes": [
-    {
-      "id": "s.memorioso",
-      "kind": "Root",
-      "name": "Memorioso and Libro",
-      "metadata": {
-        "ownership": "first_party",
-        "responsibility": "Human-authored publishing with human-authorized agents. This is a source-bound description of supported configurations, not a live deployment inventory."
-      }
-    },
-    {
-      "id": "h.clients",
-      "kind": "Host",
-      "name": "Reader and author devices",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 10
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.memorioso",
-      "kind": "Host",
-      "name": "Memorioso application hosting",
-      "metadata": {
-        "ownership": "first_party",
-        "order": 20
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.libro",
-      "kind": "Host",
-      "name": "Libro service hosting",
-      "metadata": {
-        "ownership": "first_party",
-        "order": 30
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.world",
-      "kind": "Host",
-      "name": "World identity and wallet platform",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 40
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.chain",
-      "kind": "Host",
-      "name": "World Chain",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 60
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.rpc",
-      "kind": "Host",
-      "name": "World Chain RPC providers",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 50
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.agents",
-      "kind": "Host",
-      "name": "External client runtimes",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 70
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.build",
-      "kind": "Host",
-      "name": "Optional OpenShip build host",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "order": 80
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.review",
-      "kind": "Host",
-      "name": "Anthropic platform",
-      "metadata": {
-        "ownership": "third_party",
-        "availability": "optional: OpenShip Changes",
-        "order": 90
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.deploy",
-      "kind": "Host",
-      "name": "Vercel platform",
-      "metadata": {
-        "ownership": "third_party",
-        "order": 100
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "h.candidate",
-      "kind": "Host",
-      "name": "Isolated candidate origin",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "order": 110
-      },
-      "parentId": "s.memorioso"
-    },
-    {
-      "id": "p.browser",
-      "kind": "Process",
-      "name": "Memorioso browser app",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "browser",
-        "responsibility": "Draft editing and reveal, passphrase/recovery key handling, user interaction, publication display. Device keys are non-extractable and cleared on sign-out."
-      },
-      "parentId": "h.clients",
-      "sourceSelectors": [
-        "components/Editor/**",
-        "lib/draft-crypto/**",
-        "app/providers.tsx"
-      ]
-    },
-    {
-      "id": "p.extension",
-      "kind": "Process",
-      "name": "Chrome extension",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "browser-extension",
-        "responsibility": "OAuth connection and extension consent, signing integrations, and verification of canonical publication proofs."
-      },
-      "parentId": "h.clients",
-      "sourceSelectors": [
-        "libro/chrome-extension/**"
-      ]
-    },
-    {
-      "id": "p.agents",
-      "kind": "Process",
-      "name": "External agents and OAuth clients",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "Explicitly authorized clients; agent keys sign documents and finalizations. A handle or registration ID is never a credential."
-      },
-      "parentId": "h.agents"
-    },
-    {
-      "id": "p.app",
-      "kind": "Process",
-      "name": "Memorioso Next.js app",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "Next.js 16 / Node.js 24",
-        "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources/Systems and Changes endpoints.",
-        "legacy": "Legacy canonical writes are retired with 410 when LIBRO_SERVICE_WRITES_ENABLED=1; reads switch independently with LIBRO_SERVICE_READS_ENABLED=1."
-      },
-      "parentId": "h.memorioso",
-      "sourceSelectors": [
-        "app/**",
-        "lib/auth-user.ts",
-        "lib/auth-session.ts",
-        "lib/libro-service/**",
-        "lib/access/**",
-        "lib/x402/**",
-        "lib/openship/**"
-      ]
-    },
-    {
-      "id": "p.app-db",
-      "kind": "Process",
-      "name": "Memorioso Postgres",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "Postgres",
-        "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants and Changes queue/status. Legacy canonical rows remain for cutover compatibility."
-      },
-      "parentId": "h.memorioso",
-      "sourceSelectors": [
-        "lib/db/**"
-      ]
-    },
-    {
-      "id": "p.libro",
-      "kind": "Process",
-      "name": "Libro identity and publishing service",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "Next.js / Node.js",
-        "responsibility": "Canonical authors, handle/session bindings, OAuth, public API/MCP, signing UI, publication workflows, chain verification, Libro relayer and durable event delivery."
-      },
-      "parentId": "h.libro",
-      "sourceSelectors": [
-        "libro/service/**"
-      ]
-    },
-    {
-      "id": "p.libro-db",
-      "kind": "Process",
-      "name": "Libro Postgres",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "Postgres",
-        "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox. Distinct database from Memorioso."
-      },
-      "parentId": "h.libro",
-      "sourceSelectors": [
-        "libro/service/db/**"
-      ]
-    },
-    {
-      "id": "p.world-id",
-      "kind": "Process",
-      "name": "World ID verification",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "Verify IDKit v4 session and publication proofs bound to configured RP and canonical publication signals."
-      },
-      "parentId": "h.world"
-    },
-    {
-      "id": "p.world-app",
-      "kind": "Process",
-      "name": "World App and wallet",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "User-presence proof and wallet transaction interactions through IDKit and MiniKit."
-      },
-      "parentId": "h.world"
-    },
-    {
-      "id": "p.rpc",
-      "kind": "Process",
-      "name": "World Chain RPC endpoints",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "Configured endpoint list queried in parallel; one matching handle-bound registration event proves registration. Pruned receipt indexes must not turn old publications invalid."
-      },
-      "parentId": "h.rpc"
-    },
-    {
-      "id": "p.registry",
-      "kind": "Process",
-      "name": "LibroRegistry",
-      "metadata": {
-        "ownership": "first_party",
-        "runtime": "EVM contract",
-        "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations."
-      },
-      "parentId": "h.chain",
-      "sourceSelectors": [
-        "libro/contracts/src/**"
-      ]
-    },
-    {
-      "id": "p.verifier",
-      "kind": "Process",
-      "name": "WorldIDVerifier proxy",
-      "metadata": {
-        "ownership": "third_party",
-        "runtime": "EVM contract",
-        "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address."
-      },
-      "parentId": "h.chain"
-    },
-    {
-      "id": "p.usdc",
-      "kind": "Process",
-      "name": "USDC",
-      "metadata": {
-        "ownership": "third_party",
-        "runtime": "EVM contract",
-        "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
-      },
-      "parentId": "h.chain"
-    },
-    {
-      "id": "p.worker",
-      "kind": "Process",
-      "name": "Trusted OpenShip worker",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Poll queued changes, verify source snapshots, rerun gates, orchestrate sandbox and review, deploy prebuilt output, verify candidate digest and update status. Deployment credentials remain here."
-      },
-      "parentId": "h.build",
-      "sourceSelectors": [
-        "scripts/openship-worker.mjs",
-        "scripts/openship-review.mjs"
-      ]
-    },
-    {
-      "id": "c.sandbox",
-      "kind": "Container",
-      "name": "Untrusted candidate build sandbox",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Container boundary: no production secrets, network allowed for installation only."
-      },
-      "parentId": "h.build"
-    },
-    {
-      "id": "p.build",
-      "kind": "Process",
-      "name": "Candidate install, checks and build",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Execute submitted source in the isolated sandbox. Outputs are deployed without running submitted code in the trusted worker."
-      },
-      "parentId": "c.sandbox",
-      "sourceSelectors": [
-        "scripts/openship-worker.mjs"
-      ]
-    },
-    {
-      "id": "p.review",
-      "kind": "Process",
-      "name": "Model review API",
-      "metadata": {
-        "ownership": "third_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Review candidate patch and build evidence; a filter, not the security boundary."
-      },
-      "parentId": "h.review"
-    },
-    {
-      "id": "p.deploy",
-      "kind": "Process",
-      "name": "Vercel deployment API",
-      "metadata": {
-        "ownership": "third_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Accept prebuilt output and route the candidate alias."
-      },
-      "parentId": "h.deploy"
-    },
-    {
-      "id": "p.candidate",
-      "kind": "Process",
-      "name": "Candidate Memorioso app",
-      "metadata": {
-        "ownership": "first_party",
-        "availability": "optional: OpenShip Changes",
-        "responsibility": "Isolated preview on a different registrable domain. Never automatically promoted to production; serves its own resulting Sources digest."
-      },
-      "parentId": "h.candidate"
-    },
-    {
-      "id": "p.analytics",
-      "kind": "Process",
-      "name": "Vercel Analytics",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "Application usage analytics loaded by the shared layout."
-      },
-      "parentId": "h.deploy"
-    },
-    {
-      "id": "l.libro",
-      "kind": "Library",
-      "name": "@libro/core",
-      "metadata": {
-        "ownership": "first_party",
-        "responsibility": "Canonical payload serialization, hashing and shared verification/protocol helpers."
-      },
-      "sourceSelectors": [
-        "libro/core/src/**"
-      ]
-    },
-    {
-      "id": "l.openship",
-      "kind": "Library",
-      "name": "@openship/protocol",
-      "metadata": {
-        "ownership": "third_party",
-        "responsibility": "OpenShip v1 Sources, Systems and discovery types and validation. Dependency implementation is external to this snapshot; vendored protocol documentation is included."
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "e.browser-app",
-      "type": "Runtime",
-      "fromNodeId": "p.browser",
-      "toNodeId": "p.app",
-      "metadata": {
-        "purpose": "Draft CRUD, local sessions, feeds and access",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.browser-libro",
-      "type": "Runtime",
-      "fromNodeId": "p.browser",
-      "toNodeId": "p.libro",
-      "metadata": {
-        "purpose": "OAuth connection and human signing UI",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.browser-wallet",
-      "type": "Runtime",
-      "fromNodeId": "p.browser",
-      "toNodeId": "p.world-app",
-      "metadata": {
-        "purpose": "User-presence proofs and signing",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.extension-app",
-      "type": "Runtime",
-      "fromNodeId": "p.extension",
-      "toNodeId": "p.app",
-      "metadata": {
-        "purpose": "Extension consent, short-lived polling and inline drafts",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.extension-libro",
-      "type": "Runtime",
-      "fromNodeId": "p.extension",
-      "toNodeId": "p.libro",
-      "metadata": {
-        "purpose": "OAuth connection and canonical publication/signing APIs",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.extension-wallet",
-      "type": "Runtime",
-      "fromNodeId": "p.extension",
-      "toNodeId": "p.world-app",
-      "metadata": {
-        "purpose": "Signing interaction",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.extension-rpc",
-      "type": "Runtime",
-      "fromNodeId": "p.extension",
-      "toNodeId": "p.rpc",
-      "metadata": {
-        "purpose": "Multi-endpoint registration verification",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.agents-libro",
-      "type": "Runtime",
-      "fromNodeId": "p.agents",
-      "toNodeId": "p.libro",
-      "metadata": {
-        "purpose": "OAuth API/MCP and agent publishing",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.app-db",
-      "type": "Runtime",
-      "fromNodeId": "p.app",
-      "toNodeId": "p.app-db",
-      "metadata": {
-        "purpose": "Local reads and transactional writes",
-        "protocol": "Postgres"
-      }
-    },
-    {
-      "id": "e.app-libro",
-      "type": "Runtime",
-      "fromNodeId": "p.app",
-      "toNodeId": "p.libro",
-      "metadata": {
-        "purpose": "Canonical API reads and OAuth-authorized writes",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.libro-events",
-      "type": "Runtime",
-      "fromNodeId": "p.libro",
-      "toNodeId": "p.app",
-      "metadata": {
-        "purpose": "Authenticated, deduplicated webhook projection updates",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.libro-db",
-      "type": "Runtime",
-      "fromNodeId": "p.libro",
-      "toNodeId": "p.libro-db",
-      "metadata": {
-        "purpose": "Canonical transactions, grants and outbox",
-        "protocol": "Postgres"
-      }
-    },
-    {
-      "id": "e.libro-world",
-      "type": "Runtime",
-      "fromNodeId": "p.libro",
-      "toNodeId": "p.world-id",
-      "metadata": {
-        "purpose": "Server-side IDKit proof verification",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.libro-rpc",
-      "type": "Runtime",
-      "fromNodeId": "p.libro",
-      "toNodeId": "p.rpc",
-      "metadata": {
-        "purpose": "Broadcast registration and verify matching on-chain events",
-        "protocol": "JSON-RPC"
-      }
-    },
-    {
-      "id": "e.app-rpc",
-      "type": "Runtime",
-      "fromNodeId": "p.app",
-      "toNodeId": "p.rpc",
-      "metadata": {
-        "purpose": "x402 settlement and multi-endpoint publication verification",
-        "protocol": "JSON-RPC"
-      }
-    },
-    {
-      "id": "e.rpc-registry",
-      "type": "Runtime",
-      "fromNodeId": "p.rpc",
-      "toNodeId": "p.registry",
-      "metadata": {
-        "purpose": "Registry transactions and event/receipt reads",
-        "protocol": "Ethereum JSON-RPC"
-      }
-    },
-    {
-      "id": "e.rpc-usdc",
-      "type": "Runtime",
-      "fromNodeId": "p.rpc",
-      "toNodeId": "p.usdc",
-      "metadata": {
-        "purpose": "EIP-3009 payment broadcast and receipts",
-        "protocol": "Ethereum JSON-RPC"
-      }
-    },
-    {
-      "id": "e.registry-verifier",
-      "type": "Runtime",
-      "fromNodeId": "p.registry",
-      "toNodeId": "p.verifier",
-      "metadata": {
-        "purpose": "Proof verification via configured proxy",
-        "protocol": "EVM call"
-      }
-    },
-    {
-      "id": "e.browser-analytics",
-      "type": "Runtime",
-      "fromNodeId": "p.browser",
-      "toNodeId": "p.analytics",
-      "metadata": {
-        "purpose": "Usage analytics",
-        "protocol": "HTTPS"
-      }
-    },
-    {
-      "id": "e.legacy-world",
-      "type": "Runtime",
-      "fromNodeId": "p.app",
-      "toNodeId": "p.world-id",
-      "metadata": {
-        "purpose": "Legacy proof verification",
-        "protocol": "HTTPS",
-        "availability": "legacy: service writes disabled"
-      }
-    },
-    {
-      "id": "e.agent-changes",
-      "type": "Runtime",
-      "fromNodeId": "p.agents",
-      "toNodeId": "p.app",
-      "metadata": {
-        "purpose": "Optional OpenShip patch submission",
-        "protocol": "HTTPS",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-db",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "p.app-db",
-      "metadata": {
-        "purpose": "Poll queue and write change status",
-        "protocol": "Postgres",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-sources",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "p.app",
-      "metadata": {
-        "purpose": "Retrieve and verify published Sources",
-        "protocol": "HTTPS",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-build",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "c.sandbox",
-      "metadata": {
-        "purpose": "Start isolated build",
-        "protocol": "container execution",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-review",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "p.review",
-      "metadata": {
-        "purpose": "Request model review",
-        "protocol": "HTTPS",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-deploy",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "p.deploy",
-      "metadata": {
-        "purpose": "Deploy prebuilt artifact",
-        "protocol": "HTTPS",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.worker-candidate",
-      "type": "Runtime",
-      "fromNodeId": "p.worker",
-      "toNodeId": "p.candidate",
-      "metadata": {
-        "purpose": "Verify candidate Sources digest",
-        "protocol": "HTTPS",
-        "availability": "optional: OpenShip Changes"
-      }
-    },
-    {
-      "id": "e.app.core",
-      "type": "Dependency",
-      "fromNodeId": "p.app",
-      "toNodeId": "l.libro"
-    },
-    {
-      "id": "e.libro.core",
-      "type": "Dependency",
-      "fromNodeId": "p.libro",
-      "toNodeId": "l.libro"
-    },
-    {
-      "id": "e.extension.core",
-      "type": "Dependency",
-      "fromNodeId": "p.extension",
-      "toNodeId": "l.libro"
-    },
-    {
-      "id": "e.app.openship",
-      "type": "Dependency",
-      "fromNodeId": "p.app",
-      "toNodeId": "l.openship"
-    },
-    {
-      "id": "e.libro.openship",
-      "type": "Dependency",
-      "fromNodeId": "p.libro",
-      "toNodeId": "l.openship"
-    },
-    {
-      "id": "e.worker.openship",
-      "type": "Dependency",
-      "fromNodeId": "p.worker",
-      "toNodeId": "l.openship"
-    }
-  ],
   "context": {
     "concerns": [
       "General Specs",
@@ -736,7 +23,7 @@
         "hash": "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc",
         "title": "Architecture and cutover",
         "language": "en",
-        "text": "Memorioso owns drafts, local author projections, sessions, feeds and access policy. Libro owns canonical identities and publications after cutover and uses a separate Postgres database. LIBRO_SERVICE_READS_ENABLED and LIBRO_SERVICE_WRITES_ENABLED activate independently, and only the value 1 enables either. Legacy chain-facing writes return 410 after service writes are enabled. Canonical service reads are joined to local publication_policies, preserving feed membership. Migrations 020\u2013022 require paused canonical writes and payment settlements; never ship 020 alone. After Libro accepts writes, rollback requires a freeze and validated reverse copy, not just reversing flags. Host labels here describe logical boundaries, not provisioned infrastructure or live health."
+        "text": "Memorioso owns drafts, local author projections, sessions, feeds and access policy. Libro owns canonical identities and publications after cutover and uses a separate Postgres database. LIBRO_SERVICE_READS_ENABLED and LIBRO_SERVICE_WRITES_ENABLED activate independently, and only the value 1 enables either. Legacy chain-facing writes return 410 after service writes are enabled. Canonical service reads are joined to local publication_policies, preserving feed membership. Migrations 020–022 require paused canonical writes and payment settlements; never ship 020 alone. After Libro accepts writes, rollback requires a freeze and validated reverse copy, not just reversing flags. Host labels here describe logical boundaries, not provisioned infrastructure or live health."
       },
       {
         "kind": "Document",
@@ -771,7 +58,7 @@
         "hash": "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
         "title": "Access policy and x402 settlement",
         "language": "en",
-        "text": "Gating is Memorioso presentation policy, not content confidentiality: Libro public APIs and MCP expose complete canonical signed payloads. Only articles may be gated; any authenticated Memorioso user or a settled payment grant unlocks the local view. Access policy never enters the signed signal. All Memorioso body/manifest/proof/feed surfaces apply access rules. The teaser is plain text; viewer-specific access stays outside shared caches. Missing x402 configuration removes the payment offer rather than breaking reads. Settlement uses World Chain USDC EIP-3009 and reserves a unique authorization nonce before broadcast, then records completion and the grant. X402_RELAYER_PRIVATE_KEY belongs to Memorioso and remains distinct from Libro\u2019s relayer key."
+        "text": "Gating is Memorioso presentation policy, not content confidentiality: Libro public APIs and MCP expose complete canonical signed payloads. Only articles may be gated; any authenticated Memorioso user or a settled payment grant unlocks the local view. Access policy never enters the signed signal. All Memorioso body/manifest/proof/feed surfaces apply access rules. The teaser is plain text; viewer-specific access stays outside shared caches. Missing x402 configuration removes the payment offer rather than breaking reads. Settlement uses World Chain USDC EIP-3009 and reserves a unique authorization nonce before broadcast, then records completion and the grant. X402_RELAYER_PRIVATE_KEY belongs to Memorioso and remains distinct from Libro’s relayer key."
       },
       {
         "kind": "Document",
@@ -786,6 +73,20 @@
         "title": "Deployment and source maintenance",
         "language": "en",
         "text": "Memorioso and Libro are separate Next.js applications and databases. Shared core, Chrome extension and Foundry contracts have separate checks. Database pools are lazy and build-time reads have missing-database fallbacks. Only Libro receives WORLD_ID_RP_SIGNING_KEY and LIBRO_RELAYER_PRIVATE_KEY after cutover; Memorioso retains its session secret, encrypted client tokens and x402 relayer. Environment names may be published; values and credentials are not. Keep this model in the source snapshot, update it alongside architecture changes, and validate it against the published Sources. Structural checks do not establish semantic accuracy or live service availability."
+      },
+      {
+        "kind": "Document",
+        "title": "Memorioso logical data model",
+        "language": "en",
+        "text": "Authors own drafts. Drafts contain either encrypted content with null prose fields or opted-out prose. Local author projections, publication policies and feed membership remain local even when canonical publication data comes from Libro. Payment grants belong to local access policy. OAuth tokens are encrypted. No production records or required seed records are supplied.",
+        "hash": "sha256:f93389a282d5495f13354b020be002f18bfdbaf71957d4ea3791d11c3c225421"
+      },
+      {
+        "kind": "Document",
+        "title": "Libro logical data model",
+        "language": "en",
+        "text": "Canonical identities own canonical publications. Human and agent signatures remain distinct proof classes. OAuth grants and tokens are identity-scoped; signing challenges bind exact operations. Durable outbox events synchronize consumers. Libro uses a database separate from Memorioso. No production records or required seed records are supplied.",
+        "hash": "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
       }
     ],
     "matrix": [
@@ -963,7 +264,2964 @@
         "documentRefs": [
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
+      },
+      {
+        "nodeId": "logical.authoring",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc",
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960",
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "logical.identity",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc",
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4",
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "logical.publication",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc",
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4",
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "logical.verification",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960",
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+        ]
+      },
+      {
+        "nodeId": "logical.access",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc",
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb",
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "logical.changes",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+        ]
+      },
+      {
+        "nodeId": "logical.app-store",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960",
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230"
+        ]
+      },
+      {
+        "nodeId": "logical.libro-store",
+        "concern": "General Specs",
+        "documentRefs": []
+      },
+      {
+        "nodeId": "provider.s.memorioso",
+        "concern": "General Specs",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:2778af4590847e9ffa518de4d4a29a944cc5dafc4eae9cf1e8101f0b6bf184cc"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro",
+        "concern": "Interfaces",
+        "documentRefs": [
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
+        ]
+      },
+      {
+        "nodeId": "provider.p.extension",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5"
+        ]
+      },
+      {
+        "nodeId": "provider.p.browser",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960"
+        ]
+      },
+      {
+        "nodeId": "provider.p.extension",
+        "concern": "Implementation",
+        "documentRefs": [
+          "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro",
+        "concern": "Features",
+        "documentRefs": [
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Implementation",
+        "documentRefs": [
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d"
+        ]
+      },
+      {
+        "nodeId": "provider.p.rpc",
+        "concern": "Connectivity",
+        "documentRefs": [
+          "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d"
+        ]
+      },
+      {
+        "nodeId": "provider.p.agents",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+        ]
+      },
+      {
+        "nodeId": "provider.p.registry",
+        "concern": "Interfaces",
+        "documentRefs": [
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro",
+        "concern": "Features",
+        "documentRefs": [
+          "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230"
+        ]
+      },
+      {
+        "nodeId": "provider.p.usdc",
+        "concern": "Interfaces",
+        "documentRefs": [
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Interfaces",
+        "documentRefs": [
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+        ]
+      },
+      {
+        "nodeId": "provider.p.worker",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+        ]
+      },
+      {
+        "nodeId": "provider.c.sandbox",
+        "concern": "Security",
+        "documentRefs": [
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+        ]
+      },
+      {
+        "nodeId": "provider.p.candidate",
+        "concern": "Deployment",
+        "documentRefs": [
+          "sha256:35c73828998868292c960b4fe4e5eacc800c6d0203b06d4a5a04eac2be9773cb"
+        ]
+      },
+      {
+        "nodeId": "provider.s.memorioso",
+        "concern": "Deployment",
+        "documentRefs": [
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app",
+        "concern": "Deployment",
+        "documentRefs": [
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro",
+        "concern": "Deployment",
+        "documentRefs": [
+          "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
+        ]
+      },
+      {
+        "nodeId": "logical.app-store",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:f93389a282d5495f13354b020be002f18bfdbaf71957d4ea3791d11c3c225421"
+        ]
+      },
+      {
+        "nodeId": "p.app-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:f93389a282d5495f13354b020be002f18bfdbaf71957d4ea3791d11c3c225421"
+        ]
+      },
+      {
+        "nodeId": "provider.p.app-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:f93389a282d5495f13354b020be002f18bfdbaf71957d4ea3791d11c3c225421"
+        ]
+      },
+      {
+        "nodeId": "logical.libro-store",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+        ]
+      },
+      {
+        "nodeId": "p.libro-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+        ]
+      },
+      {
+        "nodeId": "provider.p.libro-db",
+        "concern": "Data Model",
+        "documentRefs": [
+          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+        ]
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "schema.p.app-db",
+        "nodeId": "p.app-db",
+        "concern": "Data Model",
+        "type": "Code",
+        "sourcePaths": [
+          "lib/db/schema.sql",
+          "lib/db/migrations/001_world_id_4.sql",
+          "lib/db/migrations/002_libro_registration.sql",
+          "lib/db/migrations/003_libro_agent_authorization.sql",
+          "lib/db/migrations/005_libro_publish_action_hash.sql",
+          "lib/db/migrations/006_libro_extension_signing.sql",
+          "lib/db/migrations/007_libro_extension_signup.sql",
+          "lib/db/migrations/008_libro_extension_hardening.sql",
+          "lib/db/migrations/009_one_finalized_publication_per_draft.sql",
+          "lib/db/migrations/010_publication_types.sql",
+          "lib/db/migrations/011_multiple_authors.sql",
+          "lib/db/migrations/012_publication_signal_hash_indexes.sql",
+          "lib/db/migrations/013_session_bound_handles.sql",
+          "lib/db/migrations/014_permissionless_handle_claims.sql",
+          "lib/db/migrations/015_publication_access.sql",
+          "lib/db/migrations/016_publication_feed_ordering.sql",
+          "lib/db/migrations/017_openship_changes.sql",
+          "lib/db/migrations/018_encrypted_drafts.sql",
+          "lib/db/migrations/019_draft_passphrase_wrapper.sql",
+          "lib/db/migrations/020_libro_service_cutover.sql",
+          "lib/db/migrations/021_libro_legacy_policy_sync.sql",
+          "lib/db/migrations/022_libro_extension_connections.sql",
+          "lib/db/migrations/023_legacy_publication_policies.sql"
+        ]
+      },
+      {
+        "id": "schema.provider.p.app-db",
+        "nodeId": "provider.p.app-db",
+        "concern": "Data Model",
+        "type": "Code",
+        "sourcePaths": [
+          "lib/db/schema.sql",
+          "lib/db/migrations/001_world_id_4.sql",
+          "lib/db/migrations/002_libro_registration.sql",
+          "lib/db/migrations/003_libro_agent_authorization.sql",
+          "lib/db/migrations/005_libro_publish_action_hash.sql",
+          "lib/db/migrations/006_libro_extension_signing.sql",
+          "lib/db/migrations/007_libro_extension_signup.sql",
+          "lib/db/migrations/008_libro_extension_hardening.sql",
+          "lib/db/migrations/009_one_finalized_publication_per_draft.sql",
+          "lib/db/migrations/010_publication_types.sql",
+          "lib/db/migrations/011_multiple_authors.sql",
+          "lib/db/migrations/012_publication_signal_hash_indexes.sql",
+          "lib/db/migrations/013_session_bound_handles.sql",
+          "lib/db/migrations/014_permissionless_handle_claims.sql",
+          "lib/db/migrations/015_publication_access.sql",
+          "lib/db/migrations/016_publication_feed_ordering.sql",
+          "lib/db/migrations/017_openship_changes.sql",
+          "lib/db/migrations/018_encrypted_drafts.sql",
+          "lib/db/migrations/019_draft_passphrase_wrapper.sql",
+          "lib/db/migrations/020_libro_service_cutover.sql",
+          "lib/db/migrations/021_libro_legacy_policy_sync.sql",
+          "lib/db/migrations/022_libro_extension_connections.sql",
+          "lib/db/migrations/023_legacy_publication_policies.sql"
+        ]
+      },
+      {
+        "id": "schema.p.libro-db",
+        "nodeId": "p.libro-db",
+        "concern": "Data Model",
+        "type": "Code",
+        "sourcePaths": [
+          "libro/service/db/schema.sql",
+          "libro/service/db/migrations/001_initial_service.sql",
+          "libro/service/db/migrations/002_legacy_publications.sql"
+        ]
+      },
+      {
+        "id": "schema.provider.p.libro-db",
+        "nodeId": "provider.p.libro-db",
+        "concern": "Data Model",
+        "type": "Code",
+        "sourcePaths": [
+          "libro/service/db/schema.sql",
+          "libro/service/db/migrations/001_initial_service.sql",
+          "libro/service/db/migrations/002_legacy_publications.sql"
+        ]
       }
     ]
-  }
+  },
+  "layers": [
+    {
+      "id": "logical",
+      "name": "Logical",
+      "role": "logical",
+      "rootNodeId": "logical.root",
+      "nodes": [
+        {
+          "id": "logical.root",
+          "kind": "Root",
+          "name": "Memorioso and Libro",
+          "metadata": {
+            "ownership": "first_party"
+          }
+        },
+        {
+          "id": "logical.authoring",
+          "kind": "Block",
+          "name": "Authoring",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Draft editing and opt-in encryption; author interaction."
+          }
+        },
+        {
+          "id": "logical.identity",
+          "kind": "Block",
+          "name": "Identity and authorization",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Human identity, sessions, OAuth and authorized agents."
+          }
+        },
+        {
+          "id": "logical.publication",
+          "kind": "Block",
+          "name": "Publication",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Canonical human and human-authorized publication with durable delivery."
+          }
+        },
+        {
+          "id": "logical.verification",
+          "kind": "Block",
+          "name": "Verification",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Verify exact signed payloads and registrations."
+          }
+        },
+        {
+          "id": "logical.access",
+          "kind": "Block",
+          "name": "Access and payment",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Local presentation policy and payment grants, not content confidentiality."
+          }
+        },
+        {
+          "id": "logical.changes",
+          "kind": "Block",
+          "name": "Isolated change building",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Optional reviewed source changes and isolated candidates; no automatic promotion."
+          }
+        },
+        {
+          "id": "logical.app-store",
+          "kind": "Store",
+          "name": "Memorioso data",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Drafts, local author projections, feeds, access policies, encrypted OAuth tokens and payment grants."
+          }
+        },
+        {
+          "id": "logical.libro-store",
+          "kind": "Store",
+          "name": "Libro canonical data",
+          "parentId": "logical.root",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Canonical identities and publications, OAuth grants, signing challenges and durable events."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "logical.authoring.app-store",
+          "type": "Runtime",
+          "fromNodeId": "logical.authoring",
+          "toNodeId": "logical.app-store"
+        },
+        {
+          "id": "logical.authoring.identity",
+          "type": "Runtime",
+          "fromNodeId": "logical.authoring",
+          "toNodeId": "logical.identity"
+        },
+        {
+          "id": "logical.publication.identity",
+          "type": "Runtime",
+          "fromNodeId": "logical.publication",
+          "toNodeId": "logical.identity"
+        },
+        {
+          "id": "logical.publication.libro-store",
+          "type": "Runtime",
+          "fromNodeId": "logical.publication",
+          "toNodeId": "logical.libro-store"
+        },
+        {
+          "id": "logical.publication.verification",
+          "type": "Runtime",
+          "fromNodeId": "logical.publication",
+          "toNodeId": "logical.verification"
+        },
+        {
+          "id": "logical.access.app-store",
+          "type": "Runtime",
+          "fromNodeId": "logical.access",
+          "toNodeId": "logical.app-store"
+        },
+        {
+          "id": "logical.changes.verification",
+          "type": "Runtime",
+          "fromNodeId": "logical.changes",
+          "toNodeId": "logical.verification"
+        }
+      ]
+    },
+    {
+      "rootNodeId": "s.memorioso",
+      "nodes": [
+        {
+          "id": "s.memorioso",
+          "kind": "Root",
+          "name": "Memorioso and Libro",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Human-authored publishing with human-authorized agents. This is a source-bound description of supported configurations, not a live deployment inventory."
+          }
+        },
+        {
+          "id": "h.clients",
+          "kind": "Host",
+          "name": "Reader and author devices",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 10
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.memorioso",
+          "kind": "Host",
+          "name": "Memorioso application hosting",
+          "metadata": {
+            "ownership": "first_party",
+            "order": 20
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.libro",
+          "kind": "Host",
+          "name": "Libro service hosting",
+          "metadata": {
+            "ownership": "first_party",
+            "order": 30
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.world",
+          "kind": "Host",
+          "name": "World identity and wallet platform",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 40
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.chain",
+          "kind": "Host",
+          "name": "World Chain",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 60
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.rpc",
+          "kind": "Host",
+          "name": "World Chain RPC providers",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 50
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.agents",
+          "kind": "Host",
+          "name": "External client runtimes",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 70
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.build",
+          "kind": "Host",
+          "name": "Optional OpenShip build host",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 80
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.review",
+          "kind": "Host",
+          "name": "Model review hosting",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 90
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.deploy",
+          "kind": "Host",
+          "name": "Deployment and analytics platform",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 100
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "h.candidate",
+          "kind": "Host",
+          "name": "Isolated candidate origin",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 110
+          },
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "p.browser",
+          "kind": "Process",
+          "name": "Memorioso browser app",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "browser",
+            "responsibility": "Draft editing and reveal, passphrase/recovery key handling, user interaction, publication display. Device keys are non-extractable and cleared on sign-out."
+          },
+          "parentId": "h.clients",
+          "sourceSelectors": [
+            "components/Editor/**",
+            "lib/draft-crypto/**",
+            "app/providers.tsx"
+          ]
+        },
+        {
+          "id": "p.extension",
+          "kind": "Process",
+          "name": "Chrome extension",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "browser-extension",
+            "responsibility": "OAuth connection and extension consent, signing integrations, and verification of canonical publication proofs."
+          },
+          "parentId": "h.clients",
+          "sourceSelectors": [
+            "libro/chrome-extension/**"
+          ]
+        },
+        {
+          "id": "p.agents",
+          "kind": "Process",
+          "name": "External agents and OAuth clients",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Explicitly authorized clients; agent keys sign documents and finalizations. A handle or registration ID is never a credential."
+          },
+          "parentId": "h.agents"
+        },
+        {
+          "id": "p.app",
+          "kind": "Process",
+          "name": "Memorioso Next.js app",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Next.js 16 / Node.js 24",
+            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources/Systems and Changes endpoints.",
+            "legacy": "Legacy canonical writes are retired with 410 when LIBRO_SERVICE_WRITES_ENABLED=1; reads switch independently with LIBRO_SERVICE_READS_ENABLED=1."
+          },
+          "parentId": "h.memorioso",
+          "sourceSelectors": [
+            "app/**",
+            "lib/auth-user.ts",
+            "lib/auth-session.ts",
+            "lib/libro-service/**",
+            "lib/access/**",
+            "lib/x402/**",
+            "lib/openship/**"
+          ],
+          "configuration": [
+            {
+              "name": "LIBRO_SERVICE_READS_ENABLED",
+              "description": "Canonical service reads switch independently; only 1 enables them.",
+              "required": false
+            },
+            {
+              "name": "LIBRO_SERVICE_WRITES_ENABLED",
+              "description": "Canonical writes switch independently; legacy writes return 410 when enabled.",
+              "required": false
+            },
+            {
+              "name": "DATABASE_URL",
+              "description": "Memorioso database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.app",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "SESSION_SECRET",
+              "description": "Memorioso session signing secret.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.app",
+                "key": "SESSION_SECRET"
+              }
+            },
+            {
+              "name": "X402_RELAYER_PRIVATE_KEY",
+              "description": "Memorioso payment relayer, distinct from Libro.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.app",
+                "key": "X402_RELAYER_PRIVATE_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_CLIENT_SECRET",
+              "description": "Server-only Libro client credential.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.app",
+                "key": "LIBRO_OAUTH_CLIENT_SECRET"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY",
+              "description": "Server-only OAuth token encryption key.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.app",
+                "key": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "id": "p.app-db",
+          "kind": "Store",
+          "name": "Memorioso Postgres",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Postgres",
+            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants and Changes queue/status. Legacy canonical rows remain for cutover compatibility."
+          },
+          "parentId": "h.memorioso",
+          "sourceSelectors": [
+            "lib/db/**"
+          ],
+          "configuration": [
+            {
+              "name": "engine",
+              "description": "Relational database engine.",
+              "required": true,
+              "value": "PostgreSQL"
+            }
+          ]
+        },
+        {
+          "id": "p.libro",
+          "kind": "Process",
+          "name": "Libro identity and publishing service",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Next.js / Node.js",
+            "responsibility": "Canonical authors, handle/session bindings, OAuth, public API/MCP, signing UI, publication workflows, chain verification, Libro relayer and durable event delivery."
+          },
+          "parentId": "h.libro",
+          "sourceSelectors": [
+            "libro/service/**"
+          ],
+          "configuration": [
+            {
+              "name": "DATABASE_URL",
+              "description": "Separate Libro canonical database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.libro",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "WORLD_ID_RP_SIGNING_KEY",
+              "description": "Libro proof signing key after cutover.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.libro",
+                "key": "WORLD_ID_RP_SIGNING_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_RELAYER_PRIVATE_KEY",
+              "description": "Libro registration relayer, separate from x402.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.libro",
+                "key": "LIBRO_RELAYER_PRIVATE_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "id": "p.libro-db",
+          "kind": "Store",
+          "name": "Libro Postgres",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Postgres",
+            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox. Distinct database from Memorioso."
+          },
+          "parentId": "h.libro",
+          "sourceSelectors": [
+            "libro/service/db/**"
+          ],
+          "configuration": [
+            {
+              "name": "engine",
+              "description": "Relational database engine.",
+              "required": true,
+              "value": "PostgreSQL"
+            }
+          ]
+        },
+        {
+          "id": "p.world-id",
+          "kind": "Process",
+          "name": "World ID verification",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Verify IDKit v4 session and publication proofs bound to configured RP and canonical publication signals."
+          },
+          "parentId": "h.world"
+        },
+        {
+          "id": "p.world-app",
+          "kind": "Process",
+          "name": "World App and wallet",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "User-presence proof and wallet transaction interactions through IDKit and MiniKit."
+          },
+          "parentId": "h.world"
+        },
+        {
+          "id": "p.rpc",
+          "kind": "Process",
+          "name": "World Chain RPC endpoints",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Configured endpoint list queried in parallel; one matching handle-bound registration event proves registration. Pruned receipt indexes must not turn old publications invalid."
+          },
+          "parentId": "h.rpc"
+        },
+        {
+          "id": "p.registry",
+          "kind": "Process",
+          "name": "LibroRegistry",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "EVM contract",
+            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations."
+          },
+          "parentId": "h.chain",
+          "sourceSelectors": [
+            "libro/contracts/src/**"
+          ]
+        },
+        {
+          "id": "p.verifier",
+          "kind": "Process",
+          "name": "WorldIDVerifier proxy",
+          "metadata": {
+            "ownership": "third_party",
+            "runtime": "EVM contract",
+            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address."
+          },
+          "parentId": "h.chain"
+        },
+        {
+          "id": "p.usdc",
+          "kind": "Process",
+          "name": "USDC",
+          "metadata": {
+            "ownership": "third_party",
+            "runtime": "EVM contract",
+            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
+          },
+          "parentId": "h.chain"
+        },
+        {
+          "id": "p.worker",
+          "kind": "Process",
+          "name": "Trusted OpenShip worker",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Poll queued changes, verify source snapshots, rerun gates, orchestrate sandbox and review, deploy prebuilt output, verify candidate digest and update status. Deployment credentials remain here."
+          },
+          "parentId": "h.build",
+          "sourceSelectors": [
+            "scripts/openship-worker.mjs",
+            "scripts/openship-review.mjs"
+          ],
+          "configuration": [
+            {
+              "name": "VERCEL_TOKEN",
+              "description": "Trusted worker only; never passed to candidate builds.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "p.worker",
+                "key": "VERCEL_TOKEN"
+              }
+            }
+          ]
+        },
+        {
+          "id": "c.sandbox",
+          "kind": "Container",
+          "name": "Untrusted candidate build sandbox",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Container boundary: no production secrets, network allowed for installation only."
+          },
+          "parentId": "h.build"
+        },
+        {
+          "id": "p.build",
+          "kind": "Process",
+          "name": "Candidate install, checks and build",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Execute submitted source in the isolated sandbox. Outputs are deployed without running submitted code in the trusted worker."
+          },
+          "parentId": "c.sandbox",
+          "sourceSelectors": [
+            "scripts/openship-worker.mjs"
+          ]
+        },
+        {
+          "id": "p.review",
+          "kind": "Process",
+          "name": "Model review API",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Review candidate patch and build evidence; a filter, not the security boundary."
+          },
+          "parentId": "h.review"
+        },
+        {
+          "id": "p.deploy",
+          "kind": "Process",
+          "name": "Deployment API",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Accept prebuilt output and route the candidate alias."
+          },
+          "parentId": "h.deploy"
+        },
+        {
+          "id": "p.candidate",
+          "kind": "Process",
+          "name": "Candidate Memorioso app",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Isolated preview on a different registrable domain. Never automatically promoted to production; serves its own resulting Sources digest."
+          },
+          "parentId": "h.candidate"
+        },
+        {
+          "id": "p.analytics",
+          "kind": "Process",
+          "name": "Analytics client",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Application usage analytics loaded by the shared layout."
+          },
+          "parentId": "h.deploy"
+        },
+        {
+          "id": "l.libro",
+          "kind": "Library",
+          "name": "@libro/core",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Canonical payload serialization, hashing and shared verification/protocol helpers."
+          },
+          "sourceSelectors": [
+            "libro/core/src/**"
+          ],
+          "parentId": "s.memorioso"
+        },
+        {
+          "id": "l.openship",
+          "kind": "Library",
+          "name": "@openship/protocol",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "OpenShip v1 Sources, Systems and discovery types and validation. Dependency implementation is external to this snapshot; vendored protocol documentation is included."
+          },
+          "parentId": "s.memorioso"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e.browser-app",
+          "type": "Runtime",
+          "fromNodeId": "p.browser",
+          "toNodeId": "p.app",
+          "metadata": {
+            "purpose": "Draft CRUD, local sessions, feeds and access",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.browser-libro",
+          "type": "Runtime",
+          "fromNodeId": "p.browser",
+          "toNodeId": "p.libro",
+          "metadata": {
+            "purpose": "OAuth connection and human signing UI",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.browser-wallet",
+          "type": "Runtime",
+          "fromNodeId": "p.browser",
+          "toNodeId": "p.world-app",
+          "metadata": {
+            "purpose": "User-presence proofs and signing",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.extension-app",
+          "type": "Runtime",
+          "fromNodeId": "p.extension",
+          "toNodeId": "p.app",
+          "metadata": {
+            "purpose": "Extension consent, short-lived polling and inline drafts",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.extension-libro",
+          "type": "Runtime",
+          "fromNodeId": "p.extension",
+          "toNodeId": "p.libro",
+          "metadata": {
+            "purpose": "OAuth connection and canonical publication/signing APIs",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.extension-wallet",
+          "type": "Runtime",
+          "fromNodeId": "p.extension",
+          "toNodeId": "p.world-app",
+          "metadata": {
+            "purpose": "Signing interaction",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.extension-rpc",
+          "type": "Runtime",
+          "fromNodeId": "p.extension",
+          "toNodeId": "p.rpc",
+          "metadata": {
+            "purpose": "Multi-endpoint registration verification",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.agents-libro",
+          "type": "Runtime",
+          "fromNodeId": "p.agents",
+          "toNodeId": "p.libro",
+          "metadata": {
+            "purpose": "OAuth API/MCP and agent publishing",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.app-db",
+          "type": "Runtime",
+          "fromNodeId": "p.app",
+          "toNodeId": "p.app-db",
+          "metadata": {
+            "purpose": "Local reads and transactional writes",
+            "protocol": "Postgres"
+          }
+        },
+        {
+          "id": "e.app-libro",
+          "type": "Runtime",
+          "fromNodeId": "p.app",
+          "toNodeId": "p.libro",
+          "metadata": {
+            "purpose": "Canonical API reads and OAuth-authorized writes",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.libro-events",
+          "type": "Runtime",
+          "fromNodeId": "p.libro",
+          "toNodeId": "p.app",
+          "metadata": {
+            "purpose": "Authenticated, deduplicated webhook projection updates",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.libro-db",
+          "type": "Runtime",
+          "fromNodeId": "p.libro",
+          "toNodeId": "p.libro-db",
+          "metadata": {
+            "purpose": "Canonical transactions, grants and outbox",
+            "protocol": "Postgres"
+          }
+        },
+        {
+          "id": "e.libro-world",
+          "type": "Runtime",
+          "fromNodeId": "p.libro",
+          "toNodeId": "p.world-id",
+          "metadata": {
+            "purpose": "Server-side IDKit proof verification",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.libro-rpc",
+          "type": "Runtime",
+          "fromNodeId": "p.libro",
+          "toNodeId": "p.rpc",
+          "metadata": {
+            "purpose": "Broadcast registration and verify matching on-chain events",
+            "protocol": "JSON-RPC"
+          }
+        },
+        {
+          "id": "e.app-rpc",
+          "type": "Runtime",
+          "fromNodeId": "p.app",
+          "toNodeId": "p.rpc",
+          "metadata": {
+            "purpose": "x402 settlement and multi-endpoint publication verification",
+            "protocol": "JSON-RPC"
+          }
+        },
+        {
+          "id": "e.rpc-registry",
+          "type": "Runtime",
+          "fromNodeId": "p.rpc",
+          "toNodeId": "p.registry",
+          "metadata": {
+            "purpose": "Registry transactions and event/receipt reads",
+            "protocol": "Ethereum JSON-RPC"
+          }
+        },
+        {
+          "id": "e.rpc-usdc",
+          "type": "Runtime",
+          "fromNodeId": "p.rpc",
+          "toNodeId": "p.usdc",
+          "metadata": {
+            "purpose": "EIP-3009 payment broadcast and receipts",
+            "protocol": "Ethereum JSON-RPC"
+          }
+        },
+        {
+          "id": "e.registry-verifier",
+          "type": "Runtime",
+          "fromNodeId": "p.registry",
+          "toNodeId": "p.verifier",
+          "metadata": {
+            "purpose": "Proof verification via configured proxy",
+            "protocol": "EVM call"
+          }
+        },
+        {
+          "id": "e.browser-analytics",
+          "type": "Runtime",
+          "fromNodeId": "p.browser",
+          "toNodeId": "p.analytics",
+          "metadata": {
+            "purpose": "Usage analytics",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "e.legacy-world",
+          "type": "Runtime",
+          "fromNodeId": "p.app",
+          "toNodeId": "p.world-id",
+          "metadata": {
+            "purpose": "Legacy proof verification",
+            "protocol": "HTTPS",
+            "availability": "legacy: service writes disabled"
+          }
+        },
+        {
+          "id": "e.agent-changes",
+          "type": "Runtime",
+          "fromNodeId": "p.agents",
+          "toNodeId": "p.app",
+          "metadata": {
+            "purpose": "Optional OpenShip patch submission",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-db",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "p.app-db",
+          "metadata": {
+            "purpose": "Poll queue and write change status",
+            "protocol": "Postgres",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-sources",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "p.app",
+          "metadata": {
+            "purpose": "Retrieve and verify published Sources",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-build",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "c.sandbox",
+          "metadata": {
+            "purpose": "Start isolated build",
+            "protocol": "container execution",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-review",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "p.review",
+          "metadata": {
+            "purpose": "Request model review",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-deploy",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "p.deploy",
+          "metadata": {
+            "purpose": "Deploy prebuilt artifact",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.worker-candidate",
+          "type": "Runtime",
+          "fromNodeId": "p.worker",
+          "toNodeId": "p.candidate",
+          "metadata": {
+            "purpose": "Verify candidate Sources digest",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "e.app.core",
+          "type": "Dependency",
+          "fromNodeId": "p.app",
+          "toNodeId": "l.libro"
+        },
+        {
+          "id": "e.libro.core",
+          "type": "Dependency",
+          "fromNodeId": "p.libro",
+          "toNodeId": "l.libro"
+        },
+        {
+          "id": "e.extension.core",
+          "type": "Dependency",
+          "fromNodeId": "p.extension",
+          "toNodeId": "l.libro"
+        },
+        {
+          "id": "e.app.openship",
+          "type": "Dependency",
+          "fromNodeId": "p.app",
+          "toNodeId": "l.openship"
+        },
+        {
+          "id": "e.libro.openship",
+          "type": "Dependency",
+          "fromNodeId": "p.libro",
+          "toNodeId": "l.openship"
+        },
+        {
+          "id": "e.worker.openship",
+          "type": "Dependency",
+          "fromNodeId": "p.worker",
+          "toNodeId": "l.openship"
+        }
+      ],
+      "id": "technical",
+      "name": "Technical",
+      "role": "technical"
+    },
+    {
+      "rootNodeId": "provider.s.memorioso",
+      "nodes": [
+        {
+          "id": "provider.s.memorioso",
+          "kind": "Root",
+          "name": "Memorioso and Libro",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Human-authored publishing with human-authorized agents. This is a source-bound description of supported configurations, not a live deployment inventory."
+          }
+        },
+        {
+          "id": "provider.h.clients",
+          "kind": "Host",
+          "name": "Reader and author devices",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 10
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.memorioso",
+          "kind": "Host",
+          "name": "Memorioso Vercel project",
+          "metadata": {
+            "ownership": "first_party",
+            "order": 20,
+            "provider": "Vercel"
+          },
+          "parentId": "provider.s.memorioso",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended deployment region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "projectId",
+              "description": "Vercel project binding; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "provider.h.libro",
+          "kind": "Host",
+          "name": "Libro Vercel project",
+          "metadata": {
+            "ownership": "first_party",
+            "order": 30,
+            "provider": "Vercel"
+          },
+          "parentId": "provider.s.memorioso",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended deployment region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "projectId",
+              "description": "Vercel project binding; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "provider.h.world",
+          "kind": "Host",
+          "name": "World identity and wallet platform",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 40
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.chain",
+          "kind": "Host",
+          "name": "World Chain",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 60
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.rpc",
+          "kind": "Host",
+          "name": "World Chain RPC providers",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 50
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.agents",
+          "kind": "Host",
+          "name": "External client runtimes",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 70
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.build",
+          "kind": "Host",
+          "name": "Optional OpenShip build host",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 80
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.review",
+          "kind": "Host",
+          "name": "Anthropic platform",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 90
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.deploy",
+          "kind": "Host",
+          "name": "Vercel platform",
+          "metadata": {
+            "ownership": "third_party",
+            "order": 100
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.candidate",
+          "kind": "Host",
+          "name": "Isolated candidate origin",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "order": 110
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.p.browser",
+          "kind": "Process",
+          "name": "Memorioso browser app",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "browser",
+            "responsibility": "Draft editing and reveal, passphrase/recovery key handling, user interaction, publication display. Device keys are non-extractable and cleared on sign-out."
+          },
+          "parentId": "provider.h.clients"
+        },
+        {
+          "id": "provider.p.extension",
+          "kind": "Process",
+          "name": "Chrome extension",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "browser-extension",
+            "responsibility": "OAuth connection and extension consent, signing integrations, and verification of canonical publication proofs."
+          },
+          "parentId": "provider.h.clients"
+        },
+        {
+          "id": "provider.p.agents",
+          "kind": "Process",
+          "name": "External agents and OAuth clients",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Explicitly authorized clients; agent keys sign documents and finalizations. A handle or registration ID is never a credential."
+          },
+          "parentId": "provider.h.agents"
+        },
+        {
+          "id": "provider.p.app",
+          "kind": "Process",
+          "name": "Memorioso Next.js app",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Next.js 16 / Node.js 24",
+            "responsibility": "Sessions, drafts, local authors, feeds, publication policies, x402 settlement, extension consent, Sources/Systems and Changes endpoints.",
+            "legacy": "Legacy canonical writes are retired with 410 when LIBRO_SERVICE_WRITES_ENABLED=1; reads switch independently with LIBRO_SERVICE_READS_ENABLED=1."
+          },
+          "parentId": "provider.h.memorioso",
+          "configuration": [
+            {
+              "name": "LIBRO_SERVICE_READS_ENABLED",
+              "description": "Canonical service reads switch independently; only 1 enables them.",
+              "required": false
+            },
+            {
+              "name": "LIBRO_SERVICE_WRITES_ENABLED",
+              "description": "Canonical writes switch independently; legacy writes return 410 when enabled.",
+              "required": false
+            },
+            {
+              "name": "DATABASE_URL",
+              "description": "Memorioso database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "SESSION_SECRET",
+              "description": "Memorioso session signing secret.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "SESSION_SECRET"
+              }
+            },
+            {
+              "name": "X402_RELAYER_PRIVATE_KEY",
+              "description": "Memorioso payment relayer, distinct from Libro.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "X402_RELAYER_PRIVATE_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_CLIENT_SECRET",
+              "description": "Server-only Libro client credential.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "LIBRO_OAUTH_CLIENT_SECRET"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY",
+              "description": "Server-only OAuth token encryption key.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "id": "provider.p.app-db",
+          "kind": "Store",
+          "name": "Memorioso Neon database",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Postgres",
+            "responsibility": "Draft ciphertext or opted-out prose, local projections/policies, encrypted OAuth tokens, payment grants and Changes queue/status. Legacy canonical rows remain for cutover compatibility."
+          },
+          "parentId": "provider.h.neon-memorioso",
+          "configuration": [
+            {
+              "name": "provider",
+              "description": "Intended database provider.",
+              "required": true,
+              "value": "Neon"
+            },
+            {
+              "name": "region",
+              "description": "Intended Neon region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "compute",
+              "description": "Intended compute configuration; unresolved.",
+              "required": true
+            },
+            {
+              "name": "branchPolicy",
+              "description": "Intended branching policy; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "provider.p.libro",
+          "kind": "Process",
+          "name": "Libro identity and publishing service",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Next.js / Node.js",
+            "responsibility": "Canonical authors, handle/session bindings, OAuth, public API/MCP, signing UI, publication workflows, chain verification, Libro relayer and durable event delivery."
+          },
+          "parentId": "provider.h.libro",
+          "configuration": [
+            {
+              "name": "DATABASE_URL",
+              "description": "Separate Libro canonical database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "WORLD_ID_RP_SIGNING_KEY",
+              "description": "Libro proof signing key after cutover.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "WORLD_ID_RP_SIGNING_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_RELAYER_PRIVATE_KEY",
+              "description": "Libro registration relayer, separate from x402.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "LIBRO_RELAYER_PRIVATE_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "id": "provider.p.libro-db",
+          "kind": "Store",
+          "name": "Libro Neon database",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "Postgres",
+            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox. Distinct database from Memorioso."
+          },
+          "parentId": "provider.h.neon-libro",
+          "configuration": [
+            {
+              "name": "provider",
+              "description": "Intended database provider.",
+              "required": true,
+              "value": "Neon"
+            },
+            {
+              "name": "region",
+              "description": "Intended Neon region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "compute",
+              "description": "Intended compute configuration; unresolved.",
+              "required": true
+            },
+            {
+              "name": "branchPolicy",
+              "description": "Intended branching policy; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "provider.p.world-id",
+          "kind": "Process",
+          "name": "World ID verification",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Verify IDKit v4 session and publication proofs bound to configured RP and canonical publication signals."
+          },
+          "parentId": "provider.h.world"
+        },
+        {
+          "id": "provider.p.world-app",
+          "kind": "Process",
+          "name": "World App and wallet",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "User-presence proof and wallet transaction interactions through IDKit and MiniKit."
+          },
+          "parentId": "provider.h.world"
+        },
+        {
+          "id": "provider.p.rpc",
+          "kind": "Process",
+          "name": "World Chain RPC endpoints",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Configured endpoint list queried in parallel; one matching handle-bound registration event proves registration. Pruned receipt indexes must not turn old publications invalid."
+          },
+          "parentId": "provider.h.rpc"
+        },
+        {
+          "id": "provider.p.registry",
+          "kind": "Process",
+          "name": "LibroRegistry",
+          "metadata": {
+            "ownership": "first_party",
+            "runtime": "EVM contract",
+            "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations."
+          },
+          "parentId": "provider.h.chain"
+        },
+        {
+          "id": "provider.p.verifier",
+          "kind": "Process",
+          "name": "WorldIDVerifier proxy",
+          "metadata": {
+            "ownership": "third_party",
+            "runtime": "EVM contract",
+            "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address."
+          },
+          "parentId": "provider.h.chain"
+        },
+        {
+          "id": "provider.p.usdc",
+          "kind": "Process",
+          "name": "USDC",
+          "metadata": {
+            "ownership": "third_party",
+            "runtime": "EVM contract",
+            "responsibility": "EIP-3009 TransferWithAuthorization settlements on chain 480, using the separate Memorioso x402 relayer."
+          },
+          "parentId": "provider.h.chain"
+        },
+        {
+          "id": "provider.p.worker",
+          "kind": "Process",
+          "name": "Trusted OpenShip worker",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Poll queued changes, verify source snapshots, rerun gates, orchestrate sandbox and review, deploy prebuilt output, verify candidate digest and update status. Deployment credentials remain here."
+          },
+          "parentId": "provider.h.build",
+          "configuration": [
+            {
+              "name": "VERCEL_TOKEN",
+              "description": "Trusted worker only; never passed to candidate builds.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.worker",
+                "key": "VERCEL_TOKEN"
+              }
+            }
+          ]
+        },
+        {
+          "id": "provider.c.sandbox",
+          "kind": "Container",
+          "name": "Untrusted candidate build sandbox",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Container boundary: no production secrets, network allowed for installation only."
+          },
+          "parentId": "provider.h.build"
+        },
+        {
+          "id": "provider.p.build",
+          "kind": "Process",
+          "name": "Candidate install, checks and build",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Execute submitted source in the isolated sandbox. Outputs are deployed without running submitted code in the trusted worker."
+          },
+          "parentId": "provider.c.sandbox"
+        },
+        {
+          "id": "provider.p.review",
+          "kind": "Process",
+          "name": "Model review API",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Review candidate patch and build evidence; a filter, not the security boundary."
+          },
+          "parentId": "provider.h.review"
+        },
+        {
+          "id": "provider.p.deploy",
+          "kind": "Process",
+          "name": "Vercel deployment API",
+          "metadata": {
+            "ownership": "third_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Accept prebuilt output and route the candidate alias."
+          },
+          "parentId": "provider.h.deploy"
+        },
+        {
+          "id": "provider.p.candidate",
+          "kind": "Process",
+          "name": "Candidate Memorioso app",
+          "metadata": {
+            "ownership": "first_party",
+            "availability": "optional: OpenShip Changes",
+            "responsibility": "Isolated preview on a different registrable domain. Never automatically promoted to production; serves its own resulting Sources digest."
+          },
+          "parentId": "provider.h.candidate"
+        },
+        {
+          "id": "provider.p.analytics",
+          "kind": "Process",
+          "name": "Vercel Analytics",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "Application usage analytics loaded by the shared layout."
+          },
+          "parentId": "provider.h.deploy"
+        },
+        {
+          "id": "provider.l.libro",
+          "kind": "Library",
+          "name": "@libro/core",
+          "metadata": {
+            "ownership": "first_party",
+            "responsibility": "Canonical payload serialization, hashing and shared verification/protocol helpers."
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.l.openship",
+          "kind": "Library",
+          "name": "@openship/protocol",
+          "metadata": {
+            "ownership": "third_party",
+            "responsibility": "OpenShip v1 Sources, Systems and discovery types and validation. Dependency implementation is external to this snapshot; vendored protocol documentation is included."
+          },
+          "parentId": "provider.s.memorioso"
+        },
+        {
+          "id": "provider.h.neon-memorioso",
+          "kind": "Host",
+          "name": "Memorioso Neon project",
+          "parentId": "provider.s.memorioso",
+          "metadata": {
+            "ownership": "first_party",
+            "provider": "Neon",
+            "responsibility": "Separate database resource; target configuration, not verified inventory."
+          }
+        },
+        {
+          "id": "provider.h.neon-libro",
+          "kind": "Host",
+          "name": "Libro Neon project",
+          "parentId": "provider.s.memorioso",
+          "metadata": {
+            "ownership": "first_party",
+            "provider": "Neon",
+            "responsibility": "Separate database resource; target configuration, not verified inventory."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "provider.e.browser-app",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.browser",
+          "toNodeId": "provider.p.app",
+          "metadata": {
+            "purpose": "Draft CRUD, local sessions, feeds and access",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.browser-libro",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.browser",
+          "toNodeId": "provider.p.libro",
+          "metadata": {
+            "purpose": "OAuth connection and human signing UI",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.browser-wallet",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.browser",
+          "toNodeId": "provider.p.world-app",
+          "metadata": {
+            "purpose": "User-presence proofs and signing",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.extension-app",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.extension",
+          "toNodeId": "provider.p.app",
+          "metadata": {
+            "purpose": "Extension consent, short-lived polling and inline drafts",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.extension-libro",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.extension",
+          "toNodeId": "provider.p.libro",
+          "metadata": {
+            "purpose": "OAuth connection and canonical publication/signing APIs",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.extension-wallet",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.extension",
+          "toNodeId": "provider.p.world-app",
+          "metadata": {
+            "purpose": "Signing interaction",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.extension-rpc",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.extension",
+          "toNodeId": "provider.p.rpc",
+          "metadata": {
+            "purpose": "Multi-endpoint registration verification",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.agents-libro",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.agents",
+          "toNodeId": "provider.p.libro",
+          "metadata": {
+            "purpose": "OAuth API/MCP and agent publishing",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.app-db",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.p.app-db",
+          "metadata": {
+            "purpose": "Local reads and transactional writes",
+            "protocol": "Postgres"
+          }
+        },
+        {
+          "id": "provider.e.app-libro",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.p.libro",
+          "metadata": {
+            "purpose": "Canonical API reads and OAuth-authorized writes",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.libro-events",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.p.app",
+          "metadata": {
+            "purpose": "Authenticated, deduplicated webhook projection updates",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.libro-db",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.p.libro-db",
+          "metadata": {
+            "purpose": "Canonical transactions, grants and outbox",
+            "protocol": "Postgres"
+          }
+        },
+        {
+          "id": "provider.e.libro-world",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.p.world-id",
+          "metadata": {
+            "purpose": "Server-side IDKit proof verification",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.libro-rpc",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.p.rpc",
+          "metadata": {
+            "purpose": "Broadcast registration and verify matching on-chain events",
+            "protocol": "JSON-RPC"
+          }
+        },
+        {
+          "id": "provider.e.app-rpc",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.p.rpc",
+          "metadata": {
+            "purpose": "x402 settlement and multi-endpoint publication verification",
+            "protocol": "JSON-RPC"
+          }
+        },
+        {
+          "id": "provider.e.rpc-registry",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.rpc",
+          "toNodeId": "provider.p.registry",
+          "metadata": {
+            "purpose": "Registry transactions and event/receipt reads",
+            "protocol": "Ethereum JSON-RPC"
+          }
+        },
+        {
+          "id": "provider.e.rpc-usdc",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.rpc",
+          "toNodeId": "provider.p.usdc",
+          "metadata": {
+            "purpose": "EIP-3009 payment broadcast and receipts",
+            "protocol": "Ethereum JSON-RPC"
+          }
+        },
+        {
+          "id": "provider.e.registry-verifier",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.registry",
+          "toNodeId": "provider.p.verifier",
+          "metadata": {
+            "purpose": "Proof verification via configured proxy",
+            "protocol": "EVM call"
+          }
+        },
+        {
+          "id": "provider.e.browser-analytics",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.browser",
+          "toNodeId": "provider.p.analytics",
+          "metadata": {
+            "purpose": "Usage analytics",
+            "protocol": "HTTPS"
+          }
+        },
+        {
+          "id": "provider.e.legacy-world",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.p.world-id",
+          "metadata": {
+            "purpose": "Legacy proof verification",
+            "protocol": "HTTPS",
+            "availability": "legacy: service writes disabled"
+          }
+        },
+        {
+          "id": "provider.e.agent-changes",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.agents",
+          "toNodeId": "provider.p.app",
+          "metadata": {
+            "purpose": "Optional OpenShip patch submission",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-db",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.p.app-db",
+          "metadata": {
+            "purpose": "Poll queue and write change status",
+            "protocol": "Postgres",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-sources",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.p.app",
+          "metadata": {
+            "purpose": "Retrieve and verify published Sources",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-build",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.c.sandbox",
+          "metadata": {
+            "purpose": "Start isolated build",
+            "protocol": "container execution",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-review",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.p.review",
+          "metadata": {
+            "purpose": "Request model review",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-deploy",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.p.deploy",
+          "metadata": {
+            "purpose": "Deploy prebuilt artifact",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.worker-candidate",
+          "type": "Runtime",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.p.candidate",
+          "metadata": {
+            "purpose": "Verify candidate Sources digest",
+            "protocol": "HTTPS",
+            "availability": "optional: OpenShip Changes"
+          }
+        },
+        {
+          "id": "provider.e.app.core",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.l.libro"
+        },
+        {
+          "id": "provider.e.libro.core",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.l.libro"
+        },
+        {
+          "id": "provider.e.extension.core",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.extension",
+          "toNodeId": "provider.l.libro"
+        },
+        {
+          "id": "provider.e.app.openship",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.app",
+          "toNodeId": "provider.l.openship"
+        },
+        {
+          "id": "provider.e.libro.openship",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.libro",
+          "toNodeId": "provider.l.openship"
+        },
+        {
+          "id": "provider.e.worker.openship",
+          "type": "Dependency",
+          "fromNodeId": "provider.p.worker",
+          "toNodeId": "provider.l.openship"
+        }
+      ],
+      "id": "provider",
+      "name": "Provider",
+      "role": "provider"
+    }
+  ],
+  "refinements": [
+    {
+      "id": "ref.p.browser.authoring",
+      "fromNodeId": "p.browser",
+      "toNodeId": "logical.authoring"
+    },
+    {
+      "id": "ref.p.app.authoring",
+      "fromNodeId": "p.app",
+      "toNodeId": "logical.authoring"
+    },
+    {
+      "id": "ref.p.libro.identity",
+      "fromNodeId": "p.libro",
+      "toNodeId": "logical.identity"
+    },
+    {
+      "id": "ref.p.world-id.identity",
+      "fromNodeId": "p.world-id",
+      "toNodeId": "logical.identity"
+    },
+    {
+      "id": "ref.p.world-app.identity",
+      "fromNodeId": "p.world-app",
+      "toNodeId": "logical.identity"
+    },
+    {
+      "id": "ref.p.agents.identity",
+      "fromNodeId": "p.agents",
+      "toNodeId": "logical.identity"
+    },
+    {
+      "id": "ref.p.app.publication",
+      "fromNodeId": "p.app",
+      "toNodeId": "logical.publication"
+    },
+    {
+      "id": "ref.p.libro.publication",
+      "fromNodeId": "p.libro",
+      "toNodeId": "logical.publication"
+    },
+    {
+      "id": "ref.p.registry.publication",
+      "fromNodeId": "p.registry",
+      "toNodeId": "logical.publication"
+    },
+    {
+      "id": "ref.p.extension.verification",
+      "fromNodeId": "p.extension",
+      "toNodeId": "logical.verification"
+    },
+    {
+      "id": "ref.p.rpc.verification",
+      "fromNodeId": "p.rpc",
+      "toNodeId": "logical.verification"
+    },
+    {
+      "id": "ref.p.registry.verification",
+      "fromNodeId": "p.registry",
+      "toNodeId": "logical.verification"
+    },
+    {
+      "id": "ref.p.verifier.verification",
+      "fromNodeId": "p.verifier",
+      "toNodeId": "logical.verification"
+    },
+    {
+      "id": "ref.p.app.access",
+      "fromNodeId": "p.app",
+      "toNodeId": "logical.access"
+    },
+    {
+      "id": "ref.p.usdc.access",
+      "fromNodeId": "p.usdc",
+      "toNodeId": "logical.access"
+    },
+    {
+      "id": "ref.p.worker.changes",
+      "fromNodeId": "p.worker",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.c.sandbox.changes",
+      "fromNodeId": "c.sandbox",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.p.build.changes",
+      "fromNodeId": "p.build",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.p.review.changes",
+      "fromNodeId": "p.review",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.p.deploy.changes",
+      "fromNodeId": "p.deploy",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.p.candidate.changes",
+      "fromNodeId": "p.candidate",
+      "toNodeId": "logical.changes"
+    },
+    {
+      "id": "ref.p.app-db.app-store",
+      "fromNodeId": "p.app-db",
+      "toNodeId": "logical.app-store"
+    },
+    {
+      "id": "ref.p.libro-db.libro-store",
+      "fromNodeId": "p.libro-db",
+      "toNodeId": "logical.libro-store"
+    },
+    {
+      "id": "ref.provider.s.memorioso",
+      "fromNodeId": "provider.s.memorioso",
+      "toNodeId": "s.memorioso"
+    },
+    {
+      "id": "ref.provider.h.clients",
+      "fromNodeId": "provider.h.clients",
+      "toNodeId": "h.clients"
+    },
+    {
+      "id": "ref.provider.h.memorioso",
+      "fromNodeId": "provider.h.memorioso",
+      "toNodeId": "h.memorioso"
+    },
+    {
+      "id": "ref.provider.h.libro",
+      "fromNodeId": "provider.h.libro",
+      "toNodeId": "h.libro"
+    },
+    {
+      "id": "ref.provider.h.world",
+      "fromNodeId": "provider.h.world",
+      "toNodeId": "h.world"
+    },
+    {
+      "id": "ref.provider.h.chain",
+      "fromNodeId": "provider.h.chain",
+      "toNodeId": "h.chain"
+    },
+    {
+      "id": "ref.provider.h.rpc",
+      "fromNodeId": "provider.h.rpc",
+      "toNodeId": "h.rpc"
+    },
+    {
+      "id": "ref.provider.h.agents",
+      "fromNodeId": "provider.h.agents",
+      "toNodeId": "h.agents"
+    },
+    {
+      "id": "ref.provider.h.build",
+      "fromNodeId": "provider.h.build",
+      "toNodeId": "h.build"
+    },
+    {
+      "id": "ref.provider.h.review",
+      "fromNodeId": "provider.h.review",
+      "toNodeId": "h.review"
+    },
+    {
+      "id": "ref.provider.h.deploy",
+      "fromNodeId": "provider.h.deploy",
+      "toNodeId": "h.deploy"
+    },
+    {
+      "id": "ref.provider.h.candidate",
+      "fromNodeId": "provider.h.candidate",
+      "toNodeId": "h.candidate"
+    },
+    {
+      "id": "ref.provider.p.browser",
+      "fromNodeId": "provider.p.browser",
+      "toNodeId": "p.browser"
+    },
+    {
+      "id": "ref.provider.p.extension",
+      "fromNodeId": "provider.p.extension",
+      "toNodeId": "p.extension"
+    },
+    {
+      "id": "ref.provider.p.agents",
+      "fromNodeId": "provider.p.agents",
+      "toNodeId": "p.agents"
+    },
+    {
+      "id": "ref.provider.p.app",
+      "fromNodeId": "provider.p.app",
+      "toNodeId": "p.app"
+    },
+    {
+      "id": "ref.provider.p.app-db",
+      "fromNodeId": "provider.p.app-db",
+      "toNodeId": "p.app-db"
+    },
+    {
+      "id": "ref.provider.p.libro",
+      "fromNodeId": "provider.p.libro",
+      "toNodeId": "p.libro"
+    },
+    {
+      "id": "ref.provider.p.libro-db",
+      "fromNodeId": "provider.p.libro-db",
+      "toNodeId": "p.libro-db"
+    },
+    {
+      "id": "ref.provider.p.world-id",
+      "fromNodeId": "provider.p.world-id",
+      "toNodeId": "p.world-id"
+    },
+    {
+      "id": "ref.provider.p.world-app",
+      "fromNodeId": "provider.p.world-app",
+      "toNodeId": "p.world-app"
+    },
+    {
+      "id": "ref.provider.p.rpc",
+      "fromNodeId": "provider.p.rpc",
+      "toNodeId": "p.rpc"
+    },
+    {
+      "id": "ref.provider.p.registry",
+      "fromNodeId": "provider.p.registry",
+      "toNodeId": "p.registry"
+    },
+    {
+      "id": "ref.provider.p.verifier",
+      "fromNodeId": "provider.p.verifier",
+      "toNodeId": "p.verifier"
+    },
+    {
+      "id": "ref.provider.p.usdc",
+      "fromNodeId": "provider.p.usdc",
+      "toNodeId": "p.usdc"
+    },
+    {
+      "id": "ref.provider.p.worker",
+      "fromNodeId": "provider.p.worker",
+      "toNodeId": "p.worker"
+    },
+    {
+      "id": "ref.provider.c.sandbox",
+      "fromNodeId": "provider.c.sandbox",
+      "toNodeId": "c.sandbox"
+    },
+    {
+      "id": "ref.provider.p.build",
+      "fromNodeId": "provider.p.build",
+      "toNodeId": "p.build"
+    },
+    {
+      "id": "ref.provider.p.review",
+      "fromNodeId": "provider.p.review",
+      "toNodeId": "p.review"
+    },
+    {
+      "id": "ref.provider.p.deploy",
+      "fromNodeId": "provider.p.deploy",
+      "toNodeId": "p.deploy"
+    },
+    {
+      "id": "ref.provider.p.candidate",
+      "fromNodeId": "provider.p.candidate",
+      "toNodeId": "p.candidate"
+    },
+    {
+      "id": "ref.provider.p.analytics",
+      "fromNodeId": "provider.p.analytics",
+      "toNodeId": "p.analytics"
+    },
+    {
+      "id": "ref.provider.l.libro",
+      "fromNodeId": "provider.l.libro",
+      "toNodeId": "l.libro"
+    },
+    {
+      "id": "ref.provider.l.openship",
+      "fromNodeId": "provider.l.openship",
+      "toNodeId": "l.openship"
+    },
+    {
+      "id": "ref.neon.memorioso",
+      "fromNodeId": "provider.h.neon-memorioso",
+      "toNodeId": "p.app-db"
+    },
+    {
+      "id": "ref.neon.libro",
+      "fromNodeId": "provider.h.neon-libro",
+      "toNodeId": "p.libro-db"
+    },
+    {
+      "id": "ref.logical.root",
+      "fromNodeId": "s.memorioso",
+      "toNodeId": "logical.root"
+    }
+  ],
+  "instances": [
+    {
+      "id": "production",
+      "name": "Production target (unresolved)",
+      "environment": "production",
+      "layerId": "provider",
+      "bindings": [
+        {
+          "nodeId": "provider.h.clients"
+        },
+        {
+          "nodeId": "provider.h.memorioso",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended deployment region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "projectId",
+              "description": "Vercel project binding; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.h.libro",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended deployment region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "projectId",
+              "description": "Vercel project binding; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.h.world"
+        },
+        {
+          "nodeId": "provider.h.chain"
+        },
+        {
+          "nodeId": "provider.h.rpc"
+        },
+        {
+          "nodeId": "provider.h.agents"
+        },
+        {
+          "nodeId": "provider.h.build"
+        },
+        {
+          "nodeId": "provider.h.review"
+        },
+        {
+          "nodeId": "provider.h.deploy"
+        },
+        {
+          "nodeId": "provider.h.candidate"
+        },
+        {
+          "nodeId": "provider.p.browser"
+        },
+        {
+          "nodeId": "provider.p.extension"
+        },
+        {
+          "nodeId": "provider.p.agents"
+        },
+        {
+          "nodeId": "provider.p.app",
+          "configuration": [
+            {
+              "name": "LIBRO_SERVICE_READS_ENABLED",
+              "description": "Canonical service reads switch independently; only 1 enables them.",
+              "required": false
+            },
+            {
+              "name": "LIBRO_SERVICE_WRITES_ENABLED",
+              "description": "Canonical writes switch independently; legacy writes return 410 when enabled.",
+              "required": false
+            },
+            {
+              "name": "DATABASE_URL",
+              "description": "Memorioso database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "SESSION_SECRET",
+              "description": "Memorioso session signing secret.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "SESSION_SECRET"
+              }
+            },
+            {
+              "name": "X402_RELAYER_PRIVATE_KEY",
+              "description": "Memorioso payment relayer, distinct from Libro.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "X402_RELAYER_PRIVATE_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_CLIENT_SECRET",
+              "description": "Server-only Libro client credential.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "LIBRO_OAUTH_CLIENT_SECRET"
+              }
+            },
+            {
+              "name": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY",
+              "description": "Server-only OAuth token encryption key.",
+              "required": false,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.app",
+                "key": "LIBRO_OAUTH_TOKEN_ENCRYPTION_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.p.app-db",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended Neon region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "compute",
+              "description": "Intended compute configuration; unresolved.",
+              "required": true
+            },
+            {
+              "name": "branchPolicy",
+              "description": "Intended branching policy; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.p.libro",
+          "configuration": [
+            {
+              "name": "DATABASE_URL",
+              "description": "Separate Libro canonical database connection.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "DATABASE_URL"
+              }
+            },
+            {
+              "name": "WORLD_ID_RP_SIGNING_KEY",
+              "description": "Libro proof signing key after cutover.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "WORLD_ID_RP_SIGNING_KEY"
+              }
+            },
+            {
+              "name": "LIBRO_RELAYER_PRIVATE_KEY",
+              "description": "Libro registration relayer, separate from x402.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.libro",
+                "key": "LIBRO_RELAYER_PRIVATE_KEY"
+              }
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.p.libro-db",
+          "configuration": [
+            {
+              "name": "region",
+              "description": "Intended Neon region; unresolved.",
+              "required": true
+            },
+            {
+              "name": "compute",
+              "description": "Intended compute configuration; unresolved.",
+              "required": true
+            },
+            {
+              "name": "branchPolicy",
+              "description": "Intended branching policy; unresolved.",
+              "required": true
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.p.world-id"
+        },
+        {
+          "nodeId": "provider.p.world-app"
+        },
+        {
+          "nodeId": "provider.p.rpc"
+        },
+        {
+          "nodeId": "provider.p.registry"
+        },
+        {
+          "nodeId": "provider.p.verifier"
+        },
+        {
+          "nodeId": "provider.p.usdc"
+        },
+        {
+          "nodeId": "provider.p.worker",
+          "configuration": [
+            {
+              "name": "VERCEL_TOKEN",
+              "description": "Trusted worker only; never passed to candidate builds.",
+              "required": true,
+              "sensitive": true,
+              "secretRef": {
+                "nodeId": "provider.p.worker",
+                "key": "VERCEL_TOKEN"
+              }
+            }
+          ]
+        },
+        {
+          "nodeId": "provider.c.sandbox"
+        },
+        {
+          "nodeId": "provider.p.build"
+        },
+        {
+          "nodeId": "provider.p.review"
+        },
+        {
+          "nodeId": "provider.p.deploy"
+        },
+        {
+          "nodeId": "provider.p.candidate"
+        },
+        {
+          "nodeId": "provider.p.analytics"
+        },
+        {
+          "nodeId": "provider.l.libro"
+        },
+        {
+          "nodeId": "provider.l.openship"
+        },
+        {
+          "nodeId": "provider.h.neon-memorioso"
+        },
+        {
+          "nodeId": "provider.h.neon-libro"
+        }
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "id": "memorioso-web",
+      "name": "Memorioso Web",
+      "description": "Web authoring, local data and access policy, and application operations.",
+      "nodeIds": [
+        "logical.authoring",
+        "logical.identity",
+        "logical.publication",
+        "logical.verification",
+        "logical.access",
+        "logical.changes",
+        "logical.app-store",
+        "h.clients",
+        "h.memorioso",
+        "p.browser",
+        "p.app",
+        "p.app-db",
+        "h.build",
+        "c.sandbox",
+        "p.worker",
+        "p.build",
+        "h.review",
+        "p.review",
+        "h.deploy",
+        "p.deploy",
+        "p.analytics",
+        "h.candidate",
+        "p.candidate",
+        "l.libro",
+        "l.openship",
+        "provider.h.clients",
+        "provider.h.memorioso",
+        "provider.p.browser",
+        "provider.p.app",
+        "provider.p.app-db",
+        "provider.h.build",
+        "provider.c.sandbox",
+        "provider.p.worker",
+        "provider.p.build",
+        "provider.h.review",
+        "provider.p.review",
+        "provider.h.deploy",
+        "provider.p.deploy",
+        "provider.p.analytics",
+        "provider.h.candidate",
+        "provider.p.candidate",
+        "provider.l.libro",
+        "provider.l.openship",
+        "provider.h.neon-memorioso"
+      ]
+    },
+    {
+      "id": "libro-mcp",
+      "name": "Libro MCP",
+      "description": "Libro identity, canonical publishing and storage, public MCP/API, and authorized clients.",
+      "nodeIds": [
+        "logical.identity",
+        "logical.publication",
+        "logical.verification",
+        "logical.libro-store",
+        "h.libro",
+        "p.libro",
+        "p.libro-db",
+        "h.agents",
+        "p.agents",
+        "h.world",
+        "p.world-id",
+        "p.world-app",
+        "l.libro",
+        "l.openship",
+        "provider.h.libro",
+        "provider.p.libro",
+        "provider.p.libro-db",
+        "provider.h.agents",
+        "provider.p.agents",
+        "provider.h.world",
+        "provider.p.world-id",
+        "provider.p.world-app",
+        "provider.l.libro",
+        "provider.l.openship",
+        "provider.h.neon-libro"
+      ]
+    },
+    {
+      "id": "chain",
+      "name": "Chain",
+      "description": "On-chain registrations, proof verification, RPC access and payment settlement.",
+      "nodeIds": [
+        "logical.identity",
+        "logical.publication",
+        "logical.verification",
+        "logical.access",
+        "h.chain",
+        "p.registry",
+        "p.verifier",
+        "p.usdc",
+        "h.rpc",
+        "p.rpc",
+        "l.libro",
+        "provider.h.chain",
+        "provider.p.registry",
+        "provider.p.verifier",
+        "provider.p.usdc",
+        "provider.h.rpc",
+        "provider.p.rpc",
+        "provider.l.libro"
+      ]
+    },
+    {
+      "id": "memorioso-chrome-extension",
+      "name": "Memorioso Chrome Extension",
+      "description": "Browser extension connection, authorization, signing and verification.",
+      "nodeIds": [
+        "logical.authoring",
+        "logical.identity",
+        "logical.publication",
+        "logical.verification",
+        "h.clients",
+        "p.extension",
+        "l.libro",
+        "provider.h.clients",
+        "provider.p.extension",
+        "provider.l.libro"
+      ]
+    }
+  ]
 }

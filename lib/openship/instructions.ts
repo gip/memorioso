@@ -99,7 +99,7 @@ START HERE
   The discovery document has "capability": "discovery" and a capabilities map.
   Its Sources entry links the manifest, bundle, exact-file endpoint, archive, and
   these instructions. Its Changes entry links policy, submission, and status.
-  Its Systems entry links a self-contained source snapshot and architecture graph.
+  Its Systems entry links a self-contained source snapshot, ordered design layers and instance descriptions.
   The advertised skill is served from the vendored package at:
   ${origin}/openship/file/skills/openship/SKILL.md
 
@@ -112,7 +112,7 @@ ${mcp ? `MCP
 ` : ''}\
 RETRIEVE SYSTEMS
   GET ${origin}/openship/systems.json.
-  Validate the OpenShip Systems v1 document, including its complete embedded Sources
+  Validate the OpenShip Systems 2.0 document, including its complete embedded Sources
   manifest and bundle, graph, source selectors, document hashes and context references.
   The embedded snapshot is identical to the standalone Sources endpoints below.
   This describes supported architecture, not live service health. Legacy and optional

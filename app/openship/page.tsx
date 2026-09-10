@@ -132,7 +132,7 @@ const HumanView = () => {
         </p>
         <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
           <li><ViewerLink origin={openshipOrigin()} /> — explore the architecture and sources on openship.dev.</li>
-          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems v1 document.</li>
+          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems 2.0 document.</li>
         </ul>
       </section>
 

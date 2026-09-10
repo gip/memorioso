@@ -1711,6 +1711,9 @@
       "path": "skills/openship/references/examples/valid/sources-manifest.json"
     },
     {
+      "path": "skills/openship/references/examples/valid/systems-layered.json"
+    },
+    {
       "path": "skills/openship/references/examples/valid/systems.json"
     },
     {

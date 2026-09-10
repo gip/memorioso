@@ -1,118 +1,615 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openship.dev/schemas/systems.schema.json",
-  "title": "OpenShip Systems v1",
+  "title": "OpenShip Systems 2.0",
   "type": "object",
-  "required": ["openship", "capability", "source", "system"],
+  "required": [
+    "openship",
+    "capability",
+    "source",
+    "system",
+    "systemsVersion"
+  ],
   "properties": {
-    "openship": { "const": "1.0" },
-    "capability": { "const": "systems" },
+    "openship": {
+      "const": "1.0"
+    },
+    "capability": {
+      "const": "systems"
+    },
     "source": {
       "type": "object",
-      "required": ["manifest", "bundle"],
+      "required": [
+        "manifest",
+        "bundle"
+      ],
       "properties": {
-        "manifest": { "$ref": "sources-manifest.schema.json" },
-        "bundle": { "$ref": "sources-bundle.schema.json" }
+        "manifest": {
+          "$ref": "sources-manifest.schema.json"
+        },
+        "bundle": {
+          "$ref": "sources-bundle.schema.json"
+        }
       },
       "additionalProperties": true
     },
     "system": {
       "type": "object",
-      "required": ["id", "name", "rootNodeId", "nodes", "edges"],
+      "required": [
+        "id",
+        "name",
+        "layers",
+        "refinements"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "name": { "type": "string", "minLength": 1 },
-        "rootNodeId": { "$ref": "#/$defs/id" },
-        "metadata": { "type": "object", "additionalProperties": true },
-        "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/node" } },
-        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
-        "context": { "$ref": "#/$defs/context" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        },
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/layer"
+          }
+        },
+        "refinements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/refinement"
+          }
+        },
+        "instances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/instance"
+          }
+        },
+        "nodes": false,
+        "edges": false,
+        "rootNodeId": false,
+        "domains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain"
+          }
+        }
       },
       "additionalProperties": true
+    },
+    "systemsVersion": {
+      "const": "2.0"
     }
   },
   "$defs": {
-    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
-    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-    "ownership": { "enum": ["first_party", "third_party"] },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "ownership": {
+      "enum": [
+        "first_party",
+        "third_party"
+      ]
+    },
     "node": {
       "type": "object",
-      "required": ["id", "kind", "name", "metadata"],
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "metadata"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "kind": { "enum": ["Root", "Host", "Container", "Process", "Library"] },
-        "name": { "type": "string", "minLength": 1 },
-        "parentId": { "$ref": "#/$defs/id" },
-        "sourceSelectors": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "Root",
+            "Host",
+            "Container",
+            "Process",
+            "Library",
+            "Block",
+            "Store"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
         "metadata": {
           "type": "object",
-          "required": ["ownership"],
+          "required": [
+            "ownership"
+          ],
           "properties": {
-            "ownership": { "$ref": "#/$defs/ownership" }
+            "ownership": {
+              "$ref": "#/$defs/ownership"
+            }
           },
           "additionalProperties": true
+        },
+        "configuration": {
+          "$ref": "#/$defs/configuration"
         }
       },
       "additionalProperties": true
     },
     "edge": {
       "type": "object",
-      "required": ["id", "type", "fromNodeId", "toNodeId"],
+      "required": [
+        "id",
+        "type",
+        "fromNodeId",
+        "toNodeId"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "type": { "enum": ["Runtime", "Dataflow", "Dependency"] },
-        "fromNodeId": { "$ref": "#/$defs/id" },
-        "toNodeId": { "$ref": "#/$defs/id" },
-        "metadata": { "type": "object", "additionalProperties": true }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "Runtime",
+            "Dataflow",
+            "Dependency"
+          ]
+        },
+        "fromNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "toNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     },
     "document": {
       "type": "object",
-      "required": ["kind", "hash", "title", "language", "text"],
+      "required": [
+        "kind",
+        "hash",
+        "title",
+        "language",
+        "text"
+      ],
       "properties": {
-        "kind": { "enum": ["Document", "Skill", "Prompt"] },
-        "hash": { "$ref": "#/$defs/digest" },
-        "title": { "type": "string", "minLength": 1 },
-        "language": { "type": "string", "minLength": 1 },
-        "text": { "type": "string" },
-        "supersedes": { "$ref": "#/$defs/digest" }
+        "kind": {
+          "enum": [
+            "Document",
+            "Skill",
+            "Prompt"
+          ]
+        },
+        "hash": {
+          "$ref": "#/$defs/digest"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "supersedes": {
+          "$ref": "#/$defs/digest"
+        }
       },
       "additionalProperties": true
     },
     "matrix": {
       "type": "object",
-      "required": ["nodeId", "concern"],
+      "required": [
+        "nodeId",
+        "concern"
+      ],
       "properties": {
-        "nodeId": { "$ref": "#/$defs/id" },
-        "concern": { "type": "string", "minLength": 1 },
-        "documentRefs": { "type": "array", "items": { "$ref": "#/$defs/digest" }, "uniqueItems": true },
-        "skillRefs": { "type": "array", "items": { "$ref": "#/$defs/digest" }, "uniqueItems": true }
+        "nodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "concern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "documentRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        },
+        "skillRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": true
     },
     "artifact": {
       "type": "object",
-      "required": ["id", "nodeId", "concern", "type"],
+      "required": [
+        "id",
+        "nodeId",
+        "concern",
+        "type"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "nodeId": { "$ref": "#/$defs/id" },
-        "concern": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["Summary", "Docs", "Code"] },
-        "language": { "type": "string" },
-        "text": { "type": "string" },
-        "sourcePaths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "concern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "Summary",
+            "Docs",
+            "Code"
+          ]
+        },
+        "language": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "sourcePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": true
     },
     "context": {
       "type": "object",
       "properties": {
-        "concerns": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "documents": { "type": "array", "items": { "$ref": "#/$defs/document" } },
-        "matrix": { "type": "array", "items": { "$ref": "#/$defs/matrix" } },
-        "systemPromptRefs": { "type": "array", "items": { "$ref": "#/$defs/digest" }, "uniqueItems": true },
-        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } }
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/document"
+          }
+        },
+        "matrix": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/matrix"
+          }
+        },
+        "systemPromptRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "layer": {
+      "type": "object",
+      "required": [
+        "rootNodeId",
+        "nodes",
+        "edges",
+        "id",
+        "name",
+        "role"
+      ],
+      "properties": {
+        "rootNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/edge"
+          }
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "logical",
+            "technical",
+            "provider",
+            "custom"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "configuration": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "required"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "value": {},
+          "secretRef": {
+            "type": "object",
+            "required": [
+              "nodeId",
+              "key"
+            ],
+            "properties": {
+              "nodeId": {
+                "$ref": "#/$defs/id"
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "sensitive"
+              ],
+              "properties": {
+                "sensitive": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {}
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "secretRef"
+              ],
+              "properties": {
+                "secretRef": {}
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "refinement": {
+      "type": "object",
+      "required": [
+        "id",
+        "fromNodeId",
+        "toNodeId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "fromNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "toNodeId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "additionalProperties": true
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "appliedMigration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "ref",
+            "capturedAt"
+          ],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "capturedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "digest": {
+              "$ref": "#/$defs/digest"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "nodeId"
+      ],
+      "properties": {
+        "nodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "resourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configuration": {
+          "$ref": "#/$defs/configuration"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        }
+      },
+      "additionalProperties": true
+    },
+    "instance": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "environment",
+        "layerId",
+        "bindings"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layerId": {
+          "$ref": "#/$defs/id"
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "domain": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "nodeIds"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": true
     }

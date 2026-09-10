@@ -1,0 +1,353 @@
+{
+  "openship": "1.0",
+  "capability": "systems",
+  "source": {
+    "manifest": {
+      "openship": "1.0",
+      "capability": "sources",
+      "digest": "sha256:1d322539e651a3c2d7c51eb8b33160627395b9601bff909e599771b806d9e565",
+      "project": {
+        "name": "Example",
+        "description": "An example OpenShip project."
+      },
+      "totals": {
+        "files": 2,
+        "bytes": 53
+      },
+      "files": [
+        {
+          "path": "app/page.js",
+          "size": 34,
+          "sha256": "6ce070542590adb63fd9621ff65be91446f8bd9b65465cda5e4ec43e5d86dc5e",
+          "encoding": "utf-8",
+          "mediaType": "text/plain; charset=utf-8",
+          "type": "file"
+        },
+        {
+          "path": "package.json",
+          "size": 19,
+          "sha256": "9579cf52285b23b618b615d704b19d04ff591ae513f6ae34ef37e2b9a067cb12",
+          "encoding": "utf-8",
+          "mediaType": "application/json; charset=utf-8",
+          "type": "file"
+        }
+      ]
+    },
+    "bundle": {
+      "openship": "1.0",
+      "capability": "sources",
+      "digest": "sha256:1d322539e651a3c2d7c51eb8b33160627395b9601bff909e599771b806d9e565",
+      "files": {
+        "app/page.js": {
+          "encoding": "utf-8",
+          "content": "export default function Page() {}\n"
+        },
+        "package.json": {
+          "encoding": "utf-8",
+          "content": "{\"name\":\"example\"}\n"
+        }
+      }
+    }
+  },
+  "system": {
+    "id": "example-system",
+    "name": "Example system",
+    "context": {
+      "concerns": [
+        "Interfaces",
+        "Implementation"
+      ],
+      "documents": [
+        {
+          "kind": "Document",
+          "hash": "sha256:77760f8cb9fdaaadd3c22612d97fba630f78730c8d750c6cce02754b689b11da",
+          "title": "API contract",
+          "language": "en",
+          "text": "The API returns JSON."
+        },
+        {
+          "kind": "Skill",
+          "hash": "sha256:bae5f866c2994c1cec740965e45935920376a2df1fb933e798c3e2c3b8c0e391",
+          "title": "Node implementation",
+          "language": "en",
+          "text": "Use Node.js."
+        },
+        {
+          "kind": "Prompt",
+          "hash": "sha256:416a3efe045d89a00fa0cca4516b8bdd442a8f65a42e35a5c102067f3ecb429d",
+          "title": "System prompt",
+          "language": "en",
+          "text": "Keep changes minimal."
+        }
+      ],
+      "matrix": [
+        {
+          "nodeId": "p.web",
+          "concern": "Interfaces",
+          "documentRefs": [
+            "sha256:77760f8cb9fdaaadd3c22612d97fba630f78730c8d750c6cce02754b689b11da"
+          ],
+          "skillRefs": []
+        }
+      ],
+      "systemPromptRefs": [
+        "sha256:416a3efe045d89a00fa0cca4516b8bdd442a8f65a42e35a5c102067f3ecb429d"
+      ],
+      "artifacts": [
+        {
+          "id": "a.web.code",
+          "nodeId": "p.web",
+          "concern": "Implementation",
+          "type": "Code",
+          "sourcePaths": [
+            "app/page.js"
+          ]
+        }
+      ]
+    },
+    "layers": [
+      {
+        "id": "logical",
+        "name": "Logical",
+        "role": "logical",
+        "rootNodeId": "logical.root",
+        "nodes": [
+          {
+            "id": "logical.root",
+            "name": "logical.root",
+            "kind": "Root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "logical.web",
+            "name": "logical.web",
+            "kind": "Block",
+            "parentId": "logical.root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "logical.data",
+            "name": "logical.data",
+            "kind": "Store",
+            "parentId": "logical.root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "uses",
+            "type": "Runtime",
+            "fromNodeId": "logical.web",
+            "toNodeId": "logical.data"
+          }
+        ]
+      },
+      {
+        "rootNodeId": "s.root",
+        "nodes": [
+          {
+            "id": "s.root",
+            "kind": "Root",
+            "name": "Example",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "h.runtime",
+            "kind": "Host",
+            "name": "Application runtime",
+            "parentId": "s.root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "p.web",
+            "kind": "Process",
+            "name": "Web process",
+            "parentId": "h.runtime",
+            "sourceSelectors": [
+              "app/**"
+            ],
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "l.config",
+            "kind": "Library",
+            "name": "Project configuration",
+            "sourceSelectors": [
+              "package.json"
+            ],
+            "metadata": {
+              "ownership": "third_party"
+            },
+            "parentId": "s.root"
+          },
+          {
+            "id": "technical.data",
+            "name": "technical.data",
+            "kind": "Store",
+            "parentId": "s.root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e.web.config",
+            "type": "Dependency",
+            "fromNodeId": "p.web",
+            "toNodeId": "l.config"
+          }
+        ],
+        "id": "technical",
+        "name": "Technical",
+        "role": "technical"
+      },
+      {
+        "id": "provider",
+        "name": "Provider",
+        "role": "provider",
+        "rootNodeId": "provider.root",
+        "nodes": [
+          {
+            "id": "provider.root",
+            "name": "provider.root",
+            "kind": "Root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "provider.web",
+            "name": "provider.web",
+            "kind": "Process",
+            "parentId": "provider.root",
+            "metadata": {
+              "ownership": "first_party"
+            }
+          },
+          {
+            "id": "provider.data",
+            "name": "provider.data",
+            "kind": "Store",
+            "parentId": "provider.root",
+            "metadata": {
+              "ownership": "first_party"
+            },
+            "configuration": [
+              {
+                "name": "region",
+                "description": "Intended region",
+                "required": true
+              },
+              {
+                "name": "provider",
+                "description": "Database provider",
+                "required": true,
+                "value": "Neon"
+              }
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "id": "uses",
+            "type": "Runtime",
+            "fromNodeId": "provider.web",
+            "toNodeId": "provider.data"
+          }
+        ]
+      }
+    ],
+    "refinements": [
+      {
+        "id": "web",
+        "fromNodeId": "p.web",
+        "toNodeId": "logical.web"
+      },
+      {
+        "id": "data",
+        "fromNodeId": "technical.data",
+        "toNodeId": "logical.data"
+      },
+      {
+        "id": "host.web",
+        "fromNodeId": "provider.web",
+        "toNodeId": "p.web"
+      },
+      {
+        "id": "host.data",
+        "fromNodeId": "provider.data",
+        "toNodeId": "technical.data"
+      }
+    ],
+    "instances": [
+      {
+        "id": "production",
+        "name": "Production target",
+        "environment": "production",
+        "layerId": "provider",
+        "bindings": [
+          {
+            "nodeId": "provider.web"
+          },
+          {
+            "nodeId": "provider.data",
+            "configuration": [
+              {
+                "name": "DATABASE_URL",
+                "description": "Database connection",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.web",
+                  "key": "DATABASE_URL"
+                }
+              }
+            ],
+            "state": {
+              "appliedMigration": "001.sql",
+              "snapshot": {
+                "ref": "example:sample-data",
+                "capturedAt": "2026-09-09T00:00:00Z"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "domains": [
+      {
+        "id": "web",
+        "name": "Web app",
+        "nodeIds": [
+          "logical.web",
+          "p.web",
+          "provider.web"
+        ]
+      },
+      {
+        "id": "state",
+        "name": "State",
+        "nodeIds": [
+          "logical.data",
+          "technical.data",
+          "provider.data",
+          "p.web"
+        ]
+      }
+    ]
+  },
+  "systemsVersion": "2.0"
+}

@@ -20,8 +20,8 @@ importers:
         specifier: workspace:*
         version: link:libro/core
       '@openship/protocol':
-        specifier: 0.0.3
-        version: 0.0.3
+        specifier: 0.1.1
+        version: 0.1.1
       '@radix-ui/react-dialog':
         specifier: 1.1.5
         version: 1.1.5(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -257,8 +257,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       '@openship/protocol':
-        specifier: 0.0.3
-        version: 0.0.3
+        specifier: 0.1.1
+        version: 0.1.1
       '@worldcoin/idkit':
         specifier: 4.2.2
         version: 4.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -681,8 +681,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@openship/protocol@0.0.3':
-    resolution: {integrity: sha512-X0rV6Ukl0j7miGgdUp+mUTIl0zg5mXOrXj1Wd4De8D8uD5OxfveOkjISH4UA3EJzEUvIfawAYsTGlSgP7+KZ7Q==}
+  '@openship/protocol@0.1.1':
+    resolution: {integrity: sha512-d9lB/GDk40OZDETJ5kImRnBqFDH02wKw4wWGIh3HlXmces7p2GeZwAMvhd7Jn526QixK/LYy/ifkpan+78OfVQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -4140,7 +4140,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@openship/protocol@0.0.3':
+  '@openship/protocol@0.1.1':
     dependencies:
       '@noble/hashes': 2.3.0
 

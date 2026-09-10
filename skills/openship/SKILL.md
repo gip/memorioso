@@ -5,7 +5,7 @@ description: Work with OpenShip v1 discovery, public source snapshots, candidate
 
 # OpenShip
 
-OpenShip lets a running project publish the source that produced it, optionally accept changes as isolated candidate versions, and optionally describe the complete software system around that source.
+OpenShip lets a running project publish the source that produced it, optionally accept changes as isolated candidate versions, and optionally describe the complete software system around that source through ordered design layers and separate instance bindings. Systems 2.0 replaces the legacy single graph; Sources and Changes retain their 1.0 formats.
 
 Read only the references needed for the task:
 

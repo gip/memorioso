@@ -22,7 +22,7 @@ export const LatestPublications = async ({
   showHeading = true,
 }: LatestPublicationsProps) => {
   // One extra row tells us whether another page exists without a count. A build
-  // host with no database (previews, Openship sandbox builds) prerenders without
+  // host with no database (preview builds) prerenders without
   // a feed instead of failing the build; the check stays outside the cached call
   // so an empty feed is never what gets cached.
   const rows = process.env.DATABASE_URL

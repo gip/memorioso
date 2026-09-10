@@ -3,7 +3,7 @@
   "capability": "sources",
   "project": {
     "name": "Memorioso",
-    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. Legacy paths remain behind independent cutover flags.",
+    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. CONTRACT denotes a PROCESS running on consensus; LibroRegistry, WorldIDVerifier and USDC are contracts. Legacy paths remain behind independent cutover flags.",
     "homepage": "https://memorioso.xyz",
     "repository": "https://github.com/memorioso/memorioso",
     "license": "See LICENSE in the source tree if present; otherwise all rights reserved."
@@ -59,7 +59,7 @@
     },
     {
       "path": "lib/openship/",
-      "purpose": "The Openship manifest and bundle served by this endpoint, plus the change policy and validator."
+      "purpose": "The OpenShip Sources snapshot and Systems document served by this endpoint."
     },
     {
       "path": "libro/contracts/",
@@ -79,7 +79,7 @@
     },
     {
       "path": "scripts/",
-      "purpose": "Database init/migrate tooling, this Openship build step, and the change build worker."
+      "purpose": "Database init/migrate tooling and the OpenShip source snapshot build step."
     },
     {
       "path": "types/",
@@ -427,18 +427,6 @@
       "path": "app/openship/bundle.json/route.ts"
     },
     {
-      "path": "app/openship/changes/[changeId]/route.test.ts"
-    },
-    {
-      "path": "app/openship/changes/[changeId]/route.ts"
-    },
-    {
-      "path": "app/openship/changes/route.test.ts"
-    },
-    {
-      "path": "app/openship/changes/route.ts"
-    },
-    {
       "path": "app/openship/file/[...path]/route.test.ts"
     },
     {
@@ -458,9 +446,6 @@
     },
     {
       "path": "app/openship/page.tsx"
-    },
-    {
-      "path": "app/openship/policy.json/route.ts"
     },
     {
       "path": "app/openship/systems.json/route.ts"
@@ -844,13 +829,13 @@
       "path": "lib/db/migrations/023_legacy_publication_policies.sql"
     },
     {
+      "path": "lib/db/migrations/024_remove_openship_changes.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
       "path": "lib/db/objects.ts"
-    },
-    {
-      "path": "lib/db/openship-changes.ts"
     },
     {
       "path": "lib/db/publication-cache.ts"
@@ -991,24 +976,6 @@
       "path": "lib/local-draft.ts"
     },
     {
-      "path": "lib/openship/candidate.test.ts"
-    },
-    {
-      "path": "lib/openship/candidate.ts"
-    },
-    {
-      "path": "lib/openship/change-status.test.ts"
-    },
-    {
-      "path": "lib/openship/change.ts"
-    },
-    {
-      "path": "lib/openship/changes-config.test.ts"
-    },
-    {
-      "path": "lib/openship/changes-config.ts"
-    },
-    {
       "path": "lib/openship/conformance.test.ts"
     },
     {
@@ -1018,19 +985,10 @@
       "path": "lib/openship/instructions.ts"
     },
     {
-      "path": "lib/openship/lifecycle.test.ts"
-    },
-    {
       "path": "lib/openship/manifest.ts"
     },
     {
       "path": "lib/openship/paths.ts"
-    },
-    {
-      "path": "lib/openship/policy.test.ts"
-    },
-    {
-      "path": "lib/openship/policy.ts"
     },
     {
       "path": "lib/openship/system.json"
@@ -1040,12 +998,6 @@
     },
     {
       "path": "lib/openship/systems.test.ts"
-    },
-    {
-      "path": "lib/openship/validate.test.ts"
-    },
-    {
-      "path": "lib/openship/validate.ts"
     },
     {
       "path": "lib/publication-kind.test.ts"
@@ -1651,15 +1603,6 @@
       "path": "scripts/openship-manifest.test.mjs"
     },
     {
-      "path": "scripts/openship-resolve.mjs"
-    },
-    {
-      "path": "scripts/openship-review.mjs"
-    },
-    {
-      "path": "scripts/openship-worker.mjs"
-    },
-    {
       "path": "skills/openship/SKILL.md"
     },
     {
@@ -1709,6 +1652,9 @@
     },
     {
       "path": "skills/openship/references/examples/valid/sources-manifest.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/systems-layered.json"
     },
     {
       "path": "skills/openship/references/examples/valid/systems.json"

@@ -20,16 +20,14 @@ export const OPENSHIP_VERSION = '1.0'
 
 export const OPENSHIP_AGENT = {
   summary:
-    'OpenShip lets Memorioso publish verifiable sources and structured system design, and accept isolated candidate changes.',
+    'OpenShip lets Memorioso publish verifiable sources and structured system design.',
   instructions:
     'Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.',
 } as const
 
 export const OPENSHIP_CAPABILITY_DESCRIPTIONS = {
   sources: 'Retrieve and verify the exact source snapshot published by this deployment.',
-  systems: 'Retrieve the structured system design with its complete, integrity-checked Sources snapshot.',
-  changes:
-    'Submit a patch against the published source digest and inspect an isolated candidate result.',
+  systems: 'Retrieve logical, technical and provider layers plus instance descriptions and the complete, integrity-checked Sources snapshot.',
 } as const
 
 export type OpenshipEncoding = 'utf-8' | 'base64'
@@ -98,11 +96,6 @@ export const OPENSHIP_ENDPOINTS = {
   instructions: '/openship/agent.txt',
   page: '/openship',
   skill: '/openship/file/skills/openship/SKILL.md',
-  // The write half. Advertised unconditionally so a client can discover the rules even where this
-  // deployment does not accept submissions; POST answers 501 there.
-  policy: '/openship/policy.json',
-  changes: '/openship/changes',
-  changeStatus: '/openship/changes/{changeId}',
 } as const
 
 let filesCache: OpenshipFile[] | null = null

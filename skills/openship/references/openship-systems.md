@@ -65,6 +65,23 @@ Layer-local edges have `id`, `type`, `fromNodeId`, `toNodeId`, and optional meta
 
 Refinements have `id`, `fromNodeId`, and `toNodeId`. IDs MUST be unique within `system.refinements`. The source MUST belong to a later layer than the target. Thus the concrete source implements the more abstract target. Many-to-many mappings, skipped layers, and root mappings are allowed. Refinements neither imply containment nor copy configuration, documents, or runtime edges.
 
+## Domains (optional)
+
+`system.domains` MAY declare an ordered list of domains. A domain groups blocks independently of layers, containment, and refinement. Each requires a unique `id`, a nonempty `name`, and `nodeIds`; an optional nonempty `description` explains its scope. Domain IDs use the standard ID grammar. Member IDs MUST be unique within the domain and MUST reference existing nodes anywhere in the system.
+
+```json
+"domains": [
+  { "id": "web", "name": "Web app", "nodeIds": ["logical.web", "technical.web"] },
+  { "id": "state", "name": "State", "nodeIds": ["technical.web", "technical.database"] }
+]
+```
+
+A node MAY belong to zero, one, or multiple domains. Empty domains and an empty domain list are valid. Membership is explicit and is not inherited through parents or refinements. Omitting domains preserves the existing Systems behavior.
+
+Viewers SHOULD select all domains initially. When filtering, a node matches if it has no domain or belongs to any selected domain. Keep the layer root and ancestors needed to render matching nodes as structural boundaries; this does not make other children visible. Hide connections whose endpoints do not match. Domain filters are presentation controls, not access controls. Keep domain selections across layer changes.
+
+Domains are an additive capability in package 0.1.1. The envelope remains `openship: "1.0"` and `systemsVersion: "2.0"`.
+
 ## Configuration
 
 Nodes and instance bindings MAY contain a `configuration` array. Each entry requires a unique `name`, a nonempty `description`, and a boolean `required` flag. Optional `value` contains JSON data; its absence means unresolved, whereas an explicit null is a supplied value.
@@ -159,7 +176,7 @@ Artifact IDs are unique within the system.
 1. Envelope, Systems version, and embedded Sources integrity.
 2. Layer IDs, global node IDs, roots, containment, configuration and source selectors.
 3. Layer-local edges and cycle checks.
-4. Refinement endpoints and order.
+4. Domain declarations and member references; refinement endpoints and order.
 5. Instance membership, bindings, configuration, state and secret scopes.
 6. Shared document hashes, concerns, matrix/artifact references, prompts and supersession chains.
 

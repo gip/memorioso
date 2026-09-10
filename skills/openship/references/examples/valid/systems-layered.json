@@ -326,6 +326,27 @@
           }
         ]
       }
+    ],
+    "domains": [
+      {
+        "id": "web",
+        "name": "Web app",
+        "nodeIds": [
+          "logical.web",
+          "p.web",
+          "provider.web"
+        ]
+      },
+      {
+        "id": "state",
+        "name": "State",
+        "nodeIds": [
+          "logical.data",
+          "technical.data",
+          "provider.data",
+          "p.web"
+        ]
+      }
     ]
   },
   "systemsVersion": "2.0"

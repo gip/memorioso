@@ -115,3 +115,19 @@ it('never copies runtime credentials into the public Systems document', () => {
     })
   }
 })
+
+it('declares overlapping domains across design layers with valid members', async () => {
+  const { system } = await GET().json()
+  const domains = system.domains as { id: string; name: string; nodeIds: string[] }[]
+  expect(domains.map(domain => domain.name)).toEqual(['Memorioso Web', 'Libro MCP', 'Chain', 'Memorioso Chrome Extension'])
+  const nodes = new Set(system.layers.flatMap((layer: { nodes: { id: string }[] }) => layer.nodes.map(node => node.id)))
+  for (const domain of domains) {
+    expect(new Set(domain.nodeIds).size).toBe(domain.nodeIds.length)
+    expect(domain.nodeIds.every(id => nodes.has(id))).toBe(true)
+    expect(domain.nodeIds.some(id => id.startsWith('logical.'))).toBe(true)
+    expect(domain.nodeIds.some(id => id.startsWith('provider.'))).toBe(true)
+  }
+  expect(domains.filter(domain => domain.nodeIds.includes('l.libro'))).toHaveLength(4)
+  expect(domains.find(domain => domain.id === 'memorioso-chrome-extension')?.nodeIds).toContain('p.extension')
+  expect(domains.find(domain => domain.id === 'libro-mcp')?.nodeIds).toContain('p.libro-db')
+})

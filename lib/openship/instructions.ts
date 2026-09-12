@@ -31,7 +31,13 @@ and Systems GETs are public and CORS-readable.
 
 PROJECT
   ${manifest.project.name}
-${wrap(manifest.project.description, '  ')}
+${wrap(manifest.project.productDescription, '  ')}
+
+${manifest.project.productSummary}
+
+${wrap(manifest.project.technicalDescription, '  ')}
+
+${manifest.project.technicalSummary}
 
 ${commit ? `  Commit    ${commit.sha}${commit.dirty ? ' (dirty at build time)' : ''}\n` : ''}\
   Files     ${manifest.totals.files}

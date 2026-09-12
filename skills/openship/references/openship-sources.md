@@ -32,7 +32,10 @@ remain normative and required.
   "digest": "sha256:1c413f...",
   "project": {
     "name": "Example",
-    "description": "An example project.",
+    "productDescription": "An example product.",
+    "productSummary": "## Product\n\nWhat this product does and the problem it solves.",
+    "technicalDescription": "A web application.",
+    "technicalSummary": "## Implementation\n\nTechnology and deployment instructions.",
     "homepage": "https://example.com",
     "repository": "https://github.com/example/example",
     "license": "MIT"
@@ -51,7 +54,7 @@ remain normative and required.
 }
 ```
 
-Required members are `openship`, `capability`, `digest`, `project`, `totals`, and `files`. Project name and description are required. Repository, commit, stack, structure, setup, runtime, environment-variable names, ignore rules, generation time, lineage, and other metadata are optional.
+Required members are `openship`, `capability`, `digest`, `project`, `totals`, and `files`. Project name and all four descriptive fields (`productDescription`, `productSummary`, `technicalDescription`, `technicalSummary`) are required non-empty strings. Descriptions are plain text of at most 120 Unicode code points each; summaries are Markdown. Product fields explain what the product does and the problem it solves. Technical fields explain implementation, technology, and deployment. The legacy `project.description` field is replaced without a fallback. Repository, commit, stack, structure, setup, runtime, environment-variable names, ignore rules, generation time, lineage, and other metadata are optional.
 
 See [schemas/sources-manifest.schema.json](schemas/sources-manifest.schema.json).
 

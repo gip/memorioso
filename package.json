@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@libro/core": "workspace:*",
-    "@openship/protocol": "file:/tmp/openship-protocol-0.2.0.tgz",
+    "@openship/protocol": "0.2.0",
     "@radix-ui/react-dialog": "1.1.5",
     "@radix-ui/react-dropdown-menu": "2.1.5",
     "@radix-ui/react-select": "2.1.5",
@@ -58,7 +58,7 @@
     "clsx": "^2.1.1",
     "lowlight": "^3.2.0",
     "lucide-react": "^0.456.0",
-    "next": "^16.3.1",
+    "next": "^16.3.5",
     "pg": "^8.13.1",
     "quill": "2.0.2",
     "react": "^19.2.6",

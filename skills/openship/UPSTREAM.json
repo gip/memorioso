@@ -3,7 +3,7 @@
   "package": "@openship/protocol",
   "packageVersion": "0.2.0",
   "source": "https://github.com/openshipdev/openship/tree/main/skills/openship",
-  "sourceCommit": "0532ecaf37598c17b3b4bd4bcc73ed4dce582095",
+  "sourceCommit": "4915be31602a94653da5e56c22f0609736668ea0",
   "packageDigest": "sha256:ca86ec6b91c58942d8eada394d2eab3148a7c0b873ef3a45c25c011b33f092b8",
   "digestExcludes": [
     "UPSTREAM.json"

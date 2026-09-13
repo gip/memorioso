@@ -32,7 +32,7 @@ import {
 import { importPublication, publicationManifest } from '@/lib/imports'
 import { chainConfig } from '@/lib/chain'
 import { revokeAgent } from '@/lib/agent-revocation'
-import { getOpenShipSnapshot, readOpenShipFile } from '@/lib/openship'
+import { getOpenShipSnapshot, readOpenShipDocument, readOpenShipFile } from '@/lib/openship'
 
 type PublishState = {
   tool: 'publish_human'
@@ -77,6 +77,10 @@ function toolError(error: unknown) {
   return text({ error: { code: 'INTERNAL_ERROR', message: 'Libro could not complete the tool call', retryable: false } }, true)
 }
 
+function openShipResult(value: Record<string, unknown>) {
+  return { ...text(value), structuredContent: value }
+}
+
 let routeHandler: ((request: Request) => Promise<Response>) | undefined
 
 function createHandler() {
@@ -87,26 +91,33 @@ function createHandler() {
   })
   const handler = createMcpHandler((server) => {
     server.registerTool(OPENSHIP_MCP_TOOL_NAME, {
-      description: 'Inspect the verified OpenShip Sources manifest or read one exact source file. No authentication is required.',
+      description: 'Retrieve OpenShip discovery, source manifest, complete bundle, skill, Systems, or one exact source file. Start with document/discovery. No authentication is required.',
       inputSchema: z.discriminatedUnion('operation', [
         z.object({ operation: z.literal('manifest') }),
+        z.object({ operation: z.literal('document'), kind: z.enum(['discovery', 'bundle', 'systems', 'policy', 'skill']) }),
         z.object({ operation: z.literal('read'), path: z.string().min(1) }),
       ]),
     }, async (args) => {
       try {
+        if (args.operation === 'document') {
+          return openShipResult({ document: await readOpenShipDocument(args.kind) })
+        }
         if (args.operation === 'manifest') {
           const snapshot = await getOpenShipSnapshot()
-          return text({ origin: snapshot.origin, manifest: snapshot.manifest })
+          return openShipResult({ origin: snapshot.origin, manifest: snapshot.manifest })
         }
         const { snapshot, file, content } = await readOpenShipFile(args.path)
-        return text({
+        return openShipResult({
           origin: snapshot.origin,
           digest: snapshot.manifest.digest,
           file: file.metadata,
+          metadata: file.metadata,
+          encoding: file.metadata.encoding,
           content,
         })
       } catch (error) {
-        return toolError(error)
+        const failure = toolError(error)
+        return { ...failure, structuredContent: JSON.parse(failure.content[0].text) as Record<string, unknown> }
       }
     })
 

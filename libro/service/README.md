@@ -36,8 +36,12 @@ configuration, `LIBRO_SERVICE_URL`, `LIBRO_MCP_STATE_SECRET`, and
 `WORLD_ID_RP_SIGNING_KEY` and `LIBRO_RELAYER_PRIVATE_KEY` after cutover.
 
 `OPENSHIP_SOURCE_ORIGIN` enables the MCP's public `openship` tool. It exposes only that origin's
-validated Sources manifest and exact files through `manifest` and `read` operations; callers cannot
-select another origin or retrieve an unverified bundle.
+validated snapshot through the OpenShip 0.2.1 full-document MCP binding. `document` retrieves
+MCP discovery, the complete verified bundle, the skill, or advertised Systems; `manifest` and
+`read` retrieve metadata and exact files. Results include structured content and equivalent JSON
+text. Systems must match the source digest, and the skill comes from verified snapshot bytes.
+Changes policy is not advertised. Callers cannot select another origin. Initialization and
+OpenShip reads are public; unrelated write tools retain their OAuth requirements.
 
 OAuth access tokens are opaque and valid for 15 minutes; rotating refresh tokens and grants expire
 after seven days. A grant used for a write scope must be based on World verification no more than 24

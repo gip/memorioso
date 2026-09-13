@@ -3,6 +3,8 @@ import {
   assertSafePath,
   normalizeOpenShipOrigin,
   validateDiscovery,
+  validateMcpDiscovery,
+  validateSystems,
   validateSources,
   validateSourcesManifest,
   type DiscoveryDocument,
@@ -156,4 +158,70 @@ export async function readOpenShipFile(path: string): Promise<{
 export function resetOpenShipSnapshotCacheForTests(): void {
   cachedSnapshot = null
   pendingSnapshot = null
+}
+
+export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'systems' | 'policy' | 'skill'): Promise<unknown> {
+  const snapshot = await getOpenShipSnapshot()
+  const { discovery, verified } = snapshot
+  if (kind === 'bundle') return verified.bundle
+  if (kind === 'discovery') {
+    return validateMcpDiscovery({
+      openship: '1.0',
+      capability: 'discovery',
+      mcpBinding: '1.0',
+      project: snapshot.manifest.project,
+      agent: {
+        summary: discovery.agent.summary,
+        instructions: 'Call openship with agent.skill and read the returned skill before using the advertised capabilities. Read referenced skill files with the read operation.',
+        skill: { operation: 'document', kind: 'skill' },
+      },
+      capabilities: {
+        sources: {
+          description: discovery.capabilities.sources.description,
+          manifest: { operation: 'manifest' },
+          bundle: { operation: 'document', kind: 'bundle' },
+        },
+        ...(discovery.capabilities.systems ? {
+          systems: {
+            description: discovery.capabilities.systems.description,
+            document: { operation: 'document', kind: 'systems' },
+          },
+        } : {}),
+      },
+    })
+  }
+  if (kind === 'skill') {
+    // Read the advertised skill from verified bytes, never from a separate HTTP response.
+    const prefix = `${snapshot.origin}/openship/file/`
+    if (!discovery.agent.skill.startsWith(prefix)) {
+      throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill must identify a snapshot file', 502)
+    }
+    let path: string
+    try {
+      path = decodeURIComponent(discovery.agent.skill.slice(prefix.length))
+      assertSafePath(path, 'skill')
+    } catch {
+      throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill path is invalid', 502)
+    }
+    const entry = verified.bundle.files[path]
+    if (!entry || entry.encoding !== 'utf-8') {
+      throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill is missing from the verified snapshot', 502)
+    }
+    return entry.content
+  }
+  if (kind === 'systems' && discovery.capabilities.systems) {
+    try {
+      const document = validateSystems(
+        await fetchJson(discovery.capabilities.systems.document, 'systems'),
+        { maxDecodedBytes: MAX_OPENSHIP_SOURCE_BYTES },
+      )
+      if (document.source.manifest.digest !== snapshot.manifest.digest) {
+        throw new ServiceError('OPENSHIP_INVALID', 'OpenShip Systems snapshot changed; retry retrieval', 502, true)
+      }
+      return document
+    } catch (error) {
+      validationError(error)
+    }
+  }
+  throw new ServiceError('NOT_FOUND', `OpenShip ${kind} is not advertised by this MCP server`, 404)
 }

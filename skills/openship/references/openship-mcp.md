@@ -1,53 +1,75 @@
-# OpenShip Sources MCP binding
+# OpenShip public MCP tool binding
 
-Status: Draft v1  
-Protocol version: `1.0`
+Status: Draft; full-document binding `1.0`. The OpenShip envelope remains `1.0`.
 
-This optional binding lets an MCP server expose one OpenShip Sources snapshot without replacing the normative HTTP discovery, Manifest, or Bundle representations. Read [openship.md](openship.md) and [openship-sources.md](openship-sources.md) first.
+## One public tool
 
-## Discovery
+An MCP producer registers exactly one OpenShip application tool named `openship`.
+MCP initialization and this tool MUST work without authentication. Other tools may
+require authentication, but those requirements MUST NOT block OpenShip reads.
+Consumers need no HTTP discovery, website, MCP resources, or other application tools.
+Use Streamable HTTP; local processes and legacy HTTP+SSE endpoints are outside this binding.
 
-A producer MAY advertise an absolute HTTPS Streamable HTTP endpoint as `capabilities.sources.mcp`:
+## Operations and results
 
-```json
-{
-  "capabilities": {
-    "sources": {
-      "description": "Retrieve and verify the exact source snapshot published by this deployment.",
-      "manifest": "https://example.com/openship/manifest.json",
-      "bundle": "https://example.com/openship/bundle.json",
-      "mcp": "https://mcp.example.com/mcp"
-    }
-  }
-}
-```
+All results MUST provide `structuredContent` and a `content` text block containing
+its JSON equivalent. Tool failures use `isError: true` without source content.
 
-The MCP binding MUST expose the same current Sources snapshot as the advertised HTTP Manifest and Bundle. It MUST NOT require authentication. An MCP endpoint MAY expose unrelated authenticated tools alongside OpenShip, but authentication failures for those tools MUST NOT prevent OpenShip source reads.
+| Arguments                                          | Structured result                                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `{ "operation": "document", "kind": "discovery" }` | `{ "document": <MCP discovery> }`                                                                                  |
+| `{ "operation": "manifest" }`                      | `{ "origin": <configured origin or MCP endpoint>, "manifest": <Sources Manifest> }`                                |
+| `{ "operation": "document", "kind": "bundle" }`    | `{ "document": <Sources Bundle> }`                                                                                 |
+| `{ "operation": "document", "kind": "systems" }`   | `{ "document": <Systems document> }`                                                                               |
+| `{ "operation": "document", "kind": "policy" }`    | `{ "document": <Changes policy> }`                                                                                 |
+| `{ "operation": "document", "kind": "skill" }`     | `{ "document": <skill Markdown string> }`                                                                          |
+| `{ "operation": "read", "path": "app/page.tsx" }`  | `{ "digest": <snapshot digest>, "metadata": <Manifest entry>, "encoding": <encoding>, "content": <file content> }` |
 
-## Tool
+Discovery, Manifest, Bundle, skill, and exact-path file reads are required.
+Systems and Changes policy are required only when advertised. `manifest` and `read`
+preserve the earlier Sources binding; `document` adds complete project retrieval.
+Old source-only producers must adopt this profile to load in the OpenShip viewer.
 
-The server MUST register one tool named `openship` with this input union:
+## MCP discovery profile
 
-```json
-{ "operation": "manifest" }
-{ "operation": "read", "path": "app/page.tsx" }
-```
+Use [mcp-discovery.schema.json](schemas/mcp-discovery.schema.json) and the
+[complete example](examples/valid/mcp-discovery.json). Set `mcpBinding: "1.0"`.
+Project metadata and capability descriptions have the same requirements as HTTP discovery.
+The following fields contain exact tool arguments, not URLs or MCP resource identifiers:
 
-`manifest` returns the configured OpenShip origin and its complete validated Sources Manifest. `read` accepts one exact safe Manifest path and returns the snapshot digest, file metadata, declared encoding, and content. UTF-8 content is text; binary content is canonical base64. The tool MUST NOT resolve arbitrary filesystem or URL paths.
+- `agent.skill`: `{ "operation": "document", "kind": "skill" }`
+- `capabilities.sources.manifest`: `{ "operation": "manifest" }`
+- `capabilities.sources.bundle`: `{ "operation": "document", "kind": "bundle" }`
+- Optional `capabilities.systems.document`: `{ "operation": "document", "kind": "systems" }`
+- Optional `capabilities.changes.policy`: `{ "operation": "document", "kind": "policy" }`
 
-The binding does not define a whole-Bundle tool. A client retrieves only the files it needs and verifies their metadata against the returned Manifest.
+Omit unavailable optional capabilities. Changes here advertises policy only; submit
+and status are not part of this read-only profile. Informational HTTPS links are
+permitted but consumers MUST NOT depend on them to retrieve OpenShip documents.
+The HTTP discovery schema remains unchanged. A website may still advertise an MCP
+endpoint through `capabilities.sources.mcp`.
 
-## Resources
+## Integrity
 
-Resource-aware servers SHOULD also expose:
+Every document MUST describe the same published snapshot. Validate the Manifest and
+Bundle bytes before returning content. Systems' embedded Sources MUST match the
+standalone Sources digest. Consumers validate all schemas, file sizes, digests,
+encodings, and safe paths before displaying or saving a snapshot. If publication
+changes mid-read, fail and let the consumer retry; never mix snapshots.
 
-- `openship://sources/manifest` with the Manifest as `application/json` text.
-- `openship://sources/file{?path}` as a resource template and enumerate its concrete Manifest files from `resources/list`.
+`read` accepts only exact safe Manifest paths, never arbitrary URLs or filesystem paths.
+UTF-8 files return text; binary files return canonical base64. A failed refresh MUST
+NOT replace the last complete valid saved snapshot. Consumers may enforce size and
+time limits and reject private addresses or endpoint redirects.
 
-UTF-8 files use MCP text contents. Base64 files use MCP blob contents with the Manifest media type. A concrete file URI percent-encodes the complete repository path in the `path` query parameter.
+## Publishing and consuming
 
-## Integrity and errors
+Register `openship` with a discriminated input union for the operations above, and
+serve each response from one validated in-memory snapshot. Do not protect protocol
+initialization or this tool with endpoint-wide authentication middleware. Enforce
+authentication separately for unrelated tools. Resource registration is unnecessary.
 
-The server MUST validate the Manifest and every Bundle byte before returning source content. A changed Manifest digest requires a newly validated Bundle; an invalid or incomplete replacement MUST NOT displace the last complete cache entry or be returned as current source. Unknown and unsafe paths fail without content.
-
-Implementations MAY impose a decoded-size limit and SHOULD report machine-readable failures for invalid paths, missing files, unavailable origins, invalid snapshots, and snapshots exceeding that limit.
+In OpenShip, choose **MCP**, enter the complete public HTTPS endpoint, and open the
+project. Sign in to enable saved source snapshots using the same rules as websites.
+The full endpoint path and query identify the MCP project; two endpoints on one host
+can represent different projects. No access tokens should be included in the URL.

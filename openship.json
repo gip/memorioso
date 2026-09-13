@@ -1627,6 +1627,9 @@
       "path": "skills/openship/references/examples/invalid/discovery.json"
     },
     {
+      "path": "skills/openship/references/examples/invalid/mcp-discovery.json"
+    },
+    {
       "path": "skills/openship/references/examples/invalid/sources-manifest.json"
     },
     {
@@ -1652,6 +1655,9 @@
     },
     {
       "path": "skills/openship/references/examples/valid/discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/mcp-discovery.json"
     },
     {
       "path": "skills/openship/references/examples/valid/sources-bundle.json"
@@ -1697,6 +1703,9 @@
     },
     {
       "path": "skills/openship/references/schemas/discovery.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/mcp-discovery.schema.json"
     },
     {
       "path": "skills/openship/references/schemas/sources-bundle.schema.json"

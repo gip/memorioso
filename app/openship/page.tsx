@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import ProjectSummaries from '@/components/Openship/ProjectSummaries'
 import OpenshipViews from '@/components/Openship'
 import ViewerLink from '@/components/Openship/ViewerLink'
 import { openshipOrigin } from '@/lib/openship/http'
@@ -46,9 +47,7 @@ const HumanView = () => {
         <p className="text-[15px] font-medium text-foreground sm:text-base">
           {manifest.project.name}
         </p>
-        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-          {manifest.project.description}
-        </p>
+        <ProjectSummaries project={manifest.project} />
       </section>
 
       <section className="space-y-2">

@@ -27,7 +27,7 @@ function makeSource(files: Record<string, string>) {
     openship: '1.0' as const,
     capability: 'sources' as const,
     digest,
-    project: { name: 'Memorioso', description: 'A test source.' },
+    project: { name: 'Memorioso', productDescription: 'Test publishing.', productSummary: '# Product\n\nTest publication.', technicalDescription: 'Test source.', technicalSummary: '# Implementation\n\nTest deployment.' },
     totals: { files: metadata.length, bytes: metadata.reduce((sum, file) => sum + file.size, 0) },
     files: metadata,
   }
@@ -44,7 +44,7 @@ function discovery() {
   return {
     openship: '1.0',
     capability: 'discovery',
-    project: { name: 'Memorioso', description: 'A test source.' },
+    project: { name: 'Memorioso', productDescription: 'Test publishing.', productSummary: '# Product\n\nTest publication.', technicalDescription: 'Test source.', technicalSummary: '# Implementation\n\nTest deployment.' },
     agent: {
       summary: 'OpenShip lets this running project publish verifiable source code.',
       instructions: 'Fetch and read agent.skill before interpreting any advertised capability.',

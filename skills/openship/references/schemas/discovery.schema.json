@@ -3,65 +3,162 @@
   "$id": "https://openship.dev/schemas/discovery.schema.json",
   "title": "OpenShip v1 discovery",
   "type": "object",
-  "required": ["openship", "capability", "project", "agent", "capabilities"],
+  "required": [
+    "openship",
+    "capability",
+    "project",
+    "agent",
+    "capabilities"
+  ],
   "properties": {
-    "openship": { "const": "1.0" },
-    "capability": { "const": "discovery" },
+    "openship": {
+      "const": "1.0"
+    },
+    "capability": {
+      "const": "discovery"
+    },
     "project": {
       "type": "object",
-      "required": ["name", "description"],
+      "required": [
+        "name",
+        "productDescription",
+        "productSummary",
+        "technicalDescription",
+        "technicalSummary"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productDescription": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "productSummary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown text."
+        },
+        "technicalDescription": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "technicalSummary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown text."
+        }
       },
       "additionalProperties": true
     },
     "agent": {
       "type": "object",
-      "required": ["summary", "instructions", "skill"],
+      "required": [
+        "summary",
+        "instructions",
+        "skill"
+      ],
       "properties": {
-        "summary": { "type": "string", "minLength": 1 },
-        "instructions": { "type": "string", "minLength": 1 },
-        "skill": { "$ref": "#/$defs/httpsUrl" }
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "$ref": "#/$defs/httpsUrl"
+        }
       },
       "additionalProperties": true
     },
-    "page": { "$ref": "#/$defs/httpsUrl" },
+    "page": {
+      "$ref": "#/$defs/httpsUrl"
+    },
     "capabilities": {
       "type": "object",
-      "required": ["sources"],
+      "required": [
+        "sources"
+      ],
       "properties": {
         "sources": {
           "type": "object",
-          "required": ["description", "manifest", "bundle"],
+          "required": [
+            "description",
+            "manifest",
+            "bundle"
+          ],
           "properties": {
-            "description": { "type": "string", "minLength": 1 },
-            "manifest": { "$ref": "#/$defs/httpsUrl" },
-            "bundle": { "$ref": "#/$defs/httpsUrl" },
-            "mcp": { "$ref": "#/$defs/httpsUrl" },
-            "file": { "type": "string", "pattern": "^https://.+\\{path\\}.+$|^https://.+/\\{path\\}$" },
-            "archive": { "$ref": "#/$defs/httpsUrl" },
-            "instructions": { "$ref": "#/$defs/httpsUrl" }
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "manifest": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "bundle": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "mcp": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^https://.+\\{path\\}.+$|^https://.+/\\{path\\}$"
+            },
+            "archive": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "instructions": {
+              "$ref": "#/$defs/httpsUrl"
+            }
           },
           "additionalProperties": true
         },
         "changes": {
           "type": "object",
-          "required": ["description", "policy", "submit", "status"],
+          "required": [
+            "description",
+            "policy",
+            "submit",
+            "status"
+          ],
           "properties": {
-            "description": { "type": "string", "minLength": 1 },
-            "policy": { "$ref": "#/$defs/httpsUrl" },
-            "submit": { "$ref": "#/$defs/httpsUrl" },
-            "status": { "type": "string", "pattern": "^https://.+\\{changeId\\}.+$|^https://.+/\\{changeId\\}$" }
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "policy": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "submit": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "status": {
+              "type": "string",
+              "pattern": "^https://.+\\{changeId\\}.+$|^https://.+/\\{changeId\\}$"
+            }
           },
           "additionalProperties": true
         },
         "systems": {
           "type": "object",
-          "required": ["description", "document"],
+          "required": [
+            "description",
+            "document"
+          ],
           "properties": {
-            "description": { "type": "string", "minLength": 1 },
-            "document": { "$ref": "#/$defs/httpsUrl" }
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "document": {
+              "$ref": "#/$defs/httpsUrl"
+            }
           },
           "additionalProperties": true
         }
@@ -70,7 +167,11 @@
     }
   },
   "$defs": {
-    "httpsUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    }
   },
   "additionalProperties": true
 }

@@ -61,7 +61,10 @@ export type OpenshipDirectory = {
  */
 export type OpenshipProject = {
   name: string
-  description: string
+  productDescription: string
+  productSummary: string
+  technicalDescription: string
+  technicalSummary: string
   homepage?: string
   repository?: string
   license?: string

@@ -54,7 +54,10 @@ The response MUST be unauthenticated JSON, MUST allow cross-origin reads with `A
   "capability": "discovery",
   "project": {
     "name": "Example",
-    "description": "A short description of the running project."
+    "productDescription": "A short description of what the product does.",
+    "productSummary": "## Product\n\nWhat the product does and the problem it solves.",
+    "technicalDescription": "A short description of the implementation.",
+    "technicalSummary": "## Implementation\n\nTechnologies, architecture, and deployment instructions."
   },
   "agent": {
     "summary": "OpenShip lets this running project publish verifiable source code and optionally accept isolated changes or describe its complete system.",
@@ -89,7 +92,7 @@ The response MUST be unauthenticated JSON, MUST allow cross-origin reads with `A
 Requirements:
 
 - `project`, `agent`, `capabilities`, and `capabilities.sources` are REQUIRED.
-- `project.name` and `project.description` are REQUIRED.
+- `project.name`, `project.productDescription`, `project.productSummary`, `project.technicalDescription`, and `project.technicalSummary` are REQUIRED non-empty strings. The descriptions are plain text, each at most 120 Unicode code points. The summaries are Markdown: productSummary explains the product and problem it solves; technicalSummary explains implementation, underlying technology, and deployment. These fields replace project.description; there is no legacy fallback.
 - `agent.summary`, `agent.instructions`, and `agent.skill` are REQUIRED. The summary MUST explain OpenShip in standalone plain language. The instructions MUST explicitly direct an unfamiliar agent to fetch and read `agent.skill` before interpreting or using the capability links.
 - `agent.skill` MUST identify the OpenShip skill entry point. Relative links in that skill MUST be resolved against the skill URL.
 - Every advertised capability MUST contain a standalone `description` explaining what the capability lets an agent do.

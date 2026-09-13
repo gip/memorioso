@@ -72,7 +72,7 @@ describe.skipIf(!test.url)('Memorioso cutover with Postgres',()=>{
     expect((await updateProfile(req(),{params:Promise.resolve({authorId:randomUUID()})})).status).toBe(404)
     expect(test.service).not.toHaveBeenCalled()
     expect((await updateProfile(req(),{params:Promise.resolve({authorId})})).status).toBe(200)
-    expect(test.service).toHaveBeenCalledWith(test.user.id,'profile','/api/v1/me','PATCH',{name:'Ada Updated',bio:'Bio'})
+    expect(test.service).toHaveBeenCalledWith(test.user.id,'profile','update_profile',{name:'Ada Updated',bio:'Bio'})
     expect((await pool.query('SELECT name FROM authors WHERE id=$1',[authorId])).rows[0].name).toBe('Ada Updated')
   })
 })

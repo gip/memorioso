@@ -1,3 +1,6 @@
+import { registerApplicationTools } from '@/lib/mcp/register'
+import { mcpRequestContext, currentMcpRequest } from '@/lib/mcp/context'
+import { authenticateServiceClient } from '@/lib/service-auth'
 import {
   ResourceNotFoundError,
   ResourceTemplate,
@@ -13,7 +16,7 @@ import {
   OPENSHIP_MCP_MANIFEST_RESOURCE_URI,
   OPENSHIP_MCP_TOOL_NAME,
 } from '@openship/protocol'
-import { mcpResource, mcpStateSecret, serviceOrigin } from '@/lib/config'
+import { oauthIssuer, oauthResourceMetadataUrl, mcpStateSecret, serviceOrigin } from '@/lib/config'
 import { sha256 } from '@/lib/crypto'
 import { ServiceError } from '@/lib/errors'
 import { createHumanChallenge, humanPublicationAuthorReference, publicationStatus } from '@/lib/human-publications'
@@ -72,7 +75,8 @@ function principal(ctx: ServerContext, scope?: string): OAuthPrincipal {
 
 function toolError(error: unknown) {
   if (error instanceof ServiceError) {
-    return text({ error: { code: error.code, message: error.message, retryable: error.retryable } }, true)
+    return { ...text({ error: { code: error.code, message: error.message, status: error.status, retryable: error.retryable } }, true),
+      ...(error.status === 401 ? { _meta: { 'mcp/www_authenticate': [`Bearer resource_metadata="${oauthResourceMetadataUrl()}"`] } } : {}) }
   }
   return text({ error: { code: 'INTERNAL_ERROR', message: 'Libro could not complete the tool call', retryable: false } }, true)
 }
@@ -90,6 +94,7 @@ function createHandler() {
     bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId || ''}`,
   })
   const handler = createMcpHandler((server) => {
+    registerApplicationTools(server)
     server.registerTool(OPENSHIP_MCP_TOOL_NAME, {
       description: 'Retrieve OpenShip discovery, source manifest, complete bundle, skill, Systems, or one exact source file. Start with document/discovery. No authentication is required.',
       inputSchema: z.discriminatedUnion('operation', [
@@ -206,9 +211,13 @@ function createHandler() {
         offset: z.number().int().min(0).default(0),
         authorId: z.string().uuid().optional(),
         kind: z.enum(['article', 'short', 'all']).default('all'),
+        originClientId: z.string().optional(),
       }),
     }, async (args) => {
       try {
+        if (args.originClientId && args.originClientId !== await authenticateServiceClient(currentMcpRequest())) {
+          throw new ServiceError('ORIGIN_MISMATCH', 'Origin filter must match the service client', 403)
+        }
         return text(await listPublications(args))
       } catch (error) {
         return toolError(error)
@@ -439,14 +448,23 @@ function createHandler() {
     }
   }, {
     required: false,
-    resourceMetadataPath: '/.well-known/oauth-protected-resource/mcp',
-    resourceUrl: mcpResource(),
+    resourceMetadataPath: '/.well-known/oauth-protected-resource/libro',
+    resourceUrl: new URL(oauthIssuer()).origin,
   })
 }
 
 async function handle(request: Request): Promise<Response> {
   routeHandler ??= createHandler()
-  return routeHandler(request)
+  return mcpRequestContext.run({ request, responseHeaders: new Headers() }, async () => {
+    const response = await routeHandler!(request)
+    if (request.method !== 'POST') return response
+    const body = await response.arrayBuffer()
+    const headers = new Headers(response.headers)
+    for (const cookie of mcpRequestContext.getStore()!.responseHeaders.getSetCookie()) headers.append('Set-Cookie', cookie)
+    headers.set('Cache-Control', 'no-store')
+    if (!request.headers.has('authorization')) headers.set('WWW-Authenticate', `Bearer resource_metadata="${oauthResourceMetadataUrl()}"`)
+    return new Response(body.byteLength ? body : null, { status: response.status, headers })
+  })
 }
 
 export { handle as GET, handle as POST }

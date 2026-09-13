@@ -1,5 +1,7 @@
 'use client'
 
+import { browserMcp } from '@/lib/libro-service/browser-mcp'
+
 import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -7,7 +9,7 @@ import { CredentialRequest, any as anyCredential, type IDKitResultSession, type 
 import { WorldIdLoginDialog } from '@/components/WorldIdLoginDialog'
 
 type Context = { appId: `app_${string}`; environment: 'production' | 'staging'; rpContext: RpContext; existingSessionId: `session_${string}` | null }
-const base = '/api/libro/browser/api/v1/identity'
+const lookupHandle = (handle: string) => browserMcp<{ success: boolean; valid: boolean; exists: boolean; canLogin: boolean }>('identity_handle', { handle })
 
 export function IdentityClient({ continueUrl }: { continueUrl: string }) {
   const [continueAs, setContinueAs] = useState<string | null>(null)
@@ -18,9 +20,7 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
   const constraints = useMemo(() => anyCredential(CredentialRequest('proof_of_human')), [])
   useEffect(() => {
     let active = true
-    fetch(`${base}/hint`, { cache: 'no-store' }).then(async (response) => {
-      if (!response.ok) return
-      const body = await response.json()
+    browserMcp<{ continueAs: string | null }>('identity_hint').then((body) => {
       if (active) setContinueAs(body.continueAs)
     }).catch(() => undefined)
     return () => { active = false }
@@ -29,10 +29,7 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
   async function begin(handle: string, intent: 'login' | 'signup') {
     setError(null)
     try {
-      const response = await fetch(`${base}/context`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purpose: intent, handle: intent === 'login' ? handle : undefined }) })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body?.error?.message || 'Could not start World ID')
+      const body = await browserMcp<Context>('identity_context', { purpose: intent, handle: intent === 'login' ? handle : undefined })
       setPending({ handle, intent }); setContext(body); setOpen(true)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not start World ID')
@@ -42,21 +39,14 @@ export function IdentityClient({ continueUrl }: { continueUrl: string }) {
 
   async function verify(payload: IDKitResultSession) {
     if (!pending) throw new Error('World ID login context is missing')
-    const response = await fetch(`${base}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload, purpose: pending.intent, handle: pending.handle }) })
-    const body = await response.json()
-    if (!response.ok) {
-      const message = body?.error?.message || 'World ID verification failed'
-      setError(message)
-      throw new Error(message)
-    }
+    await browserMcp('identity_verify', { payload, purpose: pending.intent, handle: pending.handle })
   }
 
   return <>
     <WorldIdLoginDialog open={!open} onOpenChange={(value) => { if (!value) window.location.assign('/') }}
       onLogin={(handle) => begin(handle, 'login')} onSignup={(handle) => begin(handle, 'signup')}
       onContinue={() => continueAs ? begin(continueAs, 'login') : Promise.resolve()}
-      continueAs={continueAs} error={error} lookupUrl={`${base}/handle`} />
+      continueAs={continueAs} error={error} lookupHandle={lookupHandle} />
     {context && <WorldIdSessionWidget mobileOperation={{ kind: 'identity', handle: pending?.handle ?? '', intent: pending?.intent ?? 'login', destination: continueUrl }}
       key={context.rpContext.nonce} open={open} onOpenChange={setOpen}
       app_id={context.appId} rp_context={context.rpContext} environment={context.environment}

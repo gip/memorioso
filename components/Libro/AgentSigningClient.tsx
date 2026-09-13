@@ -1,5 +1,7 @@
 'use client'
 
+import { browserMcp } from '@/lib/libro-service/browser-mcp'
+
 import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
 
 import { Button } from '@/components/ui/button'
@@ -7,6 +9,8 @@ import { useMemo, useState } from 'react'
 import { CredentialRequest, type IDKitResultSession, type RpContext } from '@worldcoin/idkit'
 import { sendSponsoredWorldTransaction } from '@/lib/libro-service/sponsored-transaction'
 import { waitForUserOperation } from '@/lib/libro-service/wallet-receipt'
+
+type Prepared = { transaction: Parameters<typeof sendSponsoredWorldTransaction>[0]; transactionHash?: string }
 
 type Context = {
   appId: `app_${string}`
@@ -16,13 +20,6 @@ type Context = {
   registrationHash: string
   payload: { signal?: string }
 }
-
-async function parsed(response: Response) {
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error?.message || `Libro returned HTTP ${response.status}`)
-  return body
-}
-
 
 export function AgentSigningClient({ capability, signal }: { capability: string; signal: string }) {
   const [context, setContext] = useState<Context | null>(null)
@@ -34,16 +31,14 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
   async function begin() {
     setError('')
     try {
-      setContext(await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/context`, { method: 'POST' })))
+      setContext(await browserMcp<Context>('agent_signing_context', { capability }))
       setOpen(true)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not start authorization') }
   }
 
   async function authorize(idkitResult: IDKitResultSession) {
     setStatus('Preparing agent authorization…')
-    const prepared = await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/prepare`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idkitResult }),
-    }))
+    const prepared = await browserMcp<Prepared>('agent_signing_prepare', { capability, idkitResult })
     let transactionHash = prepared.transactionHash
     let userOpHash: string | undefined
     if (!transactionHash) {
@@ -53,12 +48,9 @@ export function AgentSigningClient({ capability, signal }: { capability: string;
     }
     if (!transactionHash) {
       setStatus('Requesting sponsored gas…')
-      transactionHash = (await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/relay`, { method: 'PUT' }))).transactionHash
+      transactionHash = (await browserMcp<{ transactionHash: string }>('agent_signing_relay', { capability })).transactionHash
     }
-    await parsed(await fetch(`/api/libro/browser/api/v1/agent-signing/${capability}/finalize`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactionHash, userOpHash }),
-    }))
+    await browserMcp<{ publicationId: string }>('agent_signing_finalize', { capability, transactionHash, userOpHash })
     setStatus('Agent authorized. Return to your MCP client.')
   }
 

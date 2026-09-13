@@ -56,6 +56,10 @@ export async function copyAll(source, target, options) {
   if (namespace && namespace !== new URL(required('NEXT_PUBLIC_APP_URL')).origin) {
     throw new Error('LIBRO_AUTHOR_NAMESPACE must match the NEXT_PUBLIC_APP_URL origin')
   }
+  const resource = !options.dryRun && originClientId ? required('LIBRO_OAUTH_RESOURCE') : null
+  if (resource && resource !== new URL('/mcp', required('LIBRO_SERVICE_URL')).toString()) {
+    throw new Error('LIBRO_OAUTH_RESOURCE must be the Libro /mcp endpoint')
+  }
   const report = {
     identities: 0, handles: 0, challenges: 0, publications: 0, humanRegistrations: 0,
     agents: 0, agentDocuments: 0, legacyPublications: 0, legacyAuthors: 0, signalMismatches: [], targetCounts: {}, countMismatches: [],
@@ -75,7 +79,6 @@ export async function copyAll(source, target, options) {
   if (!options.dryRun && originClientId) {
     const secret = required('LIBRO_OAUTH_CLIENT_SECRET')
     const redirectUri = required('LIBRO_OAUTH_REDIRECT_URI')
-    const resource = required('LIBRO_OAUTH_RESOURCE')
     await target.query(
       `INSERT INTO libro_oauth_clients
         (id, client_type, secret_hash, redirect_uris, resource, display_name,

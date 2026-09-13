@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.hoisted(() => {
   process.env.LIBRO_MCP_STATE_SECRET = 'test-state-secret-that-is-at-least-32-bytes'
   process.env.LIBRO_SERVICE_URL = 'https://libro.test'
+  process.env.NEXT_PUBLIC_APP_URL = 'https://memorioso.test'
 })
 
 const mocks = vi.hoisted(() => ({ snapshot: vi.fn(), read: vi.fn(), document: vi.fn() }))

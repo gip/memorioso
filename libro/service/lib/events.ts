@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { DatabaseClient } from './db'
 import { pool } from './db'
 import { ServiceError } from './errors'
@@ -124,6 +124,9 @@ export async function deliverPendingEvents(limit = 25): Promise<{ attempted: num
 
 export function assertInternalDeliveryRequest(request: Request): void {
   const expected = process.env.LIBRO_INTERNAL_CRON_SECRET
-  const actual = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  if (!expected || actual !== expected) throw new ServiceError('AUTH_REQUIRED', 'Internal delivery authorization failed', 401)
+  const actual = /^Internal ([^\s]+)$/.exec(request.headers.get('authorization') || '')?.[1]
+  if (!expected || !actual || Buffer.byteLength(actual) !== Buffer.byteLength(expected) ||
+    !timingSafeEqual(Buffer.from(actual), Buffer.from(expected))) {
+    throw new ServiceError('AUTH_REQUIRED', 'Internal delivery authorization failed', 401)
+  }
 }

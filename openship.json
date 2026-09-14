@@ -490,9 +490,6 @@
       "path": "app/short/[publicationId]/proof/page.tsx"
     },
     {
-      "path": "app/sitemap.ts"
-    },
-    {
       "path": "app/terms/page.tsx"
     },
     {
@@ -1448,9 +1445,6 @@
     },
     {
       "path": "libro/service/lib/mcp/publication_counts.ts"
-    },
-    {
-      "path": "libro/service/lib/mcp/publication_sitemap.ts"
     },
     {
       "path": "libro/service/lib/mcp/register.ts"

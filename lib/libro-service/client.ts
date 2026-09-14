@@ -1,7 +1,7 @@
 import { createLibroMcpClient, LibroMcpError } from '@libro/core'
 import type { LibroPublicationRecord, LibroPublicationSummary } from '@libro/core'
 import type { PublicationInfo, PublicationRecord, Proof } from '@/types'
-import type { PublicationFeedKind, PublicationKind } from '@/lib/publication-kind'
+import type { PublicationFeedKind } from '@/lib/publication-kind'
 import { getLibroAccessToken } from './token-store'
 
 export class LibroServiceUnavailableError extends Error {
@@ -71,13 +71,6 @@ export async function listServicePublications(input: {
 
 export function getServiceAuthorCounts(authorId: string): Promise<{ article: number; short: number }> {
   return toolRequest('publication_counts', { authorId }, config().authorization)
-}
-
-export async function getServiceSitemapPublications(limit: number): Promise<Array<{ id: string; kind: PublicationKind; lastModified: string }>> {
-  const result = await toolRequest<{ publications: Array<{ id: string; kind: PublicationKind; lastModified: string }> }>(
-    'publication_sitemap', { limit }, config().authorization,
-  )
-  return result.publications
 }
 
 export function serviceSummaryToPublicationInfo(summary: LibroPublicationSummary, access: 'public' | 'gated'): PublicationInfo {

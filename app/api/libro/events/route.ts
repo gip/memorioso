@@ -7,7 +7,6 @@ import {
   latestPublicationsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
-  sitemapCacheTag,
 } from '@/lib/db/publication-cache'
 
 type LibroEvent = {
@@ -160,11 +159,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     revalidateTag(publicationCacheTag(publicationId), { expire: 0 })
     revalidateTag(publicationHashCacheTag(signalHash), { expire: 0 })
     revalidateTag(authorPublicationCountsCacheTag(authorId), { expire: 0 })
-    revalidateTag(sitemapCacheTag, { expire: 0 })
     revalidateTag(latestPublicationsCacheTag, { expire: 0 })
   } else if (authorId) {
     revalidateTag(authorPublicationCountsCacheTag(authorId), { expire: 0 })
-    revalidateTag(sitemapCacheTag, { expire: 0 })
   }
   return NextResponse.json({ received: true })
 }

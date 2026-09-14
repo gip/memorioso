@@ -34,8 +34,8 @@ transport failure. The client initializes MCP and accepts JSON or SSE responses,
 retrying mutations automatically.
 
 `get_publication`, `get_publication_by_signal`, `get_author`, and unfiltered `list_publications`
-are public. Supplying `originClientId` to `list_publications`, or calling `publication_counts`
-or `publication_sitemap`, requires the matching confidential service credentials.
+are public. Supplying `originClientId` to `list_publications`, or calling `publication_counts`,
+requires the matching confidential service credentials.
 `whoami`, `update_profile`, `create_human_publication`, `publication_status`, and agent
 management preserve OAuth identity and scope checks. Existing agent-oriented elicitation tools
 remain available; website clients use `create_human_publication` to manage signing UI themselves.
@@ -62,6 +62,10 @@ over MCP with `Authorization: Internal <LIBRO_INTERNAL_CRON_SECRET>`. Keep the c
 transport header, never in tool arguments. It cannot authenticate as a user, and user OAuth tokens
 cannot trigger event delivery. Update existing health monitors and event-delivery jobs to call
 these tools; their old HTTP URLs no longer exist.
+
+The service-backed initial reading feed fetches at request time, outside its shared cache. Building Memorioso does not require the currently deployed Libro instance to
+already expose the next client’s tools. Deploy the current Libro service before enabling
+production traffic to the updated website; request-time reads still require compatible tools.
 
 Deploy Memorioso and Libro together. Apply Libro migration **003** and set
 `LIBRO_OAUTH_RESOURCE` to the absolute Libro `/mcp` URL. The migration changes pre-registered
@@ -122,7 +126,7 @@ a lookup fingerprint, not evidence of a Libro registration. Historical author pr
 World ID 4 session bindings have a null identity and cannot authenticate. Libro's chain verification
 and manifest paths reject these records instead of representing them as modern on-chain proofs.
 The final `--link-source-identities` step installs local access policies for historical publications
-and marks copied author projections as service-managed. Feeds, counts and sitemaps retain them.
+and marks copied author projections as service-managed. Feeds and counts retain them.
 
 Run Memorioso migrations through **022** before deploying the updated client or extension. Keep
 canonical writes and payment settlements paused while applying 020–022; do not deploy 020 alone.

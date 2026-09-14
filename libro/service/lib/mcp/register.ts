@@ -13,7 +13,6 @@ import * as identity_hint from './identity_hint'
 import * as identity_handle from './identity_handle'
 import * as update_profile from './update_profile'
 import * as publication_counts from './publication_counts'
-import * as publication_sitemap from './publication_sitemap'
 import * as get_publication_by_signal from './get_publication_by_signal'
 import * as get_author from './get_author'
 import * as create_human_publication from './create_human_publication'
@@ -113,11 +112,6 @@ export function registerApplicationTools(server: McpServer): void {
     description: 'Count an author\u2019s publications belonging to the authenticated service client.',
     inputSchema: publication_counts.schema,
   }, (args) => toolResult(() => publication_counts.execute(args, currentMcpRequest()), false))
-
-  server.registerTool('publication_sitemap', {
-    description: 'List sitemap entries belonging to the authenticated service client.',
-    inputSchema: publication_sitemap.schema,
-  }, (args) => toolResult(() => publication_sitemap.execute(args, currentMcpRequest()), false))
 
   server.registerTool('get_publication_by_signal', {
     description: 'Get a canonical publication by its signal hash.',

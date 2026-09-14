@@ -1,10 +1,10 @@
 {
   "openship": "1.0",
   "package": "@openship/protocol",
-  "packageVersion": "0.2.0",
+  "packageVersion": "0.2.1",
   "source": "https://github.com/openshipdev/openship/tree/main/skills/openship",
-  "sourceCommit": "4915be31602a94653da5e56c22f0609736668ea0",
-  "packageDigest": "sha256:ca86ec6b91c58942d8eada394d2eab3148a7c0b873ef3a45c25c011b33f092b8",
+  "sourceCommit": "3c4c19a489e2f00c7016675ea652c0f69c331408",
+  "packageDigest": "sha256:54a3164fee356c9349459d1dd998f05682df09f15a04ab261da823978cd269b6",
   "digestExcludes": [
     "UPSTREAM.json"
   ]

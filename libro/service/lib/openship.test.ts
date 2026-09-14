@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeSourcesDigest, type SourceFileMetadata } from '@openship/protocol'
+import systemsExample from '../../../skills/openship/references/examples/valid/systems.json'
 import { ServiceError } from './errors'
 import {
   MAX_OPENSHIP_SOURCE_BYTES,
   getOpenShipSnapshot,
   readOpenShipFile,
+  readOpenShipDocument,
   resetOpenShipSnapshotCacheForTests,
 } from './openship'
 
@@ -93,6 +95,57 @@ describe('Libro OpenShip source loader', () => {
     expect(second.content).toBe('export default 1\n')
     expect(second.snapshot.manifest.digest).toBe(first.manifest.digest)
     expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
+
+  it('serves standalone MCP discovery, verified bundle, and skill', async () => {
+    const source = makeSource({ 'skills/openship/SKILL.md': '# OpenShip' })
+    installFetch(source)
+    expect(await readOpenShipDocument('bundle')).toEqual(source.bundle)
+    expect(await readOpenShipDocument('skill')).toBe('# OpenShip')
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      mcpBinding: '1.0',
+      agent: { skill: { operation: 'document', kind: 'skill' } },
+      capabilities: { sources: {
+        manifest: { operation: 'manifest' },
+        bundle: { operation: 'document', kind: 'bundle' },
+      } },
+    })
+    await expect(readOpenShipDocument('policy')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('validates Systems and refuses a different embedded snapshot', async () => {
+    let currentManifest: unknown = systemsExample.source.manifest
+    let currentBundle: unknown = systemsExample.source.bundle
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/.well-known/openship.json')) return Response.json({
+        ...discovery(),
+        capabilities: { ...discovery().capabilities, systems: {
+          description: 'Retrieve the complete system.',
+          document: 'https://memorioso.test/openship/systems.json',
+        } },
+      })
+      if (url.endsWith('/manifest.json')) return Response.json(currentManifest)
+      if (url.endsWith('/bundle.json')) return Response.json(currentBundle)
+      if (url.endsWith('/systems.json')) return Response.json(systemsExample)
+      return new Response(null, { status: 404 })
+    })
+    expect(await readOpenShipDocument('systems')).toEqual(systemsExample)
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      capabilities: { systems: { document: { operation: 'document', kind: 'systems' } } },
+    })
+    const replacement = makeSource({ 'README.md': 'a different deployment' })
+    currentManifest = replacement.manifest
+    currentBundle = replacement.bundle
+    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({
+      code: 'OPENSHIP_INVALID', retryable: true,
+    })
+  })
+
+  it('rejects a skill absent from the verified snapshot', async () => {
+    installFetch(makeSource({ 'README.md': '# Source' }))
+    await expect(readOpenShipDocument('skill')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
   })
 
   it('refreshes every verified byte when the manifest digest changes', async () => {

@@ -23,7 +23,7 @@ export async function PUT(
     const { registrationId } = await params
     try {
       const result = await serviceUserRequest(authenticatedUser.id, 'revoke_agent',
-        `/api/v1/agent-registrations/${encodeURIComponent(registrationId)}/revoke/finalize`, 'PUT', await req.json())
+        'revoke_agent', { registrationId, transactionHash: (await req.json()).transactionHash })
       return NextResponse.json({ success: true, ...result as object })
     } catch (error) {
       return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Libro revocation failed' }, { status: 502 })

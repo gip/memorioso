@@ -1,3 +1,4 @@
+import { browserMcp } from '@/lib/libro-service/browser-mcp'
 import { safeReturnPath, saveMobileFlow, type MobileFlow } from './mobile-store'
 
 async function request(path: string, method: 'POST' | 'PUT', body?: unknown) {
@@ -19,7 +20,9 @@ export async function completeMobileFlow(flow: MobileFlow, origin: string): Prom
   const operation = flow.operation
   if (operation.kind === 'login' || operation.kind === 'identity') {
     const legacy = operation.kind === 'login'
-    const verified = await request(legacy ? '/api/worldid/verify' : '/api/libro/browser/api/v1/identity/verify', 'POST', {
+    const verify = legacy ? (args: Record<string, unknown>) => request('/api/worldid/verify', 'POST', args)
+      : (args: Record<string, unknown>) => browserMcp<{ success: boolean; authenticated?: boolean }>('identity_verify', args)
+    const verified = await verify({
       payload: flow.result, handle: operation.handle,
       [legacy ? 'intent' : 'purpose']: operation.intent,
     })
@@ -29,10 +32,15 @@ export async function completeMobileFlow(flow: MobileFlow, origin: string): Prom
     if (!('draftId' in operation) && !('capability' in operation)) throw new Error('Unknown verification operation')
     const legacy = operation.kind === 'draft'
     if (!legacy && !['signing', 'agent-signing', 'handle-signing'].includes(operation.kind)) throw new Error('Unknown verification operation')
-    const base = legacy ? `/api/draft/${encodeURIComponent(operation.draftId)}/publish`
-      : `/api/libro/browser/api/v1/${operation.kind}/${encodeURIComponent(operation.capability)}`
+    const submit = (action: 'prepare' | 'relay' | 'finalize', args: Record<string, unknown>) => {
+      if (operation.kind === 'draft') return request(`/api/draft/${encodeURIComponent(operation.draftId)}/publish/${action}`, 'PUT', args)
+      const prefix = operation.kind === 'signing' ? 'signing' : operation.kind === 'agent-signing' ? 'agent_signing' : 'handle_signing'
+      return browserMcp<{ registrationId?: string; requestId?: string; transactionHash?: string; publicationId?: string }>(
+        `${prefix}_${action}`, { ...args, capability: operation.capability },
+      )
+    }
     if (!flow.prepared) {
-      const prepared = await request(`${base}/prepare`, 'PUT', {
+      const prepared = await submit('prepare', {
         idkitResult: flow.result, ...(legacy ? { challengeId: operation.challengeId } : {}),
       })
       const registrationId = prepared?.registrationId || prepared?.requestId
@@ -51,11 +59,11 @@ export async function completeMobileFlow(flow: MobileFlow, origin: string): Prom
     }
     if (!flow.prepared.publicationId) {
       if (!flow.prepared.transactionHash) {
-        const relayed = await request(`${base}/relay`, 'PUT', { registrationId: flow.prepared.registrationId })
+        const relayed = await submit('relay', { registrationId: flow.prepared.registrationId })
         flow.prepared.transactionHash = relayed.transactionHash
         saveMobileFlow(flow)
       }
-      const finalized = await request(`${base}/finalize`, 'PUT', {
+      const finalized = await submit('finalize', {
         registrationId: flow.prepared.registrationId,
         transactionHash: flow.prepared.transactionHash,
         submissionMethod: legacy ? 'memorioso_relayer' : 'libro_relayer',

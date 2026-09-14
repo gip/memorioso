@@ -27,7 +27,7 @@ import { revokeAgent } from './agent-revocation'
 import { authenticateBearer, assertPrincipalScope, exchangeAuthorizationCode, issueAuthorizationCode, type OAuthPrincipal } from './oauth'
 import { POST as mcp } from '../app/mcp/route'
 import { verifyIdentity } from './world-id'
-import { POST as loginContext } from '../app/api/v1/identity/context/route'
+import { execute as loginContext } from './mcp/identity_context'
 import { getPublication, listPublications } from './publications'
 import { publicationManifest } from './imports'
 
@@ -94,11 +94,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     expect(publication).toMatchObject({ signal, proof, identityId: null, legacyProof: true })
     expect((await listPublications({ limit: 10, offset: 0 }))[0]).toMatchObject({ legacyProof: true, title: 'Historical title' })
     expect(() => publicationManifest(publication!)).toThrow('legacy World ID proof')
-    const login = await loginContext(new Request('https://libro.test/api/v1/identity/context', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'login', handle: 'historical' }),
-    }))
-    expect(login.status).toBe(401)
-    expect((await login.json()).error.code).toBe('IDENTITY_NOT_FOUND')
+    await expect(loginContext({ purpose: 'login', handle: 'historical' }, new Request('https://libro.test/mcp'))).rejects.toMatchObject({ status: 401, code: 'IDENTITY_NOT_FOUND' })
   })
 
   async function challenge() {
@@ -208,11 +204,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
   })
 
   it('starts migrated-user login without cookies and rejects a proof for another session', async () => {
-    const response = await loginContext(new Request('https://libro.test/api/v1/identity/context', {
-      method: 'POST', body: JSON.stringify({ purpose: 'login', handle: 'ada' }),
-    }))
-    expect(response.status).toBe(200)
-    const context = await response.json()
+    const context = await loginContext({ purpose: 'login', handle: 'ada' }, new Request('https://libro.test/mcp'))
     expect(context.existingSessionId).toBe(sessionId)
     const payload = { protocol_version: '4.0', nonce: context.rpContext.nonce, environment: 'production',
       session_id: `session_${'3'.repeat(128)}`, responses: [{ identifier: 'proof_of_human', proof: [], session_nullifier: ['1','2'] }] }

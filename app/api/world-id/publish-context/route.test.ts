@@ -133,9 +133,13 @@ describe('publish context route', () => {
   it('preserves a Libro namespace rejection as JSON with HTTP 403', async () => {
     serviceMode()
     const message = 'Publication author reference does not match the client namespace'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
-      error: { code: 'NAMESPACE_MISMATCH', message, retryable: false },
-    }, { status: 403 })))
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url, options) => {
+      const rpc = JSON.parse(options.body)
+      if (rpc.method === 'notifications/initialized') return new Response(null, { status: 202 })
+      return Response.json({ jsonrpc: '2.0', id: rpc.id, result: rpc.method === 'initialize'
+        ? { protocolVersion: '2025-06-18' }
+        : { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: { code: 'NAMESPACE_MISMATCH', message, status: 403, retryable: false } }) }] } })
+    }))
     const response = await publish()
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ success: false, message, code: 'NAMESPACE_MISMATCH' })
@@ -148,7 +152,7 @@ describe('publish context route', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })))
     const response = await publish()
     expect(response.status).toBe(502)
-    await expect(response.json()).resolves.toMatchObject({ success: false, message: 'Libro publication challenge failed' })
+    await expect(response.json()).resolves.toMatchObject({ success: false, message: status === 502 ? 'Libro MCP returned HTTP 502' : 'Libro returned malformed MCP data' })
     expect(dbMock.release).toHaveBeenCalledOnce()
   })
 

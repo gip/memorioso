@@ -1,7 +1,8 @@
-// The reading feed. The first page is server-rendered from a cached query so it
-// ships inside the prerendered HTML instead of arriving a round trip after
-// hydration; the rest pages in on scroll through <LatestPublicationsLoadMore>.
+// The first feed page renders on the server; later pages load on scroll.
 
+import { Suspense } from 'react'
+import { connection } from 'next/server'
+import { libroServiceReadsEnabled } from '@/lib/libro-service/client'
 import { getCachedLatestPublications } from '@/lib/db/publication-cache'
 import { type PublicationFeedKind } from '@/lib/publication-kind'
 import { FeedExhausted, PublicationCard } from './PublicationCard'
@@ -15,12 +16,15 @@ type LatestPublicationsProps = {
   showHeading?: boolean
 }
 
-export const LatestPublications = async ({
+const LatestPublicationsContent = async ({
   pageSize = 5,
   className,
   type = 'article',
   showHeading = true,
 }: LatestPublicationsProps) => {
+  // Defer service reads until a request arrives, outside the cached query.
+  if (process.env.DATABASE_URL && libroServiceReadsEnabled()) await connection()
+
   // One extra row tells us whether another page exists without a count. A build
   // host with no database (preview builds) prerenders without
   // a feed instead of failing the build; the check stays outside the cached call
@@ -58,3 +62,9 @@ export const LatestPublications = async ({
     </div>
   )
 }
+
+export const LatestPublications = (props: LatestPublicationsProps) => (
+  <Suspense fallback={null}>
+    <LatestPublicationsContent {...props} />
+  </Suspense>
+)

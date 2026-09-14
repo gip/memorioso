@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.hoisted(() => {
   process.env.LIBRO_MCP_STATE_SECRET = 'test-state-secret-that-is-at-least-32-bytes'
   process.env.LIBRO_SERVICE_URL = 'https://libro.test'
+  process.env.NEXT_PUBLIC_APP_URL = 'https://memorioso.test'
 })
 
-const mocks = vi.hoisted(() => ({ snapshot: vi.fn(), read: vi.fn() }))
+const mocks = vi.hoisted(() => ({ snapshot: vi.fn(), read: vi.fn(), document: vi.fn() }))
 
 vi.mock('@/lib/openship', () => ({
   getOpenShipSnapshot: mocks.snapshot,
+  readOpenShipDocument: mocks.document,
   readOpenShipFile: mocks.read,
 }))
 
@@ -54,6 +56,7 @@ async function rpc(method: string, params: Record<string, unknown> = {}) {
 
 describe('Libro MCP OpenShip binding', () => {
   beforeEach(() => {
+    mocks.document.mockReset()
     mocks.snapshot.mockReset().mockResolvedValue(snapshot)
     mocks.read.mockReset().mockResolvedValue({
       snapshot,
@@ -97,15 +100,40 @@ describe('Libro MCP OpenShip binding', () => {
     })
     expect(JSON.parse(source.body.result.content[0].text)).toMatchObject({
       digest: manifest.digest,
-      file: { path: 'README.md' },
+      metadata: { path: 'README.md' },
+      encoding: 'utf-8',
       content: 'hello\n',
     })
+
+    expect(source.body.result.structuredContent).toEqual(JSON.parse(source.body.result.content[0].text))
 
     const protectedCall = await rpc('tools/call', { name: 'whoami', arguments: {} })
     expect(protectedCall.body.result.isError).toBe(true)
     expect(JSON.parse(protectedCall.body.result.content[0].text)).toMatchObject({
       error: { code: 'AUTH_REQUIRED' },
     })
+  })
+
+  it.each(['discovery', 'bundle', 'systems', 'skill'])('returns %s documents as structured content and equivalent JSON', async (kind) => {
+    const document = kind === 'skill' ? '# OpenShip' : { capability: kind }
+    mocks.document.mockResolvedValueOnce(document)
+    const result = await rpc('tools/call', {
+      name: 'openship', arguments: { operation: 'document', kind },
+    })
+    expect(mocks.document).toHaveBeenCalledWith(kind)
+    expect(result.body.result.structuredContent).toEqual({ document })
+    expect(JSON.parse(result.body.result.content[0].text)).toEqual({ document })
+  })
+
+  it('returns document failures without source content', async () => {
+    mocks.document.mockRejectedValueOnce(new Error('private upstream details'))
+    const result = await rpc('tools/call', {
+      name: 'openship', arguments: { operation: 'document', kind: 'bundle' },
+    })
+    expect(result.body.result.isError).toBe(true)
+    expect(result.body.result.structuredContent).toEqual(JSON.parse(result.body.result.content[0].text))
+    expect(result.body.result.structuredContent.document).toBeUndefined()
+    expect(result.body.result.content[0].text).not.toContain('private upstream details')
   })
 
   it('lists and reads the OpenShip manifest and file resources anonymously', async () => {

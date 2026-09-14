@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openship.dev/schemas/mcp-discovery.schema.json",
+  "title": "OpenShip full-document MCP discovery",
+  "type": "object",
+  "required": [
+    "openship",
+    "capability",
+    "project",
+    "agent",
+    "capabilities",
+    "mcpBinding"
+  ],
+  "properties": {
+    "openship": {
+      "const": "1.0"
+    },
+    "capability": {
+      "const": "discovery"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name",
+        "productDescription",
+        "productSummary",
+        "technicalDescription",
+        "technicalSummary"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productDescription": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "productSummary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown text."
+        },
+        "technicalDescription": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "technicalSummary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown text."
+        }
+      },
+      "additionalProperties": true
+    },
+    "agent": {
+      "type": "object",
+      "required": ["summary", "instructions", "skill"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": "object",
+          "required": ["operation", "kind"],
+          "properties": {
+            "operation": {
+              "const": "document"
+            },
+            "kind": {
+              "const": "skill"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "$ref": "#/$defs/httpsUrl"
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["sources"],
+      "properties": {
+        "sources": {
+          "type": "object",
+          "required": ["description", "manifest", "bundle"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "manifest": {
+              "type": "object",
+              "required": ["operation"],
+              "properties": {
+                "operation": {
+                  "const": "manifest"
+                }
+              },
+              "additionalProperties": false
+            },
+            "bundle": {
+              "type": "object",
+              "required": ["operation", "kind"],
+              "properties": {
+                "operation": {
+                  "const": "document"
+                },
+                "kind": {
+                  "const": "bundle"
+                }
+              },
+              "additionalProperties": false
+            },
+            "mcp": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^https://.+\\{path\\}.+$|^https://.+/\\{path\\}$"
+            },
+            "archive": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "instructions": {
+              "$ref": "#/$defs/httpsUrl"
+            }
+          },
+          "additionalProperties": true
+        },
+        "changes": {
+          "type": "object",
+          "required": ["description", "policy"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "policy": {
+              "type": "object",
+              "required": ["operation", "kind"],
+              "properties": {
+                "operation": {
+                  "const": "document"
+                },
+                "kind": {
+                  "const": "policy"
+                }
+              },
+              "additionalProperties": false
+            },
+            "submit": false,
+            "status": false
+          },
+          "additionalProperties": true
+        },
+        "systems": {
+          "type": "object",
+          "required": ["description", "document"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "document": {
+              "type": "object",
+              "required": ["operation", "kind"],
+              "properties": {
+                "operation": {
+                  "const": "document"
+                },
+                "kind": {
+                  "const": "systems"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "mcpBinding": {
+      "const": "1.0"
+    }
+  },
+  "$defs": {
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    }
+  },
+  "additionalProperties": true
+}

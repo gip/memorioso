@@ -41,9 +41,9 @@ Set `LIBRO_TEST_DATABASE_URL` to a dedicated test Postgres database to run clien
 Configuration depends on whether the deployment runs legacy flows or uses the standalone service. See `.env.example` and `libro/service/README.md` for the full configuration and cutover procedure.
 
 - `DATABASE_URL` for Postgres. `next build` must succeed without it: the `pg` pool in
-  `lib/db/index.ts` is created on first use rather than on import, and the two build-time
-  reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
-  static routes and an empty feed. Any new prerendered read needs the same guard.
+  `lib/db/index.ts` is created on first use rather than on import, and `components/LatestPublications`
+  falls back to an empty feed without a database. Service-backed feed reads wait for a request
+  outside the shared cache. Any new prerendered read needs the same guard.
 - `DATABASE_URL_UNPOOLED` is preferred by migrations, with `DATABASE_URL` as fallback.
 - `SESSION_SECRET` for the signed Memorioso session cookie and extension connection request/token derivation.
 - `NEXT_PUBLIC_APP_URL` for public links.

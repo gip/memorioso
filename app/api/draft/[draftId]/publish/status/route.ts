@@ -7,7 +7,6 @@ import {
   latestPublicationsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
-  sitemapCacheTag,
 } from '@/lib/db/publication-cache'
 import { getServiceHumanPublicationStatus } from '@/lib/libro-service/client'
 
@@ -52,7 +51,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ dra
       revalidateTag(publicationCacheTag(status.publicationId), { expire: 0 })
       revalidateTag(publicationHashCacheTag(status.signalHash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(row.authorId), { expire: 0 })
-      revalidateTag(sitemapCacheTag, { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })
       return NextResponse.json({
         success: true,

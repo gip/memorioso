@@ -38,6 +38,12 @@ Every OpenShip JSON document MUST contain:
 
 Within major version 1, producers MAY add members without changing existing meanings. Consumers MUST ignore unknown members they do not need and SHOULD preserve them when transforming a document.
 
+## MCP-only publishers
+
+A public MCP endpoint can publish complete OpenShip documents through the single
+`openship` tool without hosting HTTP discovery. Follow [openship-mcp.md](openship-mcp.md)
+and its separate MCP discovery profile. The requirements below apply to HTTP publishers.
+
 ## Public discovery
 
 An OpenShip origin MUST serve:

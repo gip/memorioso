@@ -3,7 +3,7 @@
   "name": "Memorioso and Libro",
   "metadata": {
     "description": "Supported service-based publishing architecture, with legacy and optional paths explicitly marked. Contracts are Processes running on consensus; LibroRegistry, WorldIDVerifier and USDC execute under World Chain consensus.",
-    "primaryConfiguration": "Libro service cutover; read and write flags independent",
+    "primaryConfiguration": "Libro MCP cutover; read and write flags independent",
     "deploymentStatus": "Vercel + Neon intended target. Production bindings are unresolved; this is not verified deployment inventory."
   },
   "context": {
@@ -85,8 +85,8 @@
         "kind": "Document",
         "title": "Libro logical data model",
         "language": "en",
-        "text": "Canonical identities own canonical publications. Human and agent signatures remain distinct proof classes. OAuth grants and tokens are identity-scoped; signing challenges bind exact operations. Durable outbox events synchronize consumers. Libro uses a database separate from Memorioso. No production records or required seed records are supplied.",
-        "hash": "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+        "text": "Canonical identities own canonical publications. Human and agent signatures remain distinct proof classes. OAuth grants and tokens are identity-scoped; signing challenges bind exact operations. Durable outbox events synchronize consumers. Libro uses its own dedicated database. No production records or required seed records are supplied.",
+        "hash": "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
       }
     ],
     "matrix": [
@@ -495,21 +495,21 @@
         "nodeId": "logical.libro-store",
         "concern": "Data Model",
         "documentRefs": [
-          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+          "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
         ]
       },
       {
         "nodeId": "p.libro-db",
         "concern": "Data Model",
         "documentRefs": [
-          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+          "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
         ]
       },
       {
         "nodeId": "provider.p.libro-db",
         "concern": "Data Model",
         "documentRefs": [
-          "sha256:581d6924d06d098530a245859fe2daedde4d853ec5f61fec0c38ce2df189c071"
+          "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
         ]
       }
     ],
@@ -762,7 +762,7 @@
         {
           "id": "h.libro",
           "kind": "Host",
-          "name": "Libro service hosting",
+          "name": "Libro MCP hosting",
           "metadata": {
             "ownership": "first_party",
             "order": 30
@@ -967,11 +967,12 @@
         {
           "id": "p.libro",
           "kind": "Process",
-          "name": "Libro identity and publishing service",
+          "name": "Libro MCP",
           "metadata": {
             "ownership": "first_party",
             "runtime": "Next.js / Node.js",
-            "responsibility": "Canonical authors, handle/session bindings, OAuth, public API/MCP, signing UI, publication workflows, chain verification, Libro relayer and durable event delivery."
+            "responsibility": "Canonical authors, handle/session bindings, OAuth state, public reads and authorized publishing over MCP, browser signing tools, chain verification, Libro relayer and durable event delivery.",
+            "mcpEndpoint": "https://libro-mcp.vercel.app/mcp"
           },
           "parentId": "h.libro",
           "sourceSelectors": [
@@ -1017,7 +1018,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Postgres",
-            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox. Distinct database from Memorioso."
+            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox in a dedicated database."
           },
           "parentId": "h.libro",
           "sourceSelectors": [
@@ -1212,7 +1213,7 @@
           "fromNodeId": "p.agents",
           "toNodeId": "p.libro",
           "metadata": {
-            "purpose": "OAuth API/MCP and agent publishing",
+            "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
             "protocol": "HTTPS"
           }
         },
@@ -1232,7 +1233,7 @@
           "fromNodeId": "p.app",
           "toNodeId": "p.libro",
           "metadata": {
-            "purpose": "Canonical API reads and OAuth-authorized writes",
+            "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
             "protocol": "HTTPS"
           }
         },
@@ -1420,7 +1421,7 @@
         {
           "id": "provider.h.libro",
           "kind": "Host",
-          "name": "Libro Vercel project",
+          "name": "Libro MCP Vercel project",
           "metadata": {
             "ownership": "first_party",
             "order": 30,
@@ -1633,11 +1634,12 @@
         {
           "id": "provider.p.libro",
           "kind": "Process",
-          "name": "Libro identity and publishing service",
+          "name": "Libro MCP",
           "metadata": {
             "ownership": "first_party",
             "runtime": "Next.js / Node.js",
-            "responsibility": "Canonical authors, handle/session bindings, OAuth, public API/MCP, signing UI, publication workflows, chain verification, Libro relayer and durable event delivery."
+            "responsibility": "Canonical authors, handle/session bindings, OAuth state, public reads and authorized publishing over MCP, browser signing tools, chain verification, Libro relayer and durable event delivery.",
+            "mcpEndpoint": "https://libro-mcp.vercel.app/mcp"
           },
           "parentId": "provider.h.libro",
           "configuration": [
@@ -1680,7 +1682,7 @@
           "metadata": {
             "ownership": "first_party",
             "runtime": "Postgres",
-            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox. Distinct database from Memorioso."
+            "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox in a dedicated database."
           },
           "parentId": "provider.h.neon-libro",
           "configuration": [
@@ -1903,7 +1905,7 @@
           "fromNodeId": "provider.p.agents",
           "toNodeId": "provider.p.libro",
           "metadata": {
-            "purpose": "OAuth API/MCP and agent publishing",
+            "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
             "protocol": "HTTPS"
           }
         },
@@ -1923,7 +1925,7 @@
           "fromNodeId": "provider.p.app",
           "toNodeId": "provider.p.libro",
           "metadata": {
-            "purpose": "Canonical API reads and OAuth-authorized writes",
+            "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
             "protocol": "HTTPS"
           }
         },
@@ -2567,7 +2569,7 @@
     {
       "id": "libro-mcp",
       "name": "Libro MCP",
-      "description": "Libro identity, canonical publishing and storage, public MCP/API, and authorized clients.",
+      "description": "Libro MCP identity, canonical publishing and storage, and authorized clients.",
       "nodeIds": [
         "logical.identity",
         "logical.publication",

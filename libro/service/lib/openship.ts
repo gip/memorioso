@@ -174,13 +174,13 @@ export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'syste
       mcpBinding: '1.0',
       project: mcpModel.project,
       agent: {
-        summary: 'OpenShip describes Libro MCP: its identity and canonical publishing service, dependencies, and verifiable sources. The source snapshot may also include the wider Memorioso repository.',
+        summary: 'OpenShip describes Libro MCP: its identity and canonical publishing service, dependencies, and verifiable sources. The source snapshot may include other applications outside this system boundary.',
         instructions: 'Call openship with agent.skill and read the returned skill before using the advertised capabilities. Read referenced skill files with the read operation.',
         skill: { operation: 'document', kind: 'skill' },
       },
       capabilities: {
         sources: {
-          description: 'Retrieve the verified repository source snapshot. Files may include Memorioso and other components outside the Libro MCP system boundary.',
+          description: 'Retrieve the verified repository source snapshot. Files may include other components outside the Libro MCP system boundary.',
           manifest: { operation: 'manifest' },
           bundle: { operation: 'document', kind: 'bundle' },
         },

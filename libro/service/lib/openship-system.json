@@ -1,158 +1,1147 @@
 {
   "project": {
     "name": "Libro MCP",
-    "productDescription": "An MCP service for verifiable human identity and canonical publishing by humans and human-authorized agents.",
-    "productSummary": "## Libro MCP\n\nLibro exposes identity, author profiles, canonical publications, and human and agent publishing workflows through MCP. Public reads expose complete signed publications; protected operations enforce identity, scope, and signing authorization.\n\nMemorioso provides browser login and signing screens as a client of the service. Draft editing, feeds, and paid reading access belong to that client and are outside this system.",
-    "technicalDescription": "Headless Next.js MCP service with Postgres, World ID verification, and World Chain registrations.",
-    "technicalSummary": "## MCP service boundary\n\nLibro exposes its application interface at /mcp. It owns OAuth state, canonical identities and publications, signing operations, chain verification, a relayer, and a durable event outbox. Memorioso hosts browser UI and standard OAuth endpoints that translate requests into MCP calls. World ID and World Chain are dependencies.\n\n## Sources and deployment\n\nThe verified source snapshot may include the wider Memorioso repository. Its file inventory does not define the scope of this MCP system view. Follow libro/service/README.md to deploy Libro separately with its own Postgres database using Node.js 24 and pnpm 10.34.5. Deployment bindings and live health are not asserted by this model."
+    "productDescription": "Reusable MCP for verifiable human identity, signed publications, and publishing by human-authorized agents.",
+    "productSummary": "## Libro MCP\n\nConnect an MCP client to https://libro-mcp.vercel.app/mcp to use Libro in your own application, publishing workflow, or agent.\n\n### Identity and author profiles\n\nUse World ID-backed identity and author handles to associate work with a verified human. Read public author profiles and manage your profile through authorized tools.\n\n### Human publishing\n\nPublish documents with a human authorship proof bound to the exact signed content. A writing tool or website can submit a publication and direct its author through browser verification and signing.\n\n### Human-authorized agents\n\nAuthorize an agent to publish on your behalf, inspect its registrations, and revoke its authority. Agent signatures identify human-authorized work as a distinct proof class from direct human authorship.\n\n### Reading and verification\n\nBuild readers, archives, and verification tools using public canonical publications and author lookups. Retrieve complete signed payloads and verify their registrations on World Chain.",
+    "technicalDescription": "Headless Next.js MCP with dedicated Postgres storage, World ID proofs, and World Chain publication registrations.",
+    "technicalSummary": "## Connect and reuse\n\nProduction MCP endpoint: https://libro-mcp.vercel.app/mcp. Use an MCP client to initialize the connection and discover tools. Public author and publication reads require no login. Protected tools enforce OAuth identity, scopes, and signing authorization; follow the advertised authorization metadata and browser signing links.\n\n## Implementation\n\nLibro MCP exposes its application interface at /mcp. It owns canonical identities and publications, OAuth state, prepared signing operations, chain verification, a relayer, and a durable event outbox. Browser login, standard OAuth HTTP endpoints, and signing screens are hosted by a separate web client. World ID proofs bind human identity and exact publication signals; human-authorized agents use EIP-712 signatures. Registration verification queries configured World Chain RPC endpoints in parallel.\n\n## System and sources\n\nThe system view covers identity, publication, verification, canonical storage, external clients, and chain dependencies across logical, technical, and provider layers. The verified source inventory may include applications outside this boundary.\n\n## Deployment\n\nUse Node.js 24 and pnpm 10.34.5. Install with pnpm install --frozen-lockfile, configure a dedicated Postgres database and required environment variables, apply pnpm --filter @libro/service db:migrate, then build with pnpm --filter @libro/service build. See libro/service/README.md for deployment and authorization configuration. The published production endpoint is reusable; provider regions, database bindings, and live health are not asserted by the system model."
   },
   "system": {
     "id": "libro-mcp",
     "name": "Libro MCP",
     "metadata": {
-      "description": "This system describes only Libro MCP and its dependencies. The embedded Sources snapshot may cover the entire repository, including applications outside this boundary.",
-      "deploymentStatus": "Source-described architecture; not verified live deployment inventory."
+      "description": "Libro MCP identity, publishing, storage, authorized clients, and verification dependencies. Source coverage may exceed this system boundary.",
+      "mcpEndpoint": "https://libro-mcp.vercel.app/mcp",
+      "deploymentStatus": "Production MCP endpoint published; infrastructure bindings and live health are not asserted."
     },
     "layers": [
       {
-        "id": "technical",
-        "name": "MCP service and dependencies",
-        "role": "technical",
-        "rootNodeId": "libro",
+        "id": "logical",
+        "name": "Logical",
+        "role": "logical",
+        "rootNodeId": "logical.root",
         "nodes": [
           {
-            "id": "libro",
-            "name": "Libro MCP",
+            "id": "logical.root",
             "kind": "Root",
+            "name": "Libro MCP",
             "metadata": {
               "ownership": "first_party",
-              "responsibility": "Headless identity and canonical publishing service; /mcp is its only application route."
+              "responsibility": "Libro MCP identity, publishing and verification."
             }
           },
           {
-            "id": "service",
-            "name": "Libro MCP server",
-            "kind": "Process",
-            "parentId": "libro",
-            "sourceSelectors": [
-              "libro/service/**"
-            ],
+            "id": "logical.identity",
+            "kind": "Block",
+            "name": "Identity and authorization",
+            "parentId": "logical.root",
             "metadata": {
               "ownership": "first_party",
-              "responsibility": "Public canonical reads; authenticated profile and publication tools; browser signing and OAuth tools; agent authorization; internal event delivery."
+              "responsibility": "Human identity, sessions, OAuth and authorized agents."
             }
           },
           {
-            "id": "database",
-            "name": "Libro Postgres",
+            "id": "logical.publication",
+            "kind": "Block",
+            "name": "Publication",
+            "parentId": "logical.root",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Canonical human and human-authorized publication with durable delivery."
+            }
+          },
+          {
+            "id": "logical.verification",
+            "kind": "Block",
+            "name": "Verification",
+            "parentId": "logical.root",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Verify exact signed payloads and registrations."
+            }
+          },
+          {
+            "id": "logical.libro-store",
             "kind": "Store",
-            "parentId": "libro",
-            "sourceSelectors": [
-              "libro/service/db/**"
-            ],
+            "name": "Libro canonical data",
+            "parentId": "logical.root",
             "metadata": {
               "ownership": "first_party",
-              "responsibility": "Dedicated canonical identities, publications, OAuth state, prepared signing operations, and durable outbox."
-            }
-          },
-          {
-            "id": "core",
-            "name": "Libro protocol helpers",
-            "kind": "Library",
-            "parentId": "libro",
-            "sourceSelectors": [
-              "libro/core/**"
-            ],
-            "metadata": {
-              "ownership": "first_party",
-              "responsibility": "Canonical payloads, signatures, proof and registry helpers."
-            }
-          },
-          {
-            "id": "memorioso",
-            "name": "Memorioso client and browser UI",
-            "kind": "Block",
-            "parentId": "libro",
-            "metadata": {
-              "ownership": "first_party",
-              "responsibility": "External client hosting login, signing, and standard OAuth endpoints. Drafts, feeds, presentation policy, and x402 are outside the MCP system.",
-              "scope": "external_dependency"
-            }
-          },
-          {
-            "id": "worldid",
-            "name": "World ID verifier",
-            "kind": "Block",
-            "parentId": "libro",
-            "metadata": {
-              "ownership": "third_party",
-              "responsibility": "External proof verification dependency.",
-              "scope": "external_dependency"
-            }
-          },
-          {
-            "id": "chain",
-            "name": "World Chain and LibroRegistry",
-            "kind": "Block",
-            "parentId": "libro",
-            "metadata": {
-              "ownership": "third_party",
-              "responsibility": "On-chain handle-bound publication registrations and agent authorization; RPC endpoints are queried in parallel.",
-              "scope": "external_dependency"
-            }
-          },
-          {
-            "id": "sources",
-            "name": "OpenShip source origin",
-            "kind": "Block",
-            "parentId": "libro",
-            "metadata": {
-              "ownership": "first_party",
-              "responsibility": "Publishes the verified repository snapshot; source coverage may exceed the MCP system boundary.",
-              "scope": "external_dependency"
+              "responsibility": "Canonical identities and publications, OAuth grants, signing challenges and durable events."
             }
           }
         ],
         "edges": [
           {
-            "id": "service-database",
-            "type": "Dependency",
-            "fromNodeId": "service",
-            "toNodeId": "database"
+            "id": "logical.publication.identity",
+            "type": "Runtime",
+            "fromNodeId": "logical.publication",
+            "toNodeId": "logical.identity"
           },
           {
-            "id": "service-core",
-            "type": "Dependency",
-            "fromNodeId": "service",
-            "toNodeId": "core"
+            "id": "logical.publication.libro-store",
+            "type": "Runtime",
+            "fromNodeId": "logical.publication",
+            "toNodeId": "logical.libro-store"
           },
           {
-            "id": "memorioso-service",
-            "type": "Dependency",
-            "fromNodeId": "memorioso",
-            "toNodeId": "service"
+            "id": "logical.publication.verification",
+            "type": "Runtime",
+            "fromNodeId": "logical.publication",
+            "toNodeId": "logical.verification"
+          }
+        ]
+      },
+      {
+        "rootNodeId": "s.libro",
+        "id": "technical",
+        "name": "Technical",
+        "role": "technical",
+        "nodes": [
+          {
+            "id": "s.libro",
+            "kind": "Root",
+            "name": "Libro MCP",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Libro MCP identity, publishing and verification."
+            }
           },
           {
-            "id": "service-worldid",
-            "type": "Dependency",
-            "fromNodeId": "service",
-            "toNodeId": "worldid"
+            "id": "h.libro",
+            "kind": "Host",
+            "name": "Libro MCP hosting",
+            "metadata": {
+              "ownership": "first_party",
+              "order": 30
+            },
+            "parentId": "s.libro"
           },
           {
-            "id": "service-chain",
-            "type": "Dependency",
-            "fromNodeId": "service",
-            "toNodeId": "chain"
+            "id": "h.world",
+            "kind": "Host",
+            "name": "World identity and wallet platform",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 40
+            },
+            "parentId": "s.libro"
           },
           {
-            "id": "service-sources",
+            "id": "h.chain",
+            "kind": "Host",
+            "name": "World Chain",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 60
+            },
+            "parentId": "s.libro"
+          },
+          {
+            "id": "h.rpc",
+            "kind": "Host",
+            "name": "World Chain RPC providers",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 50
+            },
+            "parentId": "s.libro"
+          },
+          {
+            "id": "h.agents",
+            "kind": "Host",
+            "name": "External client runtimes",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 70
+            },
+            "parentId": "s.libro"
+          },
+          {
+            "id": "p.agents",
+            "kind": "Process",
+            "name": "External agents and OAuth clients",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Explicitly authorized clients; agent keys sign documents and finalizations. A handle or registration ID is never a credential."
+            },
+            "parentId": "h.agents"
+          },
+          {
+            "id": "p.libro",
+            "kind": "Process",
+            "name": "Libro MCP",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "Next.js / Node.js",
+              "responsibility": "Canonical authors, handle/session bindings, OAuth state, public reads and authorized publishing over MCP, browser signing tools, chain verification, Libro relayer and durable event delivery.",
+              "mcpEndpoint": "https://libro-mcp.vercel.app/mcp"
+            },
+            "parentId": "h.libro",
+            "sourceSelectors": [
+              "libro/service/**"
+            ],
+            "configuration": [
+              {
+                "name": "DATABASE_URL",
+                "description": "Separate Libro canonical database connection.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "p.libro",
+                  "key": "DATABASE_URL"
+                }
+              },
+              {
+                "name": "WORLD_ID_RP_SIGNING_KEY",
+                "description": "Libro proof signing key after cutover.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "p.libro",
+                  "key": "WORLD_ID_RP_SIGNING_KEY"
+                }
+              },
+              {
+                "name": "LIBRO_RELAYER_PRIVATE_KEY",
+                "description": "Libro registration relayer, separate from x402.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "p.libro",
+                  "key": "LIBRO_RELAYER_PRIVATE_KEY"
+                }
+              }
+            ]
+          },
+          {
+            "id": "p.libro-db",
+            "kind": "Store",
+            "name": "Libro Postgres",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "Postgres",
+              "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox in a dedicated database."
+            },
+            "parentId": "h.libro",
+            "sourceSelectors": [
+              "libro/service/db/**"
+            ],
+            "configuration": [
+              {
+                "name": "engine",
+                "description": "Relational database engine.",
+                "required": true,
+                "value": "PostgreSQL"
+              }
+            ]
+          },
+          {
+            "id": "p.world-id",
+            "kind": "Process",
+            "name": "World ID verification",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Verify IDKit v4 session and publication proofs bound to configured RP and canonical publication signals."
+            },
+            "parentId": "h.world"
+          },
+          {
+            "id": "p.world-app",
+            "kind": "Process",
+            "name": "World App and wallet",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "User-presence proof and wallet transaction interactions through IDKit and MiniKit."
+            },
+            "parentId": "h.world"
+          },
+          {
+            "id": "p.rpc",
+            "kind": "Process",
+            "name": "World Chain RPC endpoints",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Configured endpoint list queried in parallel; one matching handle-bound registration event proves registration. Pruned receipt indexes must not turn old publications invalid."
+            },
+            "parentId": "h.rpc"
+          },
+          {
+            "id": "p.registry",
+            "kind": "Contract",
+            "name": "LibroRegistry",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "EVM contract",
+              "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations.",
+              "execution": "Consensus-governed execution and state transitions on World Chain."
+            },
+            "parentId": "h.chain",
+            "sourceSelectors": [
+              "libro/contracts/src/**"
+            ]
+          },
+          {
+            "id": "p.verifier",
+            "kind": "Contract",
+            "name": "WorldIDVerifier proxy",
+            "metadata": {
+              "ownership": "third_party",
+              "runtime": "EVM contract",
+              "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address.",
+              "execution": "Consensus-governed execution and state transitions on World Chain."
+            },
+            "parentId": "h.chain"
+          },
+          {
+            "id": "l.libro",
+            "kind": "Library",
+            "name": "@libro/core",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Canonical payload serialization, hashing and shared verification/protocol helpers."
+            },
+            "sourceSelectors": [
+              "libro/core/src/**"
+            ],
+            "parentId": "s.libro"
+          },
+          {
+            "id": "l.openship",
+            "kind": "Library",
+            "name": "@openship/protocol",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "OpenShip v1 Sources, Systems and discovery types and validation. Dependency implementation is external to this snapshot; vendored protocol documentation is included."
+            },
+            "parentId": "s.libro"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e.agents-libro",
+            "type": "Runtime",
+            "fromNodeId": "p.agents",
+            "toNodeId": "p.libro",
+            "metadata": {
+              "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
+              "protocol": "HTTPS"
+            }
+          },
+          {
+            "id": "e.libro-db",
+            "type": "Runtime",
+            "fromNodeId": "p.libro",
+            "toNodeId": "p.libro-db",
+            "metadata": {
+              "purpose": "Canonical transactions, grants and outbox",
+              "protocol": "Postgres"
+            }
+          },
+          {
+            "id": "e.libro-world",
+            "type": "Runtime",
+            "fromNodeId": "p.libro",
+            "toNodeId": "p.world-id",
+            "metadata": {
+              "purpose": "Server-side IDKit proof verification",
+              "protocol": "HTTPS"
+            }
+          },
+          {
+            "id": "e.libro-rpc",
+            "type": "Runtime",
+            "fromNodeId": "p.libro",
+            "toNodeId": "p.rpc",
+            "metadata": {
+              "purpose": "Broadcast registration and verify matching on-chain events",
+              "protocol": "JSON-RPC"
+            }
+          },
+          {
+            "id": "e.rpc-registry",
+            "type": "Runtime",
+            "fromNodeId": "p.rpc",
+            "toNodeId": "p.registry",
+            "metadata": {
+              "purpose": "Registry transactions and event/receipt reads",
+              "protocol": "Ethereum JSON-RPC"
+            }
+          },
+          {
+            "id": "e.registry-verifier",
+            "type": "Runtime",
+            "fromNodeId": "p.registry",
+            "toNodeId": "p.verifier",
+            "metadata": {
+              "purpose": "Proof verification via configured proxy",
+              "protocol": "EVM call"
+            }
+          },
+          {
+            "id": "e.libro.core",
             "type": "Dependency",
-            "fromNodeId": "service",
-            "toNodeId": "sources"
+            "fromNodeId": "p.libro",
+            "toNodeId": "l.libro"
+          },
+          {
+            "id": "e.libro.openship",
+            "type": "Dependency",
+            "fromNodeId": "p.libro",
+            "toNodeId": "l.openship"
+          }
+        ]
+      },
+      {
+        "rootNodeId": "provider.s.libro",
+        "id": "provider",
+        "name": "Provider",
+        "role": "provider",
+        "nodes": [
+          {
+            "id": "provider.s.libro",
+            "kind": "Root",
+            "name": "Libro MCP",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Libro MCP identity, publishing and verification."
+            }
+          },
+          {
+            "id": "provider.h.libro",
+            "kind": "Host",
+            "name": "Libro MCP Vercel project",
+            "metadata": {
+              "ownership": "first_party",
+              "order": 30,
+              "provider": "Vercel"
+            },
+            "parentId": "provider.s.libro",
+            "configuration": [
+              {
+                "name": "region",
+                "description": "Intended deployment region; unresolved.",
+                "required": true
+              },
+              {
+                "name": "projectId",
+                "description": "Vercel project binding; unresolved.",
+                "required": true
+              }
+            ]
+          },
+          {
+            "id": "provider.h.world",
+            "kind": "Host",
+            "name": "World identity and wallet platform",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 40
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.h.chain",
+            "kind": "Host",
+            "name": "World Chain",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 60
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.h.rpc",
+            "kind": "Host",
+            "name": "World Chain RPC providers",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 50
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.h.agents",
+            "kind": "Host",
+            "name": "External client runtimes",
+            "metadata": {
+              "ownership": "third_party",
+              "order": 70
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.p.agents",
+            "kind": "Process",
+            "name": "External agents and OAuth clients",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Explicitly authorized clients; agent keys sign documents and finalizations. A handle or registration ID is never a credential."
+            },
+            "parentId": "provider.h.agents"
+          },
+          {
+            "id": "provider.p.libro",
+            "kind": "Process",
+            "name": "Libro MCP",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "Next.js / Node.js",
+              "responsibility": "Canonical authors, handle/session bindings, OAuth state, public reads and authorized publishing over MCP, browser signing tools, chain verification, Libro relayer and durable event delivery.",
+              "mcpEndpoint": "https://libro-mcp.vercel.app/mcp"
+            },
+            "parentId": "provider.h.libro",
+            "configuration": [
+              {
+                "name": "DATABASE_URL",
+                "description": "Separate Libro canonical database connection.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "DATABASE_URL"
+                }
+              },
+              {
+                "name": "WORLD_ID_RP_SIGNING_KEY",
+                "description": "Libro proof signing key after cutover.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "WORLD_ID_RP_SIGNING_KEY"
+                }
+              },
+              {
+                "name": "LIBRO_RELAYER_PRIVATE_KEY",
+                "description": "Libro registration relayer, separate from x402.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "LIBRO_RELAYER_PRIVATE_KEY"
+                }
+              }
+            ]
+          },
+          {
+            "id": "provider.p.libro-db",
+            "kind": "Store",
+            "name": "Libro Neon database",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "Postgres",
+              "responsibility": "Canonical identities/publications, OAuth grants/tokens, signing challenges and event outbox in a dedicated database."
+            },
+            "parentId": "provider.h.neon-libro",
+            "configuration": [
+              {
+                "name": "provider",
+                "description": "Intended database provider.",
+                "required": true,
+                "value": "Neon"
+              },
+              {
+                "name": "region",
+                "description": "Intended Neon region; unresolved.",
+                "required": true
+              },
+              {
+                "name": "compute",
+                "description": "Intended compute configuration; unresolved.",
+                "required": true
+              },
+              {
+                "name": "branchPolicy",
+                "description": "Intended branching policy; unresolved.",
+                "required": true
+              }
+            ]
+          },
+          {
+            "id": "provider.p.world-id",
+            "kind": "Process",
+            "name": "World ID verification",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Verify IDKit v4 session and publication proofs bound to configured RP and canonical publication signals."
+            },
+            "parentId": "provider.h.world"
+          },
+          {
+            "id": "provider.p.world-app",
+            "kind": "Process",
+            "name": "World App and wallet",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "User-presence proof and wallet transaction interactions through IDKit and MiniKit."
+            },
+            "parentId": "provider.h.world"
+          },
+          {
+            "id": "provider.p.rpc",
+            "kind": "Process",
+            "name": "World Chain RPC endpoints",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "Configured endpoint list queried in parallel; one matching handle-bound registration event proves registration. Pruned receipt indexes must not turn old publications invalid."
+            },
+            "parentId": "provider.h.rpc"
+          },
+          {
+            "id": "provider.p.registry",
+            "kind": "Contract",
+            "name": "LibroRegistry",
+            "metadata": {
+              "ownership": "first_party",
+              "runtime": "EVM contract",
+              "responsibility": "Handle-bound identity, direct-human publication registrations, agent authorization/revocation and agent document registrations.",
+              "execution": "Consensus-governed execution and state transitions on World Chain."
+            },
+            "parentId": "provider.h.chain"
+          },
+          {
+            "id": "provider.p.verifier",
+            "kind": "Contract",
+            "name": "WorldIDVerifier proxy",
+            "metadata": {
+              "ownership": "third_party",
+              "runtime": "EVM contract",
+              "responsibility": "World ID on-chain proof verification. LibroRegistry references the proxy, not an implementation address.",
+              "execution": "Consensus-governed execution and state transitions on World Chain."
+            },
+            "parentId": "provider.h.chain"
+          },
+          {
+            "id": "provider.l.libro",
+            "kind": "Library",
+            "name": "@libro/core",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Canonical payload serialization, hashing and shared verification/protocol helpers."
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.l.openship",
+            "kind": "Library",
+            "name": "@openship/protocol",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "OpenShip v1 Sources, Systems and discovery types and validation. Dependency implementation is external to this snapshot; vendored protocol documentation is included."
+            },
+            "parentId": "provider.s.libro"
+          },
+          {
+            "id": "provider.h.neon-libro",
+            "kind": "Host",
+            "name": "Libro Neon project",
+            "parentId": "provider.s.libro",
+            "metadata": {
+              "ownership": "first_party",
+              "provider": "Neon",
+              "responsibility": "Separate database resource; target configuration, not verified inventory."
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "provider.e.agents-libro",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.agents",
+            "toNodeId": "provider.p.libro",
+            "metadata": {
+              "purpose": "Public canonical reads and authorized identity and publishing operations over MCP",
+              "protocol": "HTTPS"
+            }
+          },
+          {
+            "id": "provider.e.libro-db",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.libro",
+            "toNodeId": "provider.p.libro-db",
+            "metadata": {
+              "purpose": "Canonical transactions, grants and outbox",
+              "protocol": "Postgres"
+            }
+          },
+          {
+            "id": "provider.e.libro-world",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.libro",
+            "toNodeId": "provider.p.world-id",
+            "metadata": {
+              "purpose": "Server-side IDKit proof verification",
+              "protocol": "HTTPS"
+            }
+          },
+          {
+            "id": "provider.e.libro-rpc",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.libro",
+            "toNodeId": "provider.p.rpc",
+            "metadata": {
+              "purpose": "Broadcast registration and verify matching on-chain events",
+              "protocol": "JSON-RPC"
+            }
+          },
+          {
+            "id": "provider.e.rpc-registry",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.rpc",
+            "toNodeId": "provider.p.registry",
+            "metadata": {
+              "purpose": "Registry transactions and event/receipt reads",
+              "protocol": "Ethereum JSON-RPC"
+            }
+          },
+          {
+            "id": "provider.e.registry-verifier",
+            "type": "Runtime",
+            "fromNodeId": "provider.p.registry",
+            "toNodeId": "provider.p.verifier",
+            "metadata": {
+              "purpose": "Proof verification via configured proxy",
+              "protocol": "EVM call"
+            }
+          },
+          {
+            "id": "provider.e.libro.core",
+            "type": "Dependency",
+            "fromNodeId": "provider.p.libro",
+            "toNodeId": "provider.l.libro"
+          },
+          {
+            "id": "provider.e.libro.openship",
+            "type": "Dependency",
+            "fromNodeId": "provider.p.libro",
+            "toNodeId": "provider.l.openship"
           }
         ]
       }
     ],
-    "refinements": []
+    "refinements": [
+      {
+        "id": "ref.p.libro.identity",
+        "fromNodeId": "p.libro",
+        "toNodeId": "logical.identity"
+      },
+      {
+        "id": "ref.p.world-id.identity",
+        "fromNodeId": "p.world-id",
+        "toNodeId": "logical.identity"
+      },
+      {
+        "id": "ref.p.world-app.identity",
+        "fromNodeId": "p.world-app",
+        "toNodeId": "logical.identity"
+      },
+      {
+        "id": "ref.p.agents.identity",
+        "fromNodeId": "p.agents",
+        "toNodeId": "logical.identity"
+      },
+      {
+        "id": "ref.p.libro.publication",
+        "fromNodeId": "p.libro",
+        "toNodeId": "logical.publication"
+      },
+      {
+        "id": "ref.p.registry.publication",
+        "fromNodeId": "p.registry",
+        "toNodeId": "logical.publication"
+      },
+      {
+        "id": "ref.p.rpc.verification",
+        "fromNodeId": "p.rpc",
+        "toNodeId": "logical.verification"
+      },
+      {
+        "id": "ref.p.registry.verification",
+        "fromNodeId": "p.registry",
+        "toNodeId": "logical.verification"
+      },
+      {
+        "id": "ref.p.verifier.verification",
+        "fromNodeId": "p.verifier",
+        "toNodeId": "logical.verification"
+      },
+      {
+        "id": "ref.p.libro-db.libro-store",
+        "fromNodeId": "p.libro-db",
+        "toNodeId": "logical.libro-store"
+      },
+      {
+        "id": "ref.provider.h.libro",
+        "fromNodeId": "provider.h.libro",
+        "toNodeId": "h.libro"
+      },
+      {
+        "id": "ref.provider.h.world",
+        "fromNodeId": "provider.h.world",
+        "toNodeId": "h.world"
+      },
+      {
+        "id": "ref.provider.h.chain",
+        "fromNodeId": "provider.h.chain",
+        "toNodeId": "h.chain"
+      },
+      {
+        "id": "ref.provider.h.rpc",
+        "fromNodeId": "provider.h.rpc",
+        "toNodeId": "h.rpc"
+      },
+      {
+        "id": "ref.provider.h.agents",
+        "fromNodeId": "provider.h.agents",
+        "toNodeId": "h.agents"
+      },
+      {
+        "id": "ref.provider.p.agents",
+        "fromNodeId": "provider.p.agents",
+        "toNodeId": "p.agents"
+      },
+      {
+        "id": "ref.provider.p.libro",
+        "fromNodeId": "provider.p.libro",
+        "toNodeId": "p.libro"
+      },
+      {
+        "id": "ref.provider.p.libro-db",
+        "fromNodeId": "provider.p.libro-db",
+        "toNodeId": "p.libro-db"
+      },
+      {
+        "id": "ref.provider.p.world-id",
+        "fromNodeId": "provider.p.world-id",
+        "toNodeId": "p.world-id"
+      },
+      {
+        "id": "ref.provider.p.world-app",
+        "fromNodeId": "provider.p.world-app",
+        "toNodeId": "p.world-app"
+      },
+      {
+        "id": "ref.provider.p.rpc",
+        "fromNodeId": "provider.p.rpc",
+        "toNodeId": "p.rpc"
+      },
+      {
+        "id": "ref.provider.p.registry",
+        "fromNodeId": "provider.p.registry",
+        "toNodeId": "p.registry"
+      },
+      {
+        "id": "ref.provider.p.verifier",
+        "fromNodeId": "provider.p.verifier",
+        "toNodeId": "p.verifier"
+      },
+      {
+        "id": "ref.provider.l.libro",
+        "fromNodeId": "provider.l.libro",
+        "toNodeId": "l.libro"
+      },
+      {
+        "id": "ref.provider.l.openship",
+        "fromNodeId": "provider.l.openship",
+        "toNodeId": "l.openship"
+      },
+      {
+        "id": "ref.neon.libro",
+        "fromNodeId": "provider.h.neon-libro",
+        "toNodeId": "p.libro-db"
+      }
+    ],
+    "context": {
+      "concerns": [
+        "General Specs",
+        "Features",
+        "Data Model",
+        "Interfaces",
+        "Connectivity",
+        "Security",
+        "Implementation",
+        "Deployment"
+      ],
+      "documents": [
+        {
+          "kind": "Document",
+          "hash": "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4",
+          "title": "Human-authorized agents and revocation",
+          "language": "en",
+          "text": "The handle owner authorizes an agent on chain. Agent publications use EIP-712 signatures and remain semantically separate from direct human authorship. Prepare recovers AgentDocument; finalize checks a fresh AgentDocumentFinalization signature bound to the broadcast transaction hash. Neither a document registration ID nor an app session substitutes for the agent signature. Revocation is recorded only after a matching AgentRevoked event, including service and MCP flows."
+        },
+        {
+          "kind": "Document",
+          "title": "Libro logical data model",
+          "language": "en",
+          "text": "Canonical identities own canonical publications. Human and agent signatures remain distinct proof classes. OAuth grants and tokens are identity-scoped; signing challenges bind exact operations. Durable outbox events synchronize consumers. Libro uses its own dedicated database. No production records or required seed records are supplied.",
+          "hash": "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
+        }
+      ],
+      "matrix": [
+        {
+          "nodeId": "p.agents",
+          "concern": "Security",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "p.registry",
+          "concern": "Interfaces",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "p.libro",
+          "concern": "Features",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "logical.identity",
+          "concern": "General Specs",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "logical.publication",
+          "concern": "General Specs",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "logical.verification",
+          "concern": "General Specs",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "provider.p.agents",
+          "concern": "Security",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "provider.p.registry",
+          "concern": "Interfaces",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "provider.p.libro",
+          "concern": "Features",
+          "documentRefs": [
+            "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4"
+          ]
+        },
+        {
+          "nodeId": "logical.libro-store",
+          "concern": "Data Model",
+          "documentRefs": [
+            "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
+          ]
+        },
+        {
+          "nodeId": "p.libro-db",
+          "concern": "Data Model",
+          "documentRefs": [
+            "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
+          ]
+        },
+        {
+          "nodeId": "provider.p.libro-db",
+          "concern": "Data Model",
+          "documentRefs": [
+            "sha256:86df9ea5f98b8bcdfd292c008cb200d1dd29b59470394d36cd72629caed872f5"
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": "schema.p.libro-db",
+          "nodeId": "p.libro-db",
+          "concern": "Data Model",
+          "type": "Code",
+          "sourcePaths": [
+            "libro/service/db/schema.sql",
+            "libro/service/db/migrations/001_initial_service.sql",
+            "libro/service/db/migrations/002_legacy_publications.sql"
+          ]
+        },
+        {
+          "id": "schema.provider.p.libro-db",
+          "nodeId": "provider.p.libro-db",
+          "concern": "Data Model",
+          "type": "Code",
+          "sourcePaths": [
+            "libro/service/db/schema.sql",
+            "libro/service/db/migrations/001_initial_service.sql",
+            "libro/service/db/migrations/002_legacy_publications.sql"
+          ]
+        }
+      ]
+    },
+    "domains": [
+      {
+        "id": "libro-mcp",
+        "name": "Libro MCP",
+        "description": "Libro MCP identity, canonical publishing and storage, and authorized clients.",
+        "nodeIds": [
+          "logical.identity",
+          "logical.publication",
+          "logical.verification",
+          "logical.libro-store",
+          "h.libro",
+          "p.libro",
+          "p.libro-db",
+          "h.agents",
+          "p.agents",
+          "h.world",
+          "p.world-id",
+          "p.world-app",
+          "l.libro",
+          "l.openship",
+          "provider.h.libro",
+          "provider.p.libro",
+          "provider.p.libro-db",
+          "provider.h.agents",
+          "provider.p.agents",
+          "provider.h.world",
+          "provider.p.world-id",
+          "provider.p.world-app",
+          "provider.l.libro",
+          "provider.l.openship",
+          "provider.h.neon-libro"
+        ]
+      }
+    ],
+    "instances": [
+      {
+        "id": "production",
+        "name": "Production target (unresolved)",
+        "environment": "production",
+        "layerId": "provider",
+        "bindings": [
+          {
+            "nodeId": "provider.h.libro",
+            "configuration": [
+              {
+                "name": "region",
+                "description": "Intended deployment region; unresolved.",
+                "required": true
+              },
+              {
+                "name": "projectId",
+                "description": "Vercel project binding; unresolved.",
+                "required": true
+              }
+            ]
+          },
+          {
+            "nodeId": "provider.h.world"
+          },
+          {
+            "nodeId": "provider.h.chain"
+          },
+          {
+            "nodeId": "provider.h.rpc"
+          },
+          {
+            "nodeId": "provider.h.agents"
+          },
+          {
+            "nodeId": "provider.p.agents"
+          },
+          {
+            "nodeId": "provider.p.libro",
+            "configuration": [
+              {
+                "name": "DATABASE_URL",
+                "description": "Separate Libro canonical database connection.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "DATABASE_URL"
+                }
+              },
+              {
+                "name": "WORLD_ID_RP_SIGNING_KEY",
+                "description": "Libro proof signing key after cutover.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "WORLD_ID_RP_SIGNING_KEY"
+                }
+              },
+              {
+                "name": "LIBRO_RELAYER_PRIVATE_KEY",
+                "description": "Libro registration relayer, separate from x402.",
+                "required": true,
+                "sensitive": true,
+                "secretRef": {
+                  "nodeId": "provider.p.libro",
+                  "key": "LIBRO_RELAYER_PRIVATE_KEY"
+                }
+              }
+            ]
+          },
+          {
+            "nodeId": "provider.p.libro-db",
+            "configuration": [
+              {
+                "name": "region",
+                "description": "Intended Neon region; unresolved.",
+                "required": true
+              },
+              {
+                "name": "compute",
+                "description": "Intended compute configuration; unresolved.",
+                "required": true
+              },
+              {
+                "name": "branchPolicy",
+                "description": "Intended branching policy; unresolved.",
+                "required": true
+              }
+            ]
+          },
+          {
+            "nodeId": "provider.p.world-id"
+          },
+          {
+            "nodeId": "provider.p.world-app"
+          },
+          {
+            "nodeId": "provider.p.rpc"
+          },
+          {
+            "nodeId": "provider.p.registry"
+          },
+          {
+            "nodeId": "provider.p.verifier"
+          },
+          {
+            "nodeId": "provider.l.libro"
+          },
+          {
+            "nodeId": "provider.l.openship"
+          },
+          {
+            "nodeId": "provider.h.neon-libro"
+          }
+        ]
+      }
+    ]
   }
 }

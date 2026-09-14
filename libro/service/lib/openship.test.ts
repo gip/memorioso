@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computeSourcesDigest, type SourceFileMetadata } from '@openship/protocol'
+import { computeSourcesDigest, validateSystems, type SourceFileMetadata } from '@openship/protocol'
 import mcpModel from './openship-system.json'
+import fullSystem from '../../../lib/openship/system.json'
 import { ServiceError } from './errors'
 import {
   MAX_OPENSHIP_SOURCE_BYTES,
@@ -120,9 +121,14 @@ describe('Libro OpenShip source loader', () => {
       'libro/service/app/mcp/route.ts': '// MCP endpoint',
       'libro/service/db/schema.sql': '-- canonical store',
       'libro/core/src/index.ts': '// shared protocol',
+      'libro/contracts/src/LibroRegistry.sol': '// registry',
+      ...Object.fromEntries(mcpModel.system.context.artifacts.flatMap(artifact =>
+        artifact.sourcePaths.map(path => [path, '// schema source']))),
       'app/page.tsx': '// website outside MCP scope',
     })
     const fetchMock = installFetch(source)
+    validateSystems({ openship: '1.0', capability: 'systems', systemsVersion: '2.0',
+      source: { manifest: source.manifest, bundle: source.bundle }, system: mcpModel.system })
     const document = await readOpenShipDocument('systems')
     expect(document).toMatchObject({
       system: mcpModel.system,
@@ -136,7 +142,29 @@ describe('Libro OpenShip source loader', () => {
         sources: { description: expect.stringContaining('outside the Libro MCP system boundary') },
       },
     })
+    expect(JSON.stringify(mcpModel)).not.toMatch(/memorioso/i)
+    expect(JSON.stringify(await readOpenShipDocument('discovery'))).not.toMatch(/memorioso/i)
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/systems.json'))).toBe(false)
+  })
+
+  it('keeps Libro components and relationships as a subset of the shared system', () => {
+    const rootIds = new Set(mcpModel.system.layers.map(layer => layer.rootNodeId))
+    for (const layer of mcpModel.system.layers) {
+      const shared = fullSystem.layers.find(candidate => candidate.id === layer.id)!
+      for (const node of layer.nodes) {
+        if (rootIds.has(node.id)) continue
+        const original = shared.nodes.find(candidate => candidate.id === node.id)!
+        expect(original).toBeDefined()
+        expect(node).toEqual({ ...original, parentId: original.parentId === shared.rootNodeId ? layer.rootNodeId : original.parentId })
+      }
+      for (const edge of layer.edges) expect(shared.edges).toContainEqual(edge)
+    }
+    for (const refinement of mcpModel.system.refinements) expect(fullSystem.refinements).toContainEqual(refinement)
+    for (const layer of mcpModel.system.layers.filter(layer => layer.role !== 'logical')) {
+      expect(layer.nodes.find(node => node.name === 'Libro MCP' && node.kind === 'Process')).toMatchObject({
+        metadata: { mcpEndpoint: 'https://libro-mcp.vercel.app/mcp' },
+      })
+    }
   })
 
   it('rejects an invalid MCP model in an otherwise verified snapshot', async () => {

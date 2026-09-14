@@ -67,7 +67,8 @@ RETRIEVE SYSTEMS
   manifest and bundle, graph, source selectors, document hashes and context references.
   The embedded snapshot is identical to the standalone Sources endpoints below.
   This describes supported architecture, not live service health. Legacy and optional
-  components are marked. Libro MCP remains Sources-only.
+  components are marked. Libro MCP advertises its own service-scoped Systems view;
+  its verified Sources may still include this wider repository.
   Human viewer: https://openship.dev/view?url=${encodeURIComponent(origin)}&view=system&panel=architecture
 
 RETRIEVE SOURCES

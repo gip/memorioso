@@ -13,6 +13,9 @@ import {
   type VerifiedSources,
 } from '@openship/protocol'
 import { ServiceError } from './errors'
+import mcpModel from './openship-system.json'
+
+const MCP_SYSTEM_PATH = 'libro/service/lib/openship-system.json'
 
 export const MAX_OPENSHIP_SOURCE_BYTES = 16 * 1024 * 1024
 
@@ -169,21 +172,21 @@ export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'syste
       openship: '1.0',
       capability: 'discovery',
       mcpBinding: '1.0',
-      project: snapshot.manifest.project,
+      project: mcpModel.project,
       agent: {
-        summary: discovery.agent.summary,
+        summary: 'OpenShip describes Libro MCP: its identity and canonical publishing service, dependencies, and verifiable sources. The source snapshot may also include the wider Memorioso repository.',
         instructions: 'Call openship with agent.skill and read the returned skill before using the advertised capabilities. Read referenced skill files with the read operation.',
         skill: { operation: 'document', kind: 'skill' },
       },
       capabilities: {
         sources: {
-          description: discovery.capabilities.sources.description,
+          description: 'Retrieve the verified repository source snapshot. Files may include Memorioso and other components outside the Libro MCP system boundary.',
           manifest: { operation: 'manifest' },
           bundle: { operation: 'document', kind: 'bundle' },
         },
-        ...(discovery.capabilities.systems ? {
+        ...(verified.bundle.files[MCP_SYSTEM_PATH] ? {
           systems: {
-            description: discovery.capabilities.systems.description,
+            description: 'Retrieve the Libro MCP system and its dependencies, with the verified source snapshot. Repository source coverage may exceed this system boundary.',
             document: { operation: 'document', kind: 'systems' },
           },
         } : {}),
@@ -209,16 +212,17 @@ export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'syste
     }
     return entry.content
   }
-  if (kind === 'systems' && discovery.capabilities.systems) {
+  if (kind === 'systems' && verified.bundle.files[MCP_SYSTEM_PATH]) {
     try {
-      const document = validateSystems(
-        await fetchJson(discovery.capabilities.systems.document, 'systems'),
-        { maxDecodedBytes: MAX_OPENSHIP_SOURCE_BYTES },
-      )
-      if (document.source.manifest.digest !== snapshot.manifest.digest) {
-        throw new ServiceError('OPENSHIP_INVALID', 'OpenShip Systems snapshot changed; retry retrieval', 502, true)
-      }
-      return document
+      const entry = verified.bundle.files[MCP_SYSTEM_PATH]
+      if (entry.encoding !== 'utf-8') throw new Error('MCP system must be UTF-8')
+      return validateSystems({
+        openship: '1.0',
+        capability: 'systems',
+        systemsVersion: '2.0',
+        source: { manifest: snapshot.manifest, bundle: verified.bundle },
+        system: JSON.parse(entry.content).system,
+      }, { maxDecodedBytes: MAX_OPENSHIP_SOURCE_BYTES })
     } catch (error) {
       validationError(error)
     }

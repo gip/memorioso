@@ -62,10 +62,10 @@
       },
       {
         "kind": "Document",
-        "hash": "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
+        "hash": "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff",
         "title": "OpenShip Sources and Systems",
         "language": "en",
-        "text": "Discovery advertises Sources and Systems. Systems embeds exactly the same complete verified Sources snapshot plus this architecture; it is public and CORS-readable. Libro MCP remains a public Sources-only manifest/read binding."
+        "text": "Discovery advertises Sources and Systems. Systems embeds exactly the same complete verified Sources snapshot plus this architecture; it is public and CORS-readable. Libro MCP exposes a separate service-scoped discovery and Systems model from verified snapshot bytes. Its source inventory may still include the wider repository; that inventory does not expand the MCP system boundary."
       },
       {
         "kind": "Document",
@@ -220,7 +220,7 @@
         "nodeId": "p.app",
         "concern": "Interfaces",
         "documentRefs": [
-          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f"
+          "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff"
         ]
       },
       {
@@ -253,7 +253,7 @@
           "sha256:fe30f451311fad7c3690b359fc51a25d882248e556ec43e53203878e4e6fa960",
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
+          "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
       },
@@ -277,7 +277,7 @@
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:b31852c5cfaf13ec80b66bebe4ca12068d033d230ff5976cba8c244ab58103a4",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
+          "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
       },
@@ -299,7 +299,7 @@
           "sha256:4e1bfbeda9f03df93571218c592407d59e8144e1c41041ad1031c5981d5ed7d5",
           "sha256:4884b6f69b94c51750591cf3a30a9aeacc55c000c74f1e2dd9a99280c7b4c12d",
           "sha256:8a5b07746b1676d49cf34c793573355d019051aacdc42e9f27637e0917c28230",
-          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f",
+          "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff",
           "sha256:341a23f787cec920087583345e2e106ce142b3ae9968f1b7b9a33fc56931365a"
         ]
       },
@@ -446,7 +446,7 @@
         "nodeId": "provider.p.app",
         "concern": "Interfaces",
         "documentRefs": [
-          "sha256:7b072a26342880feae80b4004a6d8987e7502f25d5af61c054c2b326b65c7f3f"
+          "sha256:80ae99f973eba96b273c9a4be3c15f724f8f05fb69b69f096f149533106017ff"
         ]
       },
       {

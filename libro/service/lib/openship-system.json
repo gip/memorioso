@@ -1,0 +1,158 @@
+{
+  "project": {
+    "name": "Libro MCP",
+    "productDescription": "An MCP service for verifiable human identity and canonical publishing by humans and human-authorized agents.",
+    "productSummary": "## Libro MCP\n\nLibro exposes identity, author profiles, canonical publications, and human and agent publishing workflows through MCP. Public reads expose complete signed publications; protected operations enforce identity, scope, and signing authorization.\n\nMemorioso provides browser login and signing screens as a client of the service. Draft editing, feeds, and paid reading access belong to that client and are outside this system.",
+    "technicalDescription": "Headless Next.js MCP service with Postgres, World ID verification, and World Chain registrations.",
+    "technicalSummary": "## MCP service boundary\n\nLibro exposes its application interface at /mcp. It owns OAuth state, canonical identities and publications, signing operations, chain verification, a relayer, and a durable event outbox. Memorioso hosts browser UI and standard OAuth endpoints that translate requests into MCP calls. World ID and World Chain are dependencies.\n\n## Sources and deployment\n\nThe verified source snapshot may include the wider Memorioso repository. Its file inventory does not define the scope of this MCP system view. Follow libro/service/README.md to deploy Libro separately with its own Postgres database using Node.js 24 and pnpm 10.34.5. Deployment bindings and live health are not asserted by this model."
+  },
+  "system": {
+    "id": "libro-mcp",
+    "name": "Libro MCP",
+    "metadata": {
+      "description": "This system describes only Libro MCP and its dependencies. The embedded Sources snapshot may cover the entire repository, including applications outside this boundary.",
+      "deploymentStatus": "Source-described architecture; not verified live deployment inventory."
+    },
+    "layers": [
+      {
+        "id": "technical",
+        "name": "MCP service and dependencies",
+        "role": "technical",
+        "rootNodeId": "libro",
+        "nodes": [
+          {
+            "id": "libro",
+            "name": "Libro MCP",
+            "kind": "Root",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Headless identity and canonical publishing service; /mcp is its only application route."
+            }
+          },
+          {
+            "id": "service",
+            "name": "Libro MCP server",
+            "kind": "Process",
+            "parentId": "libro",
+            "sourceSelectors": [
+              "libro/service/**"
+            ],
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Public canonical reads; authenticated profile and publication tools; browser signing and OAuth tools; agent authorization; internal event delivery."
+            }
+          },
+          {
+            "id": "database",
+            "name": "Libro Postgres",
+            "kind": "Store",
+            "parentId": "libro",
+            "sourceSelectors": [
+              "libro/service/db/**"
+            ],
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Dedicated canonical identities, publications, OAuth state, prepared signing operations, and durable outbox."
+            }
+          },
+          {
+            "id": "core",
+            "name": "Libro protocol helpers",
+            "kind": "Library",
+            "parentId": "libro",
+            "sourceSelectors": [
+              "libro/core/**"
+            ],
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Canonical payloads, signatures, proof and registry helpers."
+            }
+          },
+          {
+            "id": "memorioso",
+            "name": "Memorioso client and browser UI",
+            "kind": "Block",
+            "parentId": "libro",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "External client hosting login, signing, and standard OAuth endpoints. Drafts, feeds, presentation policy, and x402 are outside the MCP system.",
+              "scope": "external_dependency"
+            }
+          },
+          {
+            "id": "worldid",
+            "name": "World ID verifier",
+            "kind": "Block",
+            "parentId": "libro",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "External proof verification dependency.",
+              "scope": "external_dependency"
+            }
+          },
+          {
+            "id": "chain",
+            "name": "World Chain and LibroRegistry",
+            "kind": "Block",
+            "parentId": "libro",
+            "metadata": {
+              "ownership": "third_party",
+              "responsibility": "On-chain handle-bound publication registrations and agent authorization; RPC endpoints are queried in parallel.",
+              "scope": "external_dependency"
+            }
+          },
+          {
+            "id": "sources",
+            "name": "OpenShip source origin",
+            "kind": "Block",
+            "parentId": "libro",
+            "metadata": {
+              "ownership": "first_party",
+              "responsibility": "Publishes the verified repository snapshot; source coverage may exceed the MCP system boundary.",
+              "scope": "external_dependency"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "service-database",
+            "type": "Dependency",
+            "fromNodeId": "service",
+            "toNodeId": "database"
+          },
+          {
+            "id": "service-core",
+            "type": "Dependency",
+            "fromNodeId": "service",
+            "toNodeId": "core"
+          },
+          {
+            "id": "memorioso-service",
+            "type": "Dependency",
+            "fromNodeId": "memorioso",
+            "toNodeId": "service"
+          },
+          {
+            "id": "service-worldid",
+            "type": "Dependency",
+            "fromNodeId": "service",
+            "toNodeId": "worldid"
+          },
+          {
+            "id": "service-chain",
+            "type": "Dependency",
+            "fromNodeId": "service",
+            "toNodeId": "chain"
+          },
+          {
+            "id": "service-sources",
+            "type": "Dependency",
+            "fromNodeId": "service",
+            "toNodeId": "sources"
+          }
+        ]
+      }
+    ],
+    "refinements": []
+  }
+}

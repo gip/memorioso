@@ -97,7 +97,11 @@ configuration, `LIBRO_SERVICE_URL`, `LIBRO_MCP_STATE_SECRET`, and
 validated snapshot through the OpenShip 0.2.1 full-document MCP binding. `document` retrieves
 MCP discovery, the complete verified bundle, the skill, or advertised Systems; `manifest` and
 `read` retrieve metadata and exact files. Results include structured content and equivalent JSON
-text. Systems must match the source digest, and the skill comes from verified snapshot bytes.
+text. MCP discovery summaries and Systems describe only Libro MCP and its dependencies. The
+source manifest and bundle retain the upstream repository scope, which may include Memorioso
+and other components outside the MCP system. Systems is composed from
+`libro/service/lib/openship-system.json` in the verified snapshot, never from the upstream
+website system view. The system model and skill both come from verified snapshot bytes.
 Changes policy is not advertised. Callers cannot select another origin. Initialization and
 OpenShip reads are public; unrelated write tools retain their OAuth requirements.
 

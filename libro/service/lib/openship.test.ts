@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeSourcesDigest, type SourceFileMetadata } from '@openship/protocol'
-import systemsExample from '../../../skills/openship/references/examples/valid/systems.json'
+import mcpModel from './openship-system.json'
 import { ServiceError } from './errors'
 import {
   MAX_OPENSHIP_SOURCE_BYTES,
@@ -114,33 +114,34 @@ describe('Libro OpenShip source loader', () => {
     await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
-  it('validates Systems and refuses a different embedded snapshot', async () => {
-    let currentManifest: unknown = systemsExample.source.manifest
-    let currentBundle: unknown = systemsExample.source.bundle
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      if (url.endsWith('/.well-known/openship.json')) return Response.json({
-        ...discovery(),
-        capabilities: { ...discovery().capabilities, systems: {
-          description: 'Retrieve the complete system.',
-          document: 'https://memorioso.test/openship/systems.json',
-        } },
-      })
-      if (url.endsWith('/manifest.json')) return Response.json(currentManifest)
-      if (url.endsWith('/bundle.json')) return Response.json(currentBundle)
-      if (url.endsWith('/systems.json')) return Response.json(systemsExample)
-      return new Response(null, { status: 404 })
+  it('describes only Libro MCP while retaining the complete verified repository snapshot', async () => {
+    const source = makeSource({
+      'libro/service/lib/openship-system.json': JSON.stringify(mcpModel),
+      'libro/service/app/mcp/route.ts': '// MCP endpoint',
+      'libro/service/db/schema.sql': '-- canonical store',
+      'libro/core/src/index.ts': '// shared protocol',
+      'app/page.tsx': '// website outside MCP scope',
     })
-    expect(await readOpenShipDocument('systems')).toEqual(systemsExample)
+    const fetchMock = installFetch(source)
+    const document = await readOpenShipDocument('systems')
+    expect(document).toMatchObject({
+      system: mcpModel.system,
+      source: { manifest: source.manifest, bundle: source.bundle },
+    })
     expect(await readOpenShipDocument('discovery')).toMatchObject({
-      capabilities: { systems: { document: { operation: 'document', kind: 'systems' } } },
+      project: mcpModel.project,
+      agent: { summary: expect.stringContaining('Libro MCP') },
+      capabilities: {
+        systems: { document: { operation: 'document', kind: 'systems' } },
+        sources: { description: expect.stringContaining('outside the Libro MCP system boundary') },
+      },
     })
-    const replacement = makeSource({ 'README.md': 'a different deployment' })
-    currentManifest = replacement.manifest
-    currentBundle = replacement.bundle
-    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({
-      code: 'OPENSHIP_INVALID', retryable: true,
-    })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/systems.json'))).toBe(false)
+  })
+
+  it('rejects an invalid MCP model in an otherwise verified snapshot', async () => {
+    installFetch(makeSource({ 'libro/service/lib/openship-system.json': '{' }))
+    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
   })
 
   it('rejects a skill absent from the verified snapshot', async () => {

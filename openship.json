@@ -1483,6 +1483,9 @@
       "path": "libro/service/lib/oauth.ts"
     },
     {
+      "path": "libro/service/lib/openship-system.json"
+    },
+    {
       "path": "libro/service/lib/openship.test.ts"
     },
     {

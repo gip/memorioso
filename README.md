@@ -20,6 +20,9 @@ In the OpenShip description, a **CONTRACT** is a **PROCESS running on consensus*
 
 ## Agents
 
+Use the [Libro product-building skill](./libro/skill/SKILL.md) for PoH requirements, features,
+staging and production MCP URLs, OAuth, publishing, and verification workflows.
+
 Handle owners can authorize agents to publish on their behalf, and those agents sign with EIP-712 rather than a World ID proof, so the contract keeps agent authorship semantically distinct from direct human authorship. Coding agents can make use of this by directly writing code that hits `LibroRegistry` (see `lib/libro/agent.ts`); an MCP is also available.
 
 ## OpenShip

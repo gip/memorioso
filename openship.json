@@ -3,10 +3,13 @@
   "capability": "sources",
   "project": {
     "name": "Memorioso",
-    "description": "Memorioso is a Next.js publishing client with browser-encrypted drafts, local feeds and access policy. The separate Libro service owns canonical identity, OAuth and human/agent publications, bound through World ID 4.0 proofs and the Libro registry on World Chain. Legacy paths remain behind independent cutover flags.",
     "homepage": "https://memorioso.xyz",
     "repository": "https://github.com/memorioso/memorioso",
-    "license": "See LICENSE in the source tree if present; otherwise all rights reserved."
+    "license": "See LICENSE in the source tree if present; otherwise all rights reserved.",
+    "productDescription": "Publish writing with verifiable human authorship and support for human-authorized agents.",
+    "productSummary": "## What Memorioso does\n\nMemorioso is a publishing application for human-authored writing and human-authorized agents. Authors create drafts, publish articles and shorts, and share them through public author pages and feeds.\n\nReaders can inspect authorship proofs. Authors can also encrypt drafts in their browser and configure access to articles.\n\n### The problem it solves\n\nAs automated content becomes common, readers need a way to verify who stands behind a publication. Memorioso connects publishing to verified human identities and explicitly authorized agents.",
+    "technicalDescription": "Next.js, React, TypeScript, and Postgres, with Libro identity services and World ID proofs on World Chain.",
+    "technicalSummary": "## Implementation\n\nMemorioso uses Next.js App Router, React, TypeScript, Tailwind CSS, and a TipTap editor. It owns drafts, local feeds, author projections, and access policy. Optional draft encryption happens in the browser.\n\n### Identity and publishing\n\nThe separate Libro MCP owns canonical identity, OAuth, and publications after service cutover. World ID 4.0 proofs bind authorship to the Libro registry on World Chain. The workspace includes shared Libro helpers, contracts, and a Chrome extension.\n\n### Deployment\n\nUse Node.js 24 and pnpm 10.34.5. Run `pnpm install --frozen-lockfile`, configure `.env.example`, and apply Memorioso database migrations with `pnpm db:migrate`. Run `pnpm build` and `pnpm start`, or deploy the Next.js app to Vercel.\n\nDeploy Libro MCP separately with its own Postgres database and environment. Follow `libro/service/README.md` for migrations, OAuth configuration, registry addresses, and the ordered service cutover. Service reads and writes use independent flags. Never share the two services’ databases.\n\n### Reuse Libro MCP\n\nConnect any compatible MCP client to the production endpoint https://libro-mcp.vercel.app/mcp for public author and publication reads, verifiable human publishing, and human-authorized agent workflows. Protected tools require the appropriate authorization.\n\n### Libro MCP skill\n\nOpenShip Skills shares the complete Libro integration guide and its MCP, protocol, and embed references. Retrieve the [Skills catalog](/openship/skills.json) or read [Build with Libro MCP](/openship/file/libro/skill/SKILL.md)."
   },
   "stack": [
     "Next.js 16 App Router (cacheComponents enabled)",
@@ -59,7 +62,7 @@
     },
     {
       "path": "lib/openship/",
-      "purpose": "The Openship manifest and bundle served by this endpoint, plus the change policy and validator."
+      "purpose": "The OpenShip Sources snapshot and Systems document served by this endpoint."
     },
     {
       "path": "libro/contracts/",
@@ -79,7 +82,7 @@
     },
     {
       "path": "scripts/",
-      "purpose": "Database init/migrate tooling, this Openship build step, and the change build worker."
+      "purpose": "Database init/migrate tooling and the OpenShip source snapshot build step."
     },
     {
       "path": "types/",
@@ -164,6 +167,12 @@
     },
     {
       "path": "README.md"
+    },
+    {
+      "path": "app/.well-known/oauth-authorization-server/libro/route.ts"
+    },
+    {
+      "path": "app/.well-known/oauth-protected-resource/libro/route.ts"
     },
     {
       "path": "app/.well-known/openship.json/route.test.ts"
@@ -337,6 +346,12 @@
       "path": "app/api/libro/events/route.ts"
     },
     {
+      "path": "app/api/libro/oauth/[operation]/route.test.ts"
+    },
+    {
+      "path": "app/api/libro/oauth/[operation]/route.ts"
+    },
+    {
       "path": "app/api/publications/[publicationId]/content/route.test.ts"
     },
     {
@@ -427,18 +442,6 @@
       "path": "app/openship/bundle.json/route.ts"
     },
     {
-      "path": "app/openship/changes/[changeId]/route.test.ts"
-    },
-    {
-      "path": "app/openship/changes/[changeId]/route.ts"
-    },
-    {
-      "path": "app/openship/changes/route.test.ts"
-    },
-    {
-      "path": "app/openship/changes/route.ts"
-    },
-    {
       "path": "app/openship/file/[...path]/route.test.ts"
     },
     {
@@ -460,7 +463,10 @@
       "path": "app/openship/page.tsx"
     },
     {
-      "path": "app/openship/policy.json/route.ts"
+      "path": "app/openship/skills.json/route.test.ts"
+    },
+    {
+      "path": "app/openship/skills.json/route.ts"
     },
     {
       "path": "app/openship/systems.json/route.ts"
@@ -488,9 +494,6 @@
     },
     {
       "path": "app/short/[publicationId]/proof/page.tsx"
-    },
-    {
-      "path": "app/sitemap.ts"
     },
     {
       "path": "app/terms/page.tsx"
@@ -590,6 +593,9 @@
     },
     {
       "path": "components/MemMark/index.tsx"
+    },
+    {
+      "path": "components/Openship/ProjectSummaries.tsx"
     },
     {
       "path": "components/Openship/ViewerLink.tsx"
@@ -844,13 +850,13 @@
       "path": "lib/db/migrations/023_legacy_publication_policies.sql"
     },
     {
+      "path": "lib/db/migrations/024_remove_openship_changes.sql"
+    },
+    {
       "path": "lib/db/objects.test.ts"
     },
     {
       "path": "lib/db/objects.ts"
-    },
-    {
-      "path": "lib/db/openship-changes.ts"
     },
     {
       "path": "lib/db/publication-cache.ts"
@@ -910,6 +916,9 @@
       "path": "lib/json.ts"
     },
     {
+      "path": "lib/libro-service/browser-mcp.ts"
+    },
+    {
       "path": "lib/libro-service/client.ts"
     },
     {
@@ -917,6 +926,12 @@
     },
     {
       "path": "lib/libro-service/cutover.ts"
+    },
+    {
+      "path": "lib/libro-service/oauth-metadata.test.ts"
+    },
+    {
+      "path": "lib/libro-service/oauth-metadata.ts"
     },
     {
       "path": "lib/libro-service/oauth-state.ts"
@@ -991,24 +1006,6 @@
       "path": "lib/local-draft.ts"
     },
     {
-      "path": "lib/openship/candidate.test.ts"
-    },
-    {
-      "path": "lib/openship/candidate.ts"
-    },
-    {
-      "path": "lib/openship/change-status.test.ts"
-    },
-    {
-      "path": "lib/openship/change.ts"
-    },
-    {
-      "path": "lib/openship/changes-config.test.ts"
-    },
-    {
-      "path": "lib/openship/changes-config.ts"
-    },
-    {
       "path": "lib/openship/conformance.test.ts"
     },
     {
@@ -1018,19 +1015,13 @@
       "path": "lib/openship/instructions.ts"
     },
     {
-      "path": "lib/openship/lifecycle.test.ts"
-    },
-    {
       "path": "lib/openship/manifest.ts"
     },
     {
       "path": "lib/openship/paths.ts"
     },
     {
-      "path": "lib/openship/policy.test.ts"
-    },
-    {
-      "path": "lib/openship/policy.ts"
+      "path": "lib/openship/skills.ts"
     },
     {
       "path": "lib/openship/system.json"
@@ -1040,12 +1031,6 @@
     },
     {
       "path": "lib/openship/systems.test.ts"
-    },
-    {
-      "path": "lib/openship/validate.test.ts"
-    },
-    {
-      "path": "lib/openship/validate.ts"
     },
     {
       "path": "lib/publication-kind.test.ts"
@@ -1288,6 +1273,15 @@
       "path": "libro/core/src/legacy.test.ts"
     },
     {
+      "path": "libro/core/src/mcp-browser-tools.ts"
+    },
+    {
+      "path": "libro/core/src/mcp-client.test.ts"
+    },
+    {
+      "path": "libro/core/src/mcp-client.ts"
+    },
+    {
       "path": "libro/core/src/verify-chain.test.ts"
     },
     {
@@ -1300,145 +1294,10 @@
       "path": "libro/service/README.md"
     },
     {
-      "path": "libro/service/app/.well-known/oauth-authorization-server/route.ts"
+      "path": "libro/service/app/mcp/application.test.ts"
     },
     {
-      "path": "libro/service/app/.well-known/oauth-protected-resource/mcp/route.ts"
-    },
-    {
-      "path": "libro/service/app/.well-known/oauth-protected-resource/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/health/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/internal/events/deliver/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-documents/finalize/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-documents/prepare/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-registrations/[registrationId]/revoke/finalize/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-registrations/[registrationId]/revoke/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-registrations/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-signing/[capability]/context/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-signing/[capability]/finalize/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-signing/[capability]/prepare/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/agent-signing/[capability]/relay/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/authors/[idOrHandle]/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/browser/[kind]/[capability]/route.test.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/browser/[kind]/[capability]/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/handle-claims/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/handle-signing/[capability]/context/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/handle-signing/[capability]/finalize/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/handle-signing/[capability]/prepare/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/handle-signing/[capability]/relay/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/human-publications/[challengeId]/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/human-publications/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/context/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/handle/route.test.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/handle/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/hint/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/verify/route.test.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/identity/verify/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/imports/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/me/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/[publicationId]/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/[publicationId]/verify/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/by-signal/[signalHash]/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/counts/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/publications/sitemap/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/signing/[capability]/context/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/signing/[capability]/finalize/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/signing/[capability]/prepare/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/signing/[capability]/relay/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/signing/[capability]/submission/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/sponsorship/context/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/sponsorship/verify/route.ts"
-    },
-    {
-      "path": "libro/service/app/api/v1/user-operations/[userOpHash]/route.ts"
-    },
-    {
-      "path": "libro/service/app/claim/[capability]/route.ts"
+      "path": "libro/service/app/mcp/oauth.test.ts"
     },
     {
       "path": "libro/service/app/mcp/route.test.ts"
@@ -1447,34 +1306,13 @@
       "path": "libro/service/app/mcp/route.ts"
     },
     {
-      "path": "libro/service/app/oauth/authorize/route.test.ts"
-    },
-    {
-      "path": "libro/service/app/oauth/authorize/route.ts"
-    },
-    {
-      "path": "libro/service/app/oauth/register/route.ts"
-    },
-    {
-      "path": "libro/service/app/oauth/revoke/route.ts"
-    },
-    {
-      "path": "libro/service/app/oauth/token/route.ts"
-    },
-    {
-      "path": "libro/service/app/route.ts"
-    },
-    {
-      "path": "libro/service/app/sign-agent/[capability]/route.ts"
-    },
-    {
-      "path": "libro/service/app/sign/[capability]/route.ts"
-    },
-    {
       "path": "libro/service/db/migrations/001_initial_service.sql"
     },
     {
       "path": "libro/service/db/migrations/002_legacy_publications.sql"
+    },
+    {
+      "path": "libro/service/db/migrations/003_mcp_resource.sql"
     },
     {
       "path": "libro/service/db/schema.sql"
@@ -1534,10 +1372,127 @@
       "path": "libro/service/lib/imports.ts"
     },
     {
+      "path": "libro/service/lib/mcp-only.test.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/agent_signing_context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/agent_signing_finalize.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/agent_signing_prepare.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/agent_signing_relay.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/browser_review.test.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/browser_review.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/create_human_publication.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/deliver_events.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/get_author.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/get_publication_by_signal.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/handle_signing_context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/handle_signing_finalize.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/handle_signing_prepare.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/handle_signing_relay.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/health.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_handle.test.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_handle.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_hint.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_verify.test.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/identity_verify.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/list_agent_registrations.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/oauth_authorization.test.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/oauth_authorization.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/oauth_transport.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/publication_counts.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/register.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/signing_context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/signing_finalize.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/signing_prepare.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/signing_relay.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/signing_submission.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/sponsorship_context.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/sponsorship_verify.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/update_profile.ts"
+    },
+    {
+      "path": "libro/service/lib/mcp/user_operation_receipt.ts"
+    },
+    {
       "path": "libro/service/lib/oauth.test.ts"
     },
     {
       "path": "libro/service/lib/oauth.ts"
+    },
+    {
+      "path": "libro/service/lib/openship-system.json"
     },
     {
       "path": "libro/service/lib/openship.test.ts"
@@ -1577,6 +1532,9 @@
     },
     {
       "path": "libro/skill/references/embed.md"
+    },
+    {
+      "path": "libro/skill/references/mcp.md"
     },
     {
       "path": "libro/skill/references/protocol.md"
@@ -1651,15 +1609,6 @@
       "path": "scripts/openship-manifest.test.mjs"
     },
     {
-      "path": "scripts/openship-resolve.mjs"
-    },
-    {
-      "path": "scripts/openship-review.mjs"
-    },
-    {
-      "path": "scripts/openship-worker.mjs"
-    },
-    {
       "path": "skills/openship/SKILL.md"
     },
     {
@@ -1676,6 +1625,12 @@
     },
     {
       "path": "skills/openship/references/examples/invalid/discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/mcp-discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/invalid/skills.json"
     },
     {
       "path": "skills/openship/references/examples/invalid/sources-manifest.json"
@@ -1705,10 +1660,19 @@
       "path": "skills/openship/references/examples/valid/discovery.json"
     },
     {
+      "path": "skills/openship/references/examples/valid/mcp-discovery.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/skills.json"
+    },
+    {
       "path": "skills/openship/references/examples/valid/sources-bundle.json"
     },
     {
       "path": "skills/openship/references/examples/valid/sources-manifest.json"
+    },
+    {
+      "path": "skills/openship/references/examples/valid/systems-layered.json"
     },
     {
       "path": "skills/openship/references/examples/valid/systems.json"
@@ -1718,6 +1682,9 @@
     },
     {
       "path": "skills/openship/references/openship-mcp.md"
+    },
+    {
+      "path": "skills/openship/references/openship-skills.md"
     },
     {
       "path": "skills/openship/references/openship-sources.md"
@@ -1745,6 +1712,12 @@
     },
     {
       "path": "skills/openship/references/schemas/discovery.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/mcp-discovery.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/skills.schema.json"
     },
     {
       "path": "skills/openship/references/schemas/sources-bundle.schema.json"

@@ -8,7 +8,6 @@ import {
   latestPublicationsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
-  sitemapCacheTag,
 } from '@/lib/db/publication-cache'
 import {
   configureLibroWriteTransaction,
@@ -424,7 +423,6 @@ export async function PUT(
       revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(draft.authorId), { expire: 0 })
-      revalidateTag(sitemapCacheTag, { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })
       revalidatePath('/')
       revalidatePath('/latest')

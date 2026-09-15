@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
+import ProjectSummaries from '@/components/Openship/ProjectSummaries'
 import OpenshipViews from '@/components/Openship'
 import ViewerLink from '@/components/Openship/ViewerLink'
-import { getChangesConfig } from '@/lib/openship/changes-config'
 import { openshipOrigin } from '@/lib/openship/http'
 import { buildOpenshipInstructions } from '@/lib/openship/instructions'
 import {
@@ -15,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: 'OpenShip — Memorioso',
   description:
-    'Retrieve Memorioso’s verifiable sources and structured system design over public HTTP.',
+    'Retrieve Memorioso’s verifiable sources and structured system design and Libro MCP skills over public HTTP.',
   alternates: { canonical: '/openship' },
 }
 
@@ -24,7 +24,6 @@ const formatBytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`
 const HumanView = () => {
   const manifest = getOpenshipManifest()
   const commit = getOpenshipCommit()
-  const changes = getChangesConfig()
   const mcp = process.env.LIBRO_SERVICE_URL
     ? new URL('/mcp', process.env.LIBRO_SERVICE_URL).toString()
     : null
@@ -35,8 +34,7 @@ const HumanView = () => {
         <p>
           This is {manifest.project.name}&apos;s OpenShip page. OpenShip is a public interface for
           understanding, reproducing, and improving a running project from the project&apos;s own
-          origin. Memorioso uses it to publish an integrity-checked source snapshot, structured system design, and the rules
-          for proposing isolated candidate changes.
+          origin. Memorioso uses it to publish an integrity-checked source snapshot and structured system design.
         </p>
         <p>
           This presentation explains those interfaces; the linked discovery and capability JSON
@@ -49,9 +47,7 @@ const HumanView = () => {
         <p className="text-[15px] font-medium text-foreground sm:text-base">
           {manifest.project.name}
         </p>
-        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-          {manifest.project.description}
-        </p>
+        <ProjectSummaries project={manifest.project} />
       </section>
 
       <section className="space-y-2">
@@ -127,31 +123,25 @@ const HumanView = () => {
         <h2 className="text-sm font-medium text-foreground">Systems</h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
           {OPENSHIP_CAPABILITY_DESCRIPTIONS.systems} The design describes Memorioso, Libro,
-          clients, verification, and optional candidate builds. It describes supported
+          clients, and verification. It describes supported
           configurations, including legacy paths, rather than live service health.
         </p>
         <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
           <li><ViewerLink origin={openshipOrigin()} /> — explore the architecture and sources on openship.dev.</li>
-          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems v1 document.</li>
+          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems 2.0 document.</li>
+        </ul>
+      </section>
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-foreground">Skills</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+          {OPENSHIP_CAPABILITY_DESCRIPTIONS.skills}
+        </p>
+        <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.skills}>Skills catalog</a> — the complete portable Libro skill and its references.</li>
+          <li><a className="underline underline-offset-4" href="/openship/file/libro/skill/SKILL.md">Build with Libro MCP</a> — read the integration guide.</li>
         </ul>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium text-foreground">Changes</h2>
-        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-          {OPENSHIP_CAPABILITY_DESCRIPTIONS.changes} This deployment{' '}
-          {changes.enabled
-            ? 'currently accepts submissions.'
-            : 'does not currently accept submissions; the submission endpoint returns 501.'}{' '}
-          A candidate result is an isolated preview and is never a production deployment or an
-          automatic promotion.
-        </p>
-        <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
-          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.policy}>Policy</a> — writable paths, protections, limits, and current availability.</li>
-          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.changes}>Submission endpoint</a> — accepts a patch with <code>POST</code>.</li>
-          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.changeStatus}>Status template</a> — reports the candidate lifecycle for a change ID.</li>
-        </ul>
-      </section>
     </div>
   )
 }

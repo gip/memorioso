@@ -1,11 +1,15 @@
+import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computeSourcesDigest, type SourceFileMetadata } from '@openship/protocol'
+import { computeSourcesDigest, validateSkills, validateSystems, type SourceFileMetadata } from '@openship/protocol'
+import mcpModel from './openship-system.json'
+import fullSystem from '../../../lib/openship/system.json'
 import { ServiceError } from './errors'
 import {
   MAX_OPENSHIP_SOURCE_BYTES,
   getOpenShipSnapshot,
   readOpenShipFile,
+  readOpenShipDocument,
   resetOpenShipSnapshotCacheForTests,
 } from './openship'
 
@@ -27,7 +31,7 @@ function makeSource(files: Record<string, string>) {
     openship: '1.0' as const,
     capability: 'sources' as const,
     digest,
-    project: { name: 'Memorioso', description: 'A test source.' },
+    project: { name: 'Memorioso', productDescription: 'Test publishing.', productSummary: '# Product\n\nTest publication.', technicalDescription: 'Test source.', technicalSummary: '# Implementation\n\nTest deployment.' },
     totals: { files: metadata.length, bytes: metadata.reduce((sum, file) => sum + file.size, 0) },
     files: metadata,
   }
@@ -44,7 +48,7 @@ function discovery() {
   return {
     openship: '1.0',
     capability: 'discovery',
-    project: { name: 'Memorioso', description: 'A test source.' },
+    project: { name: 'Memorioso', productDescription: 'Test publishing.', productSummary: '# Product\n\nTest publication.', technicalDescription: 'Test source.', technicalSummary: '# Implementation\n\nTest deployment.' },
     agent: {
       summary: 'OpenShip lets this running project publish verifiable source code.',
       instructions: 'Fetch and read agent.skill before interpreting any advertised capability.',
@@ -93,6 +97,109 @@ describe('Libro OpenShip source loader', () => {
     expect(second.content).toBe('export default 1\n')
     expect(second.snapshot.manifest.digest).toBe(first.manifest.digest)
     expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
+
+  it('serves standalone MCP discovery, verified bundle, and skill', async () => {
+    const source = makeSource({ 'skills/openship/SKILL.md': '# OpenShip' })
+    installFetch(source)
+    expect(await readOpenShipDocument('bundle')).toEqual(source.bundle)
+    expect(await readOpenShipDocument('skill')).toBe('# OpenShip')
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      mcpBinding: '1.0',
+      agent: { skill: { operation: 'document', kind: 'skill' } },
+      capabilities: { sources: {
+        manifest: { operation: 'manifest' },
+        bundle: { operation: 'document', kind: 'bundle' },
+      } },
+    })
+    await expect(readOpenShipDocument('policy')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('shares the complete Libro skill from verified bytes without extra catalog requests', async () => {
+    const paths = ['SKILL.md', 'references/mcp.md', 'references/protocol.md', 'references/embed.md']
+    const files = Object.fromEntries(paths.map(path => [
+      `libro/skill/${path}`, readFileSync(new URL(`../../skill/${path}`, import.meta.url), 'utf8'),
+    ]))
+    const fetchMock = installFetch(makeSource(files))
+    const catalog = validateSkills(await readOpenShipDocument('skills'))
+    expect(catalog.skills).toHaveLength(1)
+    expect(Object.keys(catalog.skills[0].files).sort()).toEqual(paths.sort())
+    for (const path of paths) expect(catalog.skills[0].files[path].content).toBe(files[`libro/skill/${path}`])
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      capabilities: { skills: { document: { operation: 'document', kind: 'skills' } } },
+    })
+    expect(fetchMock.mock.calls.every(([url]) => /(?:openship|manifest|bundle)\.json$/.test(String(url)))).toBe(true)
+  })
+
+  it('omits Skills for older snapshots and rejects incomplete portable folders', async () => {
+    installFetch(makeSource({ 'README.md': '# Old snapshot' }))
+    expect(await readOpenShipDocument('discovery')).not.toHaveProperty('capabilities.skills')
+    await expect(readOpenShipDocument('skills')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    installFetch(makeSource({ 'libro/skill/SKILL.md': '# Incomplete' }))
+    await expect(readOpenShipDocument('skills')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
+  })
+
+  it('describes only Libro MCP while retaining the complete verified repository snapshot', async () => {
+    const source = makeSource({
+      'libro/service/lib/openship-system.json': JSON.stringify(mcpModel),
+      'libro/service/app/mcp/route.ts': '// MCP endpoint',
+      'libro/service/db/schema.sql': '-- canonical store',
+      'libro/core/src/index.ts': '// shared protocol',
+      'libro/contracts/src/LibroRegistry.sol': '// registry',
+      ...Object.fromEntries(mcpModel.system.context.artifacts.flatMap(artifact =>
+        artifact.sourcePaths.map(path => [path, '// schema source']))),
+      'app/page.tsx': '// website outside MCP scope',
+    })
+    const fetchMock = installFetch(source)
+    validateSystems({ openship: '1.0', capability: 'systems', systemsVersion: '2.0',
+      source: { manifest: source.manifest, bundle: source.bundle }, system: mcpModel.system })
+    const document = await readOpenShipDocument('systems')
+    expect(document).toMatchObject({
+      system: mcpModel.system,
+      source: { manifest: source.manifest, bundle: source.bundle },
+    })
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      project: mcpModel.project,
+      agent: { summary: expect.stringContaining('Libro MCP') },
+      capabilities: {
+        systems: { document: { operation: 'document', kind: 'systems' } },
+        sources: { description: expect.stringContaining('outside the Libro MCP system boundary') },
+      },
+    })
+    expect(JSON.stringify(mcpModel)).not.toMatch(/memorioso/i)
+    expect(JSON.stringify(await readOpenShipDocument('discovery'))).not.toMatch(/memorioso/i)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/systems.json'))).toBe(false)
+  })
+
+  it('keeps Libro components and relationships as a subset of the shared system', () => {
+    const rootIds = new Set(mcpModel.system.layers.map(layer => layer.rootNodeId))
+    for (const layer of mcpModel.system.layers) {
+      const shared = fullSystem.layers.find(candidate => candidate.id === layer.id)!
+      for (const node of layer.nodes) {
+        if (rootIds.has(node.id)) continue
+        const original = shared.nodes.find(candidate => candidate.id === node.id)!
+        expect(original).toBeDefined()
+        expect(node).toEqual({ ...original, parentId: original.parentId === shared.rootNodeId ? layer.rootNodeId : original.parentId })
+      }
+      for (const edge of layer.edges) expect(shared.edges).toContainEqual(edge)
+    }
+    for (const refinement of mcpModel.system.refinements) expect(fullSystem.refinements).toContainEqual(refinement)
+    for (const layer of mcpModel.system.layers.filter(layer => layer.role !== 'logical')) {
+      expect(layer.nodes.find(node => node.name === 'Libro MCP' && node.kind === 'Process')).toMatchObject({
+        metadata: { mcpEndpoint: 'https://libro-mcp.vercel.app/mcp' },
+      })
+    }
+  })
+
+  it('rejects an invalid MCP model in an otherwise verified snapshot', async () => {
+    installFetch(makeSource({ 'libro/service/lib/openship-system.json': '{' }))
+    await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
+  })
+
+  it('rejects a skill absent from the verified snapshot', async () => {
+    installFetch(makeSource({ 'README.md': '# Source' }))
+    await expect(readOpenShipDocument('skill')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
   })
 
   it('refreshes every verified byte when the manifest digest changes', async () => {

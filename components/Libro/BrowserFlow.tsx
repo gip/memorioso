@@ -1,5 +1,8 @@
 'use client'
 
+import { browserMcp } from '@/lib/libro-service/browser-mcp'
+import { LibroMcpError } from '@libro/core'
+
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { SigningClient } from './SigningClient'
@@ -16,32 +19,30 @@ export function BrowserFlow({ kind, capability, query }: { kind: string; capabil
   const [review, setReview] = useState<Review | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const path = kind === 'authorize' ? `/oauth/authorize?${query}` : `/api/v1/browser/${kind}/${encodeURIComponent(capability || '')}`
   useEffect(() => {
     let active = true
     setError('')
-    fetch(`/api/libro/browser${path}`, { cache: 'no-store' }).then(async (response) => {
-      const body = await response.json()
+    const load = async () => {
+      if (kind !== 'authorize') return browserMcp<Review>('browser_review', { kind, capability })
+      return browserMcp<Review>('oauth_authorization_context', { query })
+    }
+    load().then(async (body) => {
       if (!active) return
-      if (response.status === 401) {
-        window.location.assign(`/libro/identity?continue=${encodeURIComponent(window.location.href)}`)
-        return
-      }
-      if (!response.ok) throw new Error(body?.error?.message || 'Could not load this request')
       if (kind === 'authorize') {
-        const connected = await fetch('/api/libro/browser/oauth/authorize', {
-          method: 'POST', body: new URLSearchParams({ consent: body.consent }),
-        })
-        const result = await connected.json()
+        const result = await browserMcp<{ redirectUrl: string }>('oauth_authorize', { consent: body.consent })
         if (!active) return
-        if (!connected.ok) throw new Error(result?.error?.message || 'Could not connect this application')
         window.location.assign(result.redirectUrl)
         return
       }
       setReview(body)
-    }).catch((error) => { if (active) setError(error instanceof Error ? error.message : 'Could not load this request') })
+    }).catch((error) => {
+      if (!active) return
+      if (error instanceof LibroMcpError && error.status === 401) {
+        window.location.assign(`/libro/identity?continue=${encodeURIComponent(window.location.href)}`)
+      } else setError(error instanceof Error ? error.message : 'Could not load this request')
+    })
     return () => { active = false }
-  }, [path, attempt, kind])
+  }, [query, capability, attempt, kind])
 
   return <div className="space-y-4 py-8">
     {error && <div role="alert"><p>{error}</p><Button onClick={() => { setReview(null); setAttempt((value) => value + 1) }}>Try again</Button></div>}

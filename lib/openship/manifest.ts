@@ -2,6 +2,7 @@
 // metadata, and provides the lookups the route handlers use. The canonical contract is vendored
 // under skills/openship/references/openship-sources.md.
 
+import { composeLibroSkills, LIBRO_SKILLS_DESCRIPTION } from './skills'
 import { gunzipSync } from 'node:zlib'
 import { composeOpenshipSystems } from './systems.mjs'
 import {
@@ -20,16 +21,15 @@ export const OPENSHIP_VERSION = '1.0'
 
 export const OPENSHIP_AGENT = {
   summary:
-    'OpenShip lets Memorioso publish verifiable sources and structured system design, and accept isolated candidate changes.',
+    'OpenShip lets Memorioso publish verifiable sources, structured system design, and skills for building with Libro MCP.',
   instructions:
     'Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.',
 } as const
 
 export const OPENSHIP_CAPABILITY_DESCRIPTIONS = {
+  skills: LIBRO_SKILLS_DESCRIPTION,
   sources: 'Retrieve and verify the exact source snapshot published by this deployment.',
-  systems: 'Retrieve the structured system design with its complete, integrity-checked Sources snapshot.',
-  changes:
-    'Submit a patch against the published source digest and inspect an isolated candidate result.',
+  systems: 'Retrieve logical, technical and provider layers plus instance descriptions and the complete, integrity-checked Sources snapshot.',
 } as const
 
 export type OpenshipEncoding = 'utf-8' | 'base64'
@@ -63,7 +63,10 @@ export type OpenshipDirectory = {
  */
 export type OpenshipProject = {
   name: string
-  description: string
+  productDescription: string
+  productSummary: string
+  technicalDescription: string
+  technicalSummary: string
   homepage?: string
   repository?: string
   license?: string
@@ -93,16 +96,12 @@ export const OPENSHIP_ENDPOINTS = {
   manifest: '/openship/manifest.json',
   bundle: '/openship/bundle.json',
   systems: '/openship/systems.json',
+  skills: '/openship/skills.json',
   file: '/openship/file/{path}',
   archive: '/openship/source.tar.gz',
   instructions: '/openship/agent.txt',
   page: '/openship',
   skill: '/openship/file/skills/openship/SKILL.md',
-  // The write half. Advertised unconditionally so a client can discover the rules even where this
-  // deployment does not accept submissions; POST answers 501 there.
-  policy: '/openship/policy.json',
-  changes: '/openship/changes',
-  changeStatus: '/openship/changes/{changeId}',
 } as const
 
 let filesCache: OpenshipFile[] | null = null
@@ -207,3 +206,5 @@ export const getOpenshipFile = (filePath: string): OpenshipFileResult | null => 
     body: Buffer.from(entry.content, entry.encoding === 'base64' ? 'base64' : 'utf8'),
   }
 }
+
+export const getOpenshipSkills = () => composeLibroSkills(getBundle().files)

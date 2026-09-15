@@ -9,7 +9,7 @@ import {
   OPENSHIP_VERSION,
 } from '@/lib/openship/manifest'
 
-// The v1 front door for Sources, Systems and Changes.
+// The v1 front door for Sources, Systems, and Skills.
 export function GET(request: Request): NextResponse {
   const origin = openshipOrigin(request)
   const absolute = (endpoint: string) => `${origin}${endpoint}`
@@ -32,6 +32,10 @@ export function GET(request: Request): NextResponse {
         },
         page: absolute(OPENSHIP_ENDPOINTS.page),
         capabilities: {
+          skills: {
+            description: OPENSHIP_CAPABILITY_DESCRIPTIONS.skills,
+            document: absolute(OPENSHIP_ENDPOINTS.skills),
+          },
           systems: {
             description: OPENSHIP_CAPABILITY_DESCRIPTIONS.systems,
             document: absolute(OPENSHIP_ENDPOINTS.systems),
@@ -44,12 +48,6 @@ export function GET(request: Request): NextResponse {
             file: absolute(OPENSHIP_ENDPOINTS.file),
             archive: absolute(OPENSHIP_ENDPOINTS.archive),
             instructions: absolute(OPENSHIP_ENDPOINTS.instructions),
-          },
-          changes: {
-            description: OPENSHIP_CAPABILITY_DESCRIPTIONS.changes,
-            policy: absolute(OPENSHIP_ENDPOINTS.policy),
-            submit: absolute(OPENSHIP_ENDPOINTS.changes),
-            status: absolute(OPENSHIP_ENDPOINTS.changeStatus),
           },
         },
       },

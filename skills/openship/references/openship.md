@@ -1,13 +1,15 @@
 # OpenShip v1
 
 Status: Draft v1  
-Protocol version: `1.0`
+Protocol package: `0.2.2` · Envelope version: `1.0`
 
-OpenShip is a public interface between a running project and the people or agents that want to understand, reproduce, or improve it. It has three capabilities:
+OpenShip is a public interface between a running project and the people or agents that want to understand, reproduce, or improve it. It has four capabilities:
 
 1. **Sources** publishes an integrity-checked source snapshot.
 2. **Changes** accepts a patch against a Sources digest and produces an isolated candidate origin.
-3. **Systems** publishes a self-contained JSON description of source, architecture, infrastructure, and optional agent context.
+3. **Systems** publishes a self-contained JSON description of source, ordered design layers, instance bindings, and optional agent context. Systems uses the additional `systemsVersion: "2.0"` discriminator.
+
+4. **Skills** optionally shares portable Markdown skills to understand, build, or reuse the product. See [Skills](openship-skills.md).
 
 Sources is the foundation. Changes depends on Sources. Systems embeds a complete Sources snapshot but does not require Changes.
 
@@ -34,9 +36,15 @@ Every OpenShip JSON document MUST contain:
 }
 ```
 
-`capability` is one of `discovery`, `sources`, `changes`, or `systems`. A Changes error or status document remains capability `changes`.
+`capability` is one of `discovery`, `sources`, `changes`, `systems`, or `skills`. A Changes error or status document remains capability `changes`.
 
 Within major version 1, producers MAY add members without changing existing meanings. Consumers MUST ignore unknown members they do not need and SHOULD preserve them when transforming a document.
+
+## MCP-only publishers
+
+A public MCP endpoint can publish complete OpenShip documents through the single
+`openship` tool without hosting HTTP discovery. Follow [openship-mcp.md](openship-mcp.md)
+and its separate MCP discovery profile. The requirements below apply to HTTP publishers.
 
 ## Public discovery
 
@@ -54,7 +62,10 @@ The response MUST be unauthenticated JSON, MUST allow cross-origin reads with `A
   "capability": "discovery",
   "project": {
     "name": "Example",
-    "description": "A short description of the running project."
+    "productDescription": "A short description of what the product does.",
+    "productSummary": "## Product\n\nWhat the product does and the problem it solves.",
+    "technicalDescription": "A short description of the implementation.",
+    "technicalSummary": "## Implementation\n\nTechnologies, architecture, and deployment instructions."
   },
   "agent": {
     "summary": "OpenShip lets this running project publish verifiable source code and optionally accept isolated changes or describe its complete system.",
@@ -89,7 +100,7 @@ The response MUST be unauthenticated JSON, MUST allow cross-origin reads with `A
 Requirements:
 
 - `project`, `agent`, `capabilities`, and `capabilities.sources` are REQUIRED.
-- `project.name` and `project.description` are REQUIRED.
+- `project.name`, `project.productDescription`, `project.productSummary`, `project.technicalDescription`, and `project.technicalSummary` are REQUIRED non-empty strings. The descriptions are plain text, each at most 120 Unicode code points. The summaries are Markdown: productSummary explains the product and problem it solves; technicalSummary explains implementation, underlying technology, and deployment. These fields replace project.description; there is no legacy fallback.
 - `agent.summary`, `agent.instructions`, and `agent.skill` are REQUIRED. The summary MUST explain OpenShip in standalone plain language. The instructions MUST explicitly direct an unfamiliar agent to fetch and read `agent.skill` before interpreting or using the capability links.
 - `agent.skill` MUST identify the OpenShip skill entry point. Relative links in that skill MUST be resolved against the skill URL.
 - Every advertised capability MUST contain a standalone `description` explaining what the capability lets an agent do.
@@ -125,7 +136,7 @@ client-side interaction.
 
 ## Access and transport
 
-Discovery, `agent.skill`, the skill’s referenced documents, Sources, and Systems reads MUST NOT
+Discovery, `agent.skill`, the skill’s referenced documents, Sources, Systems, and Skills reads MUST NOT
 require cookies, credentials, custom headers, or query parameters and MUST allow cross-origin reads.
 Changes writes MAY require authorization or payment disclosed by the Changes policy.
 

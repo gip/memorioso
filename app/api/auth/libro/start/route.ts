@@ -10,7 +10,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const requestUrl = new URL(request.url)
   const { flow, cookie, challenge } = beginLibroOAuthFlow(requestUrl.searchParams.get('returnTo') || '/')
   const redirectUri = new URL('/api/auth/libro/callback', appUrl).toString()
-  const resource = new URL('/api/v1', serviceUrl).toString()
+  const resource = new URL('/mcp', serviceUrl).toString()
   const destination = new URL('/libro/authorize', appUrl)
   destination.search = new URLSearchParams({
     response_type: 'code',

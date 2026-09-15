@@ -41,9 +41,9 @@ Set `LIBRO_TEST_DATABASE_URL` to a dedicated test Postgres database to run clien
 Configuration depends on whether the deployment runs legacy flows or uses the standalone service. See `.env.example` and `libro/service/README.md` for the full configuration and cutover procedure.
 
 - `DATABASE_URL` for Postgres. `next build` must succeed without it: the `pg` pool in
-  `lib/db/index.ts` is created on first use rather than on import, and the two build-time
-  reads (`app/sitemap.ts`, `components/LatestPublications`) fall back to a sitemap of
-  static routes and an empty feed. Any new prerendered read needs the same guard.
+  `lib/db/index.ts` is created on first use rather than on import, and `components/LatestPublications`
+  falls back to an empty feed without a database. Service-backed feed reads wait for a request
+  outside the shared cache. Any new prerendered read needs the same guard.
 - `DATABASE_URL_UNPOOLED` is preferred by migrations, with `DATABASE_URL` as fallback.
 - `SESSION_SECRET` for the signed Memorioso session cookie and extension connection request/token derivation.
 - `NEXT_PUBLIC_APP_URL` for public links.
@@ -68,11 +68,6 @@ Keep client credentials and token encryption keys server-only. Libro runs with i
 After cutover, `LIBRO_RELAYER_PRIVATE_KEY` belongs only on Libro, while
 `X402_RELAYER_PRIVATE_KEY` stays on Memorioso.
 
-OpenShip Changes is off unless `OPENSHIP_CHANGES_ENABLED=1` and `OPENSHIP_BUILDS_DOMAIN` are both
-set; the build host additionally needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`,
-`ANTHROPIC_API_KEY`, and `OPENSHIP_SANDBOX`. See `.env.example`, the advertised policy endpoint,
-and `skills/openship/references/openship-changes.md`.
-
 Do not add fallback secrets or app ids in code. Keep missing-env failures explicit.
 
 ## Repository Map
@@ -93,12 +88,9 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
   wrappers and unlock flow, the per-device key cache, and the row helpers every draft surface reads through.
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
-- `lib/openship/` contains the Openship read half (manifest, bundle) and the Changes write half
-  (`policy.ts`, `change.ts`, `validate.ts`), plus `paths.ts`, the one path-pattern matcher.
+- `lib/openship/` publishes OpenShip Sources and Systems, with shared source path matching.
 - `libro/service/lib/openship.ts` verifies Memorioso's public OpenShip snapshot for the anonymous
   `openship` tool and resources registered on Libro's existing MCP endpoint.
-- `scripts/openship-worker.mjs` is the build host for accepted changes; `scripts/openship-review.mjs`
-  is its model review gate.
 - `openship.json` is the checked-in manifest: the hand-authored project metadata plus the allowlist
   of every file the repository consists of. It is generated and committed like a lockfile —
   `pnpm openship:manifest` regenerates the file list, `pnpm openship:check` verifies it against
@@ -274,32 +266,6 @@ The local routes below describe legacy publishing. Service publishing lives in
 - Settlement order is reserve → broadcast → complete. The unique `authorization_nonce` is
   claimed before anything reaches the chain, so a replay cannot double-spend and a crash
   mid-settlement cannot take money without recording the grant.
-
-## OpenShip Changes
-
-The write half of OpenShip lets anyone submit a patch that, if it passes every gate, is built and
-deployed to `https://<buildId>.<OPENSHIP_BUILDS_DOMAIN>`. The vendored v1 protocol package lives at
-`skills/openship/` and is protected: a submission cannot edit it.
-
-- `skills/openship/references/openship-changes.md` defines the portable contract;
-  `lib/openship/policy.ts` publishes Memorioso's provider-specific writable paths and gates.
-- Gates 1 to 5 are pure functions in `lib/openship/validate.ts` and run inside `POST
-  /openship/changes`, so a bad submission is rejected in one round trip. Gates 6 to 8 run in
-  `scripts/openship-worker.mjs`, which re-runs 1 to 5 first from the same module.
-- `buildId` is the first 12 hex characters of the digest of the **resulting** tree, computed exactly
-  as OpenShip Sources defines it. Do not derive it from the submitter, the time, or a counter: it being
-  content-addressed is what lets anyone verify that a build's origin matches the source it serves.
-- The worker's one load-bearing property is that submitted code runs in a container with no secret
-  and, past install, no network, while `VERCEL_TOKEN` stays in the worker process and is only passed
-  to `vercel deploy --prebuilt`, which never runs submitted code. Preserve that split.
-- `getChangesConfig()` refuses to enable submissions when `OPENSHIP_BUILDS_DOMAIN` is the production
-  host or shares its registrable domain, including sibling subdomains. Preserve the `tldts`
-  domain check: subdomains can share cookie scope.
-- The pattern rules in `policy.ts` and the review in `openship-review.mjs` are filters, not the
-  security boundary. Do not add a rule and conclude that something is now safe; the isolation of the
-  build sandbox and the builds origin is what makes a defeated filter cheap.
-- Adding a writable path means widening what a stranger can execute. `WRITABLE` is an allowlist so
-  that a forgotten rule fails closed; keep it that way.
 
 ## Frontend Notes
 

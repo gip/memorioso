@@ -1,3 +1,4 @@
+import { createLibroMcpClient } from '@libro/core'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   AUTH_SESSION_COOKIE,
@@ -33,33 +34,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const clientId = process.env.LIBRO_OAUTH_CLIENT_ID
   const clientSecret = process.env.LIBRO_OAUTH_CLIENT_SECRET
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  if (!flow || !code || state !== flow.state || !serviceUrl || !clientId || !clientSecret || !appUrl || issuer !== new URL(serviceUrl).origin) {
+  if (!flow || !code || state !== flow.state || !serviceUrl || !clientId || !clientSecret || !appUrl || issuer !== new URL('/libro', new URL(appUrl).origin).toString()) {
     return NextResponse.json({ error: 'Libro OAuth callback is invalid or expired' }, { status: 400 })
   }
   const redirectUri = new URL('/api/auth/libro/callback', appUrl).toString()
-  const resource = new URL('/api/v1', serviceUrl).toString()
-  const tokenResponse = await fetch(new URL('/oauth/token', serviceUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-    },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code', code, client_id: clientId,
-      redirect_uri: redirectUri, resource, code_verifier: flow.verifier,
-    }),
-    cache: 'no-store',
-  })
-  const tokens = await tokenResponse.json().catch(() => null) as TokenResponse | null
-  if (!tokenResponse.ok || !tokens?.access_token || !tokens.refresh_token) {
+  const resource = new URL('/mcp', serviceUrl).toString()
+  const tokens = await createLibroMcpClient(new URL('/mcp', serviceUrl).toString(), {
+    headers: { Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}` },
+  }).callTool<TokenResponse>('oauth_token', { form: {
+    grant_type: 'authorization_code', code, client_id: clientId,
+    redirect_uri: redirectUri, resource, code_verifier: flow.verifier,
+  } }).catch(() => null)
+  if (!tokens?.access_token || !tokens.refresh_token) {
     return NextResponse.json({ error: 'Libro OAuth token exchange failed' }, { status: 502 })
   }
-  const profileResponse = await fetch(new URL('/api/v1/me', serviceUrl), {
+  const profile = await createLibroMcpClient(new URL('/mcp', serviceUrl).toString(), {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
-    cache: 'no-store',
-  })
-  const profile = await profileResponse.json().catch(() => null) as Profile | null
-  if (!profileResponse.ok || !profile?.identityId || !profile.authorId) {
+  }).callTool<Profile>('whoami').catch(() => null)
+  if (!profile?.identityId || !profile.authorId) {
     return NextResponse.json({ error: 'Libro profile lookup failed' }, { status: 502 })
   }
 

@@ -161,6 +161,23 @@
             }
           },
           "additionalProperties": true
+        },
+        "skills": {
+          "type": "object",
+          "required": [
+            "description",
+            "document"
+          ],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "document": {
+              "$ref": "#/$defs/httpsUrl"
+            }
+          },
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

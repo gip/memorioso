@@ -1525,6 +1525,9 @@
       "path": "libro/skill/references/embed.md"
     },
     {
+      "path": "libro/skill/references/mcp.md"
+    },
+    {
       "path": "libro/skill/references/protocol.md"
     },
     {
@@ -1618,6 +1621,9 @@
       "path": "skills/openship/references/examples/invalid/mcp-discovery.json"
     },
     {
+      "path": "skills/openship/references/examples/invalid/skills.json"
+    },
+    {
       "path": "skills/openship/references/examples/invalid/sources-manifest.json"
     },
     {
@@ -1648,6 +1654,9 @@
       "path": "skills/openship/references/examples/valid/mcp-discovery.json"
     },
     {
+      "path": "skills/openship/references/examples/valid/skills.json"
+    },
+    {
       "path": "skills/openship/references/examples/valid/sources-bundle.json"
     },
     {
@@ -1664,6 +1673,9 @@
     },
     {
       "path": "skills/openship/references/openship-mcp.md"
+    },
+    {
+      "path": "skills/openship/references/openship-skills.md"
     },
     {
       "path": "skills/openship/references/openship-sources.md"
@@ -1694,6 +1706,9 @@
     },
     {
       "path": "skills/openship/references/schemas/mcp-discovery.schema.json"
+    },
+    {
+      "path": "skills/openship/references/schemas/skills.schema.json"
     },
     {
       "path": "skills/openship/references/schemas/sources-bundle.schema.json"

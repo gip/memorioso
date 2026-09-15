@@ -57,7 +57,11 @@
     },
     "agent": {
       "type": "object",
-      "required": ["summary", "instructions", "skill"],
+      "required": [
+        "summary",
+        "instructions",
+        "skill"
+      ],
       "properties": {
         "summary": {
           "type": "string",
@@ -69,7 +73,10 @@
         },
         "skill": {
           "type": "object",
-          "required": ["operation", "kind"],
+          "required": [
+            "operation",
+            "kind"
+          ],
           "properties": {
             "operation": {
               "const": "document"
@@ -88,11 +95,17 @@
     },
     "capabilities": {
       "type": "object",
-      "required": ["sources"],
+      "required": [
+        "sources"
+      ],
       "properties": {
         "sources": {
           "type": "object",
-          "required": ["description", "manifest", "bundle"],
+          "required": [
+            "description",
+            "manifest",
+            "bundle"
+          ],
           "properties": {
             "description": {
               "type": "string",
@@ -100,7 +113,9 @@
             },
             "manifest": {
               "type": "object",
-              "required": ["operation"],
+              "required": [
+                "operation"
+              ],
               "properties": {
                 "operation": {
                   "const": "manifest"
@@ -110,7 +125,10 @@
             },
             "bundle": {
               "type": "object",
-              "required": ["operation", "kind"],
+              "required": [
+                "operation",
+                "kind"
+              ],
               "properties": {
                 "operation": {
                   "const": "document"
@@ -139,7 +157,10 @@
         },
         "changes": {
           "type": "object",
-          "required": ["description", "policy"],
+          "required": [
+            "description",
+            "policy"
+          ],
           "properties": {
             "description": {
               "type": "string",
@@ -147,7 +168,10 @@
             },
             "policy": {
               "type": "object",
-              "required": ["operation", "kind"],
+              "required": [
+                "operation",
+                "kind"
+              ],
               "properties": {
                 "operation": {
                   "const": "document"
@@ -165,7 +189,10 @@
         },
         "systems": {
           "type": "object",
-          "required": ["description", "document"],
+          "required": [
+            "description",
+            "document"
+          ],
           "properties": {
             "description": {
               "type": "string",
@@ -173,13 +200,46 @@
             },
             "document": {
               "type": "object",
-              "required": ["operation", "kind"],
+              "required": [
+                "operation",
+                "kind"
+              ],
               "properties": {
                 "operation": {
                   "const": "document"
                 },
                 "kind": {
                   "const": "systems"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        },
+        "skills": {
+          "type": "object",
+          "required": [
+            "description",
+            "document"
+          ],
+          "properties": {
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "document": {
+              "type": "object",
+              "required": [
+                "operation",
+                "kind"
+              ],
+              "properties": {
+                "operation": {
+                  "const": "document"
+                },
+                "kind": {
+                  "const": "skills"
                 }
               },
               "additionalProperties": false

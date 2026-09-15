@@ -26,6 +26,7 @@ its JSON equivalent. Tool failures use `isError: true` without source content.
 | `{ "operation": "read", "path": "app/page.tsx" }`  | `{ "digest": <snapshot digest>, "metadata": <Manifest entry>, "encoding": <encoding>, "content": <file content> }` |
 
 Discovery, Manifest, Bundle, skill, and exact-path file reads are required.
+An advertised Skills catalog requires `{ "operation": "document", "kind": "skills" }`, returning `{ "document": <complete Skills catalog> }`. Skills contain Markdown files plus optional supporting files; singular `skill` remains the protocol Markdown. See [Skills](openship-skills.md).
 Systems and Changes policy are required only when advertised. `manifest` and `read`
 preserve the earlier Sources binding; `document` adds complete project retrieval.
 Old source-only producers must adopt this profile to load in the OpenShip viewer.
@@ -40,6 +41,7 @@ The following fields contain exact tool arguments, not URLs or MCP resource iden
 - `agent.skill`: `{ "operation": "document", "kind": "skill" }`
 - `capabilities.sources.manifest`: `{ "operation": "manifest" }`
 - `capabilities.sources.bundle`: `{ "operation": "document", "kind": "bundle" }`
+- Optional `capabilities.skills.document`: `{ "operation": "document", "kind": "skills" }`
 - Optional `capabilities.systems.document`: `{ "operation": "document", "kind": "systems" }`
 - Optional `capabilities.changes.policy`: `{ "operation": "document", "kind": "policy" }`
 

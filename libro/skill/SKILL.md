@@ -110,7 +110,8 @@ on npm. Outside this repository, obtain the corresponding source or implement th
 protocol with its compatibility fixtures. The anonymous `openship` tool can expose exact source
 files: start with `{"operation":"document","kind":"discovery"}`, then use
 `{"operation":"read","path":"libro/core/src/index.ts"}`. Its `kind: "skill"` is the OpenShip
-skill, not this Libro skill; read `libro/skill/SKILL.md` by path to retrieve this guide.
+skill, not this Libro skill. Retrieve this complete portable folder from the advertised Skills
+catalog with `{"operation":"document","kind":"skills"}`, or read `libro/skill/SKILL.md` by path.
 
 When operating your own service, read `libro/service/README.md` in the repository for separate
 database configuration, server-only secrets, migrations, and cutover. A third-party client

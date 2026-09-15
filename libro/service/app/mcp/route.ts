@@ -96,10 +96,10 @@ function createHandler() {
   const handler = createMcpHandler((server) => {
     registerApplicationTools(server)
     server.registerTool(OPENSHIP_MCP_TOOL_NAME, {
-      description: 'Retrieve OpenShip discovery, source manifest, complete bundle, skill, Systems, or one exact source file. Start with document/discovery. No authentication is required.',
+      description: 'Retrieve OpenShip discovery, source manifest, complete bundle, protocol skill, Libro MCP Skills catalog, Systems, or one exact source file. Start with document/discovery. No authentication is required.',
       inputSchema: z.discriminatedUnion('operation', [
         z.object({ operation: z.literal('manifest') }),
-        z.object({ operation: z.literal('document'), kind: z.enum(['discovery', 'bundle', 'systems', 'policy', 'skill']) }),
+        z.object({ operation: z.literal('document'), kind: z.enum(['discovery', 'bundle', 'systems', 'policy', 'skill', 'skills']) }),
         z.object({ operation: z.literal('read'), path: z.string().min(1) }),
       ]),
     }, async (args) => {

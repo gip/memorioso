@@ -94,14 +94,17 @@ configuration, `LIBRO_SERVICE_URL`, `LIBRO_MCP_STATE_SECRET`, and
 `WORLD_ID_RP_SIGNING_KEY` and `LIBRO_RELAYER_PRIVATE_KEY` after cutover.
 
 `OPENSHIP_SOURCE_ORIGIN` enables the MCP's public `openship` tool. It exposes only that origin's
-validated snapshot through the OpenShip 0.2.1 full-document MCP binding. `document` retrieves
-MCP discovery, the complete verified bundle, the skill, or advertised Systems; `manifest` and
+validated snapshot through the OpenShip 0.2.2 full-document MCP binding. `document` retrieves
+MCP discovery, the complete verified bundle, the protocol skill, or advertised Systems and Skills; `manifest` and
 `read` retrieve metadata and exact files. Results include structured content and equivalent JSON
 text. MCP discovery summaries and Systems describe only Libro MCP and its dependencies. The
 source manifest and bundle retain the upstream repository scope, which may include Memorioso
 and other components outside the MCP system. Systems is composed from
 `libro/service/lib/openship-system.json` in the verified snapshot, never from the upstream
 website system view. The system model and skill both come from verified snapshot bytes.
+The Skills catalog includes the portable Libro MCP guide and all its references, with a separate
+file-set digest. Retrieve it using `{"operation":"document","kind":"skills"}`; singular `skill`
+remains the OpenShip protocol guide. Skills is omitted for older snapshots without the Libro guide.
 Changes policy is not advertised. Callers cannot select another origin. Initialization and
 OpenShip reads are public; unrelated write tools retain their OAuth requirements.
 

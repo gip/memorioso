@@ -15,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: 'OpenShip — Memorioso',
   description:
-    'Retrieve Memorioso’s verifiable sources and structured system design over public HTTP.',
+    'Retrieve Memorioso’s verifiable sources and structured system design and Libro MCP skills over public HTTP.',
   alternates: { canonical: '/openship' },
 }
 
@@ -131,6 +131,17 @@ const HumanView = () => {
           <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.systems}>Systems JSON</a> — the self-contained OpenShip Systems 2.0 document.</li>
         </ul>
       </section>
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-foreground">Skills</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+          {OPENSHIP_CAPABILITY_DESCRIPTIONS.skills}
+        </p>
+        <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+          <li><a className="underline underline-offset-4" href={OPENSHIP_ENDPOINTS.skills}>Skills catalog</a> — the complete portable Libro skill and its references.</li>
+          <li><a className="underline underline-offset-4" href="/openship/file/libro/skill/SKILL.md">Build with Libro MCP</a> — read the integration guide.</li>
+        </ul>
+      </section>
+
     </div>
   )
 }

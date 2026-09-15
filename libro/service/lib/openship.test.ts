@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computeSourcesDigest, validateSystems, type SourceFileMetadata } from '@openship/protocol'
+import { computeSourcesDigest, validateSkills, validateSystems, type SourceFileMetadata } from '@openship/protocol'
 import mcpModel from './openship-system.json'
 import fullSystem from '../../../lib/openship/system.json'
 import { ServiceError } from './errors'
@@ -113,6 +114,30 @@ describe('Libro OpenShip source loader', () => {
     })
     await expect(readOpenShipDocument('policy')).rejects.toMatchObject({ code: 'NOT_FOUND' })
     await expect(readOpenShipDocument('systems')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('shares the complete Libro skill from verified bytes without extra catalog requests', async () => {
+    const paths = ['SKILL.md', 'references/mcp.md', 'references/protocol.md', 'references/embed.md']
+    const files = Object.fromEntries(paths.map(path => [
+      `libro/skill/${path}`, readFileSync(new URL(`../../skill/${path}`, import.meta.url), 'utf8'),
+    ]))
+    const fetchMock = installFetch(makeSource(files))
+    const catalog = validateSkills(await readOpenShipDocument('skills'))
+    expect(catalog.skills).toHaveLength(1)
+    expect(Object.keys(catalog.skills[0].files).sort()).toEqual(paths.sort())
+    for (const path of paths) expect(catalog.skills[0].files[path].content).toBe(files[`libro/skill/${path}`])
+    expect(await readOpenShipDocument('discovery')).toMatchObject({
+      capabilities: { skills: { document: { operation: 'document', kind: 'skills' } } },
+    })
+    expect(fetchMock.mock.calls.every(([url]) => /(?:openship|manifest|bundle)\.json$/.test(String(url)))).toBe(true)
+  })
+
+  it('omits Skills for older snapshots and rejects incomplete portable folders', async () => {
+    installFetch(makeSource({ 'README.md': '# Old snapshot' }))
+    expect(await readOpenShipDocument('discovery')).not.toHaveProperty('capabilities.skills')
+    await expect(readOpenShipDocument('skills')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    installFetch(makeSource({ 'libro/skill/SKILL.md': '# Incomplete' }))
+    await expect(readOpenShipDocument('skills')).rejects.toMatchObject({ code: 'OPENSHIP_INVALID' })
   })
 
   it('describes only Libro MCP while retaining the complete verified repository snapshot', async () => {

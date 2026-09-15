@@ -26,8 +26,8 @@ export const buildOpenshipInstructions = (origin: string): string => {
   return `OPENSHIP ${OPENSHIP_VERSION}
 ${origin}
 
-Memorioso implements OpenShip Sources and Systems. All discovery, Sources
-and Systems GETs are public and CORS-readable.
+Memorioso implements OpenShip Sources, Systems, and Skills. All discovery, Sources,
+Systems, and Skills GETs are public and CORS-readable.
 
 PROJECT
   ${manifest.project.name}
@@ -70,6 +70,14 @@ RETRIEVE SYSTEMS
   components are marked. Libro MCP advertises its own service-scoped Systems view;
   its verified Sources may still include this wider repository.
   Human viewer: https://openship.dev/view?url=${encodeURIComponent(origin)}&view=system&panel=architecture
+
+RETRIEVE SKILLS
+  GET ${origin}/openship/skills.json.
+  The catalog includes the portable Libro MCP skill and all supporting references.
+  Use it to connect, authenticate, publish, and verify through Libro MCP.
+  Validate each skill's own digest before saving its files.
+  On Libro MCP, call openship with { "operation": "document", "kind": "skills" }.
+  The singular "skill" document remains the OpenShip protocol guide.
 
 RETRIEVE SOURCES
   1. GET ${origin}/openship/manifest.json.

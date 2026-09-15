@@ -13,6 +13,7 @@ import {
   type VerifiedSources,
 } from '@openship/protocol'
 import { ServiceError } from './errors'
+import { composeLibroSkills, LIBRO_SKILLS_DESCRIPTION } from '../../../lib/openship/skills'
 import mcpModel from './openship-system.json'
 
 const MCP_SYSTEM_PATH = 'libro/service/lib/openship-system.json'
@@ -163,9 +164,18 @@ export function resetOpenShipSnapshotCacheForTests(): void {
   pendingSnapshot = null
 }
 
-export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'systems' | 'policy' | 'skill'): Promise<unknown> {
+export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'systems' | 'policy' | 'skill' | 'skills'): Promise<unknown> {
   const snapshot = await getOpenShipSnapshot()
   const { discovery, verified } = snapshot
+  let skills
+  if (kind === 'discovery' || kind === 'skills') {
+    try {
+      skills = composeLibroSkills(verified.bundle.files)
+    } catch (error) {
+      validationError(error)
+    }
+  }
+  if (kind === 'skills' && skills?.skills.length) return skills
   if (kind === 'bundle') return verified.bundle
   if (kind === 'discovery') {
     return validateMcpDiscovery({
@@ -179,6 +189,12 @@ export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'syste
         skill: { operation: 'document', kind: 'skill' },
       },
       capabilities: {
+        ...(skills?.skills.length ? {
+          skills: {
+            description: LIBRO_SKILLS_DESCRIPTION,
+            document: { operation: 'document', kind: 'skills' },
+          },
+        } : {}),
         sources: {
           description: 'Retrieve the verified repository source snapshot. Files may include other components outside the Libro MCP system boundary.',
           manifest: { operation: 'manifest' },

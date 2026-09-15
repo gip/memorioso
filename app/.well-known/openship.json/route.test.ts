@@ -6,7 +6,7 @@ describe('GET /.well-known/openship.json', () => {
     delete process.env.LIBRO_SERVICE_URL
   })
 
-  it('advertises the v1 Sources and Systems capability map', async () => {
+  it('advertises the v1 Sources, Systems, and Skills capability map', async () => {
     process.env.LIBRO_SERVICE_URL = 'https://libro.memorioso.xyz'
     const response = GET(new Request('https://memorioso.xyz/.well-known/openship.json'))
     expect(response.status).toBe(200)
@@ -34,8 +34,9 @@ describe('GET /.well-known/openship.json', () => {
       },
     })
     expect(discovery.capabilities.systems.document).toBe('https://memorioso.xyz/openship/systems.json')
+    expect(discovery.capabilities.skills.document).toBe('https://memorioso.xyz/openship/skills.json')
     expect(discovery.manifest).toBeUndefined()
-    expect(Object.keys(discovery.capabilities).sort()).toEqual(['sources', 'systems'])
+    expect(Object.keys(discovery.capabilities).sort()).toEqual(['skills', 'sources', 'systems'])
   })
 
   it('omits the optional MCP binding when Libro is not configured', async () => {

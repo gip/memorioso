@@ -114,7 +114,7 @@ describe('Libro MCP OpenShip binding', () => {
     })
   })
 
-  it.each(['discovery', 'bundle', 'systems', 'skill'])('returns %s documents as structured content and equivalent JSON', async (kind) => {
+  it.each(['discovery', 'bundle', 'systems', 'skill', 'skills'])('returns %s documents as structured content and equivalent JSON', async (kind) => {
     const document = kind === 'skill' ? '# OpenShip' : { capability: kind }
     mocks.document.mockResolvedValueOnce(document)
     const result = await rpc('tools/call', {

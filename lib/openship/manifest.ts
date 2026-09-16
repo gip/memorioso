@@ -15,7 +15,7 @@ import {
   OPENSHIP_GENERATED_AT,
   OPENSHIP_PROJECT_JSON,
   OPENSHIP_TOTALS,
-} from '@/lib/openship/generated/bundle'
+} from './generated/bundle'
 
 export const OPENSHIP_VERSION = '1.0'
 

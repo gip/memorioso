@@ -1,18 +1,16 @@
 import {
   OpenShipValidationError,
   assertSafePath,
-  normalizeOpenShipOrigin,
-  validateDiscovery,
   validateMcpDiscovery,
   validateSystems,
   validateSources,
-  validateSourcesManifest,
-  type DiscoveryDocument,
   type SourcesManifest,
   type VerifiedSourceFile,
   type VerifiedSources,
 } from '@openship/protocol'
 import { ServiceError } from './errors'
+import { serviceOrigin } from './config'
+import { getOpenshipManifest, getOpenshipBundleJson } from '../../../lib/openship/manifest'
 import { composeLibroSkills, LIBRO_SKILLS_DESCRIPTION } from '../../../lib/openship/skills'
 import mcpModel from './openship-system.json'
 
@@ -22,59 +20,11 @@ export const MAX_OPENSHIP_SOURCE_BYTES = 16 * 1024 * 1024
 
 type Snapshot = {
   origin: string
-  discovery: DiscoveryDocument
   manifest: SourcesManifest
   verified: VerifiedSources
 }
 
 let cachedSnapshot: Snapshot | null = null
-let pendingSnapshot: Promise<Snapshot> | null = null
-
-function sourceOrigin(): string {
-  const value = process.env.OPENSHIP_SOURCE_ORIGIN
-  if (!value) {
-    throw new ServiceError(
-      'OPENSHIP_UNAVAILABLE',
-      'OPENSHIP_SOURCE_ORIGIN is not configured for this MCP server',
-      503,
-      true,
-    )
-  }
-  try {
-    return normalizeOpenShipOrigin(value, { allowLoopbackHttp: true })
-  } catch {
-    throw new ServiceError('OPENSHIP_UNAVAILABLE', 'OPENSHIP_SOURCE_ORIGIN is invalid', 503, false)
-  }
-}
-
-async function fetchJson(url: string, label: string): Promise<unknown> {
-  let response: Response
-  try {
-    response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(10_000),
-    })
-  } catch {
-    throw new ServiceError('OPENSHIP_UNAVAILABLE', `OpenShip ${label} could not be fetched`, 503, true)
-  }
-  if (!response.ok) {
-    throw new ServiceError(
-      'OPENSHIP_UNAVAILABLE',
-      `OpenShip ${label} returned HTTP ${response.status}`,
-      503,
-      response.status >= 500,
-    )
-  }
-  try {
-    return await response.json()
-  } catch {
-    throw new ServiceError('OPENSHIP_INVALID', `OpenShip ${label} is not JSON`, 502, false)
-  }
-}
-
 function validationError(error: unknown): never {
   if (error instanceof ServiceError) throw error
   if (error instanceof OpenShipValidationError && error.code === 'source_too_large') {
@@ -88,58 +38,20 @@ function validationError(error: unknown): never {
   throw new ServiceError('OPENSHIP_INVALID', 'OpenShip source failed integrity validation', 502, false)
 }
 
-async function loadOnce(): Promise<Snapshot> {
-  const origin = sourceOrigin()
+// The generated module is captured by the service build. No website request is needed,
+// including on a cold instance; validate once and retain it for this process.
+export async function getOpenShipSnapshot(): Promise<Snapshot> {
+  if (cachedSnapshot) return cachedSnapshot
+  const origin = serviceOrigin()
   try {
-    const discovery = validateDiscovery(
-      await fetchJson(`${origin}/.well-known/openship.json`, 'discovery'),
-    )
-    const manifest = validateSourcesManifest(
-      await fetchJson(discovery.capabilities.sources.manifest, 'manifest'),
-    )
-
-    if (
-      cachedSnapshot &&
-      cachedSnapshot.origin === origin &&
-      cachedSnapshot.manifest.digest === manifest.digest &&
-      JSON.stringify(cachedSnapshot.manifest.files) === JSON.stringify(manifest.files)
-    ) {
-      const snapshot = {
-        ...cachedSnapshot,
-        discovery,
-        manifest,
-        verified: { ...cachedSnapshot.verified, manifest },
-      }
-      cachedSnapshot = snapshot
-      return snapshot
-    }
-
-    const bundle = await fetchJson(discovery.capabilities.sources.bundle, 'bundle')
-    const verified = validateSources(manifest, bundle, {
+    const verified = validateSources(getOpenshipManifest(), JSON.parse(getOpenshipBundleJson()), {
       maxDecodedBytes: MAX_OPENSHIP_SOURCE_BYTES,
     })
-    const snapshot = { origin, discovery, manifest: verified.manifest, verified }
-    cachedSnapshot = snapshot
-    return snapshot
+    cachedSnapshot = { origin, manifest: verified.manifest, verified }
+    return cachedSnapshot
   } catch (error) {
     validationError(error)
   }
-}
-
-async function loadWithDeployRaceRetry(): Promise<Snapshot> {
-  try {
-    return await loadOnce()
-  } catch (error) {
-    if (!(error instanceof ServiceError) || error.code !== 'OPENSHIP_INVALID') throw error
-    return loadOnce()
-  }
-}
-
-export async function getOpenShipSnapshot(): Promise<Snapshot> {
-  pendingSnapshot ??= loadWithDeployRaceRetry().finally(() => {
-    pendingSnapshot = null
-  })
-  return pendingSnapshot
 }
 
 export async function readOpenShipFile(path: string): Promise<{
@@ -161,12 +73,11 @@ export async function readOpenShipFile(path: string): Promise<{
 
 export function resetOpenShipSnapshotCacheForTests(): void {
   cachedSnapshot = null
-  pendingSnapshot = null
 }
 
 export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'systems' | 'policy' | 'skill' | 'skills'): Promise<unknown> {
   const snapshot = await getOpenShipSnapshot()
-  const { discovery, verified } = snapshot
+  const { verified } = snapshot
   let skills
   if (kind === 'discovery' || kind === 'skills') {
     try {
@@ -210,18 +121,7 @@ export async function readOpenShipDocument(kind: 'discovery' | 'bundle' | 'syste
     })
   }
   if (kind === 'skill') {
-    // Read the advertised skill from verified bytes, never from a separate HTTP response.
-    const prefix = `${snapshot.origin}/openship/file/`
-    if (!discovery.agent.skill.startsWith(prefix)) {
-      throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill must identify a snapshot file', 502)
-    }
-    let path: string
-    try {
-      path = decodeURIComponent(discovery.agent.skill.slice(prefix.length))
-      assertSafePath(path, 'skill')
-    } catch {
-      throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill path is invalid', 502)
-    }
+    const path = 'skills/openship/SKILL.md'
     const entry = verified.bundle.files[path]
     if (!entry || entry.encoding !== 'utf-8') {
       throw new ServiceError('OPENSHIP_INVALID', 'OpenShip skill is missing from the verified snapshot', 502)

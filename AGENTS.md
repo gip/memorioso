@@ -89,7 +89,7 @@ Do not add fallback secrets or app ids in code. Keep missing-env failures explic
 - `lib/access/` contains the gated-publication access decision, teaser, and payment grants.
 - `lib/x402/` contains the x402 payment requirements, EIP-3009 verification, and settlement.
 - `lib/openship/` publishes OpenShip Sources and Systems, with shared source path matching.
-- `libro/service/lib/openship.ts` verifies Memorioso's public OpenShip snapshot for the anonymous
+- `libro/service/lib/openship.ts` serves a build-time embedded, verified OpenShip snapshot for the anonymous
   `openship` tool and resources registered on Libro's existing MCP endpoint.
 - `openship.json` is the checked-in manifest: the hand-authored project metadata plus the allowlist
   of every file the repository consists of. It is generated and committed like a lockfile —

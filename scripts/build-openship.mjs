@@ -16,7 +16,7 @@ import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, rmSync
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync, constants } from 'node:zlib'
-import { computeSourcesDigest } from '@openship/protocol'
+import { computeSourcesDigest, validateSystems } from '@openship/protocol'
 import { readManifest, verifyManifestDetailed } from './openship-manifest.mjs'
 import { composeOpenshipSystems } from '../lib/openship/systems.mjs'
 import { gunzipSync } from 'node:zlib'
@@ -304,7 +304,7 @@ const main = () => {
   // regression: a real deployment or CI. `postinstall` passes --lenient because it also runs
   // before a build.
   const deploying = Boolean(process.env.VERCEL || process.env.CI)
-  const lenient = process.argv.includes('--lenient') || !deploying
+  const lenient = !process.argv.includes('--strict') && (process.argv.includes('--lenient') || !deploying)
 
   checkManifest(lenient)
 
@@ -336,6 +336,14 @@ const main = () => {
     { openship: '1.0', capability: 'sources', ...snapshot, env: envKeys },
     JSON.parse(gunzipSync(bundleGzip).toString('utf8'))
   )
+  const bundle = JSON.parse(gunzipSync(bundleGzip).toString('utf8'))
+  validateSystems({
+    openship: '1.0',
+    capability: 'systems',
+    systemsVersion: '2.0',
+    source: { manifest: { openship: '1.0', capability: 'sources', ...snapshot, env: envKeys }, bundle },
+    system: JSON.parse(bundle.files['libro/service/lib/openship-system.json'].content).system,
+  }, { maxDecodedBytes: 16 * 1024 * 1024 })
   mkdirSync(GENERATED_DIR, { recursive: true })
   writeFileSync(GENERATED_FILE, renderModule(payload))
   writeArchive(payload.paths)

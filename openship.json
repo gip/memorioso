@@ -1027,6 +1027,9 @@
       "path": "lib/openship/system.json"
     },
     {
+      "path": "lib/openship/systems.d.mts"
+    },
+    {
       "path": "lib/openship/systems.mjs"
     },
     {

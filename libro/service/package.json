@@ -7,7 +7,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "predev": "node ../../scripts/build-openship.mjs --strict",
     "dev": "next dev --port 3001",
+    "prebuild": "node ../../scripts/build-openship.mjs --strict",
     "build": "next build",
     "start": "next start --port 3001",
     "lint": "eslint .",

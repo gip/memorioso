@@ -3,8 +3,17 @@
   "capability": "sources",
   "generatedAt": "2026-08-21T12:00:00.000Z",
   "digest": "sha256:1d322539e651a3c2d7c51eb8b33160627395b9601bff909e599771b806d9e565",
-  "project": { "name": "Example", "description": "An example OpenShip project." },
-  "totals": { "files": 2, "bytes": 53 },
+  "project": {
+    "name": "Example",
+    "productDescription": "An example OpenShip project.",
+    "productSummary": "# Product\n\nAn example OpenShip project.",
+    "technicalDescription": "A source snapshot published through OpenShip.",
+    "technicalSummary": "# Implementation\n\nRetrieve the source bundle, install its dependencies, and follow its deployment documentation."
+  },
+  "totals": {
+    "files": 2,
+    "bytes": 53
+  },
   "files": [
     {
       "path": "app/page.js",
@@ -24,4 +33,3 @@
     }
   ]
 }
-

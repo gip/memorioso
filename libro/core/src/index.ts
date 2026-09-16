@@ -1335,3 +1335,6 @@ export async function verifyLibroManifestOnChain(
   }
   throw new LibroChainUnavailableError(detailFor('unavailable'), outcomes)
 }
+
+export * from './mcp-browser-tools'
+export * from './mcp-client'

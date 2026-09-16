@@ -1,7 +1,13 @@
 {
   "openship": "1.0",
   "capability": "discovery",
-  "project": { "name": "Example", "description": "An example OpenShip project." },
+  "project": {
+    "name": "Example",
+    "productDescription": "An example OpenShip project.",
+    "productSummary": "# Product\n\nAn example OpenShip project.",
+    "technicalDescription": "A source snapshot published through OpenShip.",
+    "technicalSummary": "# Implementation\n\nRetrieve the source bundle, install its dependencies, and follow its deployment documentation."
+  },
   "agent": {
     "summary": "OpenShip lets this running project publish verifiable source code and optionally accept isolated changes or describe its complete system.",
     "instructions": "Fetch and read agent.skill before interpreting or using any advertised capability. Resolve relative links in the skill against the skill URL.",

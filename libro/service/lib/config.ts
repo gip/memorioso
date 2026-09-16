@@ -20,6 +20,14 @@ export function browserUrl(path: string): string {
   return new URL(`/libro${path}`, new URL(required('NEXT_PUBLIC_APP_URL')).origin).toString()
 }
 
+export function oauthIssuer(): string {
+  return new URL('/libro', new URL(required('NEXT_PUBLIC_APP_URL')).origin).toString()
+}
+
+export function oauthResourceMetadataUrl(): string {
+  return new URL('/.well-known/oauth-protected-resource/libro', oauthIssuer()).toString()
+}
+
 export function mcpResource(): string {
   return new URL('/mcp', serviceOrigin()).toString()
 }

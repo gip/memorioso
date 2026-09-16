@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 
 // Current-origin documents are revalidated. Immutable caching is reserved for content-addressed
-// snapshots and candidate origins, and is not inferred by a mutable production route.
+// snapshots, and is not inferred by a mutable production route.
 const REVALIDATE = 'public, max-age=0, must-revalidate'
 
 export const openshipHeaders = (contentType: string): Record<string, string> => ({
@@ -44,17 +44,3 @@ export const openshipOrigin = (request?: Request): string => {
     return ''
   }
 }
-
-/**
- * Changes responses are dynamic. Submissions, violations, and status are never cached.
- */
-export const openshipDynamicJson = (body: unknown, status = 200): NextResponse =>
-  NextResponse.json(body, {
-    status,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-PAYMENT',
-      'Cache-Control': 'no-store',
-    },
-  })

@@ -5,6 +5,8 @@ import { callbackUrl, clearMobileFlows, readMobileFlow, safeReturnPath, saveMobi
 
 const id = '12345678-1234-4123-8123-123456789abc'
 const fetcher = vi.fn()
+const mcp = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/libro-service/browser-mcp', () => ({ browserMcp: mcp }))
 const makeFlow = (): MobileFlow => ({ version: 1, id, expiresAt: Date.now() + 300_000, returnPath: '/draft/123',
   config: { app_id: 'app_test', rp_context: { rp_id: 'rp_test', nonce: 'nonce', signature: 'sig', created_at: 1, expires_at: 2 } },
   signalHashes: {}, operation: { kind: 'signing', capability: 'cap' },
@@ -12,22 +14,22 @@ const makeFlow = (): MobileFlow => ({ version: 1, id, expiresAt: Date.now() + 30
   connectorURI: 'https://world.org/verify?k=secret',
 })
 
-beforeEach(() => { localStorage.clear(); fetcher.mockReset(); vi.stubGlobal('fetch', fetcher) })
+beforeEach(() => { localStorage.clear(); fetcher.mockReset(); mcp.mockReset(); vi.stubGlobal('fetch', fetcher) })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('durable mobile completion', () => {
   it('retains the proof when a successful HTTP response lacks a prepared registration', async () => {
     const flow = makeFlow()
     saveMobileFlow(flow)
-    fetcher.mockResolvedValue(Response.json({}))
+    mcp.mockResolvedValue({})
     await expect(completeMobileFlow(flow, 'https://memorioso.xyz')).rejects.toThrow('prepared registration')
     expect(readMobileFlow(id)?.result).toEqual(flow.result)
     expect(readMobileFlow(id)?.prepared).toBeUndefined()
   })
   it('checkpoints prepare and broadcast, then retries only finalization after a reload', async () => {
     const flow = makeFlow()
-    fetcher.mockResolvedValueOnce(Response.json({ registrationId: 'reg' }))
-      .mockResolvedValueOnce(Response.json({ transactionHash: '0xabc' }))
+    mcp.mockResolvedValueOnce({ registrationId: 'reg' })
+      .mockResolvedValueOnce({ transactionHash: '0xabc' })
       .mockRejectedValueOnce(new Error('offline'))
     await expect(completeMobileFlow(flow, 'https://memorioso.xyz')).rejects.toThrow('offline')
     const restored = readMobileFlow(id)!
@@ -35,10 +37,10 @@ describe('durable mobile completion', () => {
     expect(restored.result).toBeUndefined()
     expect(restored.connectorURI).toBeUndefined()
     expect(restored.expiresAt).toBeGreaterThan(Date.now() + 300_000)
-    fetcher.mockReset().mockResolvedValue(Response.json({ publicationId: 'pub' }))
+    mcp.mockReset().mockResolvedValue({ publicationId: 'pub' })
     await completeMobileFlow(restored, 'https://memorioso.xyz')
-    expect(fetcher).toHaveBeenCalledTimes(1)
-    expect(fetcher.mock.calls[0][0]).toBe('/api/libro/browser/api/v1/signing/cap/finalize')
+    expect(mcp).toHaveBeenCalledTimes(1)
+    expect(mcp.mock.calls[0][0]).toBe('signing_finalize')
     expect(readMobileFlow(id)?.completed?.message).toContain('published')
     expect(readMobileFlow(id)).not.toHaveProperty('operation')
     expect(readMobileFlow(id)).not.toHaveProperty('config')

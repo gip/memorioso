@@ -1,19 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { waitForUserOperation } from './wallet-receipt'
+const mcp = vi.hoisted(() => vi.fn())
+vi.mock('./browser-mcp', () => ({ browserMcp: mcp }))
 describe('wallet receipt polling', () => {
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
-  it('waits through 202 before returning a confirmed hash', async () => {
+  afterEach(() => { vi.useRealTimers(); vi.resetAllMocks() })
+  it('waits through a pending tool result before returning a confirmed hash', async () => {
     vi.useFakeTimers()
     const hash=`0x${'1'.repeat(64)}`
-    const fetcher=vi.fn().mockResolvedValueOnce(Response.json({pending:true},{status:202})).mockResolvedValueOnce(Response.json({transactionHash:hash}))
-    vi.stubGlobal('fetch',fetcher)
+    mcp.mockResolvedValueOnce({pending:true}).mockResolvedValueOnce({transactionHash:hash})
     const result=waitForUserOperation(hash)
     await vi.advanceTimersByTimeAsync(2000)
     expect(await result).toBe(hash)
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(mcp).toHaveBeenCalledTimes(2)
   })
   it('rejects malformed success responses', async () => {
-    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({pending:true})))
+    mcp.mockResolvedValue({})
     await expect(waitForUserOperation('hash')).rejects.toThrow('invalid transaction hash')
   })
 })

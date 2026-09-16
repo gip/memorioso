@@ -1,7 +1,13 @@
 {
   "openship": "1.0",
   "capability": "discovery",
-  "project": { "name": "Broken", "description": "Sources is missing." },
+  "project": {
+    "name": "Broken",
+    "productDescription": "Sources is missing.",
+    "productSummary": "# Product\n\nSources is missing.",
+    "technicalDescription": "A source snapshot published through OpenShip.",
+    "technicalSummary": "# Implementation\n\nRetrieve the source bundle, install its dependencies, and follow its deployment documentation."
+  },
   "agent": {
     "summary": "OpenShip exposes capabilities for a running project.",
     "instructions": "Fetch and read agent.skill before using any capability.",

@@ -54,7 +54,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     if (process.env.LIBRO_SERVICE_WRITES_ENABLED === '1') {
-      const result = await serviceUserRequest(authenticatedUser.id, 'profile', '/api/v1/agent-registrations')
+      const result = await serviceUserRequest(authenticatedUser.id, 'profile', 'list_agent_registrations')
       return NextResponse.json({ success: true, ...result as object })
     }
     const { rows } = await client.query(

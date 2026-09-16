@@ -1,0 +1,27 @@
+{
+  "openship": "1.0",
+  "capability": "skills",
+  "skills": [
+    {
+      "id": "product-reuse",
+      "name": "Product reuse",
+      "description": "Reuse a product through MCP.",
+      "version": "0.1.0",
+      "purposes": [
+        "reuse"
+      ],
+      "source": "https://example.com/skills/product-reuse",
+      "digest": "sha256:76631c186aed9ccd5df6e08bb43426fff105124641a6a9aa01a4349b3fa45afb",
+      "files": {
+        "SKILL.md": {
+          "encoding": "utf-8",
+          "content": "---\nname: product-reuse\ndescription: Reuse the product through its public MCP interface.\n---\n\n# Product reuse\n\nRead [the interface guide](references/interface.md) before selecting a tool.\n"
+        },
+        "references/interface.md": {
+          "encoding": "utf-8",
+          "content": "# Interface\n\nUse the provider’s documented public MCP endpoint and request only the operations needed for the user’s task.\n"
+        }
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { createLibroMcpClient } from '@libro/core'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import type { PoolClient } from 'pg'
 import { pool } from '@/lib/db'
@@ -61,26 +62,19 @@ export async function getLibroAccessToken(userId: number, requiredScope?: string
   const clientId = process.env.LIBRO_OAUTH_CLIENT_ID
   const clientSecret = process.env.LIBRO_OAUTH_CLIENT_SECRET
   if (!serviceUrl || !clientId || !clientSecret) throw new Error('Libro OAuth configuration is incomplete')
-  const resource = new URL('/api/v1', serviceUrl).toString()
+  const resource = new URL('/mcp', serviceUrl).toString()
   const form = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: decrypt(row.refresh_token_ciphertext),
     client_id: clientId,
     resource,
   })
-  const response = await fetch(new URL('/oauth/token', serviceUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-    },
-    body: form,
-    cache: 'no-store',
-  })
-  const body = await response.json().catch(() => null) as {
-    access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string
-  } | null
-  if (!response.ok || !body?.access_token || !body.refresh_token) throw new Error(body?.error || 'Libro token refresh failed')
+  const body = await createLibroMcpClient(new URL('/mcp', serviceUrl).toString(), {
+    headers: { Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}` },
+  }).callTool<{ access_token: string; refresh_token: string; expires_in: number; scope: string }>(
+    'oauth_token', { form: Object.fromEntries(form) },
+  )
+  if (!body?.access_token || !body.refresh_token) throw new Error('Libro token refresh failed')
   await pool.query(
     `UPDATE libro_oauth_sessions SET access_token_ciphertext = $2,
        refresh_token_ciphertext = $3, access_expires_at = CURRENT_TIMESTAMP + ($4 * INTERVAL '1 second'),
@@ -100,13 +94,7 @@ export async function clearLibroTokens(userId: number): Promise<void> {
   const clientId = process.env.LIBRO_OAUTH_CLIENT_ID
   const clientSecret = process.env.LIBRO_OAUTH_CLIENT_SECRET
   if (!encrypted || !serviceUrl || !clientId || !clientSecret) return
-  await fetch(new URL('/oauth/revoke', serviceUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-    },
-    body: new URLSearchParams({ token: decrypt(encrypted), client_id: clientId }),
-    cache: 'no-store',
-  }).catch(() => undefined)
+  await createLibroMcpClient(new URL('/mcp', serviceUrl).toString(), {
+    headers: { Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}` },
+  }).callTool('oauth_revoke', { form: { token: decrypt(encrypted), client_id: clientId } }).catch(() => undefined)
 }

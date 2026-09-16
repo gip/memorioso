@@ -2,10 +2,25 @@
   "openship": "1.0",
   "capability": "sources",
   "digest": "sha256:1d322539e651a3c2d7c51eb8b33160627395b9601bff909e599771b806d9e565",
-  "project": { "name": "Broken", "description": "Contains an unsafe path." },
-  "totals": { "files": 1, "bytes": 1 },
+  "project": {
+    "name": "Broken",
+    "productDescription": "Contains an unsafe path.",
+    "productSummary": "# Product\n\nContains an unsafe path.",
+    "technicalDescription": "A source snapshot published through OpenShip.",
+    "technicalSummary": "# Implementation\n\nRetrieve the source bundle, install its dependencies, and follow its deployment documentation."
+  },
+  "totals": {
+    "files": 1,
+    "bytes": 1
+  },
   "files": [
-    { "path": "../secret", "size": 1, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "encoding": "utf-8", "mediaType": "text/plain", "type": "file" }
+    {
+      "path": "../secret",
+      "size": 1,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "encoding": "utf-8",
+      "mediaType": "text/plain",
+      "type": "file"
+    }
   ]
 }
-

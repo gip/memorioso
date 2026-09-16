@@ -9,6 +9,3 @@ Allow: /terms
 Disallow: /api/
 Disallow: /d/
 Disallow: /info
-
-# Sitemap
-Sitemap: https://memorioso.xyz/sitemap.xml

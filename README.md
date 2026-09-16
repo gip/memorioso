@@ -16,7 +16,12 @@ Memorioso access gates are presentation policy rather than confidentiality. Libr
 MCP may return the complete canonical signed payload. See [`libro/service/README.md`](./libro/service/README.md)
 for service setup and the freeze/delta-copy/cutover/rollback runbook.
 
+In the OpenShip description, a **CONTRACT** is a **PROCESS running on consensus**; “smart” is implied. LibroRegistry, the WorldIDVerifier proxy, and USDC are CONTRACT nodes executing under World Chain consensus. RPC endpoints and application/service relayers remain ordinary PROCESS components.
+
 ## Agents
+
+Use the [Libro product-building skill](./libro/skill/SKILL.md) for PoH requirements, features,
+staging and production MCP URLs, OAuth, publishing, and verification workflows.
 
 Handle owners can authorize agents to publish on their behalf, and those agents sign with EIP-712 rather than a World ID proof, so the contract keeps agent authorship semantically distinct from direct human authorship. Coding agents can make use of this by directly writing code that hits `LibroRegistry` (see `lib/libro/agent.ts`); an MCP is also available.
 
@@ -35,9 +40,10 @@ to the configured Libro `/mcp` endpoint and call `openship` with `{"operation":"
 read exact files with `{"operation":"read","path":"app/page.tsx"}`.
 
 OpenShip is a protocol rather than a Memorioso feature; any site can implement it. Memorioso
-implements Sources and Changes, not Systems. The complete pinned v1 skill and specifications are
+implements Sources and Systems. The complete pinned v1 skill and specifications are
 vendored under [`skills/openship`](./skills/openship). The payload is generated at build time by
 `scripts/build-openship.mjs` from the explicit `openship.json` allowlist.
+The pinned `@openship/protocol@0.1.2` dependency provides native `Contract` support.
 
 ## Database setup
 

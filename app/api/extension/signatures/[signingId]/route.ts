@@ -8,7 +8,6 @@ import {
   latestPublicationsCacheTag,
   publicationCacheTag,
   publicationHashCacheTag,
-  sitemapCacheTag,
 } from '@/lib/db/publication-cache'
 
 type Params = Promise<{ signingId: string }>
@@ -43,7 +42,6 @@ export async function GET(request: NextRequest, { params }: { params: Params }):
         revalidateTag(publicationCacheTag(status.publicationId), { expire: 0 })
         revalidateTag(publicationHashCacheTag(status.signalHash), { expire: 0 })
         revalidateTag(authorPublicationCountsCacheTag(row.authorId), { expire: 0 })
-        revalidateTag(sitemapCacheTag, { expire: 0 })
         revalidateTag(latestPublicationsCacheTag, { expire: 0 })
       }
       return NextResponse.json({

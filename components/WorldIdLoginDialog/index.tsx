@@ -29,6 +29,7 @@ type WorldIdLoginDialogProps = {
   onContinue: () => Promise<void>
   continueAs: string | null
   error: string | null
+  lookupHandle?: (handle: string) => Promise<{ success?: boolean; valid?: boolean; exists?: boolean; canLogin?: boolean }>
   lookupUrl?: string
 }
 
@@ -41,6 +42,7 @@ export const WorldIdLoginDialog = ({
   continueAs,
   error,
   lookupUrl = '/api/auth/handle',
+  lookupHandle,
 }: WorldIdLoginDialogProps) => {
   const [value, setValue] = useState('')
   const [lookup, setLookup] = useState<LookupState>({ status: 'idle' })
@@ -73,10 +75,10 @@ export const WorldIdLoginDialog = ({
     setLookup({ status: 'checking' })
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`${lookupUrl}?handle=${encodeURIComponent(handle)}`, {
+        const response = lookupHandle ? null : await fetch(`${lookupUrl}?handle=${encodeURIComponent(handle)}`, {
           cache: 'no-store',
         })
-        const body = await response.json() as {
+        const body = lookupHandle ? await lookupHandle(handle) : await response!.json() as {
           success?: boolean
           valid?: boolean
           exists?: boolean
@@ -85,7 +87,7 @@ export const WorldIdLoginDialog = ({
         if (seq !== lookupSeq.current) {
           return
         }
-        if (!response.ok || body.success !== true) {
+        if ((response && !response.ok) || body.success !== true) {
           setLookup({ status: 'error', message: 'Could not check that name. Try again.' })
           return
         }
@@ -106,7 +108,7 @@ export const WorldIdLoginDialog = ({
     }, 350)
 
     return () => clearTimeout(timer)
-  }, [value, lookupUrl])
+  }, [value, lookupUrl, lookupHandle])
 
   const submit = (action: (handle: string) => Promise<void>, handle: string) => {
     setIsSubmitting(true)

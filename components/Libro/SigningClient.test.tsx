@@ -20,13 +20,13 @@ vi.mock('@/lib/libro-service/wallet-receipt', () => ({ waitForUserOperation: vi.
 
 let container: HTMLDivElement
 let root: Root
-const fetcher = vi.fn()
+const fetcher = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/libro-service/browser-mcp', () => ({ browserMcp: fetcher }))
 const context = { appId: 'app_test', environment: 'staging', rpContext: {}, signalText: '{}', existingSessionId: 'session_test' }
 
 beforeEach(() => {
   vi.stubGlobal('React', React)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('fetch', fetcher)
   fetcher.mockReset()
   widget.props = null
   container = document.createElement('div')
@@ -45,31 +45,31 @@ async function mount() {
 
 describe('automatic publication signing', () => {
   it('opens World ID on mount without a button and starts once under Strict Mode', async () => {
-    fetcher.mockResolvedValue(Response.json(context))
+    fetcher.mockResolvedValue(context)
     await mount()
-    expect(fetcher).toHaveBeenCalledExactlyOnceWith('/api/libro/browser/api/v1/signing/test-capability/context', { method: 'POST' })
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith('signing_context', { capability: 'test-capability' })
     expect(widget.props?.open).toBe(true)
     expect(container.querySelector('button')).toBeNull()
   })
   it('automatically resumes a prepared registration and finalizes without another proof', async () => {
-    fetcher.mockResolvedValueOnce(Response.json({ prepared: { registrationId: 'registration', transactionHash: '0xabc', submissionMethod: 'libro_relayer' } }))
-      .mockResolvedValueOnce(Response.json({ publicationId: 'publication' }))
+    fetcher.mockResolvedValueOnce({ prepared: { registrationId: 'registration', transactionHash: '0xabc', submissionMethod: 'libro_relayer' } })
+      .mockResolvedValueOnce({ publicationId: 'publication' })
     await mount()
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(fetcher.mock.calls[1][0]).toBe('/api/libro/browser/api/v1/signing/test-capability/finalize')
+    expect(fetcher.mock.calls[1][0]).toBe('signing_finalize')
     expect(widget.props).toBeNull()
     expect(container.textContent).toContain('signed and published')
     expect(container.querySelector('button')).toBeNull()
   })
   it('requests a publication-bound human session proof without optional presence checking', async () => {
-    fetcher.mockResolvedValue(Response.json(context))
+    fetcher.mockResolvedValue(context)
     await mount()
     expect(widget.props?.require_user_presence).toBe(false)
     expect(widget.props?.existing_session_id).toBe(context.existingSessionId)
     expect(widget.props?.constraints).toEqual({ identifier: 'proof_of_human', signal: context.signalText })
   })
   it('shows retry only after an error and restarts when requested', async () => {
-    fetcher.mockRejectedValueOnce(new Error('Service unavailable')).mockResolvedValueOnce(Response.json(context))
+    fetcher.mockRejectedValueOnce(new Error('Service unavailable')).mockResolvedValueOnce(context)
     await mount()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Service unavailable')
     await act(async () => { container.querySelector('button')!.click() })
@@ -78,7 +78,7 @@ describe('automatic publication signing', () => {
     expect(container.querySelector('button')).toBeNull()
   })
   it('does not automatically reopen verification after cancellation', async () => {
-    fetcher.mockResolvedValue(Response.json(context))
+    fetcher.mockResolvedValue(context)
     await mount()
     await act(async () => { widget.props!.onOpenChange(false) })
     expect(fetcher).toHaveBeenCalledTimes(1)

@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ autho
       const owned = await client.query('SELECT id FROM authors WHERE id = $1 AND "userId" = $2', [authorId, authenticatedUser.id])
       if (!owned.rows[0]) return NextResponse.json({ success: false, message: 'Author not found' }, { status: 404 })
       const { author } = await serviceUserRequest<{ author: { id: string; name: string; bio: string | null; handle: string } }>(
-        authenticatedUser.id, 'profile', '/api/v1/me', 'PATCH', { name, bio: bio || '' },
+        authenticatedUser.id, 'profile', 'update_profile', { name, bio: bio || '' },
       )
       if (author.id !== authorId) throw new Error('Libro author does not match the local account')
       await client.query('BEGIN')

@@ -1,5 +1,7 @@
 'use client'
 
+import { browserMcp } from '@/lib/libro-service/browser-mcp'
+
 import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
 
 import { Button } from '@/components/ui/button'
@@ -28,17 +30,6 @@ type Transaction = {
   transactions: Array<{ to: string; data: string; value: string }>
 }
 
-async function responseBody(response: Response) {
-  const body = await response.json().catch(() => null)
-  if (response.status === 401) {
-    window.location.assign(`/libro/identity?continue=${encodeURIComponent(window.location.href)}`)
-    throw new Error('Verify your identity to continue')
-  }
-  if (!response.ok) throw new Error(body?.error?.message || `Libro returned HTTP ${response.status}`)
-  return body
-}
-
-
 export function SigningClient({ capability, mobilePublication }: { capability: string; mobilePublication?: { draftId: string; kind: 'article' | 'short' } }) {
   const [context, setContext] = useState<SigningContext | null>(null)
   const [open, setOpen] = useState(false)
@@ -54,11 +45,7 @@ export function SigningClient({ capability, mobilePublication }: { capability: s
   async function sign(result: IDKitResultSession) {
     verifying.current = true
     setStatus('Preparing the on-chain registration…')
-    const prepared = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/prepare`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idkitResult: result }),
-    })) as Prepared
+    const prepared = await browserMcp<Prepared>('signing_prepare', { capability, idkitResult: result }) as Prepared
     await complete(prepared)
   }
 
@@ -81,30 +68,19 @@ export function SigningClient({ capability, mobilePublication }: { capability: s
       userOpHash = await sendSponsoredWorldTransaction(prepared.transaction) || undefined
       if (userOpHash) {
         submissionMethod = 'world_wallet'
-        await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/submission`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registrationId: prepared.registrationId, userOpHash }),
-        }))
+        await browserMcp<unknown>('signing_submission', { capability, registrationId: prepared.registrationId, userOpHash })
         setStatus('Waiting for World Chain confirmation…')
         transactionHash = await waitForUserOperation(userOpHash)
       }
     }
     if (!transactionHash) {
       setStatus('Requesting Libro-sponsored gas…')
-      const relayed = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/relay`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registrationId: prepared.registrationId }),
-      }))
+      const relayed = await browserMcp<{ transactionHash: string }>('signing_relay', { capability, registrationId: prepared.registrationId })
       transactionHash = relayed.transactionHash
       submissionMethod = 'libro_relayer'
     }
     setStatus('Finalizing the canonical publication…')
-    const finalized = await responseBody(await fetch(`/api/libro/browser/api/v1/signing/${capability}/finalize`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registrationId: prepared.registrationId, submissionMethod, transactionHash, userOpHash }),
-    }))
+    const finalized = await browserMcp<{ publicationId: string }>('signing_finalize', { capability, registrationId: prepared.registrationId, submissionMethod, transactionHash, userOpHash })
     setPublicationId(finalized.publicationId)
     setStatus('Published')
   }, [capability])
@@ -114,8 +90,7 @@ export function SigningClient({ capability, mobilePublication }: { capability: s
     setError('')
     setStatus('Starting World ID signing…')
     try {
-      const response = await fetch(`/api/libro/browser/api/v1/signing/${capability}/context`, { method: 'POST' })
-      const body = await responseBody(response)
+      const body = await browserMcp<SigningContext & { prepared?: Prepared }>('signing_context', { capability })
       if (body.prepared) await complete(body.prepared)
       else { setContext(body); setOpen(true) }
     } catch (reason) {

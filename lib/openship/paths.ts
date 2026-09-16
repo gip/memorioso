@@ -5,7 +5,7 @@ import { matchOpenShipPattern } from '@openship/protocol'
 
 /**
  * `a/b/**` is the OpenShip v1 selector. The suffix-only `a/b**` form remains for Memorioso's
- * internal source-ignore patterns and is never published as Changes policy.
+ * internal source-ignore patterns.
  */
 export const matchesPattern = (filePath: string, pattern: string): boolean => {
   if (pattern.endsWith('/**') || !pattern.endsWith('**')) {

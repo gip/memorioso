@@ -50,7 +50,7 @@ let lazyPool: Pool | undefined
  * The pool is built on first use rather than on import. `next build` collects page
  * data for every route that imports this module, so constructing it eagerly turned a
  * missing DATABASE_URL into a build failure on hosts that have no database at all
- * (preview and Openship sandbox builds). Missing-env failures stay explicit: the
+ * (preview builds). Missing-env failures stay explicit: the
  * error is thrown when something actually tries to talk to Postgres.
  */
 export const pool: Pool = new Proxy({} as Pool, {

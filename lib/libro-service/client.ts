@@ -1,9 +1,8 @@
+import { createLibroMcpClient, LibroMcpError } from '@libro/core'
 import type { LibroPublicationRecord, LibroPublicationSummary } from '@libro/core'
 import type { PublicationInfo, PublicationRecord, Proof } from '@/types'
-import type { PublicationFeedKind, PublicationKind } from '@/lib/publication-kind'
+import type { PublicationFeedKind } from '@/lib/publication-kind'
 import { getLibroAccessToken } from './token-store'
-
-type ErrorEnvelope = { error?: { code: string; message: string; retryable: boolean } }
 
 export class LibroServiceUnavailableError extends Error {
   constructor(message: string, public readonly status = 502, public readonly code = 'LIBRO_SERVICE_UNAVAILABLE') {
@@ -24,42 +23,32 @@ function config() {
   return { url: new URL(url).origin, clientId, authorization: `Service ${clientId}.${secret}` }
 }
 
-async function jsonRequest<T>(path: string, serviceAuth = false): Promise<T> {
+async function toolRequest<T>(name: string, args: Record<string, unknown> = {}, authorization?: string): Promise<T> {
   const value = config()
-  let response: Response
   try {
-    response = await fetch(new URL(path, value.url), {
-      headers: serviceAuth ? { Authorization: value.authorization } : undefined,
-      cache: 'no-store',
-    })
-  } catch {
+    return await createLibroMcpClient(new URL('/mcp', value.url).toString(), {
+      headers: authorization ? { Authorization: authorization } : undefined,
+    }).callTool<T>(name, args)
+  } catch (error) {
+    if (error instanceof LibroMcpError) throw new LibroServiceUnavailableError(error.message, error.status, error.code)
     throw new LibroServiceUnavailableError('Libro service could not be reached')
   }
-  const body = await response.json().catch(() => null) as (T & ErrorEnvelope) | null
-  if (!response.ok || !body) throw new LibroServiceUnavailableError(body?.error?.message || `Libro service returned HTTP ${response.status}`)
-  return body
 }
 
-async function recordRequest(path: string): Promise<LibroPublicationRecord | null> {
-  const value = config()
-  let response: Response
-  try {
-    response = await fetch(new URL(path, value.url), { cache: 'no-store' })
-  } catch {
-    throw new LibroServiceUnavailableError('Libro service could not be reached')
+async function recordRequest(name: string, args: Record<string, unknown>): Promise<LibroPublicationRecord | null> {
+  try { return await toolRequest<LibroPublicationRecord>(name, args) }
+  catch (error) {
+    if (error instanceof LibroServiceUnavailableError && error.code === 'NOT_FOUND') return null
+    throw error
   }
-  if (response.status === 404) return null
-  const body = await response.json().catch(() => null) as ({ publication?: LibroPublicationRecord } & ErrorEnvelope) | null
-  if (!response.ok || !body?.publication) throw new LibroServiceUnavailableError(body?.error?.message || `Libro service returned HTTP ${response.status}`)
-  return body.publication
 }
 
 export function getServicePublication(id: string): Promise<LibroPublicationRecord | null> {
-  return recordRequest(`/api/v1/publications/${encodeURIComponent(id)}`)
+  return recordRequest('get_publication', { publicationId: id })
 }
 
 export function getServicePublicationBySignal(signalHash: string): Promise<LibroPublicationRecord | null> {
-  return recordRequest(`/api/v1/publications/by-signal/${encodeURIComponent(signalHash)}`)
+  return recordRequest('get_publication_by_signal', { signalHash })
 }
 
 export function serviceRecordToPublication(value: LibroPublicationRecord): PublicationRecord {
@@ -77,27 +66,11 @@ export async function listServicePublications(input: {
   kind: PublicationFeedKind
 }): Promise<LibroPublicationSummary[]> {
   const value = config()
-  const query = new URLSearchParams({
-    limit: String(input.limit),
-    offset: String(input.offset),
-    kind: input.kind,
-    originClientId: value.clientId,
-  })
-  if (input.authorId) query.set('authorId', input.authorId)
-  const result = await jsonRequest<{ publications: LibroPublicationSummary[] }>(`/api/v1/publications?${query}`, true)
-  return result.publications
+  return toolRequest('list_publications', { ...input, originClientId: value.clientId }, value.authorization)
 }
 
 export function getServiceAuthorCounts(authorId: string): Promise<{ article: number; short: number }> {
-  return jsonRequest(`/api/v1/publications/counts?authorId=${encodeURIComponent(authorId)}`, true)
-}
-
-export async function getServiceSitemapPublications(limit: number): Promise<Array<{ id: string; kind: PublicationKind; lastModified: string }>> {
-  const result = await jsonRequest<{ publications: Array<{ id: string; kind: PublicationKind; lastModified: string }> }>(
-    `/api/v1/publications/sitemap?limit=${limit}`,
-    true,
-  )
-  return result.publications
+  return toolRequest('publication_counts', { authorId }, config().authorization)
 }
 
 export function serviceSummaryToPublicationInfo(summary: LibroPublicationSummary, access: 'public' | 'gated'): PublicationInfo {
@@ -120,52 +93,21 @@ export async function createServiceHumanPublication(input: {
   publication: unknown
   clientReference: string
 }): Promise<{ challengeId: string; signalHash: string; signingUrl: string }> {
-  const value = config()
-  const token = await getLibroAccessToken(input.userId, 'publish')
-  const response = await fetch(new URL('/api/v1/human-publications', value.url), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ publication: input.publication, clientReference: input.clientReference }),
-    cache: 'no-store',
-  }).catch(() => { throw new LibroServiceUnavailableError('Libro service could not be reached') })
-  const body = await response.json().catch(() => null) as {
-    challengeId?: string; signalHash?: string; signingUrl?: string; error?: { message?: string; code?: string }
-  } | null
-  if (!response.ok || !body?.challengeId || !body.signalHash || !body.signingUrl) {
-    throw new LibroServiceUnavailableError(
-      body?.error?.message || 'Libro publication challenge failed',
-      response.ok ? 502 : response.status,
-      body?.error?.code,
-    )
-  }
-  return body as { challengeId: string; signalHash: string; signingUrl: string }
+  const result = await serviceUserRequest<{ challengeId: string; signalHash: string; signingUrl: string }>(input.userId, 'publish', 'create_human_publication', {
+    publication: input.publication, clientReference: input.clientReference,
+  })
+  if (!result?.challengeId || !result.signalHash || !result.signingUrl) throw new LibroServiceUnavailableError('Libro publication challenge failed')
+  return result
 }
 
 export async function getServiceHumanPublicationStatus(input: {
   userId: number
   challengeId: string
 }): Promise<{ state: string; signalHash: string; publicationId: string | null; transactionHash: string | null }> {
-  const value = config()
-  const token = await getLibroAccessToken(input.userId)
-  const response = await fetch(new URL(`/api/v1/human-publications/${encodeURIComponent(input.challengeId)}`, value.url), {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  })
-  const body = await response.json().catch(() => null) as {
-    state?: string; signalHash?: string; publicationId?: string | null; transactionHash?: string | null; error?: { message?: string }
-  } | null
-  if (!response.ok || !body?.state || !body.signalHash) throw new LibroServiceUnavailableError(body?.error?.message || 'Libro publication status failed')
-  return body as { state: string; signalHash: string; publicationId: string | null; transactionHash: string | null }
+  return serviceUserRequest(input.userId, undefined, 'publication_status', { challengeId: input.challengeId })
 }
 
-export async function serviceUserRequest<T>(userId: number, scope: string, path: string, method = 'GET', body?: unknown): Promise<T> {
-  const value = config()
+export async function serviceUserRequest<T>(userId: number, scope: string | undefined, name: string, args: Record<string, unknown> = {}): Promise<T> {
   const token = await getLibroAccessToken(userId, scope)
-  const response = await fetch(new URL(path, value.url), {
-    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }), cache: 'no-store',
-  })
-  const result = await response.json().catch(() => null)
-  if (!response.ok || !result) throw new LibroServiceUnavailableError(result?.error?.message || 'Libro request failed')
-  return result as T
+  return toolRequest<T>(name, args, `Bearer ${token}`)
 }

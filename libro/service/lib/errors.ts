@@ -1,3 +1,4 @@
+import { oauthResourceMetadataUrl } from './config'
 import type { LibroServiceError } from '@libro/core'
 
 export class ServiceError extends Error {
@@ -24,8 +25,8 @@ export function errorResponse(error: unknown): Response {
     headers.set('Retry-After', '1')
     headers.set('Cache-Control', 'no-store')
   }
-  if (parsed.status === 401 && process.env.LIBRO_SERVICE_URL) {
-    const metadata = new URL('/.well-known/oauth-protected-resource', process.env.LIBRO_SERVICE_URL).toString()
+  if (parsed.status === 401 && process.env.NEXT_PUBLIC_APP_URL) {
+    const metadata = oauthResourceMetadataUrl()
     headers.set('WWW-Authenticate', `Bearer resource_metadata="${metadata}"`)
   }
   return Response.json(body, {

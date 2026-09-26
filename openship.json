@@ -1549,7 +1549,7 @@
       "path": "package.json"
     },
     {
-      "path": "patches/@worldcoin__idkit-core@4.2.4.patch"
+      "path": "patches/@worldcoin__idkit-core@4.3.0.patch"
     },
     {
       "path": "pnpm-lock.yaml"

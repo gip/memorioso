@@ -35,12 +35,12 @@ clears the flow store. Records contain signal hashes, not the original signals
 
 ## Pinned SDK patch
 
-The application directly depends on `@worldcoin/idkit-core@4.2.4`. The override
-for `@worldcoin/idkit@4.2.2` also selects core 4.2.4, avoiding two core versions
-inside the app. The extension's separate dependency is unchanged.
+The application and its other workspace packages use `@worldcoin/idkit@4.3.0`.
+The application directly depends on `@worldcoin/idkit-core@4.3.0` for mobile
+bridge recovery; IDKit selects the same core version.
 
 IDKit has no public restore API in this version. The patch in
-`patches/@worldcoin__idkit-core@4.2.4.patch` exports a small session bridge decoder
+`patches/@worldcoin__idkit-core@4.3.0.patch` exports a small session bridge decoder
 around the existing WASM `proofResponseToIDKitResult`. It retains IDKit's proof
 encoding and session-nullifier conversion instead of implementing a second
 parser. It is not a cryptographic proof verifier. Remove the patch when an

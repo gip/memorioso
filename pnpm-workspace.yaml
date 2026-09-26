@@ -8,9 +8,7 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
-  - '@worldcoin/idkit-core@4.2.1'
-  - '@worldcoin/idkit@4.2.0'
-overrides:
-  '@worldcoin/idkit@4.2.2>@worldcoin/idkit-core': 4.2.4
+  - '@worldcoin/idkit-core@4.3.0'
+  - '@worldcoin/idkit@4.3.0'
 patchedDependencies:
-  '@worldcoin/idkit-core@4.2.4': patches/@worldcoin__idkit-core@4.2.4.patch
+  '@worldcoin/idkit-core@4.3.0': patches/@worldcoin__idkit-core@4.3.0.patch

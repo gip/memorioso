@@ -30,7 +30,7 @@ function flow(): MobileFlow {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('IDKit mobile bridge recovery with the real 4.2.4 WASM decoder', () => {
+describe('IDKit mobile bridge recovery with the real 4.3.0 WASM decoder', () => {
   it('preserves the distinction between no login signal and an explicitly empty signal', () => {
     expect(signalHashes({ any: [{ type: 'proof_of_human' }] })).toEqual({})
     expect(signalHashes({ type: 'proof_of_human', signal: '' })).toEqual({ proof_of_human: hashSignal('') })

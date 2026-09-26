@@ -23,7 +23,7 @@ const WORLD_CHAIN_EXPLORER = 'https://worldscan.org'
 // What the generated script needs to run. The floors are the versions this app
 // itself signs and verifies with; `worldchain` reached viem in 2.21.10.
 const VIEM_MIN_VERSION = '^2.21.10'
-const IDKIT_MIN_VERSION = '^4.2.2'
+const IDKIT_MIN_VERSION = '^4.3.0'
 
 const scriptHeader = (filename: string) => `// Requirements: Node 22 or later, run as an ES module (.mjs).
 //

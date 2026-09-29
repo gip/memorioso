@@ -5,11 +5,12 @@ import './globals.css'
 import { Providers } from './providers'
 import { SiteChrome } from '@/components/SiteChrome'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 const inter = Inter({ subsets: ['latin'] })
 
 function SiteChromeFallback({ children }: { children: React.ReactNode }) {
-  return (
+  return (<>
     <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
       <div className="mx-auto grid w-full max-w-[740px] flex-1 grid-cols-1 px-4 lg:min-h-0 lg:max-w-none lg:grid-cols-[12rem_minmax(0,740px)_minmax(0,1fr)] lg:gap-4 lg:px-6 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,740px)_minmax(12rem,1fr)] xl:gap-8">
         <div className="min-h-full min-w-0 lg:col-start-2 lg:h-full lg:min-h-0 lg:overflow-y-auto">
@@ -19,7 +20,8 @@ function SiteChromeFallback({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </div>
-  )
+    <SpeedInsights />
+  </>)
 }
 
 // viewportFit cover lets the app extend under notches in the World App webview;

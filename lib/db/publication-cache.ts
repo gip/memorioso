@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from 'next/cache'
 import {
   getAuthorPublicationCounts,
   getLatestPublications,
+  getPublicationsByAuthor,
   getProof,
   getPublication,
   getPublicationAccess,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/db/objects'
 import { type PublicationFeedKind } from '@/lib/publication-kind'
 import type { PublicationInfo } from '@/types'
+import { libroServiceReadsEnabled } from '@/lib/libro-service/client'
 
 export const publicationCacheTag = (publicationId: string) => `publication:${publicationId}`
 export const publicationHashCacheTag = (signalHash: string) =>
@@ -19,25 +21,45 @@ export const authorPublicationCountsCacheTag = (authorId: string) =>
 export const latestPublicationsCacheTag = 'latest-publications'
 
 /**
- * The reading feed, cached so the homepage can prerender with articles already
- * in it instead of fetching them after hydration. Publications are append-only,
- * so `max` plus tag invalidation from the two publish finalize routes is exact:
- * nothing else changes what this returns.
- *
- * Keep the page window small and stable. Every distinct (limit, offset, type)
- * is its own cache entry, so this is for the pages a server render asks for,
- * not for arbitrary scroll offsets.
+ * Service-backed feeds run at request time and share entries across instances.
+ * The publication tags expire these entries when a publish or webhook completes.
  */
 export async function getCachedLatestPublications(
   limit: number,
   offset: number,
   type: PublicationFeedKind
 ): Promise<PublicationInfo[]> {
+  if (libroServiceReadsEnabled()) return getSharedLatestPublications(limit, offset, type)
+  return getPrerenderedLatestPublications(limit, offset, type)
+}
+
+async function getPrerenderedLatestPublications(limit: number, offset: number, type: PublicationFeedKind) {
   'use cache'
 
   cacheTag(latestPublicationsCacheTag)
   cacheLife('max')
   return getLatestPublications(limit, offset, type)
+}
+
+async function getSharedLatestPublications(limit: number, offset: number, type: PublicationFeedKind) {
+  'use cache: remote'
+
+  cacheTag(latestPublicationsCacheTag)
+  cacheLife('max')
+  return getLatestPublications(limit, offset, type)
+}
+
+export async function getCachedPublicationsByAuthor(
+  authorId: string,
+  limit: number,
+  offset: number,
+  type: PublicationFeedKind
+): Promise<PublicationInfo[]> {
+  'use cache: remote'
+
+  cacheTag(authorPublicationCountsCacheTag(authorId), latestPublicationsCacheTag)
+  cacheLife('max')
+  return getPublicationsByAuthor(authorId, limit, offset, type)
 }
 
 export async function getCachedPublication(publicationId: string) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getLatestPublications } from '@/lib/db/objects'
+import { getCachedLatestPublications } from '@/lib/db/publication-cache'
 import { type PublicationFeedKind } from '@/lib/publication-kind'
 
 const readInt = (value: string | null, fallback: number, min: number, max: number): number => {
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const type = requestedType as PublicationFeedKind
 
   // One extra row tells the caller whether another page exists without a count.
-  const rows = await getLatestPublications(limit + 1, offset, type)
+  const rows = await (offset <= 200 ? getCachedLatestPublications : getLatestPublications)(limit + 1, offset, type)
   const publications = rows.slice(0, limit)
 
   return NextResponse.json({

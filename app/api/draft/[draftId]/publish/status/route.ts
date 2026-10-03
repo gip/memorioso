@@ -15,14 +15,26 @@ export async function GET(request: NextRequest, context: { params: Promise<{ dra
   if (!user) return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 })
   const { draftId } = await context.params
   const pending = await pool.query(
-    `SELECT p.*, d.publication_type FROM pending_libro_publications p
+    `SELECT p.*, d.publication_type, policy.publication_id::text AS local_publication_id
+     FROM pending_libro_publications p
      JOIN drafts d ON d.id = p."draftId"
-     WHERE p."draftId" = $1 AND p."userId" = $2
+     LEFT JOIN publication_policies policy
+       ON policy.signal_hash = LOWER(p.signal_hash) AND policy."authorId" = p."authorId"
+       AND policy.origin_client_id = $3 AND p.acknowledged_at IS NOT NULL
+     WHERE p."draftId" = $1 AND p."userId" = $2 AND d."userId" = $2
      ORDER BY p.created_at DESC LIMIT 1`,
-    [draftId, user.id],
+    [draftId, user.id, process.env.LIBRO_OAUTH_CLIENT_ID],
   )
   const row = pending.rows[0]
   if (!row) return NextResponse.json({ success: false, message: 'Pending Libro publication not found' }, { status: 404 })
+  if (row.local_publication_id) {
+    return NextResponse.json({
+      success: true,
+      state: 'finalized',
+      publicationId: row.local_publication_id,
+      publicationType: row.publication_type,
+    })
+  }
   try {
     const status = await getServiceHumanPublicationStatus({ userId: user.id, challengeId: row.service_challenge_id })
     if (status.state === 'finalized' && status.publicationId) {

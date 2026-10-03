@@ -8,6 +8,7 @@ import { chainConfig } from './chain'
 import { assertWritesEnabled, ServiceError } from './errors'
 import { deliverPendingEvents, enqueueServiceEvent } from './events'
 import type { OAuthPrincipal } from './oauth'
+import { publicationExcerpt } from './publications'
 
 export async function importPublication(input: {
   principal: OAuthPrincipal
@@ -50,8 +51,8 @@ export async function importPublication(input: {
     const inserted = await client.query(
       `INSERT INTO libro_publications
         (author_id, identity_id, origin_client_id, client_reference, signal_hash,
-         authorship_class, signal, proof, version, title, subtitle, date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+         authorship_class, signal, proof, version, title, subtitle, date, feed_excerpt)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [input.principal.authorId, input.principal.identityId, input.principal.clientId,
         input.clientReference || null, manifest.registration.signal_hash,
         manifest.registration.authorship_class, manifest.publication, proof,
@@ -59,7 +60,8 @@ export async function importPublication(input: {
           ? manifest.publication.libro_protocol_version
           : manifest.publication.libro_agent_protocol_version),
         manifest.publication.publication_title,
-        manifest.publication.publication_subtitle || null, manifest.publication.publication_date],
+        manifest.publication.publication_subtitle || null, manifest.publication.publication_date,
+        publicationExcerpt(manifest.publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
     await enqueueServiceEvent(client, {

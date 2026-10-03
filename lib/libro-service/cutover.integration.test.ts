@@ -8,16 +8,17 @@ const test = vi.hoisted(() => {
   const url = process.env.LIBRO_TEST_DATABASE_URL
   const schema = `p1_memorioso_${process.pid}`
   if (url) { const scoped = new URL(url); scoped.searchParams.set('options', `-c search_path=${schema},public`); process.env.DATABASE_URL = scoped.toString() }
-  return { url, schema, user: { id: 0, handle:'ada' }, service:vi.fn() }
+  return { url, schema, user: { id: 0, handle:'ada' }, service:vi.fn(), status:vi.fn() }
 })
 vi.mock('@/lib/auth-user', () => ({ getAuthenticatedUser: async () => test.user }))
 vi.mock('@/lib/libro-service/token-store', () => ({ getLibroAccessToken: async () => 'oauth-token' }))
-vi.mock('@/lib/libro-service/client', () => ({ serviceUserRequest:test.service }))
+vi.mock('@/lib/libro-service/client', () => ({ serviceUserRequest:test.service, getServiceHumanPublicationStatus:test.status }))
 import { pool } from '@/lib/db'
 import { POST as createConnection } from '@/app/api/extension/auth/connect/route'
 import { GET as consentPage, POST as approveConnection } from '@/app/api/extension/auth/connect/[id]/route'
 import { POST as pollConnection } from '@/app/api/extension/auth/connect/[id]/token/route'
 import { PATCH as updateProfile } from '@/app/api/author/[authorId]/route'
+import { GET as publicationStatus } from '@/app/api/draft/[draftId]/publish/status/route'
 
 let admin:Pool
 let authorId:string
@@ -74,5 +75,33 @@ describe.skipIf(!test.url)('Memorioso cutover with Postgres',()=>{
     expect((await updateProfile(req(),{params:Promise.resolve({authorId})})).status).toBe(200)
     expect(test.service).toHaveBeenCalledWith(test.user.id,'profile','update_profile',{name:'Ada Updated',bio:'Bio'})
     expect((await pool.query('SELECT name FROM authors WHERE id=$1',[authorId])).rows[0].name).toBe('Ada Updated')
+  })
+  it('uses only an acknowledged, matching local publication and enforces draft ownership',async()=>{
+    process.env.LIBRO_OAUTH_CLIENT_ID='memorioso'
+    const draftId=randomUUID(), challengeId=randomUUID(), signalHash=`0x${'c'.repeat(64)}`
+    await pool.query(`INSERT INTO drafts (id,"userId","authorId",status,title,content,history)
+      VALUES ($1,$2,$3,'editing','A title','{"html":"Human writing."}','{}')`,[draftId,test.user.id,authorId])
+    await pool.query(`INSERT INTO pending_libro_publications
+      (service_challenge_id,client_reference,"userId","authorId","draftId",signal_hash,access)
+      VALUES ($1,$2,$3,$4,$5,$6,'gated')`,[challengeId,challengeId,test.user.id,authorId,draftId,signalHash])
+    await pool.query(`INSERT INTO publication_policies
+      (publication_id,signal_hash,"authorId",origin_client_id,access)
+      VALUES (42,$1,$2,'memorioso','gated')`,[signalHash,authorId])
+    const context={params:Promise.resolve({draftId})}
+    test.status.mockResolvedValue({state:'prepared',signalHash,publicationId:null,transactionHash:null})
+    expect(await (await publicationStatus(request('https://memorioso.test/status'),context)).json()).toMatchObject({state:'prepared'})
+    expect(test.status).toHaveBeenCalledOnce()
+    await pool.query('UPDATE pending_libro_publications SET acknowledged_at=CURRENT_TIMESTAMP WHERE service_challenge_id=$1',[challengeId])
+    expect(await (await publicationStatus(request('https://memorioso.test/status'),context)).json()).toMatchObject({state:'finalized',publicationId:'42'})
+    expect(test.status).toHaveBeenCalledOnce()
+    await pool.query("UPDATE publication_policies SET origin_client_id='another-client' WHERE publication_id=42")
+    expect(await (await publicationStatus(request('https://memorioso.test/status'),context)).json()).toMatchObject({state:'prepared'})
+    expect(test.status).toHaveBeenCalledTimes(2)
+    const ownerId=test.user.id
+    test.user.id=ownerId+100
+    try {
+      expect((await publicationStatus(request('https://memorioso.test/status'),context)).status).toBe(404)
+      expect(test.status).toHaveBeenCalledTimes(2)
+    } finally {test.user.id=ownerId}
   })
 })

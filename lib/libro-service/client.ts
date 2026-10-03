@@ -1,4 +1,5 @@
 import { createLibroMcpClient, LibroMcpError } from '@libro/core'
+import { createHash } from 'node:crypto'
 import type { LibroPublicationRecord, LibroPublicationSummary } from '@libro/core'
 import type { PublicationInfo, PublicationRecord, Proof } from '@/types'
 import type { PublicationFeedKind } from '@/lib/publication-kind'
@@ -23,13 +24,39 @@ function config() {
   return { url: new URL(url).origin, clientId, authorization: `Service ${clientId}.${secret}` }
 }
 
+const clients = new Map<string, { client: ReturnType<typeof createLibroMcpClient>; usedAt: number }>()
+const CLIENT_IDLE_MS = 5 * 60_000
+const CLIENT_LIMIT = 32
+
+function reusableClient(endpoint: string, authorization?: string) {
+  const key = createHash('sha256').update(JSON.stringify([endpoint, authorization || null])).digest('hex')
+  const now = Date.now()
+  for (const [id, entry] of clients) {
+    if (now - entry.usedAt >= CLIENT_IDLE_MS) clients.delete(id)
+  }
+  const existing = clients.get(key)
+  const entry = existing || {
+    client: createLibroMcpClient(endpoint, { headers: authorization ? { Authorization: authorization } : undefined }),
+    usedAt: now,
+  }
+  entry.usedAt = now
+  clients.delete(key)
+  clients.set(key, entry)
+  if (clients.size > CLIENT_LIMIT) clients.delete(clients.keys().next().value!)
+  return { key, client: entry.client }
+}
+
 async function toolRequest<T>(name: string, args: Record<string, unknown> = {}, authorization?: string): Promise<T> {
   const value = config()
+  // Initialization and any MCP session stay bound to the exact credential.
+  const { key, client } = reusableClient(new URL('/mcp', value.url).toString(), authorization)
   try {
-    return await createLibroMcpClient(new URL('/mcp', value.url).toString(), {
-      headers: authorization ? { Authorization: authorization } : undefined,
-    }).callTool<T>(name, args)
+    return await client.callTool<T>(name, args)
   } catch (error) {
+    // A later call can reconnect, but a failed mutation must never be replayed.
+    if (!(error instanceof LibroMcpError) || error.code === 'MCP_HTTP_ERROR' || error.code === 'INVALID_MCP_RESPONSE') {
+      if (clients.get(key)?.client === client) clients.delete(key)
+    }
     if (error instanceof LibroMcpError) throw new LibroServiceUnavailableError(error.message, error.status, error.code)
     throw new LibroServiceUnavailableError('Libro service could not be reached')
   }

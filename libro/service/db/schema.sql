@@ -121,6 +121,7 @@ CREATE TABLE libro_publications (
   version VARCHAR(255) NOT NULL,
   title VARCHAR(255) NOT NULL,
   subtitle VARCHAR(255),
+  feed_excerpt TEXT,
   date TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -128,6 +129,19 @@ CREATE TABLE libro_publications (
 CREATE INDEX libro_publications_author_date ON libro_publications(author_id, date DESC);
 CREATE INDEX libro_publications_origin_date ON libro_publications(origin_client_id, date DESC);
 CREATE INDEX libro_publications_date ON libro_publications(date DESC);
+
+CREATE FUNCTION clear_libro_publication_feed_excerpt() RETURNS trigger AS $$
+BEGIN
+  IF OLD.signal IS DISTINCT FROM NEW.signal THEN
+    NEW.feed_excerpt := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER clear_libro_publication_feed_excerpt
+  BEFORE UPDATE OF signal ON libro_publications
+  FOR EACH ROW EXECUTE FUNCTION clear_libro_publication_feed_excerpt();
 
 CREATE TABLE libro_human_registrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

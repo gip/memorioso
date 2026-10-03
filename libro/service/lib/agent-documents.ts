@@ -18,6 +18,7 @@ import { pool } from './db'
 import { chainConfig, verifyDocumentRegistration } from './chain'
 import { assertWritesEnabled, ServiceError } from './errors'
 import { deliverPendingEvents, enqueueServiceEvent } from './events'
+import { publicationExcerpt } from './publications'
 
 function freshTimestamp(value: number): boolean {
   const now = Math.floor(Date.now() / 1000)
@@ -239,13 +240,14 @@ export async function finalizeAgentDocument(input: {
     const inserted = await client.query(
       `INSERT INTO libro_publications
         (author_id, identity_id, origin_client_id, signal_hash, authorship_class,
-         signal, proof, version, title, subtitle, date)
-       VALUES ($1,$2,$3,$4,'agent',$5,$6,$7,$8,$9,$10)
+         signal, proof, version, title, subtitle, date, feed_excerpt)
+       VALUES ($1,$2,$3,$4,'agent',$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (signal_hash) DO UPDATE SET signal_hash = EXCLUDED.signal_hash RETURNING id`,
       [document.author_id, document.identity_id, document.origin_client_id,
         document.document_signal_hash.toLowerCase(), publication, proof,
         publication.libro_agent_protocol_version, publication.publication_title,
-        publication.publication_subtitle || null, publication.publication_date],
+        publication.publication_subtitle || null, publication.publication_date,
+        publicationExcerpt(publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
     await client.query(

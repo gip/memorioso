@@ -93,8 +93,26 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     const publication = await getPublication(String(row.rows[0].id))
     expect(publication).toMatchObject({ signal, proof, identityId: null, legacyProof: true })
     expect((await listPublications({ limit: 10, offset: 0 }))[0]).toMatchObject({ legacyProof: true, title: 'Historical title' })
+    expect((await pool.query('SELECT feed_excerpt FROM libro_publications WHERE id = $1', [row.rows[0].id])).rows[0].feed_excerpt).toBe('Original prose')
+    expect((await getPublication(String(row.rows[0].id)))!.signal).toEqual(signal)
     expect(() => publicationManifest(publication!)).toThrow('legacy World ID proof')
     await expect(loginContext({ purpose: 'login', handle: 'historical' }, new Request('https://libro.test/mcp'))).rejects.toMatchObject({ status: 401, code: 'IDENTITY_NOT_FOUND' })
+  })
+
+  it('clears a derived excerpt when the copy procedure updates canonical content', async () => {
+    const id = randomUUID()
+    const signal = { author_id_libro: id, author_name_libro: 'Historical author', author_bio_libro: '',
+      publication_date: '2024-01-01T12:00:00.000Z', publication_title: 'Historical title',
+      publication_subtitle: '', publication_content: { html: '<p>Original prose</p>' } }
+    const proof = { proof: '0x12', merkle_root: '0x34', nullifier_hash: '0x56', verification_level: 'orb' }
+    const inserted = await pool.query(`INSERT INTO libro_publications
+      (author_id,signal_hash,authorship_class,signal,proof,version,title,date,legacy_proof,feed_excerpt)
+      VALUES ($1,$2,'human',$3,$4,'1','Historical title','2024-01-01',TRUE,'Original prose') RETURNING id`, [id,hash('3'),signal,proof])
+    const changed = { ...signal, publication_content: { html: '<p>Copied &amp; updated.</p>' } }
+    await pool.query('UPDATE libro_publications SET signal = $2 WHERE id = $1', [inserted.rows[0].id, changed])
+    expect((await pool.query('SELECT feed_excerpt FROM libro_publications')).rows[0].feed_excerpt).toBeNull()
+    expect((await listPublications({ limit: 10, offset: 0 }))[0].excerpt).toBe('Copied & updated.')
+    expect(await getPublication(String(inserted.rows[0].id))).toMatchObject({ signal: changed, proof })
   })
 
   async function challenge() {
@@ -154,6 +172,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     const first = await finalizeSigning(item.capability, input)
     expect(await finalizeSigning(item.capability, input)).toEqual(first)
     expect((await pool.query('SELECT * FROM libro_publications')).rows).toHaveLength(1)
+    expect((await pool.query('SELECT feed_excerpt FROM libro_publications')).rows[0].feed_excerpt).toBe('Human writing.')
     expect((await pool.query('SELECT * FROM libro_service_events')).rows).toHaveLength(1)
   })
 

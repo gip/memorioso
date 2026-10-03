@@ -220,6 +220,9 @@
       "path": "app/api/auth/world-id/verify/route.ts"
     },
     {
+      "path": "app/api/author/[authorId]/publications/route.test.ts"
+    },
+    {
       "path": "app/api/author/[authorId]/publications/route.ts"
     },
     {
@@ -257,6 +260,9 @@
     },
     {
       "path": "app/api/draft/[draftId]/publish/route.ts"
+    },
+    {
+      "path": "app/api/draft/[draftId]/publish/status/route.test.ts"
     },
     {
       "path": "app/api/draft/[draftId]/publish/status/route.ts"
@@ -919,6 +925,9 @@
       "path": "lib/libro-service/browser-mcp.ts"
     },
     {
+      "path": "lib/libro-service/client.test.ts"
+    },
+    {
       "path": "lib/libro-service/client.ts"
     },
     {
@@ -1318,6 +1327,9 @@
       "path": "libro/service/db/migrations/003_mcp_resource.sql"
     },
     {
+      "path": "libro/service/db/migrations/004_publication_feed_excerpt.sql"
+    },
+    {
       "path": "libro/service/db/schema.sql"
     },
     {
@@ -1502,6 +1514,9 @@
     },
     {
       "path": "libro/service/lib/openship.ts"
+    },
+    {
+      "path": "libro/service/lib/publications.test.ts"
     },
     {
       "path": "libro/service/lib/publications.ts"

@@ -78,6 +78,14 @@ before deploying this breaking change.
 
 ## Local setup
 
+Apply Libro migration **004** before deploying the feed optimization. It adds a nullable
+`feed_excerpt` projection outside the signed payload. New publications store the same
+240-character excerpt at finalization; older and copied rows compute and store it on their
+first feed read, preserving the original HTML text extraction and publication metadata.
+Public Memorioso feeds share a tag-invalidated runtime cache; publication completion and
+webhooks expire it immediately. Completed draft status checks use the authenticated local
+projection, with Libro remaining the fallback until that projection is acknowledged.
+
 Use a database distinct from Memorioso:
 
 ```sh

@@ -16,6 +16,7 @@ import {
 } from './chain'
 import { deliverPendingEvents, enqueueServiceEvent } from './events'
 import { recordHandleClaim } from './handle-claims'
+import { publicationExcerpt } from './publications'
 
 async function authenticatedChallenge(capability: string) {
   const identityId = await browserIdentityId()
@@ -267,13 +268,14 @@ export async function finalizeSigning(capability: string, input: {
     const inserted = await client.query(
       `INSERT INTO libro_publications
         (author_id, identity_id, origin_client_id, client_reference, signal_hash,
-         authorship_class, signal, proof, version, title, subtitle, date)
-       VALUES ($1,$2,$3,$4,$5,'human',$6,$7,$8,$9,$10,$11)
+         authorship_class, signal, proof, version, title, subtitle, date, feed_excerpt)
+       VALUES ($1,$2,$3,$4,$5,'human',$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (signal_hash) DO UPDATE SET signal_hash = EXCLUDED.signal_hash
        RETURNING id`,
       [row.author_id, row.identity_id, row.origin_client_id, row.client_reference,
         row.signal_hash.toLowerCase(), publication, proof, publication.libro_protocol_version,
-        publication.publication_title, publication.publication_subtitle || null, publication.publication_date],
+        publication.publication_title, publication.publication_subtitle || null, publication.publication_date,
+        publicationExcerpt(publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
     await client.query(

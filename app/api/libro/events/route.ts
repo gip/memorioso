@@ -55,6 +55,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let publicationId: string | null = null
   let signalHash: string | null = null
   let authorId: string | null = null
+  let familyIds: string[] = []
   try {
     await client.query('BEGIN')
     const inserted = await client.query(
@@ -69,7 +70,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (event.type === 'publication.finalized') {
       const expectedOrigin = process.env.LIBRO_OAUTH_CLIENT_ID
-      if (!expectedOrigin || event.originClientId !== expectedOrigin) {
+      const revision = event.data.revision as { rootPublicationId?: string; previousPublicationId?: string | null; initiallyPublishedAt?: string; revisionNumber?: number } | undefined
+      if (!expectedOrigin || event.originClientId !== expectedOrigin && !revision?.previousPublicationId) {
         await client.query('COMMIT')
         return NextResponse.json({ received: true, ignored: true })
       }
@@ -80,9 +82,21 @@ export async function POST(request: Request): Promise<NextResponse> {
         `SELECT * FROM pending_libro_publications WHERE client_reference = $1 FOR UPDATE`,
         [clientReference],
       ) : { rows: [] }
+      const previousPolicy = revision?.previousPublicationId ? (await client.query('SELECT * FROM publication_policies WHERE publication_id = $1 FOR UPDATE', [revision.previousPublicationId])).rows[0] : null
+      if (event.originClientId !== expectedOrigin && !previousPolicy) {
+        const knownFamily = revision?.rootPublicationId ? (await client.query('SELECT 1 FROM publication_policies WHERE COALESCE(root_publication_id,publication_id) = $1', [revision.rootPublicationId])).rows.length > 0 : false
+        if (knownFamily) throw new Error('Previous version event must be acknowledged first')
+        await client.query('COMMIT'); return NextResponse.json({ received: true, ignored: true })
+      }
+      if (revision?.previousPublicationId && !previousPolicy) throw new Error('Previous local publication policy has not been acknowledged')
+      if (previousPolicy && (String(previousPolicy.root_publication_id || previousPolicy.publication_id) !== revision?.rootPublicationId || previousPolicy.authorId !== event.data.authorId || !Number.isInteger(revision?.revisionNumber) || Number(revision?.revisionNumber) !== previousPolicy.revision_number + 1)) throw new Error('Revision does not match local family ownership')
       if (pending.rows[0]) {
+        if (String(pending.rows[0].previous_publication_id || '') !== String(revision?.previousPublicationId || '')) throw new Error('Revision does not match the pending draft predecessor')
         authorId = pending.rows[0].authorId
+        if (event.data.authorId !== authorId) throw new Error('Publication author does not match pending ownership')
         if (pending.rows[0].signal_hash.toLowerCase() !== signalHash) throw new Error('Publication signal does not match pending link')
+      } else if (previousPolicy) {
+        authorId = previousPolicy.authorId
       } else if (event.data.authorshipClass === 'agent') {
         authorId = stringField(event.data.authorId, 'authorId')
         const projected = await client.query(
@@ -102,8 +116,10 @@ export async function POST(request: Request): Promise<NextResponse> {
            origin_client_id = EXCLUDED.origin_client_id, access = EXCLUDED.access,
            access_price_usd = EXCLUDED.access_price_usd, modified_at = CURRENT_TIMESTAMP`,
         [publicationId, signalHash, authorId, event.originClientId,
-          pending.rows[0]?.access || 'public', pending.rows[0]?.access_price_usd || null],
+          pending.rows[0] ? pending.rows[0].access : previousPolicy?.access || 'public', pending.rows[0] ? pending.rows[0].access_price_usd : previousPolicy?.access_price_usd || null],
       )
+      await client.query('UPDATE publication_policies SET root_publication_id = $2, previous_publication_id = $3, initially_published_at = $4, revision_number = $5 WHERE publication_id = $1', [publicationId, revision?.rootPublicationId || publicationId, revision?.previousPublicationId || null, revision?.initiallyPublishedAt || null, revision?.revisionNumber || 1])
+      familyIds = (await client.query('SELECT publication_id::text AS id FROM publication_policies WHERE COALESCE(root_publication_id,publication_id) = $1', [revision?.rootPublicationId || publicationId])).rows.map(row => row.id)
       if (pending.rows[0]) {
         await client.query(
           `INSERT INTO draft_publication_acknowledgements
@@ -156,6 +172,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   if (publicationId && signalHash && authorId) {
+    for (const id of familyIds) revalidateTag(publicationCacheTag(id), { expire: 0 })
     revalidateTag(publicationCacheTag(publicationId), { expire: 0 })
     revalidateTag(publicationHashCacheTag(signalHash), { expire: 0 })
     revalidateTag(authorPublicationCountsCacheTag(authorId), { expire: 0 })

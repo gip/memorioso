@@ -1,3 +1,5 @@
+import { registryProtocolVersion } from '@libro/core'
+import { ensureLocalHandleClaim } from '@/lib/libro/handle-claim'
 import { NextRequest, NextResponse } from 'next/server'
 import { isAddress } from 'viem'
 import { pool } from '@/lib/db'
@@ -59,14 +61,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
     const { rows } = await client.query(
       `SELECT id, registration_hash, handle_hash, controller_address, agent_address,
-        scope, valid_from, expires_at, finalized_at, revoked_at, created_at
+        scope, valid_from, expires_at, finalized_at, revoked_at, created_at, registry_address
        FROM libro_agent_registrations
        WHERE "authorId" = $1 AND "userId" = $2
        ORDER BY created_at DESC`,
       [authorId, authenticatedUser.id]
     )
 
-    return NextResponse.json({ success: true, registrations: rows })
+    return NextResponse.json({ success: true, registrations: rows.map(row => ({ ...row, requiresV2Authorization: registryProtocolVersion(row.registry_address) !== 'libro-v2' })) })
   } finally {
     client.release()
   }
@@ -133,6 +135,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const author = authorResult.rows[0]
+    const claim = await ensureLocalHandleClaim(authenticatedUser, client)
+    if (claim) return NextResponse.json({ success: false, message: 'Claim your handle before authorizing an agent', handleClaim: claim }, { status: 409 })
     const handleHash = hashLibroHandle(author.handle)
     const rpContext = createRpContext(worldIdConfig)
     const registration = createAgentRegistrationPayload({

@@ -1,3 +1,5 @@
+import { persistRevisionProjection, validatePublicationRevision } from './revisions'
+import { isV2Publication, libroRegistryV2Abi, v2PublicationCommitment, LIBRO_AGENT_PROTOCOL_VERSION_V2 } from '@libro/core'
 import {
   LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
   LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
@@ -13,7 +15,7 @@ import {
   recoverLibroAgentDocumentSigner,
   type LibroAgentPublicationPayload,
 } from '@libro/core'
-import { isHex, type Hex } from 'viem'
+import { encodeFunctionData, isHex, type Hex } from 'viem'
 import { pool } from './db'
 import { chainConfig, verifyDocumentRegistration } from './chain'
 import { assertWritesEnabled, ServiceError } from './errors'
@@ -32,12 +34,8 @@ function agentPublication(value: unknown): LibroAgentPublicationPayload {
   } catch (error) {
     throw new ServiceError('INVALID_PUBLICATION', error instanceof Error ? error.message : 'Agent publication is invalid', 400)
   }
-  if (parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1 && parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2) {
+  if (parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1 && parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2 && parsed.publication_schema !== 'libro-agent-publication-v3') {
     throw new ServiceError('INVALID_PUBLICATION', 'An agent publication schema is required', 400)
-  }
-  const date = new Date(parsed.publication_date).getTime()
-  if (!Number.isFinite(date) || date > Date.now() || date < Date.now() - 5 * 60_000) {
-    throw new ServiceError('PUBLICATION_DATE_INVALID', 'Publication date must be within the last five minutes', 400)
   }
   return parsed
 }
@@ -67,6 +65,22 @@ export async function prepareAgentDocument(input: {
     throw new ServiceError('INVALID_SIGNATURE', 'Document nonce and signature must be hex strings', 400)
   }
   if (!freshTimestamp(input.signedAt)) throw new ServiceError('STALE_SIGNATURE', 'Agent document signature is stale', 400)
+  const signalText = canonicalPublicationSignal(publication)
+  const signalHash = hashPublicationSignal(signalText)
+  const pending = (await pool.query('SELECT * FROM libro_agent_documents WHERE document_signal_hash = $1', [signalHash])).rows[0]
+  if (pending) {
+    if (pending.registration_hash !== publication.agent_registration_hash.toLowerCase() || pending.document_nonce !== input.documentNonce.toLowerCase()) throw new ServiceError('IDEMPOTENCY_CONFLICT', 'Prepared document belongs to a different frozen operation', 409)
+    const signer = await recoverLibroAgentDocumentSigner(createLibroAgentDocumentTypedData({
+      chainId: pending.chain_id, registryAddress: pending.registry_address, registrationHash: pending.registration_hash,
+      documentSignalHash: signalHash, documentNonce: input.documentNonce, signedAt: input.signedAt,
+    }), input.signature)
+    if (signer.toLowerCase() !== pending.agent_address.toLowerCase()) throw new ServiceError('INVALID_SIGNATURE', 'Agent key is required to resume this document', 401)
+    return { documentRegistrationId: pending.id, documentSignalHash: signalHash, transaction: pending.transaction, transactionHash: pending.transaction_hash, publicationId: pending.publication_id ? String(pending.publication_id) : null }
+  }
+  const date = new Date(publication.publication_date).getTime()
+  if (!Number.isFinite(date) || date > Date.now() || date < Date.now() - 5 * 60_000) {
+    throw new ServiceError('PUBLICATION_DATE_INVALID', 'Publication date must be within the last five minutes', 400)
+  }
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -85,8 +99,8 @@ export async function prepareAgentDocument(input: {
       || publication.agent_address.toLowerCase() !== registration.agent_address.toLowerCase()
       || publication.author_handle_hash_libro.toLowerCase() !== registration.handle_hash.toLowerCase()
     ) throw new ServiceError('AGENT_MISMATCH', 'Publication does not match the registered agent authority', 403)
-    const signalText = canonicalPublicationSignal(publication)
-    const signalHash = hashPublicationSignal(signalText)
+    await validatePublicationRevision(publication, registration.author_id, true, client)
+    if (registration.registry_address.toLowerCase() !== chainConfig().registryAddress.toLowerCase()) throw new ServiceError('AGENT_V2_AUTHORIZATION_REQUIRED', 'The owner must authorize this agent in Libro v2 before publishing', 403)
     const config = chainConfig()
     const typedData = createLibroAgentDocumentTypedData({
       chainId: config.chainId,
@@ -111,7 +125,7 @@ export async function prepareAgentDocument(input: {
         publicationId: existing.rows[0].publication_id ? String(existing.rows[0].publication_id) : null,
       }
     }
-    const transaction = prepareLibroAgentDocumentTransaction({
+    const transaction = isV2Publication(publication) ? { chainId: config.chainId, transactions: [{ to: config.registryAddress, value: '0x0' as const, data: encodeFunctionData({ abi: libroRegistryV2Abi, functionName: 'registerAgentPublication', args: [registration.registration_hash, v2PublicationCommitment(publication), input.documentNonce as Hex, BigInt(input.signedAt), input.signature as Hex] }) }] } : prepareLibroAgentDocumentTransaction({
       chainId: config.chainId,
       registryAddress: config.registryAddress,
       registrationHash: registration.registration_hash,
@@ -122,7 +136,7 @@ export async function prepareAgentDocument(input: {
     })
     const proof = {
       proof_type: 'human_authorized_agent_signature',
-      protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      protocol_version: isV2Publication(publication) ? LIBRO_AGENT_PROTOCOL_VERSION_V2 : LIBRO_AGENT_PROTOCOL_VERSION,
       agent_registration: {
         ...(registration.proof || {}),
         chain_id: registration.chain_id,
@@ -205,6 +219,7 @@ export async function finalizeAgentDocument(input: {
   const registered = await verifyDocumentRegistration({
     transactionHash: input.transactionHash as Hex,
     signalHash: row.document_signal_hash,
+    publication: row.publication,
     handleHash: row.handle_hash,
     registryAddress: row.registry_address,
     authorshipClass: 'agent',
@@ -250,6 +265,7 @@ export async function finalizeAgentDocument(input: {
         publicationExcerpt(publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
+    const revision = await persistRevisionProjection(client, publicationId, publication)
     await client.query(
       `UPDATE libro_agent_documents SET publication_id = $2, proof = $3,
        user_op_hash = $4, transaction_hash = $5, finalized_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -257,10 +273,12 @@ export async function finalizeAgentDocument(input: {
     )
     await enqueueServiceEvent(client, {
       type: 'publication.finalized',
+      additionalClientIds: (await client.query('SELECT DISTINCT origin_client_id FROM libro_publications WHERE root_publication_id = $1 AND origin_client_id IS NOT NULL', [revision.rootPublicationId])).rows.map(member => member.origin_client_id),
       originClientId: document.origin_client_id,
       aggregateId: publicationId,
       data: {
         publicationId,
+        revision,
         signalHash: document.document_signal_hash.toLowerCase(),
         authorId: document.author_id,
         clientReference: null,

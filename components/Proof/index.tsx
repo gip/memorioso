@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { MemMark } from '@/components/MemMark'
 import { PublicationTimestamp } from '@/components/PublicationTimestamp'
 import { Proof as ProofType, PublicationRecord as PublicationType } from '@/lib/db/objects'
-import { extractReadableText, LIBRO_WORLD_CHAIN_RPC_URLS } from '@libro/core'
+import { isV2Publication, canonicalStringify, type JsonInput, extractReadableText, LIBRO_WORLD_CHAIN_RPC_URLS } from '@libro/core'
 import { WORLD_ID_CREDENTIAL_LABELS, type WorldIdCredentialIdentifier } from '@/lib/world-id/constants'
 import {
   isLegacyPublication,
@@ -55,8 +55,24 @@ const explorerLink = (chainId: number, kind: 'tx' | 'address', value: string) =>
 const credentialLabelFor = (identifier: string) =>
   WORLD_ID_CREDENTIAL_LABELS[identifier as WorldIdCredentialIdentifier] || identifier
 
-const signalJsonDeclaration = (signalText: string) => `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
+const signalJsonDeclaration = (signalText: string, publication?: PublicationType) => {
+  if (isV2Publication(publication)) {
+    const { version: _version, ...payload } = publication
+    const previous = publication.previous_publication
+    return `const signalJson = ${canonicalStringify(payload as unknown as JsonInput)};
+const payloadHash = keccak256(toBytes(JSON.stringify(signalJson)));
+const commitment = keccak256(encodeAbiParameters(
+  [{type:'bytes32'},{type:'bytes32'},{type:'bytes32'},{type:'address'},{type:'uint256'},{type:'uint8'},{type:'uint256'},{type:'address'}],
+  [keccak256(toBytes('PublicationCommitmentV2(bytes32 payloadHash,bytes32 handleHash,address previousRegistry,uint256 previousSignalHash,uint8 authorshipClass,uint256 chainId,address registryAddress)')),
+   payloadHash, signalJson.author_handle_hash_libro, ${JSON.stringify(previous?.registry_address || '0x0000000000000000000000000000000000000000')},
+   BigInt(${JSON.stringify(previous?.signal_hash || '0')}), ${publication.publication_schema === 'libro-publication-v3' ? 1 : 2}, BigInt(480), signalJson.publication_registry]
+));
+const signalText = 'libro-publication-v2:' + commitment;
+if (signalText !== ${JSON.stringify(signalText)}) throw new Error('Publication commitment mismatch');`
+  }
+  return `const signalJson = ${JSON.stringify(JSON.parse(signalText), null, 2)};
 const signalText = JSON.stringify(signalJson);`
+}
 
 const CONTENT_LINE_WIDTH = 78
 
@@ -108,6 +124,7 @@ const publicationContentDeclaration = (
 }
 
 const contentHashFromSignal = (signalText: string): string | undefined => {
+  if (signalText.startsWith('libro-publication-v2:')) return undefined
   const parsed = JSON.parse(signalText) as { content_hash?: unknown }
   return typeof parsed.content_hash === 'string' ? parsed.content_hash : undefined
 }
@@ -143,7 +160,7 @@ function buildWorldIdView(
   const code = `import { keccak256, toBytes } from 'viem';
 import { hashSignal } from '@worldcoin/idkit/hashing';
 
-${signalJsonDeclaration(proof.signal_text)}
+${signalJsonDeclaration(proof.signal_text, publication)}
 const expectedSignalHash = ${JSON.stringify(proof.signal_hash)};
 const idkitResult = ${JSON.stringify(proof.idkit_result, null, 2)};
 
@@ -216,7 +233,7 @@ function buildLibroView(
   }
 ): ProofView {
   const registration = proof.libro_registration
-  const code = `import { createPublicClient, fallback, http, keccak256, toBytes } from 'viem';
+  const code = `import { createPublicClient, fallback, http, keccak256, toBytes, encodeAbiParameters } from 'viem';
 import { worldchain } from 'viem/chains';
 import { hashSignal } from '@worldcoin/idkit/hashing';
 
@@ -231,7 +248,7 @@ const libroRegistryAbi = [{
   outputs: [{ name: '', type: 'bool' }],
 }];
 
-${signalJsonDeclaration(proof.signal_text)}
+${signalJsonDeclaration(proof.signal_text, publication)}
 const expectedSignalHash = ${JSON.stringify(registration.signal_hash)};
 const registryAddress = ${JSON.stringify(registration.registry_address)};
 const handleHash = ${JSON.stringify(registration.handle_hash)};
@@ -313,7 +330,7 @@ function buildAgentView(
 ): ProofView {
   const registration = proof.agent_registration
   const document = proof.agent_document_signature
-  const code = `import { createPublicClient, fallback, http, recoverTypedDataAddress } from 'viem';
+  const code = `import { createPublicClient, fallback, http, recoverTypedDataAddress, keccak256, toBytes, encodeAbiParameters } from 'viem';
 import { worldchain } from 'viem/chains';
 import { hashSignal } from '@worldcoin/idkit/hashing';
 
@@ -328,7 +345,7 @@ const libroRegistryAbi = [{
   outputs: [{ name: '', type: 'bool' }],
 }];
 
-${signalJsonDeclaration(document.document_signal_text)}
+${signalJsonDeclaration(document.document_signal_text, publication)}
 const expectedSignalHash = ${JSON.stringify(document.document_signal_hash)};
 const registryAddress = ${JSON.stringify(document.registry_address)};
 const registrationHash = ${JSON.stringify(registration.registration_hash)};
@@ -346,7 +363,7 @@ if (localSignalHash !== expectedSignalHash.toLowerCase()) {
 const typedData = {
   domain: {
     name: 'LibroRegistry',
-    version: '1',
+    version: '${isV2Publication(publication) ? '2' : '1'}',
     chainId: ${document.chain_id},
     verifyingContract: registryAddress,
   },

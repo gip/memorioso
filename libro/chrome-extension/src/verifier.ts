@@ -1,3 +1,5 @@
+import { revisionStatus } from './revision-status'
+import { configuredLibroRegistries } from '@libro/core'
 import {
   LibroChainVerificationError,
   LibroNotRegisteredError,
@@ -87,7 +89,8 @@ function summarizeSources(sources: LibroVerificationSource[] | undefined): strin
 
 export async function verifyCandidate(
   candidate: LibroCandidate,
-  verifyChain: ChainVerifier = verifyLibroManifestOnChain
+  verifyChain: ChainVerifier = verifyLibroManifestOnChain,
+  rpcUrls?: readonly string[]
 ): Promise<LibroVerificationResult> {
   if (candidate.error || !candidate.manifestText) {
     const status = candidate.kind === 'text' && !candidate.manifestText ? 'manifest_missing' : 'invalid_manifest'
@@ -145,13 +148,21 @@ export async function verifyCandidate(
   try {
     const verification = await verifyChain(manifest)
     const sources = verification.outcomes.map(({ label, status, detail }) => ({ label, status, detail }))
-    return result(
+    const verified = result(
       candidate,
       'verified',
       `Readable text and the on-chain Libro registration match, confirmed by ${verification.verifiedBy.join(', ')}`,
       manifest,
       sources
     )
+    if (!/^0x0{40}$/i.test(configuredLibroRegistries().v2)) {
+      try {
+        const revision = await revisionStatus({ chain_id: 480, registry_address: manifest.registration.registry_address, signal_hash: manifest.registration.signal_hash }, rpcUrls)
+        if (!revision.exists) verified.detail += '. Revision status is unavailable'
+        else { verified.label += revision.isLatest ? ' · Latest version' : ' · Superseded'; verified.detail += revision.isLatest ? '. This is the latest registered version' : '. A newer version is registered; this exact version remains verified' }
+      } catch { verified.detail += '. Latest version status is temporarily unavailable' }
+    }
+    return verified
   } catch (error) {
     const sources = sourcesFrom(error)
     if (error instanceof LibroUnsupportedRegistryError) {

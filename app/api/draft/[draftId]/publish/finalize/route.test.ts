@@ -128,6 +128,8 @@ function lockedRegistration() {
 
 describe('Libro publication finalize route', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     dbMock.connect.mockReset()
     dbMock.poolQuery.mockReset()
     dbMock.clientQuery.mockReset()
@@ -204,7 +206,7 @@ describe('Libro publication finalize route', () => {
       signalHash,
       handleHash,
       registryAddress: '0x1111111111111111111111111111111111111111',
-    }, expect.objectContaining({ chainId: 480 }))
+    }, expect.objectContaining({ chainId: 480 }), undefined)
     expect(cacheMock.revalidateTag).toHaveBeenCalledWith(
       `publication:${publicationId}`,
       { expire: 0 }

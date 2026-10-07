@@ -2,6 +2,8 @@ import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbMock = vi.hoisted(() => ({ connect: vi.fn(), query: vi.fn(), release: vi.fn() }))
+const revisionMock = vi.hoisted(() => ({ getRevisionSource: vi.fn() }))
+vi.mock('@/lib/publication-revisions', () => ({ ...revisionMock, PublicationRevisionError: class extends Error {} }))
 const authMock = vi.hoisted(() => ({ getAuthenticatedUser: vi.fn() }))
 
 vi.mock('@/lib/db', () => ({ pool: { connect: dbMock.connect } }))
@@ -44,6 +46,7 @@ const insertParams = () =>
 
 describe('create draft route', () => {
   beforeEach(() => {
+    revisionMock.getRevisionSource.mockReset().mockResolvedValue({ previousPublicationId:'42', priceUsd:'0.05', draft:{ authorId:'author-1', publicationType:'article' } })
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
     dbMock.release.mockReset()
@@ -94,6 +97,20 @@ describe('create draft route', () => {
     expect(params[0]).toBe(DRAFT_ID)
     // title, subtitle, content, then the envelope and its marker.
     expect(params.slice(4, 9)).toEqual([null, null, null, ENVELOPE, 'v1'])
+  })
+
+  it('keeps revision prose encrypted while inheriting its validated predecessor and pricing', async () => {
+    dbMock.query.mockImplementation(async sql => sql.includes('FROM authors') ? {rows:[{id:'author-1'}]} : {rows:[{id:DRAFT_ID}]})
+    const response = await POST(encryptedRequest({ authorId:'author-1', previousPublicationId:'42', access:'gated' }))
+    expect(response.status).toBe(200)
+    expect(insertParams().slice(4,9)).toEqual([null,null,null,ENVELOPE,'v1'])
+    expect(insertParams().slice(12,14)).toEqual(['42','0.05'])
+    expect(revisionMock.getRevisionSource).toHaveBeenCalledWith('42',7)
+  })
+  it('rejects moving a revision to another author or publication type', async () => {
+    const response = await POST(encryptedRequest({authorId:'another-author',previousPublicationId:'42'}))
+    expect(response.status).toBe(400)
+    expect(dbMock.connect).not.toHaveBeenCalled()
   })
 
   it('takes the draft id from the client so the envelope can be sealed against it', async () => {

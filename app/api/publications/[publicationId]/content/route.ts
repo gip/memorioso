@@ -6,6 +6,7 @@ import { effectivePriceUsd, resolvePublicationAccess } from '@/lib/access/public
 import {
   ACCESS_TOKEN_HEADER,
   accessCookieName,
+  publicationAccessFamily,
   completeAccessGrant,
   failAccessGrant,
   refreshTokenForSettledPayer,
@@ -71,7 +72,7 @@ async function grantedResponse(
   }, { headers })
 
   if (extra.token) {
-    response.cookies.set(accessCookieName(publicationId), extra.token, {
+    response.cookies.set(accessCookieName((await publicationAccessFamily(publicationId)).rootId), extra.token, {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',

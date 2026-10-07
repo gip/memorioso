@@ -1,3 +1,4 @@
+import { registryProtocolVersion } from '@libro/core'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex, type Hex } from 'viem'
 import { pool } from '@/lib/db'
@@ -28,7 +29,7 @@ export async function PUT(
   let libroConfig
   let relayerConfig
   try {
-    libroConfig = getLibroServerConfig()
+    libroConfig = getLibroServerConfig('libro-v1')
     relayerConfig = getLibroRelayerConfig()
   } catch (error) {
     return NextResponse.json({
@@ -65,6 +66,9 @@ export async function PUT(
     }
 
     const registration = registrationResult.rows[0]
+    const protocol = registryProtocolVersion(registration.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded Libro registry')
+    libroConfig = getLibroServerConfig(protocol)
     if (registration.finalized_at) {
       await client.query('ROLLBACK')
       transactionOpen = false

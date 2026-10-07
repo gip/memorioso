@@ -217,3 +217,71 @@ read-only for 30 days.
 Memorioso gating is presentation policy, not content confidentiality. Libro public MCP tools
 return the complete canonical signed payload, including bodies that Memorioso presents behind a
 World ID or x402 gate.
+
+## Libro v2 and publication versions
+
+World ID remains 4.0. `libro-v1` publications keep their original JSON, signal, proof, registry and URLs.
+New human publications use `libro-v2` and `libro-publication-v3`; agent publications use
+`libro-agent-v2` and `libro-agent-publication-v3`. Set explicit trusted
+`NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS` and `NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS` on the service,
+Memorioso and both extension builds. The older `NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS` is a v1 alias.
+Missing v2 configuration stops new preparations. It must never be inferred from a manifest.
+
+Each update is immutable. Its signed JSON includes `publication_registry`, `previous_publication`
+(`chain_id`, `registry_address`, `signal_hash`), `initially_published_at` and `revision_number`.
+An original uses a null predecessor, revision 1, and its publication date as the initial date.
+For updates the initial date stays fixed and `publication_date` advances. Article/short type stays fixed.
+The domain-separated commitment also binds the handle, predecessor, authorship class, chain and registry.
+Existing schema v2 belongs to the v1 protocol; never reinterpret it as a v2 contract publication.
+
+V2 imports immutable v1 handle/session bindings. New handles first complete a separate World ID claim;
+v2 reserves the name in v1 and imports it in one atomic transaction. V1 agent grants do not migrate.
+Authorize agents again in v2; existing v1 grant verification and revocation still use v1.
+An agent can update an agent publication under the same handle, but cannot update a human publication.
+The predecessor must be the on-chain family head, preventing competing updates. A conflict preserves the
+writer's draft and asks them to start from the latest version.
+
+`referenceV1Publication(signalHash)` is permissionless and verifies v1 directly. It records the source,
+handle and authorship class and emits `V1PublicationReferenced`; it does not issue a new human proof.
+Original manifests continue citing v1. V1 stores no publication date, so its initial date is normalized
+from its original signed payload by the service, rather than claimed as independent on-chain evidence.
+`getPublicationStatus(registry,hash)` returns existence, predecessor, successor, root, head, revision
+number and latest status. Unknown hashes are never latest. A registered successor can precede content
+finalization: report it as pending, keeping the older exact-version URL available.
+
+Public MCP tools `get_publication_versions` and `get_publication_revision_status` provide projections
+separately from signed payloads. Lists and counts default to latest finalized versions; `includeVersions`
+on lists and counts returns individual versions. Updates move to the top by their new publication date.
+Revision events go to clients participating in the family, preserving Memorioso's local feed membership.
+Purchases and settlement records retain their original version ID; access accepts settled grants anywhere
+in that family, including old version cookies. New access cookies use the root ID.
+
+### Rollout and deployment preparation
+
+This change does not apply production migrations or broadcast deployments.
+
+1. Freeze canonical writes and settlements for migration, back up both databases, and deploy dual-version
+   readers. Apply Memorioso migration 025 after all prior migrations and Libro migration 005 to their
+   separate databases. Observe the existing migration 013 backup guard and cutover 020–022 procedure.
+2. Independently verify the deployed v1 address, chain 480, deployed bytecode, WorldIDVerifier **proxy**
+   address, and RP id. Set `NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS`, `WORLD_ID_VERIFIER_PROXY_ADDRESS`,
+   and `LIBRO_RP_ID_UINT64` (the 16 hex digits after `rp_`, interpreted as uint64). The v2 constructor
+   checks that v1 uses this verifier and RP id. It owns independent agent state.
+3. From `libro/contracts`, simulate (without broadcasting):
+   `forge script script/DeployV2.s.sol:DeployV2 --rpc-url "$LIBRO_RPC_URL"`.
+   Use a single endpoint for this Foundry command. Review the simulation and deployment bytecode.
+   An operator can later add `--broadcast --account <deployment-account>` under their own deployment
+   approval. Never paste private keys into shell arguments. Verify the deployed source with the explorer.
+4. Verify the resulting v2 address/bytecode, constructor arguments, `v1Registry`, `worldIdVerifier`, `rpId`,
+   and chain, then configure both trusted addresses in all readers and signing deployments. Rebuild the
+   production and staging extensions with the same explicit allowlist. Enable v2 publishing only after
+   this configuration and database rollout. Keep v1 addresses configured for stored operation recovery.
+5. Resume writes, reauthorize v1 agents in v2, and monitor outbox acknowledgements and family heads.
+   Do not delete prepared v1 operations or obtain second proofs for broadcast transactions. Backout after
+   canonical writes still requires the documented write freeze and validated reverse copy.
+
+Checks: root lint/tests/build, core check/tests, service tests/build, extension check/tests/both builds,
+and `forge test`. Set `LIBRO_TEST_DATABASE_URL` to a dedicated test database for integration suites;
+without it those suites skip. Shared commitment vectors live in `libro/core/fixtures` and are pinned
+in TypeScript and Foundry tests. Gated bodies remain public through Libro canonical APIs; Memorioso
+access policy covers every version's presentation, proof snippet, hash, manifest and embed surface.

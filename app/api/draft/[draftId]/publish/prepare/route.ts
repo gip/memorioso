@@ -1,3 +1,5 @@
+import { isV2Publication } from '@libro/core'
+import { validateLocalPublicationRevision, PublicationRevisionError } from '@/lib/publication-revisions'
 import { NextRequest, NextResponse } from 'next/server'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
@@ -43,7 +45,7 @@ export async function PUT(
   let libroConfig
   try {
     worldIdConfig = getWorldIdServerConfig()
-    libroConfig = getLibroServerConfig()
+    libroConfig = getLibroServerConfig('libro-v1')
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -137,6 +139,10 @@ export async function PUT(
       return await fail(error instanceof Error ? error.message : 'Draft is not ready to publish')
     }
 
+    libroConfig = getLibroServerConfig(isV2Publication(storedPublication) ? 'libro-v2' : 'libro-v1')
+    if (!isV2Publication(storedPublication)) return await fail('New v1 preparation is retired; restart signing', 409)
+    try { await validateLocalPublicationRevision(storedPublication, String(draft.authorId), false, client) }
+    catch (error) { return await fail(error instanceof Error ? error.message : 'Invalid update', error instanceof PublicationRevisionError ? error.status : 503) }
     const handleHash = storedPublication.author_handle_hash_libro as `0x${string}`
     const claimResult = await client.query(
       `SELECT id FROM libro_handle_claims
@@ -149,6 +155,7 @@ export async function PUT(
     try {
       prepared = prepareLibroRegistration({
         result: validatedResult,
+        publication: storedPublication,
         signalHash: challenge.signal_hash,
         handle: storedPublication.author_handle_libro,
         handleHash,

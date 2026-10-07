@@ -213,7 +213,7 @@ async function runScan(tabId: number, inject: boolean): Promise<ScanResponse> {
       approvedOrigins,
     })))
     const verifyChain = createCachedChainVerifier(rpcUrls)
-    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(candidate, verifyChain)))
+    let results = await Promise.all(candidates.map((candidate) => verifyCandidate(candidate, verifyChain, rpcUrls)))
     const applied = await chrome.tabs.sendMessage(tabId, {
       type: 'LIBRO_APPLY_RESULTS',
       results,

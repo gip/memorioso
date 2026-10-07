@@ -212,6 +212,7 @@ function createHandler() {
         authorId: z.string().uuid().optional(),
         kind: z.enum(['article', 'short', 'all']).default('all'),
         originClientId: z.string().optional(),
+        includeVersions: z.boolean().optional(),
       }),
     }, async (args) => {
       try {

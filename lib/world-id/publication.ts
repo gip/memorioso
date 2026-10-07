@@ -1,3 +1,4 @@
+import { requireV2Registry } from '@libro/core'
 import {
   canonicalizeJson,
   canonicalStringify,
@@ -105,6 +106,7 @@ export function isLibroPublicationV1(
 export function isLibroHumanPublication(
   publication: PublicationV2 | LibroHumanPublication
 ): publication is LibroHumanPublication {
+  if (publication.publication_schema === 'libro-publication-v3') return true
   return 'libro_protocol_version' in publication && publication.libro_protocol_version === LIBRO_PROTOCOL_VERSION
 }
 
@@ -116,4 +118,22 @@ export function canonicalPublicationSignal(
 
 export function hashPublicationSignal(signalText: string): string {
   return hashLibroSignal(signalText)
+}
+
+export function createLibroPublicationV3(input: PublicationDraftInput & {
+  authorReference?: AuthorReference
+  previousPublication?: import('@libro/core').LibroPublicationReference | null
+  initiallyPublishedAt?: string
+  revisionNumber?: number
+}): import('@libro/core').LibroPublicationV3Payload {
+  return {
+    ...createLibroPublicationV2(input),
+    author_handle_hash_libro: hashLibroHandle(input.author.handle),
+    publication_schema: 'libro-publication-v3',
+    libro_protocol_version: 'libro-v2',
+    publication_registry: requireV2Registry(),
+    previous_publication: input.previousPublication ?? null,
+    initially_published_at: input.initiallyPublishedAt ?? input.publicationDate,
+    revision_number: input.revisionNumber ?? 1,
+  }
 }

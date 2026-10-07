@@ -26,18 +26,20 @@ describe('lightweight Libro summaries', () => {
     expect(publicationExcerpt(html)).toBe(previous)
   })
 
-  it('returns the same metadata without selecting proof or a complete signal', async () => {
+  it('returns the same metadata without selecting a complete proof or signal', async () => {
     query.mockResolvedValue({ rows: [{ ...row }] })
     expect(await listPublications({ limit: 6, offset: 5, kind: 'article', originClientId: 'memorioso' })).toEqual([{
       id: '42', authorId: 'author', signalHash: '0x1234', authorshipClass: 'human', legacyProof: false,
       publicationDate: row.publication_date, authorName: 'Ada', title: 'A title', subtitle: '',
+      revision: { rootPublicationId:'42', previousPublicationId:null, latestPublicationId:'42', initiallyPublishedAt:'2026-09-01T09:00:00.000Z', revisionNumber:1, isLatest:false, statusAvailable:false },
       excerpt: 'Human writing.', publicationType: 'article', modifiedAt: '2026-09-01T09:00:00.000Z',
     }])
-    expect(query).toHaveBeenCalledOnce()
+    expect(query).toHaveBeenCalledTimes(2)
     const [sql, values] = query.mock.calls[0]
-    expect(sql).not.toMatch(/SELECT \*|\bproof\b/)
+    expect(sql).not.toMatch(/SELECT \*|p\.proof\s*,/)
+    expect(sql).toContain("AS registry_address")
     expect(sql).toContain('CASE WHEN feed_excerpt IS NULL')
-    expect(values).toEqual([6, 5, null, 'memorioso', 'article'])
+    expect(values).toEqual([6, 5, null, 'memorioso', 'article', false])
   })
 
   it('fills missing historical and copied excerpts once without rewriting signed data or dates', async () => {

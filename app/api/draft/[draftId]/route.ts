@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ draftId
 
   try {
     const draftResult = await client.query(
-      `SELECT d.*, d.publication_type AS "publicationType", a.name as author_name
+      `SELECT d.*, d.publication_type AS "publicationType", d.previous_publication_id::text AS "previousPublicationId", a.name as author_name
        FROM drafts d 
        LEFT JOIN authors a ON d."authorId" = a.id 
        WHERE d."userId" = $1 AND d.id = $2 AND d.status = $3`,
@@ -76,6 +76,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
   const client = await pool.connect();
 
   try {
+    const attached = (await client.query('SELECT "authorId", previous_publication_id FROM drafts WHERE id = $1 AND "userId" = $2', [id, authenticatedUser.id])).rows[0];
+    if (attached?.previous_publication_id && (normalizedAuthorId !== attached.authorId || body.previousPublicationId != null && String(body.previousPublicationId) !== String(attached.previous_publication_id))) return NextResponse.json({ message: 'Revision author and predecessor cannot change' }, { status: 400 });
     if (normalizedAuthorId) {
       const authorResult = await client.query(
         'SELECT id FROM authors WHERE id::text = $1 AND "userId" = $2',
@@ -110,7 +112,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ draftId
        SET title = $1, subtitle = $2, content = $3, ciphertext = $4, encryption = $5,
            history = $6, "authorId" = $7, access = COALESCE($11, access)
        WHERE id = $8 AND "userId" = $9 AND status = $10
-       RETURNING *, publication_type AS "publicationType"`,
+       RETURNING *, publication_type AS "publicationType", previous_publication_id::text AS "previousPublicationId"`,
       [
         columns.title,
         columns.subtitle,

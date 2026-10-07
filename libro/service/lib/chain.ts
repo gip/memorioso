@@ -1,3 +1,5 @@
+import { assertLibroRevisionReceipt } from '@libro/core'
+import { requireV2Registry, configuredLibroRegistries, registryProtocolVersion, libroRegistryV2Abi, isV2Publication, v2PublicationCommitment, type LibroPublicationPayload } from '@libro/core'
 import {
   LIBRO_PROTOCOL_VERSION,
   LIBRO_WORLD_CHAIN_ID,
@@ -29,15 +31,16 @@ export type HumanRegistrationTransaction = {
   transactions: [{ to: Address; data: Hex; value: '0x0' }]
 }
 
-export function chainConfig() {
-  const address = process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS
+export function chainConfig(protocol: string = 'libro-v2') {
+  if (protocol !== 'libro-v1' && protocol !== 'libro-v2') throw new Error('Unsupported Libro registry')
+  const address = protocol === 'libro-v1' ? configuredLibroRegistries().v1 : requireV2Registry()
   if (!address || !isAddress(address) || /^0x0{40}$/i.test(address)) {
     throw new Error('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS must be a non-zero address')
   }
   const chainId = Number(process.env.NEXT_PUBLIC_LIBRO_CHAIN_ID || LIBRO_WORLD_CHAIN_ID)
   if (chainId !== LIBRO_WORLD_CHAIN_ID) throw new Error(`NEXT_PUBLIC_LIBRO_CHAIN_ID must be ${LIBRO_WORLD_CHAIN_ID}`)
   return {
-    protocolVersion: LIBRO_PROTOCOL_VERSION,
+    protocolVersion: protocol === 'libro-v1' ? LIBRO_PROTOCOL_VERSION : 'libro-v2' as const,
     chainId: LIBRO_WORLD_CHAIN_ID,
     registryAddress: address,
     rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
@@ -72,11 +75,15 @@ export function prepareHumanRegistration(input: {
   handleHash: Hex
   sessionCommitment: Hex
   claimHandle: boolean
+  publication?: LibroPublicationPayload
+  registryAddress?: string
 }) {
-  const config = chainConfig()
+  const config = chainConfig(input.publication && isV2Publication(input.publication) ? 'libro-v2' : 'libro-v1')
   const contractProof = sessionContractProof(input.result, input.sessionCommitment)
   const signal = BigInt(input.signalHash)
-  const data = input.claimHandle
+  const data = input.publication && isV2Publication(input.publication)
+    ? encodeFunctionData({ abi: libroRegistryV2Abi, functionName: 'registerHumanPublication', args: [input.handleHash, v2PublicationCommitment(input.publication), contractProof] })
+    : input.claimHandle
     ? encodeFunctionData({
       abi: libroRegistryAbi,
       functionName: 'claimHandleAndRegisterHumanDocument',
@@ -112,6 +119,7 @@ export function prepareAgentAuthorization(input: {
   sessionCommitment: Hex
   handle: string
   claimHandle: boolean
+  registryAddress?: string
   registration: {
     handleHash: Hex
     controllerAddress: Address
@@ -122,9 +130,9 @@ export function prepareAgentAuthorization(input: {
     salt: Hex
   }
 }) {
-  const config = chainConfig()
+  const config = chainConfig(input.registryAddress ? registryProtocolVersion(input.registryAddress) || 'invalid' : 'libro-v2')
   const proof = sessionContractProof(input.result, input.sessionCommitment)
-  const data = input.claimHandle
+  const data = input.claimHandle && config.protocolVersion === 'libro-v1'
     ? encodeFunctionData({
       abi: libroRegistryAbi,
       functionName: 'claimHandleAndRegisterAgent',
@@ -145,8 +153,9 @@ export function prepareHandleClaim(input: {
   result: IDKitResultSession
   sessionCommitment: Hex
   handle: string
+  registryAddress?: string
 }) {
-  const config = chainConfig()
+  const config = chainConfig(input.registryAddress ? registryProtocolVersion(input.registryAddress) || 'invalid' : 'libro-v2')
   const proof = sessionContractProof(input.result, input.sessionCommitment)
   const data = encodeFunctionData({ abi: libroRegistryAbi, functionName: 'claimHandle', args: [input.handle, proof] })
   return {
@@ -156,21 +165,21 @@ export function prepareHandleClaim(input: {
 }
 
 export async function relayRegistration(transaction: HumanRegistrationTransaction): Promise<Hex> {
-  const config = chainConfig()
+  const config = chainConfig(registryProtocolVersion(transaction.transactions[0]?.to || '') || 'invalid')
   const privateKey = process.env.LIBRO_RELAYER_PRIVATE_KEY
   if (!privateKey || !/^0x[0-9a-f]{64}$/i.test(privateKey) || /^0x0{64}$/i.test(privateKey)) {
     throw new Error('LIBRO_RELAYER_PRIVATE_KEY must be a non-zero private key')
   }
   if (transaction.chainId !== config.chainId || transaction.transactions.length !== 1) throw new Error('Invalid relay transaction')
   const call = transaction.transactions[0]
-  if (call.to.toLowerCase() !== config.registryAddress.toLowerCase() || call.value !== '0x0') throw new Error('Relay transaction targets an unexpected registry')
+  if (!registryProtocolVersion(call.to) || call.value !== '0x0') throw new Error('Relay transaction targets an unexpected registry')
   const account = privateKeyToAccount(privateKey as Hex)
   const wallet = createWalletClient({ account, chain: worldchain, transport: fallback(config.rpcUrls.map((url) => http(url))) })
   return wallet.sendTransaction({ account, chain: worldchain, to: call.to, data: call.data, value: 0n })
 }
 
 export async function waitForRegistration(transactionHash: Hex): Promise<void> {
-  const receipt = await createLibroPublicClient(chainConfig().rpcUrls).waitForTransactionReceipt({ hash: transactionHash })
+  const receipt = await createLibroPublicClient(parseLibroRpcUrls(process.env.LIBRO_RPC_URL)).waitForTransactionReceipt({ hash: transactionHash })
   if (receipt.status !== 'success') throw new Error('Libro registration reverted')
 }
 
@@ -180,8 +189,9 @@ export async function verifyDocumentRegistration(input: {
   handleHash: string
   registryAddress: string
   authorshipClass: 'human' | 'agent'
+  publication?: LibroPublicationPayload
 }): Promise<boolean> {
-  const config = chainConfig()
+  const config = chainConfig(registryProtocolVersion(input.registryAddress) || 'invalid')
   if (input.registryAddress.toLowerCase() !== config.registryAddress.toLowerCase()) throw new Error('Unexpected Libro registry')
   const registration: LibroRegistrationReference = {
     chain_id: config.chainId,
@@ -197,6 +207,7 @@ export async function verifyDocumentRegistration(input: {
       if (await client.getChainId() !== config.chainId) return 'mismatch'
       const receipt = await client.getTransactionReceipt({ hash: input.transactionHash })
       assertLibroRegistrationReceipt(registration, receipt)
+      if (input.publication && isV2Publication(input.publication)) assertLibroRevisionReceipt(input.publication, registration, receipt)
       return 'verified'
     } catch (error) {
       if (error instanceof TransactionReceiptNotFoundError) return 'unconfirmed'
@@ -215,6 +226,7 @@ export function verifyHumanRegistration(input: {
   signalHash: string
   handleHash: string
   registryAddress: string
+  publication?: LibroPublicationPayload
 }): Promise<boolean> {
   return verifyDocumentRegistration({ ...input, authorshipClass: 'human' })
 }
@@ -224,8 +236,9 @@ export async function verifyAgentRegistration(input: {
   registrationHash: Hex
   handleHash: Hex
   agentAddress: Address
+  registryAddress?: string
 }): Promise<boolean> {
-  const config = chainConfig()
+  const config = chainConfig(input.registryAddress ? registryProtocolVersion(input.registryAddress) || 'invalid' : 'libro-v2')
   const outcomes = await Promise.all(config.rpcUrls.map(async (url) => {
     const client = createPublicClient({ chain: worldchain, transport: http(url, { timeout: 5_000, retryCount: 0 }) })
     try {
@@ -252,8 +265,9 @@ export async function verifyHandleClaim(input: {
   transactionHash: Hex
   handleHash: Hex
   sessionCommitment: Hex
+  registryAddress?: string
 }): Promise<boolean> {
-  const config = chainConfig()
+  const config = chainConfig(input.registryAddress ? registryProtocolVersion(input.registryAddress) || 'invalid' : 'libro-v2')
   const outcomes = await Promise.all(config.rpcUrls.map(async (url) => {
     const client = createPublicClient({ chain: worldchain, transport: http(url, { timeout: 5_000, retryCount: 0 }) })
     try {
@@ -275,7 +289,7 @@ export async function verifyHandleClaim(input: {
 }
 
 export async function verifyAgentRevocation(input: { transactionHash: Hex; registrationHash: string; handleHash: string; registryAddress: string }): Promise<boolean> {
-  const config = chainConfig()
+  const config = chainConfig(registryProtocolVersion(input.registryAddress) || 'invalid')
   if (input.registryAddress.toLowerCase() !== config.registryAddress.toLowerCase()) throw new Error('Unexpected Libro registry')
   const outcomes = await Promise.all(config.rpcUrls.map(async (url) => {
     const client = createPublicClient({ chain: worldchain, transport: http(url, { timeout: 5_000, retryCount: 0 }) })

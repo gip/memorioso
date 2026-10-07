@@ -1,3 +1,4 @@
+import { createLibroPublicClient, libroRegistryV2Abi } from '@libro/core'
 import { randomUUID } from 'node:crypto'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { hashLibroHandle, hashPublicationSignal } from '@libro/core'
@@ -9,29 +10,29 @@ import { deriveCapability, sha256 } from './crypto'
 import { browserUrl, signingCapabilitySecret } from './config'
 import { browserIdentityId } from './session'
 import { assertSessionResult, issueRpContext, sessionCommitment, verifyWithWorld } from './world-id'
-import { prepareHandleClaim, relayRegistration, verifyHandleClaim, waitForRegistration, type HumanRegistrationTransaction } from './chain'
+import { chainConfig, prepareHandleClaim, relayRegistration, verifyHandleClaim, waitForRegistration, type HumanRegistrationTransaction } from './chain'
 
-export async function createHandleClaimChallenge(principal: OAuthPrincipal) {
+export async function createHandleClaimChallenge(principal: Pick<OAuthPrincipal, 'identityId' | 'handle'> & { clientId: string | null }) {
   assertWritesEnabled()
-  const claimed = await pool.query('SELECT * FROM libro_handle_claims WHERE identity_id = $1', [principal.identityId])
+  const claimed = await pool.query('SELECT * FROM libro_handle_claims WHERE identity_id = $1 AND registry_address = $2', [principal.identityId, chainConfig().registryAddress])
   if (claimed.rows[0]) {
     if (claimed.rows[0].handle !== principal.handle) throw new ServiceError('HANDLE_DRIFT', 'OAuth handle differs from the immutable on-chain claim', 409)
     return { finalized: true, handle: principal.handle, transactionHash: claimed.rows[0].transaction_hash }
   }
   const pending = await pool.query(
-    `SELECT id FROM libro_handle_claim_requests WHERE identity_id = $1 AND finalized_at IS NULL
+    `SELECT id FROM libro_handle_claim_requests WHERE identity_id = $1 AND finalized_at IS NULL AND registry_address = $2
      ORDER BY created_at DESC LIMIT 1`,
-    [principal.identityId],
+    [principal.identityId, chainConfig().registryAddress],
   )
   const id = pending.rows[0]?.id || randomUUID()
   const capability = deriveCapability(id, signingCapabilitySecret())
   const signalText = `libro-handle-claim-v1:${principal.handle}`
   if (!pending.rows[0]) await pool.query(
     `INSERT INTO libro_handle_claim_requests
-      (id, identity_id, origin_client_id, handle, handle_hash, signal_text, signal_hash, signing_capability_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      (id, identity_id, origin_client_id, handle, handle_hash, signal_text, signal_hash, signing_capability_hash, protocol_version, registry_address)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [id, principal.identityId, principal.clientId, principal.handle, hashLibroHandle(principal.handle),
-      signalText, hashPublicationSignal(signalText), sha256(capability)],
+      signalText, hashPublicationSignal(signalText), sha256(capability), 'libro-v2', chainConfig().registryAddress],
   )
   return { finalized: false, requestId: id, handle: principal.handle, signingUrl: browserUrl(`/claim/${capability}`) }
 }
@@ -59,6 +60,7 @@ async function browserRequest(capability: string) {
 export async function handleClaimContext(request: Request, capability: string) {
   assertWritesEnabled()
   const row = await browserRequest(capability)
+  if (row.transaction) return { prepared: { requestId: row.id, transaction: row.transaction, transactionHash: row.transaction_hash } }
   const context = await issueRpContext({
     request, purpose: 'claim_handle', identityId: row.identity_id, objectId: row.id,
     signalHash: row.signal_hash, expectedCommitment: row.session_commitment,
@@ -101,7 +103,7 @@ export async function prepareHandleSigning(capability: string, payload: unknown)
     if (!context.rows[0]) throw new ServiceError('INVALID_CONTEXT', 'Handle claim context is invalid or expired', 400)
     validate(result, row)
     await verifyWithWorld(result)
-    const prepared = prepareHandleClaim({ result, sessionCommitment: row.session_commitment, handle: row.handle })
+    const prepared = prepareHandleClaim({ result, sessionCommitment: row.session_commitment, handle: row.handle, registryAddress: row.registry_address || chainConfig('libro-v1').registryAddress })
     const proof = {
       proof_type: 'session', signal: row.signal_text, signal_hash: row.signal_hash,
       credential_identifier: result.responses[0].identifier,
@@ -146,16 +148,12 @@ export async function finalizeHandleSigning(capability: string, transactionHash:
     transactionHash: transactionHash as Hex,
     handleHash: row.handle_hash as Hex,
     sessionCommitment: row.session_commitment as Hex,
+    registryAddress: row.registry_address || chainConfig('libro-v1').registryAddress,
   })) throw new ServiceError('REGISTRATION_PENDING', 'Handle claim is not indexed yet', 409, true)
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    await client.query(
-      `INSERT INTO libro_handle_claims
-        (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at)
-       VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP) ON CONFLICT (identity_id) DO NOTHING`,
-      [row.identity_id, row.handle, row.handle_hash, row.session_commitment, transactionHash.toLowerCase()],
-    )
+    await recordHandleClaim(client, { identityId: row.identity_id, handle: row.handle, handleHash: row.handle_hash, sessionCommitment: row.session_commitment, transactionHash, registryAddress: row.registry_address || chainConfig('libro-v1').registryAddress })
     await client.query('UPDATE libro_handle_claim_requests SET transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id, transactionHash.toLowerCase()])
     await client.query('COMMIT')
     return { handle: row.handle, transactionHash: transactionHash.toLowerCase() }
@@ -173,12 +171,23 @@ export async function handleClaimStatus(principal: OAuthPrincipal, requestId: st
 }
 
 export async function recordHandleClaim(client: DatabaseClient, input: {
-  identityId: string; handle: string; handleHash: string; sessionCommitment: string; transactionHash: string
+  identityId: string; handle: string; handleHash: string; sessionCommitment: string; transactionHash: string; registryAddress?: string
 }): Promise<void> {
   await client.query(
-    `INSERT INTO libro_handle_claims
-      (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at)
-     VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP) ON CONFLICT (identity_id) DO NOTHING`,
-    [input.identityId, input.handle, input.handleHash, input.sessionCommitment, input.transactionHash.toLowerCase()],
+    `INSERT INTO libro_handle_claims (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at, registry_address)
+     VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,$6) ON CONFLICT (identity_id, registry_address) DO NOTHING`,
+    [input.identityId, input.handle, input.handleHash, input.sessionCommitment, input.transactionHash.toLowerCase(), input.registryAddress || chainConfig().registryAddress],
   )
+}
+
+export async function signingHandleClaim(input: { identityId: string; handle: string; clientId: string | null; sessionCommitment: string }) {
+  const config = chainConfig('libro-v1')
+  const commitment = await createLibroPublicClient(config.rpcUrls).readContract({ address: config.registryAddress, abi: libroRegistryV2Abi, functionName: 'handleSessionCommitments', args: [hashLibroHandle(input.handle)] })
+  if (commitment !== BigInt(0)) {
+    if (commitment !== BigInt(input.sessionCommitment)) throw new ServiceError('IDENTITY_MISMATCH', 'The on-chain handle belongs to another identity', 403)
+    return null
+  }
+  const claim = await createHandleClaimChallenge(input)
+  if (claim.finalized) return null
+  return { capability: claim.signingUrl!.split('/').pop()!, signal: `libro-handle-claim-v1:${input.handle}` }
 }

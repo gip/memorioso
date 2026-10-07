@@ -33,7 +33,7 @@ import type {
   LibroAgentPublicationV2,
   PublicationContent,
 } from '../../types'
-import { hashLibroHandle, normalizeOptionalPublicationText } from '@libro/core'
+import { libroRegistryV2Abi, isV2Publication, v2PublicationCommitment, registryProtocolVersion, type LibroAgentPublicationV3Payload, type LibroRevisionFields, hashLibroHandle, normalizeOptionalPublicationText } from '@libro/core'
 import { publicationKindFromTitle, validatePublicationForKind } from '../publication-kind'
 
 export const LIBRO_AGENT_PUBLISH_DOCUMENT_SCOPE = BigInt(1)
@@ -47,7 +47,7 @@ export const LIBRO_AGENT_REGISTRATION_TYPEHASH = keccak256(toBytes(LIBRO_AGENT_R
 
 export type AgentRegistrationPayload = {
   schema: typeof LIBRO_AGENT_REGISTRATION_SCHEMA_V1
-  protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
+  protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION | 'libro-agent-v2'
   world_id_proof_type: 'session'
   handle_hash: Hex
   controller_address: Address
@@ -183,7 +183,7 @@ export function createAgentRegistrationPayload(input: {
   return {
     payload: {
       schema: LIBRO_AGENT_REGISTRATION_SCHEMA_V1,
-      protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+      protocol_version: registryProtocolVersion(registryAddress) === 'libro-v2' ? 'libro-agent-v2' : LIBRO_AGENT_PROTOCOL_VERSION,
       world_id_proof_type: 'session',
       handle_hash: handleHash,
       controller_address: controllerAddress,
@@ -210,6 +210,7 @@ export function prepareAgentRegistration(input: {
   config: LibroAgentServerConfig
 }): AgentRegistrationTransaction {
   const proof = mapWorldIdSessionProof(input.result)
+  if (input.claimHandle && input.config.protocolVersion === 'libro-agent-v2') throw new Error('Claim the handle separately before authorizing a v2 agent')
   const data = input.claimHandle
     ? encodeFunctionData({
       abi: libroRegistryAbi,
@@ -275,7 +276,7 @@ export function createAgentDocumentTypedData(input: {
 }): AgentDocumentTypedData {
   return {
     domain: {
-      name: 'LibroRegistry', version: '1', chainId: input.chainId,
+      name: 'LibroRegistry', version: registryProtocolVersion(input.registryAddress) === 'libro-v2' ? '2' : '1', chainId: input.chainId,
       verifyingContract: assertAddress(input.registryAddress, 'registry_address'),
     },
     types: { AgentDocument: [
@@ -307,7 +308,7 @@ export function createAgentDocumentFinalizationTypedData(input: {
 }): AgentDocumentFinalizationTypedData {
   return {
     domain: {
-      name: 'LibroRegistry', version: '1', chainId: input.chainId,
+      name: 'LibroRegistry', version: registryProtocolVersion(input.registryAddress) === 'libro-v2' ? '2' : '1', chainId: input.chainId,
       verifyingContract: assertAddress(input.registryAddress, 'registry_address'),
     },
     types: { AgentDocumentFinalization: [
@@ -336,9 +337,11 @@ export async function recoverAgentDocumentFinalizationSigner(input: {
 
 export function prepareAgentDocumentRegistration(input: {
   registrationHash: string; documentSignalHash: string; documentNonce: string
-  signedAt: number | bigint; signature: string; config: LibroAgentServerConfig
+  signedAt: number | bigint; signature: string; config: LibroAgentServerConfig; publication?: LibroAgentPublication
 }): AgentRegistrationTransaction {
-  const data = encodeFunctionData({
+  const data = input.publication && isV2Publication(input.publication)
+    ? encodeFunctionData({ abi: libroRegistryV2Abi, functionName: 'registerAgentPublication', args: [assertBytes32(input.registrationHash, 'registration_hash'), v2PublicationCommitment(input.publication), assertBytes32(input.documentNonce, 'document_nonce'), BigInt(input.signedAt), normalizeHex(input.signature, 'signature')] })
+    : encodeFunctionData({
     abi: libroRegistryAbi,
     functionName: 'registerAgentDocument',
     args: [
@@ -389,4 +392,9 @@ export function parseAgentPublicationPayload(value: unknown): {
     subtitle: normalizeOptionalPublicationText(subtitle),
     content,
   }
+}
+
+export function createLibroAgentPublicationV3(input: Parameters<typeof createLibroAgentPublicationV2>[0] & Partial<LibroRevisionFields> & { publication_registry: Address }): LibroAgentPublicationV3Payload {
+  return { ...createLibroAgentPublicationV2(input), publication_schema: 'libro-agent-publication-v3', libro_agent_protocol_version: 'libro-agent-v2', publication_registry: input.publication_registry,
+    previous_publication: input.previous_publication || null, initially_published_at: input.initially_published_at || input.publicationDate, revision_number: input.revision_number || 1 }
 }

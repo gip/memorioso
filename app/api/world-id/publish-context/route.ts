@@ -1,7 +1,9 @@
+import { ensureLocalHandleClaim } from '@/lib/libro/handle-claim'
+import { getRevisionSource, PublicationRevisionError } from '@/lib/publication-revisions'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-user'
-import { createLibroPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
+import { createLibroPublicationV3, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
@@ -15,6 +17,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     return await createPublishContext(req)
   } catch (error) {
+    if (error instanceof PublicationRevisionError) return NextResponse.json({ success: false, message: error.message }, { status: error.status })
     if (error instanceof LibroServiceUnavailableError) {
       return NextResponse.json({ success: false, message: error.message, code: error.code }, { status: error.status })
     }
@@ -68,7 +71,8 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, message: "Publication content is required" }, { status: 400 })
   }
 
-  const client = await pool.connect()
+  let client = await pool.connect()
+  let released = false
 
   try {
     // The rows this removes are the last readable copies of draft prose in the
@@ -90,7 +94,8 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
         d.id,
         d.status,
         d.publication_type AS "publicationType",
-        d.access,
+        d.previous_publication_id,
+        d.access, d.access_price_usd,
         d."authorId",
         a.name AS author_name,
         a.handle AS author_handle,
@@ -125,9 +130,19 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: validationError }, { status: 400 })
     }
 
+    client.release()
+    released = true
+    if (!serviceWrites) {
+      const claim = await ensureLocalHandleClaim(authenticatedUser)
+      if (claim) return NextResponse.json({ success: true, handleClaim: claim })
+    }
     const challengeId = crypto.randomUUID()
     const publicationDate = new Date().toISOString()
-    const publication = createLibroPublicationV2({
+    const revisionSource = draft.previous_publication_id ? await getRevisionSource(String(draft.previous_publication_id), authenticatedUser.id) : null
+    const publication = createLibroPublicationV3({
+      previousPublication: revisionSource?.previousPublication,
+      initiallyPublishedAt: revisionSource?.initiallyPublishedAt,
+      revisionNumber: revisionSource?.revisionNumber,
       author: {
         id: draft.authorId,
         name: draft.author_name,
@@ -150,15 +165,18 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
         publication,
         clientReference,
       })
+      client = await pool.connect()
+      released = false
       await client.query(
         `INSERT INTO pending_libro_publications
           (service_challenge_id, client_reference, "userId", "authorId", "draftId",
-           signal_hash, access)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
+           signal_hash, access, previous_publication_id, access_price_usd)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          ON CONFLICT (service_challenge_id) DO UPDATE SET
-           signal_hash = EXCLUDED.signal_hash, access = EXCLUDED.access`,
+           signal_hash = EXCLUDED.signal_hash, access = EXCLUDED.access,
+           previous_publication_id = EXCLUDED.previous_publication_id, access_price_usd = EXCLUDED.access_price_usd`,
         [challenge.challengeId, clientReference, authenticatedUser.id, draft.authorId,
-          draftId, challenge.signalHash.toLowerCase(), draft.access],
+          draftId, challenge.signalHash.toLowerCase(), draft.access, revisionSource?.previousPublicationId || null, draft.access_price_usd ?? revisionSource?.priceUsd ?? null],
       )
       return NextResponse.json({
         success: true,
@@ -170,11 +188,13 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
     }
 
     const rpContext = createRpContext(config!)
+    client = await pool.connect()
+    released = false
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
-        (id, "userId", "draftId", nonce, session_commitment, signal_text, signal_hash, publication, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))`,
+        (id, "userId", "draftId", nonce, session_commitment, signal_text, signal_hash, publication, protocol_version, registry_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'libro-v2', $10, to_timestamp($9))`,
       [
         challengeId,
         authenticatedUser.id,
@@ -185,6 +205,7 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
         signalHash,
         publication,
         rpContext.expires_at,
+        publication.publication_registry,
       ]
     )
 
@@ -201,6 +222,6 @@ async function createPublishContext(req: NextRequest): Promise<NextResponse> {
       allowedCredentials: WORLD_ID_ALLOWED_CREDENTIALS,
     })
   } finally {
-    client.release()
+    if (!released) client.release()
   }
 }

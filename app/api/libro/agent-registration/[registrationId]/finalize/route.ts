@@ -1,3 +1,4 @@
+import { registryProtocolVersion } from '@libro/core'
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
@@ -64,7 +65,7 @@ export async function PUT(
 
   let agentConfig
   try {
-    agentConfig = getLibroAgentServerConfig()
+    agentConfig = getLibroAgentServerConfig('libro-agent-v1')
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -86,7 +87,7 @@ export async function PUT(
   try {
     const registrationResult = await pool.query(
       `SELECT r.registration_hash, r.handle_hash, r.session_commitment,
-              r.finalized_at, r.transaction_hash, a.handle
+              r.finalized_at, r.transaction_hash, r.registry_address, a.handle
        FROM libro_agent_registrations r
        INNER JOIN authors a ON a.id = r."authorId"
        WHERE r.id = $1 AND r."userId" = $2`,
@@ -98,6 +99,9 @@ export async function PUT(
     }
 
     const pending = registrationResult.rows[0]
+    const protocol = registryProtocolVersion(pending.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded registry')
+    agentConfig = getLibroAgentServerConfig(protocol === 'libro-v2' ? 'libro-agent-v2' : 'libro-agent-v1')
     if (pending.finalized_at) {
       const { rows } = await pool.query(
         `SELECT id, registration_hash, agent_address
@@ -160,15 +164,16 @@ export async function PUT(
 
       await client.query(
         `INSERT INTO libro_handle_claims
-          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-         ON CONFLICT ("userId") DO NOTHING`,
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at, registry_address)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
+         ON CONFLICT ("userId", registry_address) DO NOTHING`,
         [
           authenticatedUser.id,
           pending.handle,
           pending.handle_hash,
           pending.session_commitment,
           transactionHash.toLowerCase(),
+          agentConfig.registryAddress,
         ]
       )
 

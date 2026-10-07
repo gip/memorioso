@@ -1,3 +1,4 @@
+import { isV2Publication, libroRegistryV2Abi, v2PublicationCommitment, type LibroHumanPublicationPayload } from '@libro/core'
 import type { IDKitResultSession, ResponseItemSession } from '@worldcoin/idkit'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { libroRegistryAbi } from './contract'
@@ -79,13 +80,16 @@ export function prepareLibroRegistration(input: {
   handleHash: Hex
   config: LibroServerConfig
   claimHandle: boolean
+  publication?: LibroHumanPublicationPayload
 }): PreparedLibroRegistration {
   const normalizedSignalHash = normalizeHex(input.signalHash, 'signal_hash')
   const signalHashUint256 = hexToUint256(normalizedSignalHash, 'signal_hash')
   const contractProof = mapWorldIdSessionProof(input.result)
   const commitment = sessionIdToCommitment(input.result.session_id)
 
-  const data = input.claimHandle
+  const data = input.publication && isV2Publication(input.publication)
+    ? encodeFunctionData({ abi: libroRegistryV2Abi, functionName: 'registerHumanPublication', args: [input.handleHash, v2PublicationCommitment(input.publication), contractProof] })
+    : input.claimHandle
     ? encodeFunctionData({
       abi: libroRegistryAbi,
       functionName: 'claimHandleAndRegisterHumanDocument',

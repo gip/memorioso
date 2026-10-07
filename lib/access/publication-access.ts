@@ -6,6 +6,7 @@ import { tryGetPublicationAccessConfig } from '@/lib/access/config'
 import {
   ACCESS_TOKEN_HEADER,
   accessCookieName,
+  publicationAccessFamily,
   findSettledGrantByToken,
 } from '@/lib/access/grants'
 
@@ -22,16 +23,19 @@ async function readAccessToken(
   publicationId: string,
   request?: NextRequest
 ): Promise<string | null> {
+  const family = await publicationAccessFamily(publicationId)
+  const names = [accessCookieName(family.rootId), ...family.ids.map(accessCookieName)]
   if (request) {
-    return request.headers.get(ACCESS_TOKEN_HEADER)
-      || request.cookies.get(accessCookieName(publicationId))?.value
-      || null
+    const header = request.headers.get(ACCESS_TOKEN_HEADER)
+    if (header && await findSettledGrantByToken(publicationId, header)) return header
+    for (const name of names) { const token = request.cookies.get(name)?.value; if (token && await findSettledGrantByToken(publicationId, token)) return token }
+    return null
   }
-
   const [headerStore, cookieStore] = await Promise.all([headers(), cookies()])
-  return headerStore.get(ACCESS_TOKEN_HEADER)
-    || cookieStore.get(accessCookieName(publicationId))?.value
-    || null
+  const header = headerStore.get(ACCESS_TOKEN_HEADER)
+  if (header && await findSettledGrantByToken(publicationId, header)) return header
+  for (const name of names) { const token = cookieStore.get(name)?.value; if (token && await findSettledGrantByToken(publicationId, token)) return token }
+  return null
 }
 
 /**

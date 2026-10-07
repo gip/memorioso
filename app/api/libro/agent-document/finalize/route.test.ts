@@ -122,6 +122,8 @@ function lockedDocument() {
 
 describe('Libro agent document finalize route', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     dbMock.poolQuery.mockReset()
     dbMock.connect.mockReset()
     dbMock.clientQuery.mockReset()
@@ -132,6 +134,7 @@ describe('Libro agent document finalize route', () => {
 
     dbMock.poolQuery.mockResolvedValue({
       rows: [{
+        registry_address: '0x1111111111111111111111111111111111111111',
         document_signal_hash: documentSignalHash,
         registration_hash: registrationHash,
         document_nonce: documentNonce,
@@ -234,6 +237,7 @@ describe('Libro agent document finalize route', () => {
   it('does not leak an already-finalized publication to an unsigned caller', async () => {
     dbMock.poolQuery.mockResolvedValue({
       rows: [{
+        registry_address: '0x1111111111111111111111111111111111111111',
         document_signal_hash: documentSignalHash,
         registration_hash: registrationHash,
         document_nonce: documentNonce,

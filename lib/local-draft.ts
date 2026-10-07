@@ -11,6 +11,7 @@ import { isPublicationKind, type PublicationKind } from '@/lib/publication-kind'
 const LOCAL_DRAFT_KEY = 'memorioso.draft.local.v1';
 
 export type LocalDraft = {
+  previousPublicationId?: string | null;
   publicationType: PublicationKind;
   title: string;
   subtitle: string;
@@ -40,6 +41,7 @@ export const readLocalDraft = (): LocalDraft | null => {
       return null;
     }
     return {
+      ...(typeof parsed.previousPublicationId === 'string' ? { previousPublicationId: parsed.previousPublicationId } : {}),
       publicationType: isPublicationKind(parsed.publicationType) ? parsed.publicationType : 'article',
       title: typeof parsed.title === 'string' ? parsed.title : '',
       subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : '',

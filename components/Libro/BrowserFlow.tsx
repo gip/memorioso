@@ -12,7 +12,7 @@ import { ClaimClient } from './ClaimClient'
 type Review = {
   clientId?: string; displayName?: string; resource?: string; scope?: string[]; consent?: string
   handle?: string; controller?: string; agent?: string; expiresAt?: string; signal?: string
-  publication?: { publication_title: string; publication_subtitle: string; publication_content: { html: string }; author_name_libro: string; author_handle_libro: string }
+  publication?: { previous_publication?: { registry_address: string; signal_hash: string } | null; initially_published_at?: string; publication_date?: string; revision_number?: number; publication_title: string; publication_subtitle: string; publication_content: { html: string }; author_name_libro: string; author_handle_libro: string }
 }
 
 export function BrowserFlow({ kind, capability, query }: { kind: string; capability?: string; query: string }) {
@@ -51,7 +51,9 @@ export function BrowserFlow({ kind, capability, query }: { kind: string; capabil
       <h1 className="text-xl font-semibold">{review.publication.publication_title || 'Untitled short'}</h1>
       {review.publication.publication_subtitle && <p>{review.publication.publication_subtitle}</p>}
       <p>By {review.publication.author_name_libro} (@{review.publication.author_handle_libro})</p>
-      <h2>Review your publication</h2>
+      <h2>{review.publication.previous_publication ? 'Publish update' : 'Review your publication'}</h2>
+      {review.publication.previous_publication && <p>Version {review.publication.revision_number} replaces publication {review.publication.previous_publication.signal_hash}.
+        {' '}Initially published {review.publication.initially_published_at}. Update date {review.publication.publication_date}.</p>}
       <pre className="whitespace-pre-wrap break-words">{review.publication.publication_content.html}</pre>
       <SigningClient key={capability} capability={capability!} />
     </>}

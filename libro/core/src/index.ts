@@ -1,3 +1,7 @@
+import { libroRegistryV2Abi } from './v2-abi'
+import { canonicalV2PublicationSignal, parseLibroPublicationV3, isV2Publication, registryProtocolVersion, assertLibroRevisionReceipt } from './v2'
+export * from './v2'
+export { libroRegistryV2Abi } from './v2-abi'
 import { hashSignal } from '@worldcoin/idkit/hashing'
 import { parseDocument } from 'htmlparser2'
 import type { AnyNode, Element } from 'domhandler'
@@ -135,8 +139,8 @@ export type LibroAgentPublicationV2Payload = {
   agent_registration_hash: Hex
 }
 
-export type LibroHumanPublicationPayload = LibroPublicationV1Payload | LibroPublicationV2Payload
-export type LibroAgentPublicationPayload = LibroAgentPublicationV1Payload | LibroAgentPublicationV2Payload
+export type LibroHumanPublicationPayload = LibroPublicationV1Payload | LibroPublicationV2Payload | import('./v2').LibroPublicationV3Payload
+export type LibroAgentPublicationPayload = LibroAgentPublicationV1Payload | LibroAgentPublicationV2Payload | import('./v2').LibroAgentPublicationV3Payload
 export type LibroPublicationPayload = LibroHumanPublicationPayload | LibroAgentPublicationPayload
 
 export type LibroServiceError = {
@@ -173,6 +177,7 @@ export type LibroPublicationRecord = {
   signalHash: Hex
   authorshipClass: 'human' | 'agent'
   signal: LibroPublicationPayload | LegacyPublicationPayload
+  revision?: import('./v2').LibroRevisionInfo
   legacyProof?: boolean
   proof: unknown
   version: string
@@ -187,6 +192,7 @@ export type LibroPublicationSummary = {
   authorId: string
   signalHash: Hex
   authorshipClass: 'human' | 'agent'
+  revision?: import('./v2').LibroRevisionInfo
   legacyProof?: boolean
   publicationDate: string
   authorName: string
@@ -578,19 +584,20 @@ export function hashLibroPublicationContent(content: { html: string }): Hex {
 }
 
 function buildLibroPublicationSignalCommitment(
-  publication: LibroHumanPublicationPayload
+  publication: LibroPublicationV1Payload | LibroPublicationV2Payload
 ): LibroPublicationSignalCommitmentV1 | LibroPublicationSignalCommitmentV2 {
   const { publication_content, ...rest } = publication
   return { ...rest, content_hash: hashLibroPublicationContent(publication_content) }
 }
 
 export function canonicalPublicationSignal(publication: LibroPublicationPayload | Record<string, unknown>): string {
+  if (isV2Publication(publication)) return canonicalV2PublicationSignal(publication)
   if (isRecord(publication) && (
     publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V1 ||
     publication.publication_schema === LIBRO_PUBLICATION_SCHEMA_V2
   )) {
     return canonicalStringify(
-      buildLibroPublicationSignalCommitment(publication as LibroHumanPublicationPayload) as unknown as JsonInput
+      buildLibroPublicationSignalCommitment(publication as LibroPublicationV1Payload | LibroPublicationV2Payload) as unknown as JsonInput
     )
   }
   return canonicalStringify(publication as unknown as JsonInput)
@@ -671,7 +678,7 @@ export function createLibroAgentDocumentTypedData(input: {
   return {
     domain: {
       name: 'LibroRegistry',
-      version: '1',
+      version: registryProtocolVersion(input.registryAddress) === 'libro-v2' ? '2' : '1',
       chainId: input.chainId,
       verifyingContract: requireLibroAddress(input.registryAddress, 'registry_address'),
     },
@@ -703,7 +710,7 @@ export function createLibroAgentDocumentFinalizationTypedData(input: {
   return {
     domain: {
       name: 'LibroRegistry',
-      version: '1',
+      version: registryProtocolVersion(input.registryAddress) === 'libro-v2' ? '2' : '1',
       chainId: input.chainId,
       verifyingContract: requireLibroAddress(input.registryAddress, 'registry_address'),
     },
@@ -1009,6 +1016,7 @@ export function parseLibroAgentPublicationV2(value: unknown): LibroAgentPublicat
 
 export function parseLibroPublication(value: unknown): LibroPublicationPayload {
   if (isRecord(value)) {
+    if (value.publication_schema === 'libro-publication-v3' || value.publication_schema === 'libro-agent-publication-v3') return parseLibroPublicationV3(value)
     if (value.publication_schema === LIBRO_PUBLICATION_SCHEMA_V2) return parseLibroPublicationV2(value)
     if (value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1) return parseLibroAgentPublicationV1(value)
     if (value.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V2) return parseLibroAgentPublicationV2(value)
@@ -1080,7 +1088,7 @@ export function parseLibroEmbedManifest(value: unknown): LibroEmbedManifestV1 {
 }
 
 export function isApprovedLibroRegistry(chainId: number, address: string): boolean {
-  return chainId === LIBRO_WORLD_CHAIN_ID && address.toLowerCase() === LIBRO_V1_REGISTRY_ADDRESS.toLowerCase()
+  return chainId === LIBRO_WORLD_CHAIN_ID && registryProtocolVersion(address) !== null
 }
 
 /** Carries what every queried endpoint reported, so callers can show the split rather than one verdict. */
@@ -1104,12 +1112,13 @@ export class LibroChainUnavailableError extends LibroChainVerificationError {}
 
 export function assertLibroManifestLocalIntegrity(value: unknown): LibroEmbedManifestV1 {
   const manifest = parseLibroEmbedManifest(value)
-  const isAgent = manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1 ||
+  const isAgent = manifest.publication.publication_schema === 'libro-agent-publication-v3' || manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1 ||
     manifest.publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V2
   if ((isAgent ? LIBRO_AGENT_SIGNED_CLAIM : LIBRO_HUMAN_SIGNED_CLAIM) !== manifest.claim ||
       (isAgent ? 'agent' : 'human') !== manifest.registration.authorship_class) {
     throw new Error('Manifest authorship class does not match the publication')
   }
+  if (isV2Publication(manifest.publication) && manifest.publication.publication_registry !== manifest.registration.registry_address.toLowerCase()) throw new Error('Publication registry does not match the manifest')
   const signalText = canonicalPublicationSignal(manifest.publication)
   if (hashPublicationSignal(signalText) !== manifest.registration.signal_hash) {
     throw new Error('Manifest signal hash does not match the publication')
@@ -1256,7 +1265,7 @@ async function verifyLibroManifestAtRpc(
   try {
     registered = await client.readContract({
       address: manifest.registration.registry_address,
-      abi: libroRegistryAbi,
+      abi: registryProtocolVersion(manifest.registration.registry_address) === 'libro-v2' ? libroRegistryV2Abi : libroRegistryAbi,
       functionName: manifest.registration.authorship_class === 'human'
         ? 'verifyHumanDocument'
         : 'verifyAgentDocument',
@@ -1278,6 +1287,7 @@ async function verifyLibroManifestAtRpc(
   }
   try {
     assertLibroRegistrationReceipt(manifest.registration, receipt)
+    if (isV2Publication(manifest.publication)) assertLibroRevisionReceipt(manifest.publication, manifest.registration, receipt)
   } catch (error) {
     return outcome('mismatch', error instanceof Error ? error.message : 'Registration receipt does not match the manifest')
   }
@@ -1307,7 +1317,7 @@ export async function verifyLibroManifestOnChain(
   rpcUrls: string | readonly string[] = LIBRO_WORLD_CHAIN_RPC_URLS
 ): Promise<LibroChainVerification> {
   const manifest = assertLibroManifestLocalIntegrity(manifestValue)
-  if (!isApprovedLibroRegistry(manifest.registration.chain_id, manifest.registration.registry_address)) {
+  if (!isApprovedLibroRegistry(manifest.registration.chain_id, manifest.registration.registry_address) || isV2Publication(manifest.publication) !== (registryProtocolVersion(manifest.registration.registry_address) === 'libro-v2')) {
     throw new LibroUnsupportedRegistryError('Libro registry is not approved')
   }
 

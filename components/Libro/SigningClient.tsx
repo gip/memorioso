@@ -1,5 +1,7 @@
 'use client'
 
+import { ClaimClient } from '@/components/Libro/ClaimClient'
+
 import { browserMcp } from '@/lib/libro-service/browser-mcp'
 
 import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
@@ -18,6 +20,7 @@ type SigningContext = {
   appId: `app_${string}`
   environment: 'production' | 'staging'
   rpContext: RpContext
+  publication?: { initially_published_at?: string; publication_date: string; revision_number?: number; previous_publication?: { signal_hash: string } | null }
   signalHash: string
   signalText: string
   existingSessionId: `session_${string}`
@@ -31,6 +34,7 @@ type Transaction = {
 }
 
 export function SigningClient({ capability, mobilePublication }: { capability: string; mobilePublication?: { draftId: string; kind: 'article' | 'short' } }) {
+  const [claim, setClaim] = useState<{ capability: string; signal: string } | null>(null)
   const [context, setContext] = useState<SigningContext | null>(null)
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState('Starting World ID signing…')
@@ -90,7 +94,9 @@ export function SigningClient({ capability, mobilePublication }: { capability: s
     setError('')
     setStatus('Starting World ID signing…')
     try {
-      const body = await browserMcp<SigningContext & { prepared?: Prepared }>('signing_context', { capability })
+      const body = await browserMcp<SigningContext & { prepared?: Prepared; claim?: { capability: string; signal: string } }>('signing_context', { capability })
+      if (body.claim) { setClaim(body.claim); setStatus('Claim your handle before publishing.'); return }
+      setClaim(null)
       if (body.prepared) await complete(body.prepared)
       else { setContext(body); setOpen(true) }
     } catch (reason) {
@@ -107,7 +113,9 @@ export function SigningClient({ capability, mobilePublication }: { capability: s
 
   return (
     <div>
+      {claim && <ClaimClient autoStart capability={claim.capability} signal={claim.signal} onComplete={() => { setClaim(null); void begin() }} />}
       {error && <Button type="button" onClick={begin}>Try again</Button>}
+      {context?.publication?.previous_publication && <p>Publish update · Version {context.publication.revision_number}. Initially published {context.publication.initially_published_at}. Update date {context.publication.publication_date}.</p>}
       {status && <p>{status}</p>}
       {error && <p role="alert">{error}</p>}
       {publicationId && <p>Your publication is signed and published.</p>}

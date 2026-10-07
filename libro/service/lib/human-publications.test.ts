@@ -12,17 +12,22 @@ const principal: OAuthPrincipal = {
   scope: ['publish'], authorNamespace: null, verifiedAt: new Date().toISOString(),
 }
 function publication() {
+  const date = new Date().toISOString()
   return {
-    publication_schema: LIBRO_PUBLICATION_SCHEMA_V2, libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    initially_published_at: date,
+    publication_schema: 'libro-publication-v3', libro_protocol_version: 'libro-v2',
+    publication_registry: '0x2222222222222222222222222222222222222222', previous_publication: null, revision_number: 1,
     world_id_protocol_version: '4.0', world_id_proof_type: 'session', world_id_credential_policy: 'orb',
     author_name_libro: 'Ada', author_handle_libro: 'ada', author_handle_hash_libro: hashLibroHandle('ada'),
-    author_bio_libro: '', publication_date: new Date().toISOString(), publication_title: 'A title',
+    author_bio_libro: '', publication_date: date, publication_title: 'A title',
     publication_subtitle: '', publication_content: { html: '<p>Human writing.</p>' },
   }
 }
 
 describe('human publication author references', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     vi.stubEnv('LIBRO_SERVICE_WRITES_ENABLED', '1')
     vi.stubEnv('LIBRO_SERVICE_URL', 'https://libro.test')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://memorioso.test')
@@ -63,7 +68,7 @@ describe('human publication author references', () => {
 
   it('still rejects a legacy author ID mismatch', async () => {
     await expect(createHumanChallenge({ principal, publication: {
-      ...publication(), publication_schema: LIBRO_PUBLICATION_SCHEMA_V1, author_id_libro: 'another-author',
+      ...publication(), publication_schema: LIBRO_PUBLICATION_SCHEMA_V1, libro_protocol_version: LIBRO_PROTOCOL_VERSION, author_id_libro: 'another-author',
     } })).rejects.toMatchObject({ code: 'AUTHOR_MISMATCH' })
     expect(query).not.toHaveBeenCalled()
   })

@@ -1,3 +1,4 @@
+import { requireV2Registry, configuredLibroRegistries } from '@libro/core'
 import { isAddress, type Address, type Hex } from 'viem'
 import { parseLibroRpcUrls } from '@libro/core'
 import {
@@ -8,7 +9,7 @@ import {
 import { rpIdToUint64 } from './encoding'
 
 export type LibroServerConfig = {
-  protocolVersion: typeof LIBRO_PROTOCOL_VERSION
+  protocolVersion: typeof LIBRO_PROTOCOL_VERSION | 'libro-v2'
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
   rpId: bigint
@@ -17,7 +18,7 @@ export type LibroServerConfig = {
 }
 
 export type LibroAgentServerConfig = {
-  protocolVersion: typeof LIBRO_AGENT_PROTOCOL_VERSION
+  protocolVersion: typeof LIBRO_AGENT_PROTOCOL_VERSION | 'libro-agent-v2'
   chainId: typeof LIBRO_WORLD_CHAIN_ID
   registryAddress: Address
   rpId: bigint
@@ -37,11 +38,9 @@ function requireEnv(name: string): string {
   return value
 }
 
-function requireAddress(name: string): Address {
-  const value = requireEnv(name)
-  if (!isAddress(value) || value.toLowerCase() === '0x0000000000000000000000000000000000000000') {
-    throw new Error(`${name} must be a valid non-zero EVM address`)
-  }
+function trustedV1Address(): Address {
+  const value = configuredLibroRegistries().v1
+  if (!isAddress(value) || /^0x0{40}$/i.test(value)) throw new Error('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS must name a verified non-zero deployment')
   return value
 }
 
@@ -56,21 +55,23 @@ function getLibroChainId(): typeof LIBRO_WORLD_CHAIN_ID {
   return LIBRO_WORLD_CHAIN_ID
 }
 
-export function getLibroServerConfig(): LibroServerConfig {
+export function getLibroServerConfig(protocol: string = 'libro-v2'): LibroServerConfig {
+  if (protocol !== 'libro-v1' && protocol !== 'libro-v2') throw new Error('Unsupported Libro human protocol')
   return {
-    protocolVersion: LIBRO_PROTOCOL_VERSION,
+    protocolVersion: protocol === 'libro-v1' ? LIBRO_PROTOCOL_VERSION : 'libro-v2',
     chainId: getLibroChainId(),
-    registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
+    registryAddress: protocol.endsWith('v1') ? trustedV1Address() : requireV2Registry(),
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
     rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }
 }
 
-export function getLibroAgentServerConfig(): LibroAgentServerConfig {
+export function getLibroAgentServerConfig(protocol: string = 'libro-agent-v2'): LibroAgentServerConfig {
+  if (protocol !== 'libro-agent-v1' && protocol !== 'libro-agent-v2') throw new Error('Unsupported Libro agent protocol')
   return {
-    protocolVersion: LIBRO_AGENT_PROTOCOL_VERSION,
+    protocolVersion: protocol === 'libro-agent-v1' ? LIBRO_AGENT_PROTOCOL_VERSION : 'libro-agent-v2',
     chainId: getLibroChainId(),
-    registryAddress: requireAddress('NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS'),
+    registryAddress: protocol.endsWith('v1') ? trustedV1Address() : requireV2Registry(),
     rpId: rpIdToUint64(requireEnv('WORLD_ID_RP_ID')),
     rpcUrls: parseLibroRpcUrls(process.env.LIBRO_RPC_URL),
   }

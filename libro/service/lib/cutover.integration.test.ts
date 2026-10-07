@@ -2,7 +2,8 @@ import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vites
 import { readFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
-import { hashLibroHandle, LIBRO_PROTOCOL_VERSION, LIBRO_PUBLICATION_SCHEMA_V1 } from '@libro/core'
+import { hashLibroHandle, libroRegistryV2Abi, v2PublicationCommitment, type LibroPublicationV3Payload } from '@libro/core'
+import { decodeFunctionData } from 'viem'
 
 const test = vi.hoisted(() => {
   const url = process.env.LIBRO_TEST_DATABASE_URL
@@ -19,6 +20,7 @@ vi.mock('./chain', async (original) => ({ ...await original<object>(),
   verifyHumanRegistration: test.verifyHuman, verifyAgentRegistration: test.verifyAgent, verifyAgentRevocation: test.verifyRevoke,
   relayRegistration: test.relay, waitForRegistration: test.wait,
 }))
+vi.mock('./handle-claims', async original => ({ ...await original<object>(), signingHandleClaim: async () => null }))
 import { pool } from './db'
 import { createHumanChallenge, getSigningChallenge } from './human-publications'
 import { finalizeSigning, prepareSigning, signingContext, recordWalletSubmission, relaySigning } from './human-signing'
@@ -48,6 +50,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     process.env.LIBRO_MCP_STATE_SECRET = 'test-mcp-secret-at-least-thirty-two-bytes'
     process.env.LIBRO_SIGNING_CAPABILITY_SECRET = 'test-signing-secret-at-least-thirty-two-bytes'
     process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS = `0x${'1'.repeat(40)}`
+    process.env.NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS = `0x${'2'.repeat(40)}`
     process.env.LIBRO_WEBHOOK_DESTINATIONS = '[]'
     process.env.NEXT_PUBLIC_WORLD_ID_APP_ID = `app_${'1'.repeat(32)}`
     process.env.WORLD_ID_RP_ID = 'rp_0000000000000001'
@@ -116,10 +119,11 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
   })
 
   async function challenge() {
-    const publication = { publication_schema: LIBRO_PUBLICATION_SCHEMA_V1, libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    const date = new Date().toISOString()
+    const publication: LibroPublicationV3Payload = { publication_schema: 'libro-publication-v3', libro_protocol_version: 'libro-v2', publication_registry: `0x${'2'.repeat(40)}`, previous_publication:null, initially_published_at:date, revision_number:1,
       world_id_protocol_version: '4.0', world_id_proof_type: 'session', world_id_credential_policy: 'orb',
-      author_id_libro: test.identity, author_name_libro: 'Ada', author_handle_libro: 'ada', author_handle_hash_libro: hashLibroHandle('ada'),
-      author_bio_libro: '', publication_date: new Date().toISOString(), publication_title: randomUUID(), publication_subtitle: '',
+      author_reference: {namespace: principal.authorNamespace || 'https://libro.test',id: test.identity}, author_name_libro: 'Ada', author_handle_libro: 'ada', author_handle_hash_libro: hashLibroHandle('ada'),
+      author_bio_libro: '', publication_date: date, publication_title: randomUUID(), publication_subtitle: '',
       publication_content: { html: '<p>Human writing.</p>' } }
     const value = await createHumanChallenge({ principal, publication })
     const capability = new URL(value.signingUrl).pathname.split('/').pop()!
@@ -129,7 +133,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     const proof = { protocol_version: '4.0', nonce: row.nonce, environment: 'production', session_id: sessionId,
       responses: [{ identifier: 'proof_of_human', proof: ['1','2','3','4','5'], session_nullifier: ['10','11'],
         expires_at_min: 999999999, issuer_schema_id: 1, signal_hash: row.signal_hash }] }
-    return { value, capability, proof }
+    return { value, capability, proof, publication }
   }
 
   it('sponsors a verified publication without a separate sponsorship proof and reuses its transaction', async () => {
@@ -151,14 +155,28 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     expect(test.relay).not.toHaveBeenCalled()
   })
 
-  it('records an implicit claim and prepares the second publication without claiming again', async () => {
+  it('records the v2 handle binding and prepares distinct publication commitments without claiming again', async () => {
     const first = await challenge()
     const prepared = await prepareSigning(first.capability, first.proof)
     await finalizeSigning(first.capability, { registrationId: prepared.registrationId, submissionMethod: 'world_wallet', transactionHash: hash('a') })
-    expect((await pool.query('SELECT * FROM libro_handle_claims')).rows).toHaveLength(1)
+    const claims = (await pool.query('SELECT * FROM libro_handle_claims')).rows
+    expect(claims).toHaveLength(1)
+    expect(claims[0]).toMatchObject({ identity_id: test.identity, handle_hash: hashLibroHandle('ada'),
+      session_commitment: hash('1'), registry_address: first.publication.publication_registry, transaction_hash: hash('a') })
     const second = await challenge()
     const next = await prepareSigning(second.capability, second.proof)
-    expect(next.transaction.transactions[0].data.slice(0,10)).not.toBe(prepared.transaction.transactions[0].data.slice(0,10))
+    expect(second.value.signalHash).not.toBe(first.value.signalHash)
+    expect(next.registrationId).not.toBe(prepared.registrationId)
+    for (const [item, operation] of [[first, prepared], [second, next]] as const) {
+      const call = operation.transaction.transactions[0]
+      expect(call.to).toBe(item.publication.publication_registry)
+      const decoded = decodeFunctionData({ abi: libroRegistryV2Abi, data: call.data })
+      expect(decoded.functionName).toBe('registerHumanPublication')
+      expect(decoded.args).toEqual([hashLibroHandle('ada'), v2PublicationCommitment(item.publication),
+        expect.objectContaining({ nonce: BigInt(item.proof.nonce), sessionCommitment: BigInt(hash('1')) })])
+    }
+    await finalizeSigning(second.capability, { registrationId: next.registrationId, submissionMethod: 'world_wallet', transactionHash: hash('b') })
+    expect((await pool.query('SELECT * FROM libro_handle_claims')).rows).toEqual(claims)
   })
 
   it('recovers a prepared expired challenge and retries a consumed finalization idempotently', async () => {

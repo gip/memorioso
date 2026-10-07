@@ -1,3 +1,5 @@
+import { registryProtocolVersion } from '@libro/core'
+import { persistLocalPublicationRevision } from '@/lib/publication-revisions'
 import { randomUUID } from 'crypto'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
@@ -61,7 +63,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   const startedAt = Date.now()
   let agentConfig
   try {
-    agentConfig = getLibroAgentServerConfig()
+    agentConfig = getLibroAgentServerConfig('libro-agent-v1')
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -111,7 +113,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   try {
     const pendingResult = await pool.query(
       `SELECT d.document_signal_hash, d.handle_hash, d.finalized_at, d."publicationId",
-              d.registration_hash, d.document_nonce, d.agent_address, p.signal
+              d.registration_hash, d.document_nonce, d.agent_address, d.registry_address, d.publication, p.signal
        FROM libro_agent_document_registrations d
        LEFT JOIN publications p ON p.id = d."publicationId"
        WHERE d.id = $1`,
@@ -126,6 +128,9 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     // signed the document at prepare time. Knowing the registration id is not authority.
     stage = 'verify_agent_signature'
     const pending = pendingResult.rows[0]
+    const protocol = registryProtocolVersion(pending.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded registry')
+    agentConfig = getLibroAgentServerConfig(protocol === 'libro-v2' ? 'libro-agent-v2' : 'libro-agent-v1')
     let finalizationSigner: string
     try {
       finalizationSigner = await recoverAgentDocumentFinalizationSigner({
@@ -167,7 +172,8 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       pendingResult.rows[0].document_signal_hash,
       pendingResult.rows[0].handle_hash,
       agentConfig,
-      transactionHash
+      transactionHash,
+      pending.publication
     )
     if (!isRegistered) {
       return NextResponse.json({
@@ -259,6 +265,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         ]
       )
 
+      const familyIds = await persistLocalPublicationRevision(client, String(articleResult.rows[0].id), publication)
       await client.query(
         `UPDATE libro_agent_document_registrations
          SET user_op_hash = $1, transaction_hash = $2, finalized_at = CURRENT_TIMESTAMP, "publicationId" = $3, proof = $4
@@ -269,7 +276,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       stage = 'commit'
       await client.query('COMMIT')
       transactionOpen = false
-      revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
+      for (const id of familyIds) revalidateTag(publicationCacheTag(id), { expire: 0 })
       revalidateTag(publicationHashCacheTag(pendingResult.rows[0].document_signal_hash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(String(documentRegistration.authorId)), { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })

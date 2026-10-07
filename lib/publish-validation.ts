@@ -36,6 +36,7 @@ export type PublishDraftRow = {
   publicationType: PublicationKind
   /** Not part of the signed payload, so it never participates in challenge matching. */
   access: PublicationAccess
+  access_price_usd?: string | null
 }
 
 /**
@@ -84,7 +85,7 @@ export async function getLockedDraftForPublish(
       d.id,
       d.status,
       d.publication_type AS "publicationType",
-      d.access,
+      d.access, d.access_price_usd,
       d."authorId",
       a.name AS author_name,
       a.handle AS author_handle,

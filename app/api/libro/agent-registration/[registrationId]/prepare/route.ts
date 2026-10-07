@@ -1,3 +1,4 @@
+import { registryProtocolVersion } from '@libro/core'
 import { NextRequest, NextResponse } from 'next/server'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { pool } from '@/lib/db'
@@ -31,7 +32,7 @@ export async function PUT(
   let config
   try {
     worldIdConfig = getWorldIdServerConfig()
-    config = getLibroAgentServerConfig()
+    config = getLibroAgentServerConfig('libro-agent-v1')
   } catch (error) {
     return NextResponse.json({ success: false, message: error instanceof Error ? error.message : 'Invalid configuration' }, { status: 500 })
   }
@@ -59,6 +60,9 @@ export async function PUT(
     )
     if (result.rows.length === 0) return await fail('Agent registration not found', 404)
     const row = result.rows[0]
+    const protocol = registryProtocolVersion(row.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded registry')
+    config = getLibroAgentServerConfig(protocol === 'libro-v2' ? 'libro-agent-v2' : 'libro-agent-v1')
     if (row.finalized_at) return await fail('Agent registration is already finalized')
 
     const payload = row.payload as AgentRegistrationPayload
@@ -105,7 +109,7 @@ export async function PUT(
       result: validated,
       contractRegistration: recreated.contractRegistration,
       handle: row.handle,
-      claimHandle: claim.rows.length === 0,
+      claimHandle: config.protocolVersion === 'libro-agent-v1' && claim.rows.length === 0,
       config,
     })
     const proof = {

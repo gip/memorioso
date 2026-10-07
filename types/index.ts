@@ -55,7 +55,7 @@ export type Author = {
     publication_schema: typeof LIBRO_PUBLICATION_SCHEMA_V1
     libro_protocol_version: typeof LIBRO_PROTOCOL_VERSION
     world_id_proof_type: 'session'
-    author_handle_hash_libro: string
+    author_handle_hash_libro: `0x${string}`
   }
 
   export type LibroPublicationV2 = Omit<LibroPublicationV1, 'publication_schema' | 'author_id_libro'> & {
@@ -67,9 +67,9 @@ export type Author = {
     publication_schema: typeof LIBRO_AGENT_PUBLICATION_SCHEMA_V1
     libro_agent_protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
     authorship_claim: typeof LIBRO_AGENT_AUTHORSHIP_CLAIM
-    author_handle_hash_libro: string
-    agent_address: string
-    agent_registration_hash: string
+    author_handle_hash_libro: `0x${string}`
+    agent_address: `0x${string}`
+    agent_registration_hash: `0x${string}`
   }
 
   export type LibroAgentPublicationV2 = Omit<LibroAgentPublicationV1, 'publication_schema' | 'author_id_libro'> & {
@@ -77,8 +77,8 @@ export type Author = {
     author_reference?: AuthorReference
   }
 
-  export type LibroHumanPublication = LibroPublicationV1 | LibroPublicationV2
-  export type LibroAgentPublication = LibroAgentPublicationV1 | LibroAgentPublicationV2
+  export type LibroHumanPublication = LibroPublicationV1 | LibroPublicationV2 | import('@libro/core').LibroPublicationV3Payload
+  export type LibroAgentPublication = LibroAgentPublicationV1 | LibroAgentPublicationV2 | import('@libro/core').LibroAgentPublicationV3Payload
 
   export type PublicationSignal = PublicationV1 | PublicationV2 | LibroHumanPublication | LibroAgentPublication
 
@@ -117,7 +117,7 @@ export type Author = {
     idkit_result: JsonValue
     verify_response: JsonValue
     libro_registration?: {
-      protocol_version: typeof LIBRO_PROTOCOL_VERSION
+      protocol_version: typeof LIBRO_PROTOCOL_VERSION | 'libro-v2'
       submission_method?: 'world_wallet' | 'memorioso_relayer'
       chain_id: number
       registry_address: string
@@ -132,7 +132,7 @@ export type Author = {
 
   export type LibroAgentProofV1 = {
     proof_type: 'human_authorized_agent_signature'
-    protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION
+    protocol_version: typeof LIBRO_AGENT_PROTOCOL_VERSION | 'libro-agent-v2'
     agent_registration: {
       proof_type: 'session'
       signal: string
@@ -154,7 +154,7 @@ export type Author = {
       document_signal_hash: string
       document_nonce: string
       signed_at: string
-      agent_address: string
+      agent_address: `0x${string}`
       signature_type: 'eip712'
       signature: string
       chain_id: number

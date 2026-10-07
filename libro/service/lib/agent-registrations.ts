@@ -1,3 +1,4 @@
+import { LIBRO_AGENT_PROTOCOL_VERSION_V2, registryProtocolVersion } from '@libro/core'
 import { randomUUID } from 'node:crypto'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import {
@@ -9,7 +10,7 @@ import {
 } from '@libro/core'
 import { isAddress, type Address, type Hex } from 'viem'
 import { pool } from './db'
-import { recordHandleClaim } from './handle-claims'
+import { recordHandleClaim, signingHandleClaim } from './handle-claims'
 import { assertWritesEnabled, ServiceError } from './errors'
 import type { OAuthPrincipal } from './oauth'
 import { chainConfig, prepareAgentAuthorization, relayRegistration, verifyAgentRegistration, waitForRegistration, type HumanRegistrationTransaction } from './chain'
@@ -56,7 +57,7 @@ export async function createAgentRegistrationChallenge(input: {
   const authorReference = reference(input.principal)
   const payload = {
     schema: 'libro-agent-registration-v1',
-    protocol_version: LIBRO_AGENT_PROTOCOL_VERSION,
+    protocol_version: LIBRO_AGENT_PROTOCOL_VERSION_V2,
     world_id_proof_type: 'session',
     handle_hash: hashLibroHandle(input.principal.handle),
     controller_address: input.controllerAddress.toLowerCase(),
@@ -117,6 +118,10 @@ async function browserChallenge(capability: string) {
 export async function agentSigningContext(request: Request, capability: string) {
   assertWritesEnabled()
   const row = await browserChallenge(capability)
+  if (registryProtocolVersion(row.registry_address) === 'libro-v2') {
+    const claim = await signingHandleClaim({ identityId: row.identity_id, handle: row.handle, clientId: row.origin_client_id, sessionCommitment: row.session_commitment })
+    if (claim) return { claim }
+  }
   const context = await issueRpContext({
     request,
     purpose: 'agent_registration',
@@ -184,9 +189,10 @@ export async function prepareAgentSigning(capability: string, payload: unknown) 
     const claim = await client.query('SELECT 1 FROM libro_handle_claims WHERE identity_id = $1', [row.identity_id])
     const prepared = prepareAgentAuthorization({
       result,
+      registryAddress: row.registry_address,
       sessionCommitment: row.session_commitment,
       handle: row.handle,
-      claimHandle: claim.rows.length === 0,
+      claimHandle: claim.rows.length === 0 && registryProtocolVersion(row.registry_address) === 'libro-v1',
       registration: recreated.contractRegistration,
     })
     const proof = {
@@ -261,7 +267,7 @@ export async function finalizeAgentSigning(capability: string, input: { transact
       [row.id, input.userOpHash || null, input.transactionHash.toLowerCase()],
     )
     await recordHandleClaim(client, { identityId: row.identity_id, handle: row.handle,
-      handleHash: row.handle_hash, sessionCommitment: row.session_commitment, transactionHash: input.transactionHash })
+      handleHash: row.handle_hash, sessionCommitment: row.session_commitment, transactionHash: input.transactionHash, registryAddress: row.registry_address })
     await client.query('COMMIT')
   } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
 

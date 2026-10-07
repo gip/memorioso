@@ -1,3 +1,4 @@
+vi.mock('@/lib/libro/handle-claim', () => ({ ensureLocalHandleClaim: async () => null }))
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { canonicalPublicationSignal } from '@/lib/world-id/publication'
@@ -48,6 +49,8 @@ function request(text: unknown, authorId?: unknown): NextRequest {
 
 describe('inline signature creation', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
     dbMock.release.mockReset()
@@ -90,7 +93,7 @@ describe('inline signature creation', () => {
     const publication = challengeInsert[1][7]
     expect(signalText).toBe(canonicalPublicationSignal(publication))
     expect(publication).toMatchObject({
-      publication_schema: 'libro-publication-v2',
+      publication_schema: 'libro-publication-v3',
       world_id_proof_type: 'session',
       world_id_credential_policy: 'orb',
       author_reference: { namespace: 'https://memorioso.xyz', id: 'author-1' },

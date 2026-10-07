@@ -1,3 +1,4 @@
+import { validateLocalPublicationRevision, PublicationRevisionError } from '@/lib/publication-revisions'
 import { NextRequest, NextResponse } from 'next/server'
 import { isHex } from 'viem'
 import { pool } from '@/lib/db'
@@ -15,7 +16,7 @@ import {
   LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
 } from '@/lib/libro/contract'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
-import { parseLibroPublication } from '@libro/core'
+import { parseLibroPublication, registryProtocolVersion } from '@libro/core'
 import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
 
 type PrepareAgentDocumentRequest = {
@@ -33,24 +34,14 @@ function isFreshSignedAt(signedAt: number): boolean {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const retired = retiredLibroWriterResponse()
   if (retired) return retired
-  let agentConfig
-  try {
-    agentConfig = getLibroAgentServerConfig()
-    getMemoriosoAuthorNamespace()
-  } catch (error) {
-    return NextResponse.json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Libro agent configuration is invalid',
-    }, { status: 500 })
-  }
-
   const body = await req.json().catch(() => null) as PrepareAgentDocumentRequest | null
   let publication: LibroAgentPublication | null = null
   try {
     const parsed = parseLibroPublication(body?.publication)
     if (
       parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V1 &&
-      parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2
+      parsed.publication_schema !== LIBRO_AGENT_PUBLICATION_SCHEMA_V2 &&
+      parsed.publication_schema !== 'libro-agent-publication-v3'
     ) {
       throw new Error('Agent publication schema is required')
     }
@@ -81,6 +72,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!isFreshSignedAt(signedAt)) {
     return NextResponse.json({ success: false, message: 'Agent document signature is stale' }, { status: 400 })
+  }
+
+  const { signalHash: requestedSignalHash } = buildAgentPublicationSignal(publication)
+  const pending = (await pool.query('SELECT * FROM libro_agent_document_registrations WHERE document_signal_hash = $1', [requestedSignalHash])).rows[0]
+  if (pending) {
+    if (!registryProtocolVersion(pending.registry_address)) return NextResponse.json({ success: false, message: 'Prepared registry is not trusted' }, { status: 400 })
+    if (pending.registration_hash !== publication.agent_registration_hash.toLowerCase() || pending.document_nonce !== documentNonce.toLowerCase()) return NextResponse.json({ success: false, message: 'Prepared publication belongs to a different frozen operation' }, { status: 409 })
+    try {
+      const signer = await recoverAgentDocumentSigner({ typedData: createAgentDocumentTypedData({
+        chainId: pending.chain_id, registryAddress: pending.registry_address, registrationHash: pending.registration_hash,
+        documentSignalHash: requestedSignalHash, documentNonce, signedAt,
+      }), signature })
+      if (signer.toLowerCase() !== pending.agent_address.toLowerCase()) throw new Error('Agent key mismatch')
+    } catch { return NextResponse.json({ success: false, message: 'Agent key is required to resume this publication' }, { status: 401 }) }
+    return NextResponse.json({ success: true, documentRegistrationId: pending.id, documentSignalHash: requestedSignalHash,
+      transaction: pending.transaction, transactionHash: pending.transaction_hash, publicationId: pending.publicationId })
+  }
+  const publicationDate = Date.parse(publication.publication_date)
+  if (publicationDate > Date.now() || publicationDate < Date.now() - 5 * 60_000) return NextResponse.json({ success: false, message: 'Publication date must be within the last five minutes' }, { status: 400 })
+  let agentConfig
+  try {
+    agentConfig = getLibroAgentServerConfig()
+    getMemoriosoAuthorNamespace()
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Libro agent configuration is invalid',
+    }, { status: 500 })
   }
 
   const client = await pool.connect()
@@ -129,6 +148,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return await fail('Agent publication does not match the registered agent')
     }
 
+    if (registration.registry_address.toLowerCase() !== agentConfig.registryAddress) return await fail('Fresh v2 agent authorization is required', 409)
+    try { await validateLocalPublicationRevision(publication, String(registration.authorId), true, client) }
+    catch (error) { return await fail(error instanceof Error ? error.message : 'Invalid update', error instanceof PublicationRevisionError ? error.status : 503) }
     const { signalText, signalHash } = buildAgentPublicationSignal(publication)
     const existing = await client.query(
       'SELECT id FROM libro_agent_document_registrations WHERE document_signal_hash = $1',
@@ -159,6 +181,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       signedAt,
       signature,
       config: agentConfig,
+      publication,
     })
     const signedAtIso = new Date(signedAt * 1000).toISOString()
     const proof: LibroAgentProofV1 = {

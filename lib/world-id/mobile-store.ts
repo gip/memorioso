@@ -2,7 +2,7 @@ import type { IDKitSessionConfig, IDKitResultSession } from '@worldcoin/idkit'
 
 export type MobileOperation =
   | { kind: 'login' | 'identity'; handle: string; intent: 'login' | 'signup'; destination?: string }
-  | { kind: 'signing' | 'agent-signing' | 'handle-signing'; capability: string; publication?: { draftId: string; kind: 'article' | 'short' } }
+  | { kind: 'signing' | 'agent-signing' | 'handle-signing'; capability: string; local?: boolean; publication?: { draftId: string; kind: 'article' | 'short' } }
   | { kind: 'draft'; draftId: string; challengeId: string; publicationKind: 'article' | 'short' }
 
 export type MobileFlow = {

@@ -15,6 +15,7 @@ vi.mock('@/lib/db/publication-cache', () => ({
 vi.mock('@/lib/auth-user', () => ({ getAuthenticatedUser: mocks.getAuthenticatedUser }))
 vi.mock('@/lib/access/grants', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/access/grants')>()),
+  publicationAccessFamily: async (id: string) => ({ rootId: id, ids: [id] }),
   findSettledGrantByToken: mocks.findSettledGrantByToken,
 }))
 vi.mock('next/headers', () => ({ cookies: mocks.cookies, headers: mocks.headers }))

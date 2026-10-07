@@ -1,3 +1,4 @@
+vi.mock('@/lib/publication-revisions', () => ({ validateLocalPublicationRevision: async () => undefined, PublicationRevisionError: class extends Error {} }))
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IDKitResultSession } from '@worldcoin/idkit'
@@ -26,8 +27,8 @@ const validationMock = vi.hoisted(() => ({
     signal_text: '{"publication_title":"A human note"}',
     signal_hash: '0x1111111111111111111111111111111111111111111111111111111111111111',
     publication: {
-      publication_schema: 'libro-publication-v1',
-      libro_protocol_version: 'libro-v1',
+      publication_schema: 'libro-publication-v3', publication_registry: '0x2222222222222222222222222222222222222222', previous_publication: null, initially_published_at: new Date().toISOString(), revision_number: 1,
+      libro_protocol_version: 'libro-v2',
       publication_date: new Date().toISOString(),
       author_handle_libro: 'ada',
       author_handle_hash_libro: `0x${'aa'.repeat(32)}`,
@@ -70,7 +71,7 @@ vi.mock('@/lib/world-id/server', () => ({
 
 vi.mock('@/lib/libro/config', () => ({
   getLibroServerConfig: () => ({
-    protocolVersion: 'libro-v1',
+    protocolVersion: 'libro-v2',
     chainId: 480,
     registryAddress: '0x1111111111111111111111111111111111111111',
     rpId: BigInt(1),
@@ -86,8 +87,8 @@ vi.mock('@/lib/publish-validation', () => ({
   assertChallengeCanBeUsed: vi.fn(),
   assertDraftCanBePublished: vi.fn(),
   assertChallengeMatchesAuthor: vi.fn(() => ({
-    publication_schema: 'libro-publication-v1',
-    libro_protocol_version: 'libro-v1',
+    publication_schema: 'libro-publication-v3', publication_registry: '0x2222222222222222222222222222222222222222', previous_publication: null, initially_published_at: new Date().toISOString(), revision_number: 1,
+    libro_protocol_version: 'libro-v2',
     publication_date: new Date().toISOString(),
     author_id_libro: '8d22d0e5-2a31-42ca-9356-6e2b3c16a4aa',
     author_handle_libro: 'ada',
@@ -137,6 +138,8 @@ function result(sessionId = `session_${'11'.repeat(32)}${'22'.repeat(32)}`): IDK
 
 describe('publish prepare route', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
     dbMock.release.mockReset()

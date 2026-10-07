@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  LIBRO_V1_REGISTRY_ADDRESS,
   canonicalPublicationSignal,
   hashPublicationSignal,
   hashLibroHandle,
@@ -15,6 +14,9 @@ import type {
   PublicationRecord,
   WorldIdProofV4,
 } from '@/types'
+
+const LIBRO_V1_REGISTRY_ADDRESS = '0x1111111111111111111111111111111111111111' as const
+vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', LIBRO_V1_REGISTRY_ADDRESS)
 
 const publication: LibroPublicationV1 = {
   publication_schema: 'libro-publication-v1',
@@ -200,7 +202,7 @@ describe('Libro embed generation', () => {
   })
 
   it('reports the publication and approved registries being compared', () => {
-    const unsupportedRegistry = '0x1111111111111111111111111111111111111111'
+    const unsupportedRegistry = '0x9999999999999999999999999999999999999999'
     const unsupportedProof = proof()
     unsupportedProof.libro_registration = {
       ...unsupportedProof.libro_registration!,

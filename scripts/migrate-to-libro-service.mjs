@@ -1,5 +1,5 @@
 import pg from 'pg'
-import { canonicalPublicationSignal, hashPublicationSignal, isLegacyPublicationProof, parseLegacyPublication, parseLibroAuthorReference, parseLibroPublication } from '@libro/core'
+import { canonicalPublicationSignal, hashPublicationSignal, isLegacyPublicationProof, parseLegacyPublication, parseLibroAuthorReference, parseLibroPublication, configuredLibroRegistries } from '@libro/core'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -98,12 +98,12 @@ export async function copyAll(source, target, options) {
     if (!author) throw new Error(`Handle claim ${row.id} has no migratable identity`)
     await target.query(
       `INSERT INTO libro_handle_claims
-        (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (identity_id) DO UPDATE SET transaction_hash = EXCLUDED.transaction_hash,
+        (identity_id, handle, handle_hash, session_commitment, transaction_hash, finalized_at, created_at, registry_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (identity_id, registry_address) DO UPDATE SET transaction_hash = EXCLUDED.transaction_hash,
          finalized_at = EXCLUDED.finalized_at`,
       [author.author_id, row.handle, row.handle_hash, row.session_commitment,
-        row.transaction_hash, row.finalized_at, row.created_at],
+        row.transaction_hash, row.finalized_at, row.created_at, row.registry_address || configuredLibroRegistries().v1],
     )
   }
 
@@ -117,12 +117,12 @@ export async function copyAll(source, target, options) {
       `INSERT INTO libro_publish_challenges
         (id, identity_id, author_id, origin_client_id, client_reference, nonce,
          session_commitment, signal_text, signal_hash, publication,
-         signing_capability_hash, expires_at, consumed_at, created_at)
-       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         signing_capability_hash, expires_at, consumed_at, created_at, protocol_version, registry_address)
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        ON CONFLICT (id) DO UPDATE SET consumed_at = EXCLUDED.consumed_at`,
       [row.id, row.author_id, originClientId, row.draftId, row.nonce, row.session_commitment,
         row.signal_text, row.signal_hash, row.publication, capHash(row.id), row.expires_at,
-        row.consumed_at, row.created_at],
+        row.consumed_at, row.created_at, row.protocol_version || 'libro-v1', row.registry_address || configuredLibroRegistries().v1],
     )
   }
 
@@ -165,14 +165,14 @@ export async function copyAll(source, target, options) {
     if (!options.dryRun) await target.query(
       `INSERT INTO libro_publications
         (id, author_id, identity_id, origin_client_id, client_reference, signal_hash,
-         authorship_class, signal, proof, version, title, subtitle, date, created_at, modified_at, legacy_proof)
-       VALUES ($1, $2, $14, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $15)
+         authorship_class, signal, proof, version, title, subtitle, date, created_at, modified_at, legacy_proof, root_publication_id, previous_publication_id, initially_published_at, revision_number)
+       VALUES ($1, $2, $14, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $15, $16, $17, $18, $19)
        ON CONFLICT (id) DO UPDATE SET signal_hash = EXCLUDED.signal_hash,
          signal = EXCLUDED.signal, proof = EXCLUDED.proof, modified_at = EXCLUDED.modified_at`,
       [row.id, row.authorId, originClientId, expected.toLowerCase(),
         row.proof?.proof_type === 'human_authorized_agent_signature' ? 'agent' : 'human',
         row.signal, row.proof, row.version, row.title, row.subtitle, row.date, row.created_at, row.modified_at,
-        identityIds.has(row.authorId) ? row.authorId : null, legacy],
+        identityIds.has(row.authorId) ? row.authorId : null, legacy, row.root_publication_id || row.id, row.previous_publication_id || null, row.initially_published_at || row.signal.publication_date, row.revision_number || 1],
     )
     if (!options.dryRun && options.linkSourceIdentities && legacy) await source.query(
       `INSERT INTO publication_policies (publication_id, signal_hash, "authorId", access, access_price_usd, created_at, modified_at)

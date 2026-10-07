@@ -3,7 +3,7 @@ import {
   LIBRO_EMBED_SCHEMA_V1,
   LIBRO_AGENT_SIGNED_CLAIM,
   LIBRO_HUMAN_SIGNED_CLAIM,
-  LIBRO_V1_REGISTRY_ADDRESS,
+  configuredLibroRegistries,
   LIBRO_WORLD_CHAIN_ID,
   assertLibroManifestLocalIntegrity,
   canonicalPublicationSignal,
@@ -132,7 +132,7 @@ export function buildLibroEmbedManifest(
       `Publication uses an unsupported Libro registry: ` +
       `publication registry (chain_id=${validated.registration.chain_id}, ` +
       `registry_address=${validated.registration.registry_address}) does not match ` +
-      `approved registry (chain_id=${LIBRO_WORLD_CHAIN_ID}, registry_address=${LIBRO_V1_REGISTRY_ADDRESS})`
+      `approved registry (chain_id=${LIBRO_WORLD_CHAIN_ID}, registry_address=${Object.values(configuredLibroRegistries()).filter(address => !/^0x0{40}$/i.test(address)).join(", ")})`
     )
   }
 

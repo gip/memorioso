@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   LibroNotRegisteredError,
   LibroRegistrationMismatchError,
@@ -13,12 +13,14 @@ import {
   LIBRO_PROTOCOL_VERSION,
   LIBRO_PUBLICATION_SCHEMA_V1,
   LIBRO_PUBLICATION_SCHEMA_V2,
-  LIBRO_V1_REGISTRY_ADDRESS,
   type LibroEmbedManifestV1,
   type LibroPublicationV1Payload,
 } from '@libro/core'
 import { verifyCandidate } from './verifier'
 import type { LibroCandidate } from './shared'
+
+const LIBRO_V1_REGISTRY_ADDRESS = '0x1111111111111111111111111111111111111111' as const
+vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', LIBRO_V1_REGISTRY_ADDRESS)
 
 /** Stub for one endpoint confirming the registration. */
 function confirmed(value: LibroEmbedManifestV1, label = 'worldchain-mainnet.gateway.tenderly.co') {
@@ -154,7 +156,7 @@ describe('extension candidate verification', () => {
   it('rejects malformed and unsupported manifests locally', async () => {
     await expect(verifyCandidate({ ...candidate(), manifestText: '{' })).resolves.toMatchObject({ status: 'invalid_manifest' })
     const value = manifest()
-    value.registration.registry_address = '0x1111111111111111111111111111111111111111'
+    value.registration.registry_address = '0x9999999999999999999999999999999999999999'
     await expect(verifyCandidate(candidate(value))).resolves.toMatchObject({ status: 'unsupported_registry' })
     await expect(verifyCandidate({
       ...candidate(),

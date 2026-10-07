@@ -65,6 +65,8 @@ function context() {
 
 describe('Libro publication relay route', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
     dbMock.release.mockReset()

@@ -1,3 +1,4 @@
+import { registryProtocolVersion } from '@libro/core'
 import { NextResponse } from 'next/server'
 import { encodeFunctionData } from 'viem'
 import { pool } from '@/lib/db'
@@ -29,7 +30,7 @@ export async function PUT(
 
   let agentConfig
   try {
-    agentConfig = getLibroAgentServerConfig()
+    agentConfig = getLibroAgentServerConfig('libro-agent-v1')
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -42,7 +43,7 @@ export async function PUT(
 
   try {
     const { rows } = await client.query(
-      `SELECT registration_hash, finalized_at, revoked_at
+      `SELECT registry_address, registration_hash, finalized_at, revoked_at
        FROM libro_agent_registrations
        WHERE id = $1 AND "userId" = $2`,
       [registrationId, authenticatedUser.id]
@@ -53,6 +54,9 @@ export async function PUT(
     }
 
     const registration = rows[0]
+    const protocol = registryProtocolVersion(registration.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded registry')
+    agentConfig = getLibroAgentServerConfig(protocol === 'libro-v2' ? 'libro-agent-v2' : 'libro-agent-v1')
     if (!registration.finalized_at) {
       return NextResponse.json({ success: false, message: 'Agent registration is not finalized' }, { status: 400 })
     }

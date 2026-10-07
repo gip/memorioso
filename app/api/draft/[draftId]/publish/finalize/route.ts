@@ -1,3 +1,5 @@
+import { persistLocalPublicationRevision } from '@/lib/publication-revisions'
+import { registryProtocolVersion } from '@libro/core'
 import { randomUUID } from 'crypto'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
@@ -111,7 +113,7 @@ export async function PUT(
 
   let libroConfig
   try {
-    libroConfig = getLibroServerConfig()
+    libroConfig = getLibroServerConfig('libro-v1')
   } catch (error) {
     return NextResponse.json({
       success: false,
@@ -155,6 +157,7 @@ export async function PUT(
          r.transaction_hash,
          r.finalized_at,
          r."publicationId",
+         c.publication AS frozen_publication,
          d.publication_type AS "publicationType",
          (
            SELECT finalized."publicationId"
@@ -167,6 +170,7 @@ export async function PUT(
            LIMIT 1
          ) AS existing_publication_id
        FROM libro_publish_registrations r
+       INNER JOIN world_id_publish_challenges c ON c.id = r."challengeId"
        INNER JOIN drafts d ON d.id = r."draftId"
        WHERE r.id = $1 AND r."draftId" = $2 AND r."userId" = $3`,
       [registrationId, draftId, authenticatedUser.id]
@@ -177,6 +181,9 @@ export async function PUT(
     }
 
     const pending = pendingResult.rows[0]
+    const protocol = registryProtocolVersion(pending.registry_address)
+    if (!protocol) throw new Error('Untrusted recorded Libro registry')
+    libroConfig = getLibroServerConfig(protocol)
     const existingPublicationId = pending.publicationId || pending.existing_publication_id
     if (existingPublicationId) {
       return NextResponse.json({
@@ -214,7 +221,7 @@ export async function PUT(
         signalHash: pending.signal_hash,
         handleHash: pending.handle_hash,
         registryAddress: pending.registry_address,
-      }, libroConfig)
+      }, libroConfig, pending.frozen_publication)
     } catch (error) {
       if (error instanceof LibroRegistrationReceiptMismatchError) {
         return NextResponse.json({
@@ -372,8 +379,8 @@ export async function PUT(
       stage = 'write_publication'
       const articleResult = await client.query(
         `INSERT INTO publications
-          ("userId", "authorId", proof, signal, content, version, title, subtitle, date, access)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ("userId", "authorId", proof, signal, content, version, title, subtitle, date, access, access_price_usd)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING id`,
         [
           authenticatedUser.id,
@@ -388,9 +395,11 @@ export async function PUT(
           storedPublication.publication_subtitle,
           storedPublication.publication_date,
           draft.access,
+          draft.access_price_usd || null,
         ]
       )
 
+      const familyIds = await persistLocalPublicationRevision(client, String(articleResult.rows[0].id), storedPublication as import('@libro/core').LibroPublicationPayload)
       await client.query('UPDATE drafts SET status = $1 WHERE id = $2', ['published', draftId])
       await client.query(
         'UPDATE world_id_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1',
@@ -405,22 +414,23 @@ export async function PUT(
 
       await client.query(
         `INSERT INTO libro_handle_claims
-          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-         ON CONFLICT ("userId") DO NOTHING`,
+          ("userId", handle, handle_hash, session_commitment, transaction_hash, finalized_at, registry_address)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
+         ON CONFLICT ("userId", registry_address) DO NOTHING`,
         [
           authenticatedUser.id,
           storedPublication.author_handle_libro,
           registration.handle_hash,
           registration.session_commitment,
           transactionHash.toLowerCase(),
+          libroConfig.registryAddress,
         ]
       )
 
       stage = 'commit'
       await client.query('COMMIT')
       transactionOpen = false
-      revalidateTag(publicationCacheTag(String(articleResult.rows[0].id)), { expire: 0 })
+      for (const id of familyIds) revalidateTag(publicationCacheTag(id), { expire: 0 })
       revalidateTag(publicationHashCacheTag(challenge.signal_hash), { expire: 0 })
       revalidateTag(authorPublicationCountsCacheTag(draft.authorId), { expire: 0 })
       revalidateTag(latestPublicationsCacheTag, { expire: 0 })

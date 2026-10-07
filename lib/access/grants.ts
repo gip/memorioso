@@ -5,6 +5,16 @@ export const ACCESS_TOKEN_HEADER = 'x-memorioso-access-token'
 
 export const accessCookieName = (publicationId: string) => `memorioso_access_${publicationId}`
 
+export async function publicationAccessFamily(publicationId: string): Promise<{ rootId: string; ids: string[] }> {
+  const rows = (await pool.query(`SELECT publication_id::text AS id, COALESCE(root_publication_id,publication_id)::text AS root_id
+    FROM publication_policies WHERE COALESCE(root_publication_id,publication_id) =
+    (SELECT COALESCE(root_publication_id,publication_id) FROM publication_policies WHERE publication_id = $1)`, [publicationId])).rows;
+  if (rows.length) return { rootId: rows[0].root_id, ids: rows.map(row => row.id) };
+  const local = (await pool.query(`SELECT id::text, COALESCE(root_publication_id,id)::text AS root_id FROM publications
+    WHERE COALESCE(root_publication_id,id) = (SELECT COALESCE(root_publication_id,id) FROM publications WHERE id = $1)`, [publicationId])).rows;
+  return { rootId: local[0]?.root_id || publicationId, ids: local.length ? local.map(row => row.id) : [publicationId] };
+}
+
 export type AccessGrantReservation = {
   publicationId: string
   payerAddress: string
@@ -35,14 +45,15 @@ export async function findSettledGrantByToken(
   publicationId: string,
   token: string
 ): Promise<AccessGrant | null> {
+  const family = await publicationAccessFamily(publicationId)
   const client = await pool.connect()
 
   try {
     const { rows } = await client.query(
       `SELECT id, payer_address, transaction_hash
        FROM publication_access_grants
-       WHERE "publicationId" = $1 AND token_hash = $2 AND settled_at IS NOT NULL`,
-      [publicationId, hashAccessToken(token)]
+       WHERE "publicationId" = ANY($1::bigint[]) AND token_hash = $2 AND settled_at IS NOT NULL`,
+      [family.ids, hashAccessToken(token)]
     )
 
     if (rows.length === 0) return null
@@ -66,17 +77,17 @@ export async function refreshTokenForSettledPayer(
   payerAddress: string
 ): Promise<string | null> {
   const token = createAccessToken()
+  const family = await publicationAccessFamily(publicationId)
   const client = await pool.connect()
 
   try {
     const { rows } = await client.query(
       `UPDATE publication_access_grants
        SET token_hash = $3
-       WHERE "publicationId" = $1
-         AND LOWER(payer_address) = $2
-         AND settled_at IS NOT NULL
+       WHERE id = (SELECT id FROM publication_access_grants WHERE "publicationId" = ANY($1::bigint[])
+         AND LOWER(payer_address) = $2 AND settled_at IS NOT NULL ORDER BY settled_at DESC LIMIT 1)
        RETURNING id`,
-      [publicationId, payerAddress.toLowerCase(), hashAccessToken(token)]
+      [family.ids, payerAddress.toLowerCase(), hashAccessToken(token)]
     )
 
     return rows.length > 0 ? token : null

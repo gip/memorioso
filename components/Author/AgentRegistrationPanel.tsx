@@ -9,6 +9,7 @@ import {
 } from '@worldcoin/idkit'
 import { useUserOperationReceipt } from '@worldcoin/minikit-react'
 import { createLibroPublicClient } from '@libro/core'
+import { ClaimClient } from '@/components/Libro/ClaimClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,6 +20,7 @@ import type { AgentRegistrationTransaction } from '@/lib/libro/agent'
 import { useWorldIdAuth } from '@/lib/world-id/client-auth'
 
 type AgentRegistrationRow = {
+  requiresV2Authorization?: boolean
   id: string
   registration_hash: string
   controller_address: string
@@ -61,6 +63,7 @@ type TransactionResponse =
 
 export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
   const { status } = useWorldIdAuth()
+  const [claim, setClaim] = useState<{ capability: string; signal: string } | null>(null)
   const [registrations, setRegistrations] = useState<AgentRegistrationRow[]>([])
   const [canManage, setCanManage] = useState(false)
   const [agentAddress, setAgentAddress] = useState('')
@@ -113,6 +116,7 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
         }),
       })
       const response = await raw.json()
+      if (response.handleClaim) { setClaim(response.handleClaim); return }
       if (!response.success) {
         throw new Error(response.message || 'Failed to start agent registration')
       }
@@ -253,10 +257,13 @@ export function AgentRegistrationPanel({ authorId }: { authorId: string }) {
       </div>
       {message && <div className="text-xs text-muted-foreground">{message}</div>}
       <div className="space-y-2">
+        {claim && <ClaimClient local autoStart capability={claim.capability} signal={claim.signal} onComplete={() => { setClaim(null); void registerAgent() }} />}
         {registrations.map((registration) => (
           <div key={registration.id} className="flex flex-col gap-2 border p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <div className="truncate font-mono">{registration.agent_address}</div>
+              <div className="truncate font-mono">{registration.agent_address}
+            </div>
+            {registration.requiresV2Authorization && !registration.revoked_at && <p className="text-sm text-muted-foreground">Libro v1 authorization · Authorize this key again in Libro v2 to publish.</p>}
               <div className="text-muted-foreground">
                 Expires {new Date(registration.expires_at).toLocaleDateString()}
                 {registration.revoked_at ? ' · revoked' : registration.finalized_at ? ' · active' : ' · pending'}

@@ -47,6 +47,9 @@ export default defineConfig(async ({ mode }) => {
     root: import.meta.dirname,
     publicDir: resolve(import.meta.dirname, 'public'),
     define: {
+      'process.env.NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS': JSON.stringify(env.NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS || ''),
+      'process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS': JSON.stringify(env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS || ''),
+      'process.env.NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS': JSON.stringify(env.NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS || ''),
       'import.meta.env.VITE_MEMORIOSO_APP_URL': JSON.stringify(apiOrigin),
     },
     plugins: [extensionManifest(apiOrigin, outputDirectory, stage, packageJson.version)],

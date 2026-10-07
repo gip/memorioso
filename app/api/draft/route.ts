@@ -1,3 +1,4 @@
+import { getRevisionSource, PublicationRevisionError } from '@/lib/publication-revisions'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db' 
 import { getAuthenticatedUser } from '@/lib/auth-user'
@@ -20,6 +21,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Author ID must be a string" }, { status: 400 });
   }
 
+  let revisionSource: Awaited<ReturnType<typeof getRevisionSource>> | null = null;
+  if (body.previousPublicationId !== undefined && body.previousPublicationId !== null) {
+    try {
+      revisionSource = await getRevisionSource(String(body.previousPublicationId), authenticatedUser.id);
+      if (revisionSource.draft.authorId !== normalizedAuthorId || revisionSource.draft.publicationType !== publicationType) return NextResponse.json({ message: 'Revision author and type must match the source' }, { status: 400 });
+    } catch (error) { return NextResponse.json({ message: error instanceof Error ? error.message : 'Could not start revision' }, { status: error instanceof PublicationRevisionError ? error.status : 503 }); }
+  }
   const storage = parseDraftStorageFields(body);
   if (!storage.ok) {
     return NextResponse.json({ success: false, message: storage.message }, { status: 400 });
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Publication type must be short or article" }, { status: 400 });
   }
 
-  const normalizedAccess = access ?? 'public';
+  const normalizedAccess = access ?? revisionSource?.draft.access ?? 'public';
   if (!isPublicationAccess(normalizedAccess)) {
     return NextResponse.json({ success: false, message: "Access must be public or gated" }, { status: 400 });
   }
@@ -66,9 +74,9 @@ export async function POST(req: NextRequest) {
     const columns = draftStorageColumns(storage.fields);
 
     const draftResult = await client.query(
-      `INSERT INTO drafts (id, "userId", status, publication_type, title, subtitle, content, ciphertext, encryption, history, "authorId", access)
-       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *, publication_type AS "publicationType"`,
+      `INSERT INTO drafts (id, "userId", status, publication_type, title, subtitle, content, ciphertext, encryption, history, "authorId", access, previous_publication_id, access_price_usd)
+       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING *, publication_type AS "publicationType", previous_publication_id::text AS "previousPublicationId"`,
       [
         id ?? null,
         authenticatedUser.id,
@@ -82,6 +90,8 @@ export async function POST(req: NextRequest) {
         history0,
         normalizedAuthorId,
         normalizedAccess,
+        revisionSource?.previousPublicationId ?? null,
+        revisionSource?.priceUsd ?? null,
       ]
     );
 

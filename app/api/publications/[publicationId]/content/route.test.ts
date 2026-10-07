@@ -28,6 +28,7 @@ vi.mock('@/lib/access/publication-access', async (importOriginal) => ({
 
 vi.mock('@/lib/access/grants', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/access/grants')>()),
+  publicationAccessFamily: async (id: string) => ({ rootId: id, ids: [id] }),
   refreshTokenForSettledPayer: mocks.refreshTokenForSettledPayer,
   reserveAccessGrant: mocks.reserveAccessGrant,
   completeAccessGrant: mocks.completeAccessGrant,

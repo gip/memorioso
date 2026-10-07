@@ -19,6 +19,7 @@ vi.mock('./chain', async (original) => ({ ...await original<object>(),
   verifyHumanRegistration: test.verifyHuman, verifyAgentRegistration: test.verifyAgent, verifyAgentRevocation: test.verifyRevoke,
   relayRegistration: test.relay, waitForRegistration: test.wait,
 }))
+vi.mock('./handle-claims', async original => ({ ...await original<object>(), signingHandleClaim: async () => null }))
 import { pool } from './db'
 import { createHumanChallenge, getSigningChallenge } from './human-publications'
 import { finalizeSigning, prepareSigning, signingContext, recordWalletSubmission, relaySigning } from './human-signing'
@@ -48,6 +49,7 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
     process.env.LIBRO_MCP_STATE_SECRET = 'test-mcp-secret-at-least-thirty-two-bytes'
     process.env.LIBRO_SIGNING_CAPABILITY_SECRET = 'test-signing-secret-at-least-thirty-two-bytes'
     process.env.NEXT_PUBLIC_LIBRO_REGISTRY_ADDRESS = `0x${'1'.repeat(40)}`
+    process.env.NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS = `0x${'2'.repeat(40)}`
     process.env.LIBRO_WEBHOOK_DESTINATIONS = '[]'
     process.env.NEXT_PUBLIC_WORLD_ID_APP_ID = `app_${'1'.repeat(32)}`
     process.env.WORLD_ID_RP_ID = 'rp_0000000000000001'
@@ -116,10 +118,11 @@ describe.skipIf(!test.url)('Libro cutover with Postgres', () => {
   })
 
   async function challenge() {
-    const publication = { publication_schema: LIBRO_PUBLICATION_SCHEMA_V1, libro_protocol_version: LIBRO_PROTOCOL_VERSION,
+    const date = new Date().toISOString()
+    const publication = { publication_schema: 'libro-publication-v3', libro_protocol_version: 'libro-v2', publication_registry: `0x${'2'.repeat(40)}`, previous_publication:null, initially_published_at:date, revision_number:1,
       world_id_protocol_version: '4.0', world_id_proof_type: 'session', world_id_credential_policy: 'orb',
-      author_id_libro: test.identity, author_name_libro: 'Ada', author_handle_libro: 'ada', author_handle_hash_libro: hashLibroHandle('ada'),
-      author_bio_libro: '', publication_date: new Date().toISOString(), publication_title: randomUUID(), publication_subtitle: '',
+      author_reference: {namespace: principal.authorNamespace || 'https://libro.test',id: test.identity}, author_name_libro: 'Ada', author_handle_libro: 'ada', author_handle_hash_libro: hashLibroHandle('ada'),
+      author_bio_libro: '', publication_date: date, publication_title: randomUUID(), publication_subtitle: '',
       publication_content: { html: '<p>Human writing.</p>' } }
     const value = await createHumanChallenge({ principal, publication })
     const capability = new URL(value.signingUrl).pathname.split('/').pop()!

@@ -28,7 +28,7 @@ function destinations(): Destination[] {
 
 export async function enqueueServiceEvent(
   client: DatabaseClient,
-  event: { type: 'publication.finalized' | 'author.updated'; originClientId?: string | null; aggregateId: string; data: object },
+  event: { type: 'publication.finalized' | 'author.updated'; originClientId?: string | null; aggregateId: string; data: object; additionalClientIds?: string[] },
 ): Promise<string> {
   const inserted = await client.query(
     `INSERT INTO libro_service_events (event_type, origin_client_id, aggregate_id, payload)
@@ -37,7 +37,7 @@ export async function enqueueServiceEvent(
   )
   const eventId = inserted.rows[0].id as string
   const matching = destinations().filter((destination) =>
-    event.type === 'author.updated' || destination.clientId === event.originClientId
+    event.type === 'author.updated' || destination.clientId === event.originClientId || event.additionalClientIds?.includes(destination.clientId)
   )
   for (const destination of matching) {
     await client.query(

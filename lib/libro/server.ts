@@ -1,4 +1,5 @@
 import {
+  assertLibroRevisionReceipt, isV2Publication, type LibroPublicationPayload,
   LIBRO_WORLD_CHAIN_ID,
   assertLibroRegistrationReceipt,
   createLibroPublicClient,
@@ -48,7 +49,8 @@ export async function verifyLibroSignalRegistered(
 /** Verifies the exact successful registry event cited by a publication across every trusted RPC. */
 export async function verifyLibroRegistrationTransaction(
   reference: LibroRegistrationTransactionReference,
-  config: LibroServerConfig = getLibroServerConfig()
+  config: LibroServerConfig = getLibroServerConfig(),
+  publication?: LibroPublicationPayload
 ): Promise<boolean> {
   if (!/^0x[0-9a-fA-F]{64}$/.test(reference.transactionHash)) {
     throw new Error('Libro transaction hash must be a 32-byte hex string')
@@ -79,13 +81,14 @@ export async function verifyLibroRegistrationTransaction(
       }
       const receipt = await client.getTransactionReceipt({ hash: registration.transaction_hash })
       assertLibroRegistrationReceipt(registration, receipt)
+      if (publication && isV2Publication(publication)) assertLibroRevisionReceipt(publication, registration, receipt)
       return { status: 'verified' as const, detail: `Registered in block ${receipt.blockNumber}` }
     } catch (error) {
       if (error instanceof TransactionReceiptNotFoundError) {
         return { status: 'unconfirmed' as const, detail: 'Registration transaction was not found' }
       }
       const detail = error instanceof Error ? error.message.split('\n', 1)[0] : 'RPC verification failed'
-      if (detail.includes('Registration transaction') || detail.includes('Registration event')) {
+      if (detail.includes('Registration transaction') || detail.includes('Registration event') || detail.includes('Registration revision') || detail.includes('Registration commitment')) {
         return { status: 'mismatch' as const, detail }
       }
       return { status: 'unavailable' as const, detail }
@@ -129,6 +132,7 @@ export async function verifyLibroAgentDocumentRegistered(
   handleHash: string,
   config: LibroAgentServerConfig = getLibroAgentServerConfig(),
   transactionHash?: string,
+  publication?: LibroPublicationPayload,
 ): Promise<boolean> {
   const client = createLibroPublicClient(config.rpcUrls, SERVER_RPC_OPTIONS)
 
@@ -139,13 +143,15 @@ export async function verifyLibroAgentDocumentRegistered(
     args: [hexToUint256(documentSignalHash, 'document_signal_hash'), handleHash as `0x${string}`],
   })
   if (!registered || !transactionHash) return registered
-  return verifyAgentEvent(transactionHash, config, (receipt) =>
-    parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentDocumentRegistered', logs: receipt.logs, strict: true })
+  return verifyAgentEvent(transactionHash, config, (receipt) => {
+    if (publication && isV2Publication(publication)) assertLibroRevisionReceipt(publication, { chain_id: 480, registry_address: config.registryAddress, signal_hash: normalizeUint256Hex(documentSignalHash, 'signal_hash'), handle_hash: handleHash as `0x${string}`, authorship_class: 'agent', transaction_hash: transactionHash as `0x${string}` }, receipt)
+    return parseEventLogs({ abi: libroRegistryAbi, eventName: 'AgentDocumentRegistered', logs: receipt.logs, strict: true })
       .some((event) =>
         event.address.toLowerCase() === config.registryAddress.toLowerCase() &&
         event.args.documentSignalHash === hexToUint256(documentSignalHash, 'document_signal_hash') &&
         event.args.handleHash.toLowerCase() === handleHash.toLowerCase()
       )
+    }
   )
 }
 

@@ -1,3 +1,5 @@
+import { requireV2Registry } from '@libro/core'
+import { validatePublicationRevision } from './revisions'
 import {
   LIBRO_AGENT_PUBLICATION_SCHEMA_V1,
   LIBRO_AGENT_PUBLICATION_SCHEMA_V2,
@@ -40,7 +42,8 @@ function assertHumanPublication(principal: OAuthPrincipal, value: unknown): Libr
     throw new ServiceError('INVALID_PUBLICATION', error instanceof Error ? error.message : 'Publication is invalid', 400)
   }
   if (
-    publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1
+    publication.publication_schema === 'libro-agent-publication-v3'
+    || publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V1
     || publication.publication_schema === LIBRO_AGENT_PUBLICATION_SCHEMA_V2
   ) {
     throw new ServiceError('INVALID_PUBLICATION', 'Agent publications require agent-key authority', 400)
@@ -70,6 +73,7 @@ export async function createHumanChallenge(input: {
 }) {
   assertWritesEnabled()
   const publication = assertHumanPublication(input.principal, input.publication)
+  await validatePublicationRevision(publication, input.principal.authorId)
   const signalText = canonicalPublicationSignal(publication)
   const signalHash = hashPublicationSignal(signalText)
   const challengeId = randomUUID()
@@ -97,15 +101,15 @@ export async function createHumanChallenge(input: {
   const result = await pool.query(
     `INSERT INTO libro_publish_challenges
       (id, identity_id, author_id, origin_client_id, client_reference, nonce, session_commitment,
-       signal_text, signal_hash, publication, signing_capability_hash, expires_at)
+       signal_text, signal_hash, publication, signing_capability_hash, protocol_version, registry_address, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-       CURRENT_TIMESTAMP + ($12 * INTERVAL '1 second'))
+       'libro-v2', $13, CURRENT_TIMESTAMP + ($12 * INTERVAL '1 second'))
      RETURNING id`,
     [
       challengeId, input.principal.identityId, input.principal.authorId, input.principal.clientId,
       input.clientReference || null, randomHex(),
       input.principal.sessionCommitment, signalText, signalHash, publication, sha256(capability),
-      CHALLENGE_TTL_SECONDS,
+      CHALLENGE_TTL_SECONDS, requireV2Registry(),
     ],
   )
   return {

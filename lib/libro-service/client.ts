@@ -1,3 +1,4 @@
+import { buildGatedTeaser } from '@/lib/access/teaser'
 import { createLibroMcpClient, LibroMcpError } from '@libro/core'
 import { createHash } from 'node:crypto'
 import type { LibroPublicationRecord, LibroPublicationSummary } from '@libro/core'
@@ -108,7 +109,7 @@ export function serviceSummaryToPublicationInfo(summary: LibroPublicationSummary
     author_name_libro: summary.authorName,
     publication_title: summary.title,
     publication_subtitle: summary.subtitle,
-    publication_excerpt: summary.excerpt,
+    publication_excerpt: access === 'gated' ? buildGatedTeaser(summary.excerpt.replace(/&/g, '&amp;').replace(/</g, '&lt;')) : summary.excerpt,
     access,
     authorship_label: summary.authorshipClass === 'agent' ? 'Human-authorized agent' : 'Signed by a human',
     publication_type: summary.publicationType,
@@ -137,4 +138,8 @@ export async function getServiceHumanPublicationStatus(input: {
 export async function serviceUserRequest<T>(userId: number, scope: string | undefined, name: string, args: Record<string, unknown> = {}): Promise<T> {
   const token = await getLibroAccessToken(userId, scope)
   return toolRequest<T>(name, args, `Bearer ${token}`)
+}
+
+export function getServicePublicationVersions(publicationId: string): Promise<{ versions: Array<{ publicationId: string; revisionNumber: number; publicationDate: string; publicationType: 'article' | 'short'; authorshipClass: 'human' | 'agent' }> }> {
+  return toolRequest('get_publication_versions', { publicationId })
 }

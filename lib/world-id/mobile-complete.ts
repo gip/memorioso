@@ -34,6 +34,7 @@ export async function completeMobileFlow(flow: MobileFlow, origin: string): Prom
     if (!legacy && !['signing', 'agent-signing', 'handle-signing'].includes(operation.kind)) throw new Error('Unknown verification operation')
     const submit = (action: 'prepare' | 'relay' | 'finalize', args: Record<string, unknown>) => {
       if (operation.kind === 'draft') return request(`/api/draft/${encodeURIComponent(operation.draftId)}/publish/${action}`, 'PUT', args)
+      if (operation.kind === 'handle-signing' && operation.local) return request('/api/libro/handle-claim', 'POST', { ...args, capability: operation.capability, tool: `handle_signing_${action}` })
       const prefix = operation.kind === 'signing' ? 'signing' : operation.kind === 'agent-signing' ? 'agent_signing' : 'handle_signing'
       return browserMcp<{ registrationId?: string; requestId?: string; transactionHash?: string; publicationId?: string }>(
         `${prefix}_${action}`, { ...args, capability: operation.capability },

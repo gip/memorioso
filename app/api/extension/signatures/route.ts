@@ -1,3 +1,4 @@
+import { ensureLocalHandleClaim } from '@/lib/libro/handle-claim'
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
@@ -12,7 +13,7 @@ import {
   MAX_INLINE_TEXT_LENGTH,
   normalizeInlineSigningText,
 } from '@/lib/libro/inline'
-import { createLibroPublicationV2, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
+import { createLibroPublicationV3, canonicalPublicationSignal, hashPublicationSignal } from '@/lib/world-id/publication'
 import { createRpContext, getWorldIdServerConfig } from '@/lib/world-id/server'
 import { WORLD_ID_ALLOWED_CREDENTIALS, WORLD_ID_CREDENTIAL_POLICY } from '@/lib/world-id/constants'
 import { getLibroServerConfig } from '@/lib/libro/config'
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const draftId = draftResult.rows[0].id as string
     const challengeId = randomUUID()
     const publicationDate = new Date().toISOString()
-    const publication = createLibroPublicationV2({
+    const publication = createLibroPublicationV3({
       author: {
         id: author.id,
         name: author.name,
@@ -147,12 +148,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { headers: { 'Cache-Control': 'no-store' } })
     }
 
+    const claim = await ensureLocalHandleClaim({ ...session.user, handle: author.handle }, client)
+    if (claim) {
+      await client.query('COMMIT')
+      return NextResponse.json({ success: true, signingId: draftId, draftId, challengeId,
+        externalSigningUrl: `${new URL(request.url).origin}/d/${draftId}?sign=1` }, { headers: { 'Cache-Control': 'no-store' } })
+    }
     const rpContext = createRpContext(worldIdConfig!)
 
     await client.query(
       `INSERT INTO world_id_publish_challenges
-        (id, "userId", "draftId", nonce, session_commitment, signal_text, signal_hash, publication, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))`,
+        (id, "userId", "draftId", nonce, session_commitment, signal_text, signal_hash, publication, protocol_version, registry_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'libro-v2', $10, to_timestamp($9))`,
       [
         challengeId,
         session.user.id,
@@ -163,6 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         signalHash,
         publication,
         rpContext.expires_at,
+        publication.publication_registry,
       ]
     )
     await client.query('COMMIT')

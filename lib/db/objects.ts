@@ -135,10 +135,18 @@ async function mapServiceFeed(input: {
     [summaries.map((item) => item.id)],
   )
   const byId = new Map(policies.rows.map((row) => [String(row.publication_id), row.access === 'gated' ? 'gated' as const : 'public' as const]))
-  return summaries.flatMap((summary) => {
+  const items: PublicationInfo[] = []
+  for (const summary of summaries) {
     const access = byId.get(summary.id)
-    return access ? [serviceSummaryToPublicationInfo(summary, access)] : []
-  })
+    if (access) { items.push(serviceSummaryToPublicationInfo(summary, access)); continue }
+    if (!summary.revision) continue
+    const previous = (await pool.query('SELECT publication_id::text AS id, access FROM publication_policies WHERE COALESCE(root_publication_id,publication_id) = $1 ORDER BY revision_number DESC LIMIT 1', [summary.revision.rootPublicationId])).rows[0]
+    if (!previous) continue
+    const record = await getServicePublication(previous.id)
+    if (!record) continue
+    items.push(serviceSummaryToPublicationInfo({ ...summary, id: record.id, title: record.signal.publication_title, subtitle: record.signal.publication_subtitle, publicationDate: record.signal.publication_date, excerpt: extractReadableText(record.signal.publication_content.html).slice(0, 240), revision: record.revision }, previous.access))
+  }
+  return items
 }
 
 export const getAuthor = cache(async (authorId: string): Promise<Author | null> => {
@@ -310,7 +318,7 @@ export const getPublicationsByAuthor = cache(async (
     const { rows } = await client.query(
       `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
-       WHERE "authorId" = $1
+       WHERE NOT EXISTS (SELECT 1 FROM publications successor WHERE successor.previous_publication_id = publications.id) AND "authorId" = $1
          AND ($4 = 'all'
            OR ($4 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
            OR ($4 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL))
@@ -336,7 +344,7 @@ export const getAuthorPublicationCounts = cache(async (authorId: string): Promis
          COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL) AS article,
          COUNT(*) FILTER (WHERE NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL) AS short
        FROM publications
-       WHERE "authorId" = $1`,
+       WHERE NOT EXISTS (SELECT 1 FROM publications successor WHERE successor.previous_publication_id = publications.id) AND "authorId" = $1`,
       [authorId]
     )
 
@@ -360,9 +368,10 @@ export const getLatestPublications = cache(async (
     const { rows } = await client.query(
       `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
-       WHERE $3 = 'all'
+       WHERE NOT EXISTS (SELECT 1 FROM publications successor WHERE successor.previous_publication_id = publications.id)
+         AND ($3 = 'all'
           OR ($3 = 'article' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NOT NULL)
-          OR ($3 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL)
+          OR ($3 = 'short' AND NULLIF(BTRIM(signal->>'publication_title'), '') IS NULL))
        ORDER BY date DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset, type]
@@ -389,7 +398,7 @@ export const getPublicationsByUser = async (
     const { rows } = await client.query(
       `SELECT ${PUBLICATION_INFO_COLUMNS}
        FROM publications
-       WHERE "userId" = $1
+       WHERE "userId" = $1 AND NOT EXISTS (SELECT 1 FROM publications successor WHERE successor.previous_publication_id = publications.id)
        ORDER BY date DESC
        LIMIT $2 OFFSET $3`,
       [userId, limit, offset]

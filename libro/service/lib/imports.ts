@@ -1,3 +1,5 @@
+import { persistRevisionProjection } from './revisions'
+import { parseLibroRpcUrls } from '@libro/core'
 import {
   verifyLibroManifestOnChain,
   type LibroEmbedManifestV1,
@@ -18,7 +20,7 @@ export async function importPublication(input: {
   assertWritesEnabled()
   let verified
   try {
-    verified = await verifyLibroManifestOnChain(input.manifest, chainConfig().rpcUrls)
+    verified = await verifyLibroManifestOnChain(input.manifest, parseLibroRpcUrls(process.env.LIBRO_RPC_URL))
   } catch (error) {
     throw new ServiceError(
       'IMPORT_VERIFICATION_FAILED',
@@ -64,17 +66,19 @@ export async function importPublication(input: {
         publicationExcerpt(manifest.publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
+    const revision = await persistRevisionProjection(client, publicationId, manifest.publication)
     await enqueueServiceEvent(client, {
       type: 'publication.finalized',
       originClientId: input.principal.clientId,
       aggregateId: publicationId,
+      additionalClientIds: (await client.query('SELECT DISTINCT origin_client_id FROM libro_publications WHERE root_publication_id = $1', [revision.rootPublicationId])).rows.map(row => row.origin_client_id).filter(Boolean),
       data: {
         publicationId,
         signalHash: manifest.registration.signal_hash,
         authorId: input.principal.authorId,
         clientReference: input.clientReference || null,
         authorshipClass: manifest.registration.authorship_class,
-        imported: true,
+        imported: true, revision,
       },
     })
     await client.query('COMMIT')

@@ -1,3 +1,4 @@
+import { PublicationRevisions } from '@/components/PublicationRevisions'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -87,6 +88,8 @@ export async function CanonicalPublicationPage({
   ) : undefined
 
   return (
+    <>
+    <Suspense fallback={null}><PublicationRevisions publicationId={publicationId} handle={publication.author_handle_libro} /></Suspense>
     <Publication
       publication={publication}
       proof={proof}
@@ -94,6 +97,7 @@ export async function CanonicalPublicationPage({
       embedManifest={embedManifest}
       bodySlot={bodySlot}
     />
+    </>
   )
 }
 
@@ -115,11 +119,14 @@ export async function CanonicalProofPage({
     || (await resolvePublicationAccess(publicationId)).allowed
 
   return (
+    <>
+    <Suspense fallback={null}><PublicationRevisions publicationId={publicationId} handle={publication.author_handle_libro} /></Suspense>
     <Proof
       proof={proof}
       publication={publication}
       publicationId={publicationId}
       showSignal={showSignal}
     />
+    </>
   )
 }

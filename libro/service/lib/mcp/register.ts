@@ -1,3 +1,4 @@
+import { publicationVersions, publicationRevisionStatus } from '../revisions'
 import { oauthResourceMetadataUrl } from '@/lib/config'
 import { z } from 'zod'
 import { authorizationContext, authorize } from './oauth_authorization'
@@ -48,6 +49,9 @@ async function toolResult(operation: () => Promise<object>, browser: boolean) {
 }
 
 export function registerApplicationTools(server: McpServer): void {
+  server.registerTool('get_publication_versions', { description: 'List immutable versions of one publication.', inputSchema: z.object({ publicationId: z.string().min(1) }) }, args => toolResult(() => publicationVersions(args.publicationId), false))
+  server.registerTool('get_publication_revision_status', { description: 'Read the on-chain latest version and v1 provenance.', inputSchema: z.object({ publicationId: z.string().min(1) }) }, args => toolResult(() => publicationRevisionStatus(args.publicationId), false))
+
   server.registerTool('oauth_authorization_context', {
     description: 'Bind a browser OAuth request to the verified identity, redirect URI, resource, scopes, and PKCE challenge.',
     inputSchema: z.object({ query: z.string() }),

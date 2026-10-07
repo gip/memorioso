@@ -325,6 +325,9 @@
       "path": "app/api/libro/agent-document/finalize/route.ts"
     },
     {
+      "path": "app/api/libro/agent-document/prepare/route.test.ts"
+    },
+    {
       "path": "app/api/libro/agent-document/prepare/route.ts"
     },
     {
@@ -349,7 +352,13 @@
       "path": "app/api/libro/browser/[...path]/route.ts"
     },
     {
+      "path": "app/api/libro/events/route.test.ts"
+    },
+    {
       "path": "app/api/libro/events/route.ts"
+    },
+    {
+      "path": "app/api/libro/handle-claim/route.ts"
     },
     {
       "path": "app/api/libro/oauth/[operation]/route.test.ts"
@@ -368,6 +377,9 @@
     },
     {
       "path": "app/api/publications/[publicationId]/libro-manifest/route.ts"
+    },
+    {
+      "path": "app/api/publications/[publicationId]/revision/route.ts"
     },
     {
       "path": "app/api/publications/latest/route.test.ts"
@@ -661,6 +673,9 @@
       "path": "components/PublicationNotFound/index.tsx"
     },
     {
+      "path": "components/PublicationRevisions/index.tsx"
+    },
+    {
       "path": "components/PublicationTimestamp/index.tsx"
     },
     {
@@ -752,6 +767,9 @@
     },
     {
       "path": "lib/access/draft-access.ts"
+    },
+    {
+      "path": "lib/access/grants.test.ts"
     },
     {
       "path": "lib/access/grants.ts"
@@ -857,6 +875,9 @@
     },
     {
       "path": "lib/db/migrations/024_remove_openship_changes.sql"
+    },
+    {
+      "path": "lib/db/migrations/025_publication_revisions.sql"
     },
     {
       "path": "lib/db/objects.test.ts"
@@ -1000,6 +1021,9 @@
       "path": "lib/libro/finalize-client.ts"
     },
     {
+      "path": "lib/libro/handle-claim.ts"
+    },
+    {
       "path": "lib/libro/inline.ts"
     },
     {
@@ -1052,6 +1076,9 @@
     },
     {
       "path": "lib/publication-limits.ts"
+    },
+    {
+      "path": "lib/publication-revisions.ts"
     },
     {
       "path": "lib/publication-status.ts"
@@ -1210,6 +1237,12 @@
       "path": "libro/chrome-extension/src/retry.ts"
     },
     {
+      "path": "libro/chrome-extension/src/revision-status.test.ts"
+    },
+    {
+      "path": "libro/chrome-extension/src/revision-status.ts"
+    },
+    {
       "path": "libro/chrome-extension/src/rpc-settings.test.ts"
     },
     {
@@ -1267,10 +1300,22 @@
       "path": "libro/contracts/foundry.toml"
     },
     {
+      "path": "libro/contracts/script/DeployV2.s.sol"
+    },
+    {
       "path": "libro/contracts/src/LibroRegistry.sol"
     },
     {
+      "path": "libro/contracts/src/LibroRegistryV2.sol"
+    },
+    {
       "path": "libro/contracts/test/LibroRegistry.t.sol"
+    },
+    {
+      "path": "libro/contracts/test/LibroRegistryV2.t.sol"
+    },
+    {
+      "path": "libro/core/fixtures/publication-v2-vectors.json"
     },
     {
       "path": "libro/core/package.json"
@@ -1292,6 +1337,15 @@
     },
     {
       "path": "libro/core/src/mcp-client.ts"
+    },
+    {
+      "path": "libro/core/src/v2-abi.ts"
+    },
+    {
+      "path": "libro/core/src/v2.test.ts"
+    },
+    {
+      "path": "libro/core/src/v2.ts"
     },
     {
       "path": "libro/core/src/verify-chain.test.ts"
@@ -1330,7 +1384,13 @@
       "path": "libro/service/db/migrations/004_publication_feed_excerpt.sql"
     },
     {
+      "path": "libro/service/db/migrations/005_publication_revisions.sql"
+    },
+    {
       "path": "libro/service/db/schema.sql"
+    },
+    {
+      "path": "libro/service/lib/agent-documents.test.ts"
     },
     {
       "path": "libro/service/lib/agent-documents.ts"
@@ -1366,6 +1426,9 @@
       "path": "libro/service/lib/errors.ts"
     },
     {
+      "path": "libro/service/lib/events.test.ts"
+    },
+    {
       "path": "libro/service/lib/events.ts"
     },
     {
@@ -1379,6 +1442,9 @@
     },
     {
       "path": "libro/service/lib/human-publications.ts"
+    },
+    {
+      "path": "libro/service/lib/human-signing.test.ts"
     },
     {
       "path": "libro/service/lib/human-signing.ts"
@@ -1520,6 +1586,12 @@
     },
     {
       "path": "libro/service/lib/publications.ts"
+    },
+    {
+      "path": "libro/service/lib/revisions.test.ts"
+    },
+    {
+      "path": "libro/service/lib/revisions.ts"
     },
     {
       "path": "libro/service/lib/service-auth.ts"

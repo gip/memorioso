@@ -1,3 +1,4 @@
+import { revisionInfo } from './revisions'
 import {
   extractReadableText,
   parseLibroPublication,
@@ -14,8 +15,9 @@ export function publicationExcerpt(html: string): string {
   return text.length > EXCERPT_MAX ? `${text.slice(0, EXCERPT_MAX - 1).trimEnd()}…` : text
 }
 
-function record(row: Record<string, unknown>): LibroPublicationRecord {
+async function record(row: Record<string, unknown>): Promise<LibroPublicationRecord> {
   return {
+    revision: await revisionInfo(row, true),
     id: String(row.id),
     authorId: String(row.author_id),
     identityId: row.identity_id == null ? null : String(row.identity_id),
@@ -68,24 +70,27 @@ export async function listPublications(input: {
   authorId?: string
   originClientId?: string
   kind?: 'article' | 'short' | 'all'
+  includeVersions?: boolean
 }): Promise<LibroPublicationSummary[]> {
   const result = await pool.query(
-    `SELECT id, author_id, signal_hash, authorship_class, legacy_proof, modified_at,
+    `SELECT p.id, p.author_id, p.signal_hash, p.authorship_class, p.legacy_proof, p.modified_at, p.date, p.root_publication_id, p.previous_publication_id, p.initially_published_at, p.revision_number,
+       COALESCE(proof->'manifest'->'registration'->>'registry_address', proof->'libro_registration'->>'registry_address', proof->'agent_document_signature'->>'registry_address') AS registry_address,
        signal->>'publication_date' AS publication_date,
        signal->>'author_name_libro' AS author_name,
        signal->>'publication_title' AS publication_title,
        signal->>'publication_subtitle' AS publication_subtitle,
        feed_excerpt,
        CASE WHEN feed_excerpt IS NULL THEN signal->'publication_content'->>'html' END AS excerpt_html
-     FROM libro_publications
+     FROM libro_publications p
      WHERE ($3::uuid IS NULL OR author_id = $3)
-       AND ($4::text IS NULL OR origin_client_id = $4)
+       AND ($4::text IS NULL OR EXISTS (SELECT 1 FROM libro_publications member WHERE COALESCE(member.root_publication_id,member.id) = COALESCE(p.root_publication_id,p.id) AND member.origin_client_id = $4))
+       AND ($6::boolean OR NOT EXISTS (SELECT 1 FROM libro_publications successor WHERE successor.previous_publication_id = p.id))
        AND ($5 = 'all'
          OR ($5 = 'article' AND NULLIF(BTRIM(title), '') IS NOT NULL)
          OR ($5 = 'short' AND NULLIF(BTRIM(title), '') IS NULL))
      ORDER BY date DESC, id DESC
      LIMIT $1 OFFSET $2`,
-    [input.limit, input.offset, input.authorId || null, input.originClientId || null, input.kind || 'all'],
+    [input.limit, input.offset, input.authorId || null, input.originClientId || null, input.kind || 'all', input.includeVersions === true],
   )
   // Old deployments and the copy command may leave this projection empty. Fill it
   // from the exact original HTML once, without changing signed data or dates.
@@ -99,7 +104,7 @@ export async function listPublications(input: {
       [missing.map((row) => String(row.id)), missing.map((row) => row.feed_excerpt), missing.map((row) => row.signal_hash)],
     )
   }
-  return result.rows.map(summary)
+  return Promise.all(result.rows.map(async row => ({ ...summary(row), revision: await revisionInfo(row, true) })))
 }
 
 export async function getAuthor(idOrHandle: string) {

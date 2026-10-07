@@ -1,10 +1,13 @@
+import { retiredLibroWriterResponse } from '@/lib/libro-service/cutover'
+import { getPublicationVersionStatus } from '@/lib/publication-revisions'
+import { buildLibroEmbedManifest } from '@/lib/libro/embed'
 import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { getLibroAgentServerConfig } from '@/lib/libro/config'
 import {
   buildAgentPublicationSignal,
   createAgentDocumentTypedData,
-  createLibroAgentPublicationV2,
+  createLibroAgentPublicationV3,
   parseAgentPublicationPayload,
 } from '@/lib/libro/agent'
 import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/libro/author-reference'
@@ -12,6 +15,7 @@ import { getMemoriosoAuthorNamespace, getMemoriosoAuthorReference } from '@/lib/
 type AgentDocumentContextRequest = {
   registrationHash?: unknown
   publication?: unknown
+  previousPublicationId?: string
 }
 
 function randomBytes32(): `0x${string}` {
@@ -20,6 +24,7 @@ function randomBytes32(): `0x${string}` {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const retired = retiredLibroWriterResponse(); if (retired) return retired
   let agentConfig
   try {
     agentConfig = getLibroAgentServerConfig()
@@ -70,8 +75,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, message: 'Agent registration has expired' }, { status: 400 })
     }
 
+    if (registration.registry_address.toLowerCase() !== agentConfig.registryAddress) return NextResponse.json({ success: false, message: 'This v1 agent needs fresh authorization in Libro v2' }, { status: 409 })
+    let revision = {}
+    if (body?.previousPublicationId) {
+      const previous = (await client.query('SELECT * FROM publications WHERE id = $1 AND "authorId" = $2', [body.previousPublicationId, registration.authorId])).rows[0]
+      if (!previous) return NextResponse.json({ message: 'Previous publication not found' }, { status: 404 })
+      const status = await getPublicationVersionStatus(String(previous.id), client)
+      const manifest = buildLibroEmbedManifest(previous.signal, previous.proof, String(previous.id))
+      if (!status.isLatest || manifest.registration.authorship_class !== 'agent') return NextResponse.json({ message: 'Start from the latest agent version' }, { status: 409 })
+      revision = { previous_publication: { chain_id: 480, registry_address: manifest.registration.registry_address, signal_hash: manifest.registration.signal_hash }, initially_published_at: status.initiallyPublishedAt, revision_number: status.revisionNumber + 1 }
+    }
     const publicationDate = new Date().toISOString()
-    const publication = createLibroAgentPublicationV2({
+    const publication = createLibroAgentPublicationV3({
+      ...revision, publication_registry: agentConfig.registryAddress,
       author: {
         id: registration.authorId,
         name: registration.author_name,

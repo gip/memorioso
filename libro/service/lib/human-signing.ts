@@ -1,3 +1,5 @@
+import { persistRevisionProjection, validatePublicationRevision } from './revisions'
+import { isV2Publication, libroRegistryV2Abi, v2PublicationCommitment, LIBRO_AGENT_PROTOCOL_VERSION_V2 } from '@libro/core'
 import type { IDKitResultSession } from '@worldcoin/idkit'
 import { hashLibroHandle } from '@libro/core'
 import type { Hex } from 'viem'
@@ -15,7 +17,7 @@ import {
   type HumanRegistrationTransaction,
 } from './chain'
 import { deliverPendingEvents, enqueueServiceEvent } from './events'
-import { recordHandleClaim } from './handle-claims'
+import { recordHandleClaim, signingHandleClaim } from './handle-claims'
 import { publicationExcerpt } from './publications'
 
 async function authenticatedChallenge(capability: string) {
@@ -44,6 +46,11 @@ export async function signingContext(request: Request, capability: string) {
     submissionMethod: challenge.submission_method,
     publicationId: challenge.publication_id ? String(challenge.publication_id) : null,
   } }
+  if (!isV2Publication(challenge.publication)) throw new ServiceError('PROTOCOL_RETIRED', 'Restart signing to prepare a Libro v2 publication; prepared v1 transactions can still resume', 409)
+  if (isV2Publication(challenge.publication)) {
+    const claim = await signingHandleClaim({ identityId: identity.id, handle: identity.handle, clientId: challenge.origin_client_id, sessionCommitment: identity.session_commitment })
+    if (claim) return { claim }
+  }
   const context = await issueRpContext({
     request,
     purpose: 'publish',
@@ -110,6 +117,7 @@ export async function prepareSigning(capability: string, payload: unknown) {
         publicationId: existing.rows[0].publication_id ? String(existing.rows[0].publication_id) : null,
       }
     }
+    if (!isV2Publication(row.publication)) throw new ServiceError('PROTOCOL_RETIRED', 'New v1 preparation is retired; restart signing', 409)
     const context = await client.query(
       `SELECT id FROM libro_rp_contexts WHERE nonce = $1 AND purpose = 'publish'
        AND identity_id = $2 AND object_id = $3 AND expected_signal_hash = $4
@@ -120,6 +128,7 @@ export async function prepareSigning(capability: string, payload: unknown) {
     if (!context.rows[0]) throw new ServiceError('INVALID_CONTEXT', 'World ID signing context is invalid or expired', 400)
     validatePublicationResult(result, row)
     await verifyWithWorld(result)
+    if (isV2Publication(row.publication)) await validatePublicationRevision(row.publication, row.author_id, false, client)
     const handleHash = hashLibroHandle(row.handle)
     const claim = await client.query(
       `SELECT 1 FROM libro_handle_claims WHERE identity_id = $1 AND handle_hash = $2
@@ -128,6 +137,7 @@ export async function prepareSigning(capability: string, payload: unknown) {
     )
     const prepared = prepareHumanRegistration({
       result,
+      publication: row.publication,
       signalHash: row.signal_hash as Hex,
       handle: row.handle,
       handleHash,
@@ -228,6 +238,7 @@ export async function finalizeSigning(capability: string, input: {
   const registered = await verifyHumanRegistration({
     transactionHash: input.transactionHash,
     signalHash: found.signal_hash,
+    publication: found.publication,
     handleHash: found.handle_hash,
     registryAddress: found.registry_address,
   })
@@ -252,7 +263,7 @@ export async function finalizeSigning(capability: string, input: {
       ...row.proof,
       verify_response: { success: true, verifier: 'libro_onchain' },
       libro_registration: {
-        protocol_version: chainConfig().protocolVersion,
+        protocol_version: isV2Publication(row.publication) ? 'libro-v2' : 'libro-v1',
         submission_method: input.submissionMethod,
         chain_id: row.chain_id,
         registry_address: row.registry_address,
@@ -278,6 +289,7 @@ export async function finalizeSigning(capability: string, input: {
         publicationExcerpt(publication.publication_content.html)],
     )
     const publicationId = String(inserted.rows[0].id)
+    const revision = await persistRevisionProjection(client, publicationId, publication)
     await client.query(
       `UPDATE libro_human_registrations SET submission_method = $2, user_op_hash = $3,
        transaction_hash = $4, publication_id = $5, finalized_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -287,14 +299,17 @@ export async function finalizeSigning(capability: string, input: {
       identityId: row.identity_id, handle: row.publication.author_handle_libro,
       handleHash: row.handle_hash, sessionCommitment: row.session_commitment,
       transactionHash: input.transactionHash,
+      registryAddress: row.registry_address,
     })
     await client.query('UPDATE libro_publish_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1', [row.challenge_id])
     await enqueueServiceEvent(client, {
       type: 'publication.finalized',
+      additionalClientIds: (await client.query('SELECT DISTINCT origin_client_id FROM libro_publications WHERE root_publication_id = $1 AND origin_client_id IS NOT NULL', [revision.rootPublicationId])).rows.map(member => member.origin_client_id),
       originClientId: row.origin_client_id,
       aggregateId: publicationId,
       data: {
         publicationId,
+        revision,
         signalHash: row.signal_hash.toLowerCase(),
         authorId: row.author_id,
         clientReference: row.client_reference,

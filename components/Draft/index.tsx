@@ -1,5 +1,6 @@
 'use client'
 
+import { ClaimClient } from '@/components/Libro/ClaimClient'
 import { WorldIdSessionWidget } from '@/components/WorldIdSessionWidget'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
@@ -74,6 +75,7 @@ type DraftData = {
   subtitle: string
   content: PublicationContent
   authorId?: string
+  previousPublicationId?: string | null
   history?: unknown
   publicationType: PublicationKind
   access?: PublicationAccess
@@ -168,7 +170,7 @@ const PublishProgress = ({ step, status }: { step: number; status: string | null
   </Alert>
 )
 
-export const Draft = ({ draftId, initialType }: { draftId: string | null; initialType: PublicationKind | null }) => {
+export const Draft = ({ draftId, initialType, revisionSourceId, initialReview = false }: { draftId: string | null; initialType: PublicationKind | null; revisionSourceId?: string; initialReview?: boolean }) => {
   const [draft, setDraft] = useState<DraftData | null>({
     title: '',
     subtitle: '',
@@ -176,6 +178,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     publicationType: initialType || 'article',
     access: 'public',
   })
+  const loadedRevisionSource = useRef<string | null>(null)
   const [originalDraft, setOriginalDraft] = useState<DraftData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -189,6 +192,9 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   const [initialAuthorId, setInitialAuthorId] = useState<string | null>(null)
   const [publishContext, setPublishContext] = useState<PublishContext | null>(null)
   const [isWorldIdOpen, setIsWorldIdOpen] = useState(false)
+  const reviewStarted = useRef(false)
+  const [revisionReview, setRevisionReview] = useState<{ initiallyPublishedAt: string; revisionNumber: number } | null>(null)
+  const [handleClaim, setHandleClaim] = useState<{ capability: string; signal: string } | null>(null)
   const [externalSigningUrl, setExternalSigningUrl] = useState<string | null>(null)
   const [publishStatus, setPublishStatus] = useState<string | null>(null)
   const [publishStep, setPublishStep] = useState<number | null>(null)
@@ -245,7 +251,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
   // Restore anonymous work into a fresh editor. Only for /d/new: an existing
   // draft id always wins over whatever is on this device.
   useEffect(() => {
-    if (draftId) {
+    if (draftId || revisionSourceId) {
       setIsLocalRestored(true)
       return
     }
@@ -256,6 +262,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         subtitle: local.subtitle,
         content: local.content,
         publicationType: local.publicationType,
+        previousPublicationId: local.previousPublicationId,
       })
       setHasChosenType(true)
       setInitialContent(local.content.html)
@@ -264,7 +271,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       window.history.replaceState(null, '', `/d/new?type=${local.publicationType}`)
     }
     setIsLocalRestored(true)
-  }, [draftId])
+  }, [draftId, revisionSourceId])
 
   const setContent = ({ html }: { html: string }) => {
     setDraft((prevDraft) => prevDraft ? { ...prevDraft, content: { html } } as DraftData : null)
@@ -286,6 +293,22 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
     let cancelled = false
     const fetchDraft = async () => {
+      if (!draftId && revisionSourceId) {
+        if (status === 'loading' || loadedRevisionSource.current === revisionSourceId) return;
+        try {
+          const raw = await fetch(`/api/publications/${revisionSourceId}/revision`, { cache: 'no-store' });
+          const source = await raw.json();
+          if (!raw.ok) throw new Error(source.message || 'Could not start an update');
+          if (cancelled) return;
+          loadedRevisionSource.current = revisionSourceId;
+          setRevisionReview(source);
+          setDraft(source.draft); setOriginalDraft(null); setInitialContent(source.draft.content.html);
+          setInitialTitle(source.draft.title); setInitialSubtitle(source.draft.subtitle); setHasChosenType(true);
+          setInitialAuthorId(source.draft.authorId);
+        } catch (reason) { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Could not start an update'); }
+        finally { if (!cancelled) setLoading(false); }
+        return;
+      }
       if (!draftId) {
         setLoading(false)
         return
@@ -316,6 +339,13 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         setInitialSubtitle(revealed.subtitle)
         setInitialAuthorId(response.data.authorId)
         setHasChosenType(true)
+        if (revealed.previousPublicationId) {
+          try {
+            const revision = await fetch(`/api/publications/${revealed.previousPublicationId}/revision`, { cache: 'no-store' })
+            const source = await revision.json()
+            if (!cancelled && revision.ok) setRevisionReview(source)
+          } catch { /* Review metadata must not prevent opening the saved draft. */ }
+        }
       } catch (error) {
         console.error('Failed to fetch draft:', error)
         router.push('/')
@@ -328,7 +358,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     return () => {
       cancelled = true
     }
-  }, [draftId, router, draftKey, draftKeyStatus, user?.id])
+  }, [draftId, router, draftKey, draftKeyStatus, user?.id, revisionSourceId, status])
 
   const fetchAuthors = useCallback(async () => {
     const expectedUserId = user?.id ?? null
@@ -339,6 +369,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       const response = await raw.json()
       if (authorsUserIdRef.current !== expectedUserId) return
       if (raw.ok && response.success) {
+        if (response.handleClaim) { setHandleClaim(response.handleClaim); setIsEditingDisabled(false); setPublishStep(null); return }
         setAuthors(response.authors)
         setAreAuthorsLoaded(true)
       }
@@ -511,6 +542,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       if (!response) throw new Error(`Failed to start publication signing (HTTP ${raw.status})`)
 
       if (raw.ok && response.success) {
+        if (response.handleClaim) { setHandleClaim(response.handleClaim); setIsEditingDisabled(false); setPublishStep(null); return }
         if (typeof response.externalSigningUrl === 'string') {
           setExternalSigningUrl(response.externalSigningUrl)
           setPublishStep(1)
@@ -757,6 +789,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     autosaveTimer.current = setTimeout(async () => {
       if (shouldSaveLocally) {
         const stored = writeLocalDraft({
+      previousPublicationId: draft?.previousPublicationId,
           publicationType: draft?.publicationType ?? 'article',
           title: draft?.title ?? '',
           subtitle: draft?.subtitle ?? '',
@@ -772,6 +805,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
         // A rejected first save must not turn Refresh into data loss. The one
         // local slot is cleared as soon as a later account save succeeds.
         const stored = !currentDraftId && draft ? writeLocalDraft({
+      previousPublicationId: draft?.previousPublicationId,
           publicationType: draft.publicationType,
           title: draft.title,
           subtitle: draft.subtitle,
@@ -821,6 +855,11 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       })
   }, [status, draftKeyStatus, currentDraftId, draftId, isLocalRestored, hasText, isEditingDisabled, fetchAuthors, isDraftAuthorReady])
 
+  useEffect(() => {
+    if (initialReview && !reviewStarted.current && !loading && draft?.authorId && areAuthorsLoaded) {
+      reviewStarted.current = true; setIsConfirmOpen(true)
+    }
+  }, [initialReview, loading, draft?.authorId, areAuthorsLoaded])
   if (status === 'loading' || loading || !isLocalRestored) {
     return <FeedItem item={null} />
   }
@@ -835,7 +874,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
     )
   }
 
-  if (!draftId && !hasChosenType && !readLocalDraft()) {
+  if (!revisionSourceId && !draftId && !hasChosenType && !readLocalDraft()) {
     return (
       <div className="mx-auto max-w-xl py-8 text-center sm:py-16">
         <h1 className="spectral text-2xl font-semibold sm:text-3xl">What are you publishing?</h1>
@@ -885,6 +924,8 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
 
   return (
     <div className="space-y-3 pb-10 pt-2 sm:space-y-4 sm:py-4">
+      {handleClaim && <ClaimClient local autoStart capability={handleClaim.capability} signal={handleClaim.signal} onComplete={() => { setHandleClaim(null); void handlePublish() }} />}
+      {draft?.previousPublicationId && <p className="text-sm text-muted-foreground">Updating version {revisionReview ? revisionReview.revisionNumber - 1 : ''}. The previous version remains available.</p>}
       {publishContext && worldIdConstraints && (
         <WorldIdSessionWidget
           mobileOperation={{ kind: 'draft', draftId: currentDraftId!, challengeId: publishContext.challengeId, publicationKind: draft?.publicationType || 'article' }}
@@ -948,7 +989,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
               disabled={!canPublish || isEditingDisabled || isPollingRegistration}
               className="h-9 px-3 text-xs sm:h-10 sm:px-4 sm:text-sm"
             >
-              Sign &amp; publish
+              {draft?.previousPublicationId ? 'Publish update' : 'Sign & publish'}
             </Button>
           )}
           {currentDraftId && (
@@ -1007,7 +1048,7 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Sign &amp; publish</DialogTitle>
+            <DialogTitle>{draft?.previousPublicationId ? 'Publish update' : 'Sign & publish'}</DialogTitle>
             <DialogDescription>
               {draft?.publicationType === 'short'
                 ? 'A short is plain text up to 500 characters.'
@@ -1016,6 +1057,11 @@ export const Draft = ({ draftId, initialType }: { draftId: string | null; initia
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
+            {draft?.previousPublicationId && <p className="text-sm text-muted-foreground">
+              Replaces <a className="text-blurple underline" href={`/${draft.publicationType}/${draft.previousPublicationId}`}>the previous version</a>.
+              {revisionReview && <> Initially published {new Date(revisionReview.initiallyPublishedAt).toLocaleString()}.</>}
+              {' '}Update publication date: {new Date().toLocaleString()}.
+            </p>}
             <div className="space-y-1 text-sm">
               <div className="font-medium text-base">
                 {draft?.publicationType === 'short' ? 'Short' : draft?.title || 'Untitled article'}

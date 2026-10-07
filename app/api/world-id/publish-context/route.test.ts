@@ -1,3 +1,4 @@
+vi.mock('@/lib/libro/handle-claim', () => ({ ensureLocalHandleClaim: async () => null }))
 import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,6 +98,8 @@ describe('publish context route', () => {
     vi.restoreAllMocks()
   })
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V1_REGISTRY_ADDRESS', '0x1111111111111111111111111111111111111111')
+    vi.stubEnv('NEXT_PUBLIC_LIBRO_V2_REGISTRY_ADDRESS', '0x2222222222222222222222222222222222222222')
     vi.stubEnv('LIBRO_SERVICE_WRITES_ENABLED', '0')
     dbMock.connect.mockReset()
     dbMock.query.mockReset()
@@ -208,7 +211,7 @@ describe('publish context route', () => {
     expect(firstParams[0]).toBe(challengeIds.values[0])
     expect(firstParams[3]).toBe('0x123')
     expect(firstParams[4]).toBe(draftRow.world_id_session_commitment)
-    expect(firstPublication.publication_schema).toBe('libro-publication-v2')
+    expect(firstPublication.publication_schema).toBe('libro-publication-v3')
     expect(firstPublication.author_reference).toEqual({
       namespace: 'https://memorioso.xyz',
       id: draftRow.authorId,
@@ -217,7 +220,7 @@ describe('publish context route', () => {
     expect(firstPublication.world_id_proof_type).toBe('session')
     expect(firstPublication.world_id_credential_policy).toBe('orb')
     expect(firstParams[5]).not.toContain('world_id_action')
-    expect(firstParams[5]).toContain('"world_id_proof_type":"session"')
+    expect(firstParams[5]).toMatch(/^libro-publication-v2:0x[0-9a-f]{64}$/)
   })
 
   it('keeps the signed payload small for a large article body', async () => {
@@ -229,7 +232,7 @@ describe('publish context route', () => {
     expect(largeHtml.length).toBeGreaterThan(100_000)
     expect(body.signalText.length).toBeLessThan(2_000)
     expect(body.signalText).not.toContain('word')
-    expect(JSON.parse(body.signalText).content_hash).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(body.signalText).toMatch(/^libro-publication-v2:0x[0-9a-f]{64}$/)
   })
 
   it('accepts an empty title while keeping it in the signed payload', async () => {
@@ -244,7 +247,7 @@ describe('publish context route', () => {
     const response = await publish({ title: '', subtitle: '' })
     expect(response.status).toBe(200)
     const insert = dbMock.query.mock.calls.find(([query]) => String(query).includes('INSERT INTO world_id_publish_challenges'))
-    expect((insert?.[1] as unknown[])[5]).toContain('"publication_title":""')
+    expect((insert?.[1] as unknown[])[7]).toMatchObject({ publication_title: '' })
   })
 
   it('rejects an article without a readable body', async () => {

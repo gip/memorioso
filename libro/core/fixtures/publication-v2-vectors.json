@@ -1,0 +1,88 @@
+[
+  {
+    "publication": {
+      "publication_schema": "libro-publication-v3",
+      "libro_protocol_version": "libro-v2",
+      "world_id_protocol_version": "4.0",
+      "world_id_proof_type": "session",
+      "world_id_credential_policy": "orb",
+      "author_name_libro": "Ada",
+      "author_handle_libro": "ada",
+      "author_handle_hash_libro": "0x24594aaefd000e9143d29865ad2d4b1f7dd92f11bfe9f1700101dc459f655501",
+      "author_bio_libro": "",
+      "publication_title": "A human article",
+      "publication_subtitle": "",
+      "publication_content": {
+        "html": "<p>Hello human world.</p>"
+      },
+      "publication_date": "2026-07-21T12:00:00.000Z",
+      "initially_published_at": "2026-07-21T12:00:00.000Z",
+      "revision_number": 1,
+      "previous_publication": null,
+      "publication_registry": "0x2222222222222222222222222222222222222222"
+    },
+    "payloadHash": "0x86ebc0121530d398629772c2e276d4fdbe0a2e9cae314daceebfde90ac4093e9",
+    "signal": "libro-publication-v2:0x7a39d733fc66caa6bfa0d77cdc270cef5d5a012202745e87ec9076ec19ace227",
+    "signalHash": "0x005dfdc39ed9369a118e0704172346dc017015ac300c5ff3ea8ca20103712b7c"
+  },
+  {
+    "publication": {
+      "publication_schema": "libro-publication-v3",
+      "libro_protocol_version": "libro-v2",
+      "world_id_protocol_version": "4.0",
+      "world_id_proof_type": "session",
+      "world_id_credential_policy": "orb",
+      "author_name_libro": "Ada",
+      "author_handle_libro": "ada",
+      "author_handle_hash_libro": "0x24594aaefd000e9143d29865ad2d4b1f7dd92f11bfe9f1700101dc459f655501",
+      "author_bio_libro": "",
+      "publication_title": "A human article",
+      "publication_subtitle": "",
+      "publication_content": {
+        "html": "<p>Hello human world.</p>"
+      },
+      "publication_date": "2026-07-22T12:00:00.000Z",
+      "initially_published_at": "2026-07-21T12:00:00.000Z",
+      "revision_number": 2,
+      "previous_publication": {
+        "chain_id": 480,
+        "registry_address": "0x1111111111111111111111111111111111111111",
+        "signal_hash": "0x0000000000000000000000000000000000000000000000000000000000000457"
+      },
+      "publication_registry": "0x2222222222222222222222222222222222222222"
+    },
+    "payloadHash": "0xaa088e40a384e7f3baee24b51efe8f1bac7d55f1fa694d1c5ebd5d97ce046fc6",
+    "signal": "libro-publication-v2:0x01fc65fdf0fc82ba42689c3da5b396e4350c3d1000bf40a63f2f2b990888694c",
+    "signalHash": "0x00f051e5c18d515d62c2a34ffc2a20c4df512db9325712789afd3a22b13b454f"
+  },
+  {
+    "publication": {
+      "publication_schema": "libro-agent-publication-v3",
+      "author_name_libro": "Ada",
+      "author_handle_libro": "ada",
+      "author_handle_hash_libro": "0x24594aaefd000e9143d29865ad2d4b1f7dd92f11bfe9f1700101dc459f655501",
+      "author_bio_libro": "",
+      "publication_title": "A human article",
+      "publication_subtitle": "",
+      "publication_content": {
+        "html": "<p>Hello human world.</p>"
+      },
+      "publication_date": "2026-07-22T12:00:00.000Z",
+      "initially_published_at": "2026-07-21T12:00:00.000Z",
+      "revision_number": 2,
+      "previous_publication": {
+        "chain_id": 480,
+        "registry_address": "0x2222222222222222222222222222222222222222",
+        "signal_hash": "0x00000000000000000000000000000000000000000000000000000000000004bc"
+      },
+      "publication_registry": "0x2222222222222222222222222222222222222222",
+      "libro_agent_protocol_version": "libro-agent-v2",
+      "authorship_claim": "human_authorized_agent",
+      "agent_address": "0x3333333333333333333333333333333333333333",
+      "agent_registration_hash": "0x4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "payloadHash": "0xd2c559a2ef0ec3925a153ec12f5047fc8dc1aaf184bdc4f0dca7dca4f2e42fe0",
+    "signal": "libro-publication-v2:0xc43a62c5b63adb4122f4b266e70e8d7c4f4437f93535ca06db7ddd9750de6651",
+    "signalHash": "0x00e5fd26a99320b6d292d788e8e65ed3203b4508f35846bc85b2338c8ac970bc"
+  }
+]
